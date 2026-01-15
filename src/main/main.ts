@@ -36,7 +36,7 @@ function createWindows() {
     webPreferences: {
       preload: path.join(__dirname, 'preload-game.js'), // Use .js extension (implies CJS now)
       nodeIntegration: false,
-      contextIsolation: false, // Often needed for robust DOM manipulation in background, or keep true with IPC
+      contextIsolation: false, // Often needed for robust DOM manipulation in background
     },
   })
 
@@ -58,16 +58,31 @@ function createWindows() {
   // --- Window Open Handler (Shared or Specific) ---
   const handleWindowOpen = ({ url }: { url: string }) => {
     console.log('[Main] Window Open Request:', url); // Debug Log
-    const isLoginUrl = url.includes('login') || url.includes('oauth') || url.includes('auth') || url.includes('nid.naver.com');
-    if (isLoginUrl) {
-      console.log('[Main] Allowed Login Popup:', url);
+
+    const allowedDomains = [
+      'accounts.kakao.com',
+      'logins.daum.net',
+      'kauth.kakao.com',
+      'pubsvc.game.daum.net', // Launcher / Game Start
+      'security-center.game.daum.net' // PC Security Check
+    ];
+
+    const isAllowed = allowedDomains.some(domain => url.includes(domain)) || url.includes('gamestart');
+    
+    if (isAllowed) {
+      console.log(`[Main] Allowed Popup: ${url}`);
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
           width: 800,
           height: 600,
           autoHideMenuBar: true,
-          webPreferences: { nodeIntegration: false, contextIsolation: true }
+          show: true, // Force visible even if parent is hidden
+          webPreferences: { 
+            nodeIntegration: false, 
+            contextIsolation: false, // Match parent window settings for ease of DOM access (or keep true if using contextBridge)
+            preload: path.join(__dirname, 'preload-game.js') // Inject the same preload script
+          }
         }
       } as const
     }
@@ -94,6 +109,19 @@ ipcMain.on('trigger-game-start', () => {
         console.error('[Main] Game Window is null!');
     }
 })
+
+// Global Listener for New Windows (Popups) to enable DevTools
+app.on('browser-window-created', (_, window) => {
+    const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === 'true';
+    if (showGameWindow) {
+        // Open DevTools for any new window (including popups)
+        window.webContents.openDevTools({ mode: 'detach' });
+        console.log('[Main] DevTools opened for new window');
+        
+        // Optional: Remove menu bar for cleaner popups
+        window.setMenuBarVisibility(false);
+    }
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
