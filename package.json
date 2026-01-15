@@ -2,7 +2,13 @@
   "name": "poe2-unofficial-launcher",
   "private": true,
   "version": "0.0.1",
-  "description": "Unofficial Launcher for Path of Exile 2 (Kakao)",
+  "description": "Unofficial Launcher for Path of Exile & Path of Exile 2",
+  "author": "NERDHEAD LAB",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher.git"
+  },
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
