@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.DIST = path.join(__dirname, '../dist')
@@ -55,8 +57,10 @@ function createWindows() {
 
   // --- Window Open Handler (Shared or Specific) ---
   const handleWindowOpen = ({ url }: { url: string }) => {
+    console.log('[Main] Window Open Request:', url); // Debug Log
     const isLoginUrl = url.includes('login') || url.includes('oauth') || url.includes('auth') || url.includes('nid.naver.com');
     if (isLoginUrl) {
+      console.log('[Main] Allowed Login Popup:', url);
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -67,6 +71,7 @@ function createWindows() {
         }
       } as const
     }
+    console.warn('[Main] Blocked Popup:', url);
     return { action: 'deny' } as const
   }
 
