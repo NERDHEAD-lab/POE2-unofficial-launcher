@@ -47,6 +47,12 @@ function createWindows() {
     mainWindow.loadFile(path.join(process.env.DIST as string, 'index.html'))
   }
 
+  // Ensure app quits when main UI window is closed
+  mainWindow.on('closed', () => {
+      mainWindow = null;
+      app.quit();
+  });
+
   // --- Game Window Loading ---
   gameWindow.loadURL('https://pathofexile2.game.daum.net/main')
   
