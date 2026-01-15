@@ -53,21 +53,48 @@ function executeGameStart() {
         return;
     }
 
-    // 3. Fallback: Search for Launcher Game Start Buttons (if redirected to launcher page)
+    // 3. Fallback: Search for Launcher Game Start Buttons
     for (const selector of SELECTORS.LAUNCHER.GAME_START_BUTTONS) {
         const btn = document.querySelector(selector);
         if (safeClick(btn as HTMLElement)) {
-             console.log(`[Game Window] Clicked Launcher Button: ${selector}`);
+             console.log(`[Game Window] Clicked Launcher Button via Selector: ${selector}`);
              return;
         }
     }
 
-    console.warn('[Game Window] No Game Start Button found');
+    // 4. Fallback: Search by Text Content (Most Robust)
+    const allButtons = Array.from(document.querySelectorAll('a, button, span, div.btn_start'));
+    const textBtn = allButtons.find(el => {
+        const text = (el as HTMLElement).innerText?.trim();
+        return text === '게임시작' || text === 'GAME START' || text === 'Game Start';
+    });
+
+    if (safeClick(textBtn as HTMLElement)) {
+        console.log(`[Game Window] Clicked Button via Text Content: "${(textBtn as HTMLElement).innerText}"`);
+        return;
+    }
+
+    console.warn('[Game Window] No Game Start Button found (Checked Selectors & Text)');
+    // alert('Game Start Button Not Found!');
 }
 
 // Listen for commands from Main Process
 ipcRenderer.on('execute-game-start', () => {
+    console.log('[Game Window] IPC "execute-game-start" RECEIVED!');
+    // alert('IPC Received: execute-game-start'); // Visual confirmation
     executeGameStart();
 });
 
-console.log('[Game Window] Preload Loaded');
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Game Window] DOMContentLoaded');
+    // Visual Debugging: Red Border
+    document.body.style.border = '5px solid red';
+    
+    // Auto-check for buttons on load
+    setTimeout(() => {
+        const startBtn = document.querySelector(SELECTORS.POE2.BTN_GAME_START);
+        console.log(`[Game Window] Check on Load - Start Button found? ${!!startBtn}`);
+    }, 2000);
+});
+
+console.log('[Game Window] Preload Loaded Successfully');

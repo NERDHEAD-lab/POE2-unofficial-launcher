@@ -32,7 +32,7 @@ function createWindows() {
     x: showGameWindow ? 650 : undefined, // Offset if visible for easier debugging
     y: showGameWindow ? 0 : undefined,
     webPreferences: {
-      preload: path.join(__dirname, 'preload-game.js'), // Use separate preload
+      preload: path.join(__dirname, 'preload-game.js'), // Use .js extension (implies CJS now)
       nodeIntegration: false,
       contextIsolation: false, // Often needed for robust DOM manipulation in background, or keep true with IPC
     },
@@ -81,9 +81,12 @@ function createWindows() {
 
 // IPC Handler: UI -> Main -> Game Window
 ipcMain.on('trigger-game-start', () => {
-    console.log('[Main] Triggering Game Start on Game Window');
+    console.log('[Main] IPC "trigger-game-start" Received from Renderer');
     if (gameWindow) {
+        console.log('[Main] Sending "execute-game-start" to Game Window...');
         gameWindow.webContents.send('execute-game-start');
+    } else {
+        console.error('[Main] Game Window is null!');
     }
 })
 
