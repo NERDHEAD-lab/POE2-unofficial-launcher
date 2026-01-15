@@ -7,6 +7,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:test": "cross-env VITE_SHOW_GAME_WINDOW=true vite",
     "build": "tsc && vite build && electron-builder",
     "package": "electron-builder",
     "lint": "eslint src --ext .ts,.tsx",
@@ -21,11 +22,13 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/chrome": "^0.1.33",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",

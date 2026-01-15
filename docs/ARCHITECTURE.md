@@ -6,9 +6,9 @@
 
 - **목적**: Kakao Games Path of Exile 2용 비공식 런처.
 - **주요 기능**:
-    - 깔끔하고 현대적인 UI 제공.
-    - 로그인 창(새 탭/팝업)의 유연한 처리.
-    - 불필요한 광고 및 외부 팝업 차단.
+  - 깔끔하고 현대적인 UI 제공.
+  - 로그인 창(새 탭/팝업)의 유연한 처리.
+  - 불필요한 광고 및 외부 팝업 차단.
 
 ### Tech Stack
 
@@ -33,7 +33,8 @@
 ├── src/
 │   ├── main/           # Electron Main Process
 │   │   ├── main.ts     # Entry Point
-│   │   └── preload.ts  # Preload Script
+│   │   ├── preload.ts  # Main Window Preload
+│   │   └── preload-game.ts # Game Window Preload
 │   ├── renderer/       # React UI (Vite Root)
 │   │   ├── App.tsx
 │   │   └── main.tsx
@@ -48,16 +49,18 @@
 
 - **Language**: 한국어 주석 및 커밋 메시지 권장 (UI 텍스트 포함).
 - **Naming**:
-    - React Component: `PascalCase.tsx`
-    - Logic/Utils: `camelCase.ts`
+  - React Component: `PascalCase.tsx`
+  - Logic/Utils: `camelCase.ts`
 - **Linting**: ESLint + Prettier (Strict 모드 권장)
 
 ## 4. Architecture Decision Records (ADR)
 
 ### ADR-001: Vite + Electron Integration
+
 - **Context**: 최신 프론트엔드 개발 경험과 Electron의 결합 필요.
 - **Decision**: `vite-plugin-electron`을 사용하여 Main/Renderer 프로세스를 통합 빌드하고 HMR을 지원함.
 
 ### ADR-002: Window Management Strategy
+
 - **Context**: POE2 홈페이지는 로그인 시 팝업을 사용함.
 - **Decision**: `setWindowOpenHandler`를 사용하여 로그인 관련 URL은 허용하고, 그 외 광고성 팝업은 차단(`action: 'deny'`)하거나 백그라운드에서 처리함.

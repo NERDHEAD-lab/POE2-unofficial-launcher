@@ -1,26 +1,32 @@
 import { defineConfig } from 'vite'
 import path from 'node:path'
-import electron from 'vite-plugin-electron/simple'
+import electron from 'vite-plugin-electron'
+import renderer from 'vite-plugin-electron-renderer'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    electron({
-      main: {
-        // Shortcut of `build.lib.entry`.
+    electron([
+      {
+        // Main-Process entry file of the Electron App.
         entry: 'src/main/main.ts',
       },
-      preload: {
-        // Shortcut of `build.rollupOptions.input`.
-        // Preload scripts may be needed in the future
-        input: 'src/main/preload.ts',
+      {
+        entry: 'src/main/preload.ts',
+        onstart(options) {
+          options.reload()
+        },
       },
-      // Ployfill the Electron and Node.js built-in modules for Renderer process.
-      // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
-      renderer: {},
-    }),
+      {
+        entry: 'src/main/preload-game.ts',
+        onstart(options) {
+          options.reload()
+        },
+      },
+    ]),
+    renderer(),
   ],
   resolve: {
     alias: {
