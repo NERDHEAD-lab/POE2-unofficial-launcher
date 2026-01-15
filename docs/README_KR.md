@@ -32,8 +32,8 @@ Electron 기반의 커스텀 런처로, **패스 오브 엑자일** 및 **패스
 # 리포지토리 클론
 git clone https://github.com/NERDHEAD-lab/POE2-unofficial-launcher.git
 
-# 의존성 설치
-npm install
+# 의존성 설치 및 환경 설정
+npm run setup
 ```
 
 ### 로컬 실행

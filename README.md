@@ -32,8 +32,8 @@ An Electron-based custom launcher designed to automate the launch process for **
 # Clone the repository
 git clone https://github.com/NERDHEAD-lab/POE2-unofficial-launcher.git
 
-# Install dependencies
-npm install
+# Install dependencies & Setup environment
+npm run setup
 ```
 
 ### Running Locally
