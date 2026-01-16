@@ -1,38 +1,38 @@
 {
-    "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-    "release-type": "node",
-    "include-v-in-tag": false,
-    "packages": {
-        ".": {
-            "release-type": "node",
-            "changelog-path": "CHANGELOG.md",
-            "changelog-sections": [
-                {
-                    "type": "feat",
-                    "section": "Features"
-                },
-                {
-                    "type": "fix",
-                    "section": "Bug Fixes"
-                },
-                {
-                    "type": "refactor",
-                    "section": "Code Refactoring"
-                },
-                {
-                    "type": "perf",
-                    "section": "Performance Improvements"
-                },
-                {
-                    "type": "docs",
-                    "section": "Documentation"
-                },
-                {
-                    "type": "chore",
-                    "section": "Chores",
-                    "hidden": true
-                }
-            ]
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-v-in-tag": false,
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "Features"
+        },
+        {
+          "type": "fix",
+          "section": "Bug Fixes"
+        },
+        {
+          "type": "refactor",
+          "section": "Code Refactoring"
+        },
+        {
+          "type": "perf",
+          "section": "Performance Improvements"
+        },
+        {
+          "type": "docs",
+          "section": "Documentation"
+        },
+        {
+          "type": "chore",
+          "section": "Chores",
+          "hidden": true
         }
+      ]
     }
+  }
 }

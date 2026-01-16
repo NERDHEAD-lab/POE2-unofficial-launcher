@@ -1,9 +1,9 @@
 export interface ElectronAPI {
-  triggerGameStart: () => void
+  triggerGameStart: () => void;
 }
 
 declare global {
   interface Window {
-    electronAPI: ElectronAPI
+    electronAPI: ElectronAPI;
   }
 }

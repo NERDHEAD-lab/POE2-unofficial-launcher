@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite'
-import path from 'node:path'
-import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import path from "node:path";
+import electron from "vite-plugin-electron";
+import renderer from "vite-plugin-electron-renderer";
+import react from "@vitejs/plugin-react";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -11,18 +11,18 @@ export default defineConfig({
     electron([
       {
         // Main-Process entry file of the Electron App.
-        entry: 'src/main/main.ts',
+        entry: "src/main/main.ts",
       },
       {
-        entry: 'src/main/preload.ts',
+        entry: "src/main/preload.ts",
         onstart(options) {
-          options.reload()
+          options.reload();
         },
       },
       {
-        entry: 'src/main/preload-game.ts',
+        entry: "src/main/preload-game.ts",
         onstart(options) {
-          options.reload()
+          options.reload();
         },
       },
     ]),
@@ -30,7 +30,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      "@": path.resolve(__dirname, "src"),
     },
   },
-})
+});
