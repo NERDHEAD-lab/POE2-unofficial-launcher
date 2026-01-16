@@ -17,6 +17,7 @@
     "build": "tsc && vite build && electron-builder",
     "package": "electron-builder",
     "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "prepare": "husky"
   },

@@ -1,5 +1,4 @@
 import js from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
 import prettier from "eslint-config-prettier";
 import importPlugin from "eslint-plugin-import";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -13,7 +12,7 @@ export default [
   {
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
-      parser: tsParser,
+      parser: tseslint.parser,
       ecmaVersion: 2020,
       sourceType: "module",
       globals: {
