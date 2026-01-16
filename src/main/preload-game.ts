@@ -11,7 +11,6 @@ const SELECTORS = {
   },
   LAUNCHER: {
     GAME_START_BUTTONS: [
-      "#gameStart",
       ".btn-start-game",
       "span.btn_g",
       ".popup__link--confirm",

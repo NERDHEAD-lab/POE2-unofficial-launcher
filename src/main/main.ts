@@ -32,7 +32,7 @@ function createWindows() {
   gameWindow = new BrowserWindow({
     width: 1280,
     height: 900,
-    show: showGameWindow, // Controlled by Env Var
+    show: false, // Initially hidden. Shown only on 'trigger-game-start'
     x: showGameWindow ? 650 : undefined, // Offset if visible for easier debugging
     y: showGameWindow ? 0 : undefined,
     webPreferences: {
@@ -40,6 +40,11 @@ function createWindows() {
       nodeIntegration: false,
       contextIsolation: false, // Often needed for robust DOM manipulation in background
     },
+  });
+
+  gameWindow.on("closed", () => {
+    console.log("[Main] Game Window Closed");
+    gameWindow = null;
   });
 
   // --- Main Window Loading ---
@@ -56,13 +61,12 @@ function createWindows() {
   });
 
   // --- Game Window Loading ---
-  gameWindow.loadURL("https://pathofexile2.game.daum.net/main");
+  // Initial State: Hidden and Blank.
+  // It will be shown and loaded only when 'trigger-game-start' IPC is received.
 
+  // Optional: Open DevTools if configured, but kept hidden until triggered
   if (showGameWindow) {
     gameWindow.webContents.openDevTools({ mode: "detach" });
-    console.log(
-      "[Main] Debug Mode: Game Window is Visible and DevTools opened.",
-    );
   }
 
   // --- Window Open Handler (Shared or Specific) ---
@@ -115,10 +119,34 @@ function createWindows() {
 ipcMain.on("trigger-game-start", () => {
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
   if (gameWindow) {
-    console.log('[Main] Sending "execute-game-start" to Game Window...');
-    gameWindow.webContents.send("execute-game-start");
+    if (gameWindow.isDestroyed()) {
+      console.error(
+        "[Main] Game Window has been destroyed! Please restart the app.",
+      );
+      // Use safe notification if possible, or just log for now
+      return;
+    }
+
+    console.log("[Main] Showing Game Window and Loading URL...");
+
+    // 1. Show the window
+    gameWindow.show();
+
+    // 2. Load the URL
+    const targetUrl = "https://pathofexile2.game.daum.net/main";
+    gameWindow.loadURL(targetUrl);
+
+    // 3. Wait for load to finish, then trigger automation
+    gameWindow.webContents.once("did-finish-load", () => {
+      console.log('[Main] Game Window Loaded. Sending "execute-game-start"...');
+
+      // Double check before sending
+      if (gameWindow && !gameWindow.isDestroyed()) {
+        gameWindow.webContents.send("execute-game-start");
+      }
+    });
   } else {
-    console.error("[Main] Game Window is null!");
+    console.error("[Main] Game Window is null! (Closed by user?)");
   }
 });
 
