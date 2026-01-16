@@ -70,43 +70,6 @@ function createWindows() {
     gameWindow.webContents.openDevTools({ mode: "detach" });
   }
 
-  // --- Window Open Handler (Shared or Specific) ---
-  const handleWindowOpen = ({ url }: { url: string }) => {
-    console.log("[Main] Window Open Request:", url); // Debug Log
-
-    const allowedDomains = [
-      "accounts.kakao.com",
-      "logins.daum.net",
-      "kauth.kakao.com",
-      "pubsvc.game.daum.net", // Launcher / Game Start
-      "security-center.game.daum.net", // PC Security Check
-    ];
-
-    const isAllowed =
-      allowedDomains.some((domain) => url.includes(domain)) ||
-      url.includes("gamestart");
-
-    if (isAllowed) {
-      console.log(`[Main] Allowed Popup: ${url}`);
-      return {
-        action: "allow",
-        overrideBrowserWindowOptions: {
-          width: 800,
-          height: 600,
-          autoHideMenuBar: true,
-          show: true, // Force visible even if parent is hidden
-          webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: false, // Match parent window settings for ease of DOM access (or keep true if using contextBridge)
-            preload: path.join(__dirname, "preload-game.js"), // Inject the same preload script
-          },
-        },
-      } as const;
-    }
-    console.warn("[Main] Blocked Popup:", url);
-    return { action: "deny" } as const;
-  };
-
   mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
   gameWindow.webContents.setWindowOpenHandler(handleWindowOpen);
 
@@ -116,6 +79,34 @@ function createWindows() {
   });
 }
 
+// --- Shared Window Open Handler ---
+const handleWindowOpen = ({ url }: { url: string }) => {
+  console.log(`[Main] Window Open Request: ${url}`);
+
+  // User Logic: Only 'accounts.kakao.com' should be visible strictly.
+  // Other popups (e.g. security checks) should generally be hidden unless in debug mode.
+  const isKakaoLogin = url.includes("accounts.kakao.com");
+  const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+
+  const shouldShow = isKakaoLogin || isDebug;
+
+  // Always allow, but control visibility
+  return {
+    action: "allow",
+    overrideBrowserWindowOptions: {
+      width: 800,
+      height: 600,
+      autoHideMenuBar: true,
+      show: shouldShow,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: false,
+        preload: path.join(__dirname, "preload-game.js"),
+      },
+    },
+  } as const;
+};
+
 // IPC Handler: UI -> Main -> Game Window
 ipcMain.on("trigger-game-start", () => {
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
@@ -124,14 +115,15 @@ ipcMain.on("trigger-game-start", () => {
       console.error(
         "[Main] Game Window has been destroyed! Please restart the app.",
       );
-      // Use safe notification if possible, or just log for now
       return;
     }
 
     console.log("[Main] Showing Game Window and Loading URL...");
 
-    // 1. Show the window
-    gameWindow.show();
+    // 1. Show the window (Only if VITE_SHOW_GAME_WINDOW is true)
+    if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
+      gameWindow.show();
+    }
 
     // 2. Load the URL
     const targetUrl = "https://pathofexile2.game.daum.net/main";
@@ -151,15 +143,44 @@ ipcMain.on("trigger-game-start", () => {
   }
 });
 
-// Global Listener for New Windows (Popups) to enable DevTools
+// Global Listener for New Windows (Popups)
 app.on("browser-window-created", (_, window) => {
+  // 1. Enable recursive popup handling
+  window.webContents.setWindowOpenHandler(handleWindowOpen);
+
+  // 2. Monitor Navigation for dynamic visibility
+  const checkAndShow = () => {
+    // CRITICAL: Do not hide the Main UI Window!
+    if (window === mainWindow) return;
+
+    const url = window.webContents.getURL();
+    const isKakaoLogin = url.includes("accounts.kakao.com");
+    const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+
+    // Scenario A: Login page detected -> Show window
+    if (isKakaoLogin) {
+      if (!window.isVisible()) {
+        console.log(`[Main] Login Page Detected. Showing window: ${url}`);
+        window.show();
+      }
+    }
+    // Scenario B: Navigated AWAY from login -> Hide window (unless debug)
+    else {
+      if (window.isVisible() && !isDebug) {
+        console.log(`[Main] Non-Login Page Detected. Hiding window: ${url}`);
+        window.hide();
+      }
+    }
+  };
+
+  window.webContents.on("did-navigate", checkAndShow);
+  window.webContents.on("did-finish-load", checkAndShow);
+
+  // 3. Debugging Support
   const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
   if (showGameWindow) {
-    // Open DevTools for any new window (including popups)
     window.webContents.openDevTools({ mode: "detach" });
     console.log("[Main] DevTools opened for new window");
-
-    // Optional: Remove menu bar for cleaner popups
     window.setMenuBarVisibility(false);
   }
 });
