@@ -12,8 +12,8 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "setup": "node -e \"if(!require('fs').existsSync('node_modules')) { require('child_process').execSync('npm install', {stdio: 'inherit'}) }\"",
-    "dev": "vite",
-    "dev:test": "cross-env VITE_SHOW_GAME_WINDOW=true vite",
+    "dev": "chcp 65001 && vite",
+    "dev:test": "chcp 65001 && cross-env VITE_SHOW_GAME_WINDOW=true vite",
     "build": "tsc && vite build && electron-builder",
     "package": "electron-builder",
     "lint": "eslint src",
