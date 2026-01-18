@@ -27,10 +27,20 @@ function App() {
   );
   // Shared Theme Cache State (from Electron Store)
   const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
+  const [progressMessage, setProgressMessage] = useState("");
 
   const isFirstMount = useRef(true);
 
   // Synchronize Settings from Main Process (Reactive)
+  useEffect(() => {
+    if (window.electronAPI) {
+      // ... existing config load code ... (omitted for brevity, assume keep existing)
+      // I need to be careful with replace_file_content to not wipe out existing logic if I don't see it.
+      // Better to use 'replace' on specific blocks.
+      // But I need to add useEffect logic.
+    }
+  }, []);
+
   useEffect(() => {
     if (window.electronAPI) {
       // 1. Initial Load
@@ -69,6 +79,13 @@ function App() {
           );
         }
       });
+
+      // 3. Game Progress Messages
+      if (window.electronAPI.onProgressMessage) {
+        window.electronAPI.onProgressMessage((text: string) => {
+          setProgressMessage(text);
+        });
+      }
     }
   }, []);
 
@@ -236,6 +253,26 @@ function App() {
               />
             </div>
             <GameStartButton onClick={handleGameStart} />
+
+            {/* Progress Info Message */}
+            <div
+              style={{
+                height: "20px",
+                marginTop: "2px",
+                marginBottom: "2px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--theme-accent)",
+                fontSize: "13px",
+                fontWeight: 500,
+                textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                opacity: progressMessage ? 1 : 0,
+                transition: "opacity 0.3s ease-in-out",
+              }}
+            >
+              {progressMessage || " "}
+            </div>
 
             {/* Company Logos */}
             <div className="company-logos">

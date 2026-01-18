@@ -18,4 +18,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       callback(key, value),
     );
   },
+  onProgressMessage: (callback: (text: string) => void) => {
+    ipcRenderer.on("message-progress", (_event, text) => callback(text));
+  },
 });

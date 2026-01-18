@@ -272,6 +272,10 @@ const SecurityCenterHandler = {
   match: (url: URL) => url.hostname === "security-center.game.daum.net",
   execute: () => {
     console.log("[Handler] SecurityCenterHandler Logic Started");
+    ipcRenderer.send(
+      "game-progress-update",
+      "지정 PC 확인 절차를 진행중입니다.",
+    );
     observeAndInteract((obs) => {
       // 1. Precise Attribute Selector (From User Screenshot)
       if (
@@ -325,6 +329,10 @@ const LauncherCompletionHandler = {
     url.pathname.includes("/completed.html"),
   execute: () => {
     console.log("[Handler] LauncherCompletionHandler matched. Game Launched.");
+    ipcRenderer.send(
+      "game-progress-update",
+      "게임실행 준비가 완료되었습니다! 잠시후 실행됩니다",
+    );
     observeAndInteract((obs) => {
       // Strict Selectors Only - No Text Search
       for (const sel of SELECTORS.LAUNCHER.GAME_START_BUTTONS) {

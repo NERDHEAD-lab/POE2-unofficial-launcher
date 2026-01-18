@@ -5,12 +5,18 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
 import { CleanupPoe2WindowHandler } from "./events/handlers/CleanupPoe2WindowHandler";
+import {
+  GameProcessStartHandler,
+  GameProcessStopHandler,
+} from "./events/handlers/GameProcessStatusHandler";
+import { RendererBridgeHandler } from "./events/handlers/RendererBridgeHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import {
   AppContext,
   ConfigChangeEvent,
   EventType,
-  UIGameStartEvent,
+  MessageEvent as AppMessageEvent,
+  UIEvent,
 } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
@@ -140,6 +146,9 @@ function createWindows() {
   // Register Event Handlers
   eventBus.register(StartPoe2KakaoHandler);
   eventBus.register(CleanupPoe2WindowHandler);
+  eventBus.register(RendererBridgeHandler);
+  eventBus.register(GameProcessStartHandler);
+  eventBus.register(GameProcessStopHandler);
 
   // Initialize Global Context
   // context is declared as const but properties are mutable if it's an object.
@@ -202,6 +211,17 @@ ipcMain.on("window-minimize", () => {
 
 ipcMain.on("window-close", () => {
   if (mainWindow) mainWindow.close();
+});
+
+// Game Progress Update IPC (From Game Window)
+ipcMain.on("game-progress-update", (_event, text: string) => {
+  if (appContext) {
+    eventBus.emit<AppMessageEvent>(
+      EventType.MESSAGE_GAME_PROGRESS_INFO,
+      appContext,
+      { text },
+    );
+  }
 });
 
 // Global Listener for New Windows (Popups)

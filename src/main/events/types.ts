@@ -9,6 +9,7 @@ export enum EventType {
   CONFIG_CHANGE = "CONFIG:CHANGE",
   PROCESS_START = "PROCESS:START",
   PROCESS_STOP = "PROCESS:STOP",
+  MESSAGE_GAME_PROGRESS_INFO = "MESSAGE:GAME_PROGRESS_INFO",
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -33,15 +34,28 @@ export interface ProcessEvent {
   timestamp?: number;
 }
 
-// 3. UI Game Start Event
-export interface UIGameStartEvent {
+// 3. UI Event (Game Start Click, etc.)
+export interface UIEvent {
   type: EventType.UI_GAME_START_CLICK;
   payload?: void; // No payload needed for now
   timestamp?: number;
 }
 
+// 4. Message Event (Game Progress Info, etc.)
+export interface MessageEvent {
+  type: EventType.MESSAGE_GAME_PROGRESS_INFO;
+  payload: {
+    text: string;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
-export type AppEvent = ConfigChangeEvent | ProcessEvent | UIGameStartEvent;
+export type AppEvent =
+  | ConfigChangeEvent
+  | ProcessEvent
+  | UIEvent
+  | MessageEvent;
 
 // --- Context & Handler Interfaces ---
 

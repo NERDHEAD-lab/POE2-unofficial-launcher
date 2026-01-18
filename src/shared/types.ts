@@ -14,6 +14,7 @@ export interface ElectronAPI {
   getConfig: (key?: string) => Promise<unknown>;
   setConfig: (key: string, value: unknown) => Promise<void>;
   onConfigChange: (callback: (key: string, value: unknown) => void) => void;
+  onProgressMessage?: (callback: (text: string) => void) => void;
 }
 
 declare global {
