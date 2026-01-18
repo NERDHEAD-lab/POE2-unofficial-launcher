@@ -1,0 +1,83 @@
+.service-channel-container {
+  width: 100%; /* Match parent width (same as Start Button) */
+  margin-bottom: 1px; /* Very tight spacing to the button below, like Battle.net */
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px; /* Match middle-menu-area padding */
+  box-sizing: border-box; /* Ensure padding doesn't increase width */
+}
+
+.service-channel-label {
+  font-size: 11px;
+  color: #ccc;
+  margin-bottom: 4px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.service-channel-controls {
+  display: flex;
+  gap: 2px; /* Tiny gap between dropdown and settings button */
+  height: 32px; /* Fixed height for consistency */
+}
+
+/* Dropdown Styles */
+.service-channel-dropdown {
+  flex: 1; /* Takes remaining space */
+  background-color: rgba(20, 20, 20, 0.9);
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  appearance: none; /* Remove default arrow to style if needed, but standard is fine for now */
+  /* Re-add arrow image manually if appearance is none, or keep default */
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23CCCCCC%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px top 50%;
+  background-size: 10px auto;
+  appearance: none;
+}
+
+.service-channel-dropdown:focus {
+  /* Default subtle focus border (not accent) */
+  border-color: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.service-channel-dropdown:hover,
+.service-channel-dropdown.active {
+  background-color: rgba(40, 40, 40, 0.9);
+  border-color: var(--theme-accent, #dfcf99);
+}
+
+/* Settings Button Styles */
+.settings-button {
+  width: 36px; /* Square-ish */
+  height: 100%;
+  background-color: #0e86ca; /* Blue to match Battle.net Action Button? Or generic dark? User said "instead of globe". Globe is dark. */
+  /* Wait, Battle.net gear is usually dark gray next to the blue play button. */
+  /* But the user image shows the GE in the Blue Play Button row? No, user says "Settings button ... instead of region selection" */
+  /* Region selection is usually a globe icon next to the text. */
+  /* The user's text says: "Settings button goes to the right of the dropdown instead of the region selection" */
+  /* So it should be on the SAME ROW as the dropdown. */
+
+  background-color: rgba(30, 30, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  color: #ccc;
+  transition: all 0.2s;
+}
+
+.settings-button:hover {
+  background-color: rgba(50, 50, 50, 0.9);
+  color: var(--theme-accent, #dfcf99);
+  border-color: var(--theme-accent, #dfcf99);
+}

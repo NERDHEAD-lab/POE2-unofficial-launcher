@@ -8,6 +8,7 @@ import bgPoe from "./src/assets/poe/bg-keepers.png";
 import bgPoe2 from "./src/assets/poe2/bg-forest.webp";
 import GameSelector from "./src/components/GameSelector";
 import GameStartButton from "./src/components/GameStartButton";
+import ServiceChannelSelector from "./src/components/ServiceChannelSelector";
 import SupportLinks from "./src/components/SupportLinks";
 import TitleBar from "./src/components/TitleBar";
 import { extractThemeColors, applyThemeColors } from "./src/utils/theme";
@@ -16,6 +17,9 @@ function App() {
   const [activeGame, setActiveGame] = useState<"POE1" | "POE2">("POE1");
   const [bgImage, setBgImage] = useState(bgPoe);
   const [bgOpacity, setBgOpacity] = useState(1);
+  const [serviceChannel, setServiceChannel] = useState<"Kakao Games" | "GGG">(
+    "Kakao Games",
+  );
   const isFirstMount = useRef(true);
 
   // Background & Theme Transition Effect
@@ -106,6 +110,13 @@ function App() {
 
           {/* Section C: Game Start & Company Logos (Bottom) */}
           <div className="bottom-controls">
+            <div style={{ width: "340px", marginBottom: "4px" }}>
+              <ServiceChannelSelector
+                channel={serviceChannel}
+                onChannelChange={setServiceChannel}
+                onSettingsClick={() => console.log("Settings Clicked")}
+              />
+            </div>
             <GameStartButton onClick={handleGameStart} />
 
             {/* Company Logos */}

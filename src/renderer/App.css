@@ -46,6 +46,11 @@ button {
   font-family: inherit;
 }
 
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 /* App Root Border (Plugin Style) */
 .app-root-border {
   width: 100%;
