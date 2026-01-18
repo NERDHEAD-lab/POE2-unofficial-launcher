@@ -3,6 +3,7 @@ import "./App.css"; // Global Styles
 
 // Local Imports
 import { CONFIG_KEYS } from "../shared/config";
+import { AppConfig } from "../shared/types";
 import imgGGG from "./assets/img-ci-ggg_150x67.png";
 import imgKakao from "./assets/img-ci-kakaogames_158x28.png";
 import bgPoe from "./assets/poe/bg-keepers.png";
@@ -25,7 +26,7 @@ function App() {
     "Kakao Games",
   );
   // Shared Theme Cache State (from Electron Store)
-  const [themeCache, setThemeCache] = useState<Record<string, any>>({});
+  const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
 
   const isFirstMount = useRef(true);
 
@@ -33,7 +34,8 @@ function App() {
   useEffect(() => {
     if (window.electronAPI) {
       // 1. Initial Load
-      window.electronAPI.getConfig().then((config: any) => {
+      window.electronAPI.getConfig().then((rawConfig: unknown) => {
+        const config = rawConfig as AppConfig;
         if (config[CONFIG_KEYS.ACTIVE_GAME])
           setActiveGame(config[CONFIG_KEYS.ACTIVE_GAME]);
         if (config[CONFIG_KEYS.SERVICE_CHANNEL])
@@ -50,14 +52,20 @@ function App() {
       // 2. Listen for Changes (Reactive Observer)
       window.electronAPI.onConfigChange((key, value) => {
         if (key === CONFIG_KEYS.ACTIVE_GAME) {
-          setActiveGame((prev) => (prev !== value ? value : prev));
+          setActiveGame((prev) =>
+            prev !== value ? (value as AppConfig["activeGame"]) : prev,
+          );
         }
         if (key === CONFIG_KEYS.SERVICE_CHANNEL) {
-          setServiceChannel((prev) => (prev !== value ? value : prev));
+          setServiceChannel((prev) =>
+            prev !== value ? (value as AppConfig["serviceChannel"]) : prev,
+          );
         }
         if (key === CONFIG_KEYS.THEME_CACHE) {
           setThemeCache((prev) =>
-            JSON.stringify(prev) !== JSON.stringify(value) ? value : prev,
+            JSON.stringify(prev) !== JSON.stringify(value)
+              ? (value as AppConfig["themeCache"])
+              : prev,
           );
         }
       });

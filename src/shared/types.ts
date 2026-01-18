@@ -11,9 +11,9 @@ export interface ElectronAPI {
   triggerGameStart: () => void;
   minimizeWindow: () => void;
   closeWindow: () => void;
-  getConfig: (key?: string) => Promise<any>; // Keep any for simplicity in generic access or cast in renderer
+  getConfig: (key?: string) => Promise<unknown>;
   setConfig: (key: string, value: unknown) => Promise<void>;
-  onConfigChange: (callback: (key: string, value: any) => void) => void;
+  onConfigChange: (callback: (key: string, value: unknown) => void) => void;
 }
 
 declare global {

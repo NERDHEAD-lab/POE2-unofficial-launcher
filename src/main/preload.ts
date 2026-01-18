@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getConfig: (key?: string) => ipcRenderer.invoke("config:get", key),
   setConfig: (key: string, value: unknown) =>
     ipcRenderer.invoke("config:set", key, value),
-  onConfigChange: (callback: (key: string, value: any) => void) => {
+  onConfigChange: (callback: (key: string, value: unknown) => void) => {
     ipcRenderer.on("config-changed", (_event, key, value) =>
       callback(key, value),
     );

@@ -34,7 +34,7 @@ export function getConfig(key?: string) {
  * Set a value in the store
  */
 export function setConfig(key: string, value: unknown) {
-  store.set(key as keyof AppConfig, value as any);
+  store.set(key as keyof AppConfig, value as AppConfig[keyof AppConfig]);
 }
 
 export default store;
