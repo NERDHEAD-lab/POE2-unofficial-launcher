@@ -12,10 +12,43 @@ permissions:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - uses: actions/checkout@v4
+
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Set up Node.js
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Build and package
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          files: |
+            dist/*.exe
+          tag_name: ${{ steps.release.outputs.tag_name }}
+          append_body: true
+          body: |
+
+            ![downloads](https://img.shields.io/github/downloads/${{ github.repository }}/${{ steps.release.outputs.tag_name }}/total)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
