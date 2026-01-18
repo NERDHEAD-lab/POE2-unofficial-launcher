@@ -55,30 +55,8 @@
 
 ## 4. Architecture Decision Records (ADR)
 
-### ADR-001: Vite + Electron Integration
+### Active Rules (Mandatory Constraints)
 
-- **Context**: 최신 프론트엔드 개발 경험과 Electron의 결합 필요.
-- **Decision**: `vite-plugin-electron`을 사용하여 Main/Renderer 프로세스를 통합 빌드하고 HMR을 지원함.
+#### ADR-001: Documentation Synchronization
 
-### ADR-002: Dual Window Architecture
-
-- **Context**: 메인 UI와 실제 게임 런칭 프로세스(웹뷰)의 분리가 필요.
-- **Decision**:
-  - **Main Window (UI)**: 사용자 인터페이스 담당.
-  - **Game Window (Background)**: `nodeIntegration: false`, `contextIsolation: false`로 설정된 숨겨진 윈도우에서 Daum 웹 페이지 로직 수행.
-  - **IPC**: 메인 프로세스를 중계자로 하여 두 윈도우 간 통신.
-
-### ADR-003: Preload Script Separation
-
-- **Context**: UI 윈도우와 게임 제어 윈도우의 역할이 완전히 다름.
-- **Decision**:
-  - `preload.ts`: Main Window용. 안전한 API 노출 (ContextBridge).
-  - `preload-game.ts`: Game Window용. DOM 조작 및 자동화 로직 포함 (Direct DOM Access).
-
-### ADR-004: Documentation Synchronization
-
-- **Context**: 글로벌 사용자와 한국 사용자를 모두 지원하기 위해 다국어 문서가 필요.
-- **Decision**:
-  - `README.md` (Root): 영문 전용 (Global Standard).
-  - `docs/README_KR.md`: 국문 전용.
-  - **Rule**: `README.md` 업데이트 시, 반드시 `docs/README_KR.md`도 동일한 내용으로 동기화해야 함.
+- **Rule**: `README.md` (영문) 업데이트 시, **즉시** `docs/README_KR.md` (국문)도 동일한 내용으로 동기화해야 합니다.

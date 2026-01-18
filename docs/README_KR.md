@@ -59,7 +59,7 @@ npm run build
 
 ## 라이센스
 
-이 프로젝트는 [MIT License](../LICENSE) 하에 배포됩니다.
+이 프로젝트는 [GNU Affero General Public License v3.0](../LICENSE) 하에 배포됩니다.
 
 ## 리포지토리
 
