@@ -24,9 +24,27 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/preload-game.ts",
+        entry: "src/main/kakao/preload.ts",
         onstart(options) {
           options.reload();
+        },
+        vite: {
+          build: {
+            outDir: "dist-electron/kakao",
+            minify: process.env.NODE_ENV === "production",
+            lib: {
+              entry: "src/main/kakao/preload.ts",
+              formats: ["cjs"],
+              fileName: () => "[name].js",
+            },
+            rollupOptions: {
+              external: ["electron"],
+              output: {
+                // Force name to be simple
+                entryFileNames: "[name].js",
+              },
+            },
+          },
         },
       },
     ]),

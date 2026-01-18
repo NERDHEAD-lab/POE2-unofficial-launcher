@@ -4,7 +4,7 @@ export const RendererBridgeHandler: EventHandler<MessageEvent> = {
   id: "RendererBridgeHandler",
   targetEvent: EventType.MESSAGE_GAME_PROGRESS_INFO,
 
-  condition: (context: AppContext) => {
+  condition: (_event, context: AppContext) => {
     return !!context.mainWindow && !context.mainWindow.isDestroyed();
   },
 

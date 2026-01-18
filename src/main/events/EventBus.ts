@@ -44,7 +44,7 @@ class EventBus {
     const executionPromises = handlers.map(async (handler) => {
       try {
         // Validation: condition check
-        if (handler.condition && !handler.condition(context)) {
+        if (handler.condition && !handler.condition(event, context)) {
           return;
         }
 

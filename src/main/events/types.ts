@@ -75,7 +75,8 @@ export interface EventHandler<T extends AppEvent = AppEvent> {
   targetEvent: T["type"];
 
   // Optional condition check
-  condition?: (context: AppContext) => boolean;
+  // FIXED: Condition now receives the event to make payload-based decisions
+  condition?: (event: T, context: AppContext) => boolean;
 
   // Execution logic
   handle: (event: T, context: AppContext) => Promise<void>;

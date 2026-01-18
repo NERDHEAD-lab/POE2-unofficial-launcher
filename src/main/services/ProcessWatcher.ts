@@ -4,6 +4,7 @@ import { isProcessRunning } from "../utils/process";
 
 const TARGET_PROCESSES = [
   "POE2_Launcher.exe",
+  "POE_Launcher.exe",
   "PathOfExile_KG.exe",
   "PathOfExile.exe",
 ];

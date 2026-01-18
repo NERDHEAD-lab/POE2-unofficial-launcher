@@ -4,12 +4,13 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
-import { CleanupPoe2WindowHandler } from "./events/handlers/CleanupPoe2WindowHandler";
+import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import {
   GameProcessStartHandler,
   GameProcessStopHandler,
 } from "./events/handlers/GameProcessStatusHandler";
 import { RendererBridgeHandler } from "./events/handlers/RendererBridgeHandler";
+import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import {
   AppContext,
@@ -81,7 +82,7 @@ const handleWindowOpen = ({ url }: { url: string }) => {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: false,
-        preload: path.join(__dirname, "preload-game.js"),
+        preload: path.join(__dirname, "kakao/preload.js"),
       },
     },
   } as const;
@@ -96,7 +97,7 @@ const initGameWindow = () => {
     x: showGameWindow ? 650 : undefined,
     y: showGameWindow ? 0 : undefined,
     webPreferences: {
-      preload: path.join(__dirname, "preload-game.js"),
+      preload: path.join(__dirname, "kakao/preload.js"),
       nodeIntegration: false,
       contextIsolation: false,
     },
@@ -144,8 +145,9 @@ function createWindows() {
   setupStoreObservers(mainWindow);
 
   // Register Event Handlers
+  eventBus.register(StartPoe1KakaoHandler);
   eventBus.register(StartPoe2KakaoHandler);
-  eventBus.register(CleanupPoe2WindowHandler);
+  eventBus.register(CleanupLauncherWindowHandler);
   eventBus.register(RendererBridgeHandler);
   eventBus.register(GameProcessStartHandler);
   eventBus.register(GameProcessStopHandler);
