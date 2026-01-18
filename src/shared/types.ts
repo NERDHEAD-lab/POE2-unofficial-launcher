@@ -1,5 +1,7 @@
 export interface ElectronAPI {
   triggerGameStart: () => void;
+  minimizeWindow: () => void;
+  closeWindow: () => void;
 }
 
 declare global {

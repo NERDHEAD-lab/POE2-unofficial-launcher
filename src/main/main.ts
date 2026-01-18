@@ -17,11 +17,42 @@ let gameWindow: BrowserWindow | null;
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 
+// --- Shared Window Open Handler ---
+const handleWindowOpen = ({ url }: { url: string }) => {
+  console.log(`[Main] Window Open Request: ${url}`);
+
+  // User Logic: Only 'accounts.kakao.com' should be visible strictly.
+  // Other popups (e.g. security checks) should generally be hidden unless in debug mode.
+  const isKakaoLogin = url.includes("accounts.kakao.com");
+  const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+
+  const shouldShow = isKakaoLogin || isDebug;
+
+  // Always allow, but control visibility
+  return {
+    action: "allow",
+    overrideBrowserWindowOptions: {
+      width: 800,
+      height: 600,
+      autoHideMenuBar: true,
+      show: shouldShow,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: false,
+        preload: path.join(__dirname, "preload-game.js"),
+      },
+    },
+  } as const;
+};
+
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
+    width: 1200, // Increased width for better ratio
+    height: 800, // Slightly increased height
+    resizable: false, // Fixed size
+    frame: false, // Disable OS Frame
+    titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
     icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -33,13 +64,13 @@ function createWindows() {
   gameWindow = new BrowserWindow({
     width: 1280,
     height: 900,
-    show: false, // Initially hidden. Shown only on 'trigger-game-start'
-    x: showGameWindow ? 650 : undefined, // Offset if visible for easier debugging
+    show: false,
+    x: showGameWindow ? 650 : undefined,
     y: showGameWindow ? 0 : undefined,
     webPreferences: {
-      preload: path.join(__dirname, "preload-game.js"), // Use .js extension (implies CJS now)
+      preload: path.join(__dirname, "preload-game.js"),
       nodeIntegration: false,
-      contextIsolation: false, // Often needed for robust DOM manipulation in background
+      contextIsolation: false,
     },
   });
 
@@ -73,42 +104,14 @@ function createWindows() {
   mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
   gameWindow.webContents.setWindowOpenHandler(handleWindowOpen);
 
-  // Listen for Game Window navigation events (Optional Debugging)
   gameWindow.webContents.on("did-finish-load", () => {
     console.log("[Main] Game Window Loaded:", gameWindow?.webContents.getURL());
   });
 }
 
-// --- Shared Window Open Handler ---
-const handleWindowOpen = ({ url }: { url: string }) => {
-  console.log(`[Main] Window Open Request: ${url}`);
-
-  // User Logic: Only 'accounts.kakao.com' should be visible strictly.
-  // Other popups (e.g. security checks) should generally be hidden unless in debug mode.
-  const isKakaoLogin = url.includes("accounts.kakao.com");
-  const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
-
-  const shouldShow = isKakaoLogin || isDebug;
-
-  // Always allow, but control visibility
-  return {
-    action: "allow",
-    overrideBrowserWindowOptions: {
-      width: 800,
-      height: 600,
-      autoHideMenuBar: true,
-      show: shouldShow,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: false,
-        preload: path.join(__dirname, "preload-game.js"),
-      },
-    },
-  } as const;
-};
-
-// IPC Handler: UI -> Main -> Game Window
+// IPC Handlers
 ipcMain.on("trigger-game-start", () => {
+  // ... (Existing Game Start Logic)
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
   if (gameWindow) {
     if (gameWindow.isDestroyed()) {
@@ -117,23 +120,17 @@ ipcMain.on("trigger-game-start", () => {
       );
       return;
     }
-
     console.log("[Main] Showing Game Window and Loading URL...");
 
-    // 1. Show the window (Only if VITE_SHOW_GAME_WINDOW is true)
     if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
       gameWindow.show();
     }
 
-    // 2. Load the URL
     const targetUrl = "https://pathofexile2.game.daum.net/main";
     gameWindow.loadURL(targetUrl);
 
-    // 3. Wait for load to finish, then trigger automation
     gameWindow.webContents.once("did-finish-load", () => {
       console.log('[Main] Game Window Loaded. Sending "execute-game-start"...');
-
-      // Double check before sending
       if (gameWindow && !gameWindow.isDestroyed()) {
         gameWindow.webContents.send("execute-game-start");
       }
@@ -141,6 +138,15 @@ ipcMain.on("trigger-game-start", () => {
   } else {
     console.error("[Main] Game Window is null! (Closed by user?)");
   }
+});
+
+// Window Controls IPC
+ipcMain.on("window-minimize", () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on("window-close", () => {
+  if (mainWindow) mainWindow.close();
 });
 
 // Global Listener for New Windows (Popups)

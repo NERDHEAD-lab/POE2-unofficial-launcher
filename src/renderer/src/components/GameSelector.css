@@ -1,0 +1,54 @@
+.logo-container {
+  display: flex;
+  justify-content: center; /* Centered in the panel */
+  align-items: center;
+  height: 150px; /* Increased height from 120px */
+  position: relative;
+  width: 100%;
+  margin-top: 0px; /* Moved up (was 20px) */
+  /* padding-left: 20px; Removed safe zone padding for true center */
+}
+
+.logo-item {
+  position: absolute;
+  bottom: 0px; /* Anchor to bottom */
+  transform-origin: bottom center; /* Scale from bottom */
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth ease-out-quad feel */
+  cursor: pointer;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+}
+
+/* Active State (Left Aligned, Big) */
+.active-main {
+  left: 20px; /* Aligned with Menu (20px padding) */
+  transform: scale(1); /* No translateX centering */
+  z-index: 10;
+  opacity: 1;
+  filter: brightness(1);
+  max-height: 140px;
+}
+
+/* Inactive State: Default (Right, Larger) */
+.inactive-sub {
+  transform: scale(0.7);
+  z-index: 1;
+  opacity: 0.6;
+  filter: grayscale(100%) brightness(0.5);
+  max-height: 90px;
+}
+
+/* Conditional Spacing based on WHICH logo is inactive */
+/* If POE2 is inactive (meaning POE1 is Active & Wide) -> Push POE2 further right */
+img[alt="POE2 Logo"].inactive-sub {
+  left: 200px; /* More space for the wide POE1 logo */
+}
+
+/* If POE1 is inactive (meaning POE2 is Active & Narrow) -> Keep POE1 closer */
+img[alt="POE Logo"].inactive-sub {
+  left: 170px; /* Closer visually since POE2 is narrow */
+}
+
+.inactive-sub:hover {
+  filter: grayscale(0%) brightness(0.8);
+  transform: scale(0.8);
+}

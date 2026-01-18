@@ -1,0 +1,48 @@
+.main-start__link {
+  display: block;
+  width: 340px; /* Adjusted size (Larger) */
+  aspect-ratio: 650 / 136;
+  background-image: url("../assets/btn-game-start.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% auto;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  transform: translateZ(0);
+  transition: transform 0.1s;
+}
+
+.main-start__link:active {
+  transform: scale(0.98);
+}
+
+.main-start__link .hover-overlay {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("../assets/btn-game-start.png");
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 100% auto;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.main-start__link:hover .hover-overlay {
+  opacity: 1;
+}
+
+.text-blind {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

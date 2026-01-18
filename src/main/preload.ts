@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     console.log("[Preload] Sending trigger-game-start to Main Process");
     ipcRenderer.send("trigger-game-start");
   },
+  minimizeWindow: () => ipcRenderer.send("window-minimize"),
+  closeWindow: () => ipcRenderer.send("window-close"),
 });

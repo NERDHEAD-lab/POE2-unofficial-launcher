@@ -1,0 +1,159 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap");
+
+:root {
+  --theme-text: #c8c8c8;
+  --theme-accent: #dfcf99;
+  --theme-footer-bg: #0e0e0e;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: "Fontin", "Noto Sans KR", sans-serif;
+  overflow: hidden;
+  user-select: none;
+  background-color: #000000; /* True black for fade transition */
+  color: var(--theme-text);
+}
+
+/* Dedicated Background Layer */
+#app-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* Changed from -1 to 0 to ensure visibility test */
+  background-size: cover;
+  background-position: center top;
+  transition: opacity 0.4s ease-in-out; /* Smooth fade effect */
+  opacity: 1;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: transparent; /* Allow body background to show */
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* App Root Border (Plugin Style) */
+.app-root-border {
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(223, 207, 153, 0.3); /* Goldish Border */
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Title Bar Styles */
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 32px; /* Standard small title bar height */
+  background: rgba(0, 0, 0, 0.2); /* Slight background for visibility */
+  border-bottom: 1px solid rgba(223, 207, 153, 0.1);
+  -webkit-app-region: drag; /* Entire bar is draggable */
+  padding: 0 10px;
+  z-index: 6000;
+}
+
+.title-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none; /* Text not clickable */
+}
+
+.app-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.app-title {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.title-bar-right {
+  -webkit-app-region: no-drag; /* Controls must be clickable */
+  display: flex;
+  align-items: center;
+}
+
+/* Remove old separate drag region as TitleBar handles it */
+.title-drag-region {
+  display: none;
+}
+
+/* Main Layout: Split Panels */
+.app-layout {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 50; /* Below Drag Region */
+}
+
+/* Left Panel: Fixed Width */
+.left-panel {
+  width: 360px; /* Decreased from 400px to match button size */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 10px; /* Reduced from 20px */
+  box-sizing: border-box;
+  /* background: rgba(0, 0, 0, 0.4); Optional: Tint for separation */
+  /* border-right: 1px solid rgba(255, 255, 255, 0.05); Optional: Divider */
+  -webkit-app-region: no-drag; /* Ensure contents are clickable */
+}
+
+/* Right Panel: Flexible */
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+/* Bottom Controls in Left Panel */
+.bottom-controls {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center buttons */
+  width: 100%;
+}
+
+.company-logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+/* Window Contols Container - Now inside TitleBar */
+.window-controls-container {
+  display: flex;
+  /* Removed absolute positioning */
+  z-index: 5000;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}

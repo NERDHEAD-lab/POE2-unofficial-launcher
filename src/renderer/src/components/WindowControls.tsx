@@ -1,0 +1,68 @@
+import React from "react";
+
+const WindowControls: React.FC = () => {
+  const handleMinimize = () => {
+    if (window.electronAPI && window.electronAPI.minimizeWindow) {
+      window.electronAPI.minimizeWindow();
+    }
+  };
+
+  const handleClose = () => {
+    if (window.electronAPI && window.electronAPI.closeWindow) {
+      window.electronAPI.closeWindow();
+    }
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    background: "transparent",
+    border: "none",
+    color: "#888",
+    width: "40px",
+    height: "30px",
+    fontSize: "14px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "background 0.2s, color 0.2s",
+  };
+
+  return (
+    <div
+      style={
+        { display: "flex", WebkitAppRegion: "no-drag" } as React.CSSProperties
+      }
+    >
+      <button
+        onClick={handleMinimize}
+        style={buttonStyle}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+          e.currentTarget.style.color = "#fff";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.color = "#888";
+        }}
+      >
+        &#8211; {/* Minus sign */}
+      </button>
+      <button
+        onClick={handleClose}
+        style={buttonStyle}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#d32f2f";
+          e.currentTarget.style.color = "#fff";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.color = "#888";
+        }}
+      >
+        &#10005; {/* Cross Mark */}
+      </button>
+    </div>
+  );
+};
+
+export default WindowControls;
