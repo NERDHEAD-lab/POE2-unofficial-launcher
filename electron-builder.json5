@@ -1,0 +1,18 @@
+{
+  appId: "com.nerdhead.poe2-launcher",
+  productName: "POE2 Unofficial Launcher",
+  directories: {
+    output: "dist",
+  },
+  files: ["dist-electron/**/*", "dist/**/*"],
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    include: "build/installer.nsh",
+  },
+  win: {
+    icon: "build/icon.ico",
+    target: "nsis",
+  },
+}
