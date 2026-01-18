@@ -62,6 +62,7 @@ function createWindows() {
     width: 1200, // Increased width for better ratio
     height: 800, // Slightly increased height
     resizable: false, // Fixed size
+    maximizable: false, // Prevent maximize on double-click
     frame: false, // Disable OS Frame
     titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
     icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
