@@ -6,6 +6,26 @@ import { AppConfig } from "../../shared/types";
 // Event Types
 export enum EventType {
   UI_GAME_START_CLICK = "UI:GAME_START_CLICK",
+  CONFIG_CHANGE = "CONFIG:CHANGE",
+  PROCESS_START = "PROCESS:START",
+  PROCESS_STOP = "PROCESS:STOP",
+}
+
+// Payload Interfaces
+export interface ProcessPayload {
+  name: string;
+  // pid?: number; // Optional: Add later if needed
+}
+
+export interface ConfigPayload<T = unknown> {
+  key: string;
+  oldValue: T;
+  newValue: T;
+}
+
+export interface UIPayload {
+  action: string;
+  [key: string]: unknown;
 }
 
 // Event Structure

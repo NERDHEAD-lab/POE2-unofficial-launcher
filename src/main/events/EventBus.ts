@@ -3,6 +3,12 @@ import { AppContext, AppEvent, EventHandler, EventType } from "./types";
 class EventBus {
   private handlers: Map<EventType, EventHandler[]> = new Map();
 
+  private log(message: string, ...args: unknown[]) {
+    if (process.env.VITE_DEV_SERVER_URL) {
+      console.log(`[EventBus] ${message}`, ...args);
+    }
+  }
+
   /**
    * Register a new event handler
    */
@@ -11,9 +17,7 @@ class EventBus {
       this.handlers.set(handler.targetEvent, []);
     }
     this.handlers.get(handler.targetEvent)?.push(handler);
-    console.log(
-      `[EventBus] Registered Handler: ${handler.id} for ${handler.targetEvent}`,
-    );
+    this.log(`📝 Registered Handler: ${handler.id} for ${handler.targetEvent}`);
   }
 
   /**
@@ -26,7 +30,7 @@ class EventBus {
       timestamp: Date.now(),
     };
 
-    console.log(`[EventBus] Emitting Event: ${type}`);
+    this.log(`📢 Emit: ${type}`, payload ? payload : "");
 
     const handlers = this.handlers.get(type) || [];
     const executionPromises = handlers.map(async (handler) => {
@@ -37,10 +41,10 @@ class EventBus {
           return;
         }
 
-        console.log(`[EventBus] Executing Handler: ${handler.id}`);
+        this.log(`👉 Executing Handler: ${handler.id}`);
         await handler.handle(event, context);
       } catch (error) {
-        console.error(`[EventBus] Error in Handler ${handler.id}:`, error);
+        console.error(`[EventBus] ❌ Error in Handler ${handler.id}:`, error);
       }
     });
 

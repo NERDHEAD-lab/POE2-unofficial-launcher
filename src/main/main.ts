@@ -5,7 +5,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
-import { AppContext, EventType } from "./events/types";
+import { AppContext, ConfigPayload, EventType } from "./events/types";
+import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
   setConfig,
@@ -33,7 +34,29 @@ ipcMain.handle("config:get", (_event, key?: string) => {
 });
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
+  const oldValue = getConfig(key);
   setConfig(key, value);
+
+  // Dispatch Config Change Event
+  // Note: We need a context here. Since this is outside createWindows, we need to access the global context or reconstruct it.
+  // For now, let's wait until we have a stable context strategy.
+  // Ideally, context creation should be moved to a shared scope or function.
+  // But strictly following the task: "Emit CONFIG_CHANGE".
+
+  // Temporary: Reconstruct context using module-level variables
+  const context: AppContext = {
+    mainWindow,
+    gameWindow,
+    store,
+  };
+
+  const payload: ConfigPayload = {
+    key,
+    oldValue,
+    newValue: value,
+  };
+
+  eventBus.emit(EventType.CONFIG_CHANGE, context, payload);
 });
 
 // --- Shared Window Open Handler ---
@@ -85,7 +108,24 @@ function createWindows() {
   // Register Event Handlers
   eventBus.register(StartPoe2KakaoHandler);
 
+  // Initialize Services
+  const context: AppContext = {
+    mainWindow,
+    gameWindow: null, // gameWindow is created below, we will update context later if needed or pass mutable ref?
+    // Actually, AppContext in createWindows is local.
+    // Ideally, we should create context ONCE and share it, or Services need access to latest windows.
+    store,
+  };
+
+  // NOTE: AppContext definition in types has gameWindow: BrowserWindow | null
+  // We need to ensure Watcher gets the correct reference.
+
+  // Initialize and Start Process Watcher
+  const processWatcher = new ProcessWatcher(context);
+  processWatcher.startWatching();
+
   // 2. Game Window (Hidden Background)
+
   const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
   gameWindow = new BrowserWindow({
     width: 1280,

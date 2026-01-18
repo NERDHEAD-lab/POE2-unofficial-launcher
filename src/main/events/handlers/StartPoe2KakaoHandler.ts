@@ -1,4 +1,3 @@
-import { AppConfig } from "../../../shared/types";
 import { AppContext, AppEvent, EventHandler, EventType } from "../types";
 
 export const StartPoe2KakaoHandler: EventHandler = {
