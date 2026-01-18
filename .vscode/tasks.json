@@ -11,6 +11,18 @@
         "panel": "shared"
       },
       "detail": "Installs dependencies if node_modules is missing"
+    },
+    {
+      "label": "dev:test",
+      "type": "npm",
+      "script": "dev:test",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "detail": "Run development server with game window visible"
     }
   ]
 }
