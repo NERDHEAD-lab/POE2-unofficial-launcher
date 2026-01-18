@@ -3,16 +3,16 @@ import "./App.css"; // Global Styles
 
 // Local Imports
 import { CONFIG_KEYS } from "../shared/config";
-import imgGGG from "./src/assets/img-ci-ggg_150x67.png";
-import imgKakao from "./src/assets/img-ci-kakaogames_158x28.png";
-import bgPoe from "./src/assets/poe/bg-keepers.png";
-import bgPoe2 from "./src/assets/poe2/bg-forest.webp";
-import GameSelector from "./src/components/GameSelector";
-import GameStartButton from "./src/components/GameStartButton";
-import ServiceChannelSelector from "./src/components/ServiceChannelSelector";
-import SupportLinks from "./src/components/SupportLinks";
-import TitleBar from "./src/components/TitleBar";
-import { extractThemeColors, applyThemeColors } from "./src/utils/theme";
+import imgGGG from "./assets/img-ci-ggg_150x67.png";
+import imgKakao from "./assets/img-ci-kakaogames_158x28.png";
+import bgPoe from "./assets/poe/bg-keepers.png";
+import bgPoe2 from "./assets/poe2/bg-forest.webp";
+import GameSelector from "./components/GameSelector";
+import GameStartButton from "./components/GameStartButton";
+import ServiceChannelSelector from "./components/ServiceChannelSelector";
+import SupportLinks from "./components/SupportLinks";
+import TitleBar from "./components/TitleBar";
+import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
 // Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
 const revalidatedFiles = new Set<string>();
