@@ -2,44 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow, ipcMain } from "electron";
-import Store from "electron-store";
+
+import { getConfig, setConfig, setupStoreObservers } from "./store";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
-
-// --- Configuration Store ---
-interface AppConfig {
-  serviceChannel: "Kakao Games" | "GGG";
-  activeGame: "POE1" | "POE2";
-  themeCache: Record<string, { text: string; accent: string; footer: string }>;
-}
-
-const store = new Store<AppConfig>({
-  defaults: {
-    serviceChannel: "Kakao Games",
-    activeGame: "POE1",
-    themeCache: {},
-  },
-});
-
-// Reactive Config Observer: Notify renderer when config changes
-store.onDidChange("activeGame", (val) => {
-  mainWindow?.webContents.send("config-changed", "activeGame", val);
-});
-store.onDidChange("serviceChannel", (val) => {
-  mainWindow?.webContents.send("config-changed", "serviceChannel", val);
-});
-store.onDidChange("themeCache", (val) => {
-  mainWindow?.webContents.send("config-changed", "themeCache", val);
-});
-
-// IPC Handlers for Configuration
-ipcMain.handle("config:get", (_event, key?: string) => {
-  return key ? store.get(key as any) : store.store;
-});
-
-ipcMain.handle("config:set", (_event, key: string, value: any) => {
-  store.set(key, value);
-});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +18,15 @@ let mainWindow: BrowserWindow | null;
 let gameWindow: BrowserWindow | null;
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+
+// IPC Handlers for Configuration
+ipcMain.handle("config:get", (_event, key?: string) => {
+  return getConfig(key);
+});
+
+ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
+  setConfig(key, value);
+});
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
@@ -94,6 +69,9 @@ function createWindows() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  // Setup Config Observers (Reactive)
+  setupStoreObservers(mainWindow);
 
   // 2. Game Window (Hidden Background)
   const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";

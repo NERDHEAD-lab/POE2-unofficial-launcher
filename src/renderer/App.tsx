@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css"; // Global Styles
 
 // Local Imports
+import { CONFIG_KEYS } from "../shared/config";
 import imgGGG from "./src/assets/img-ci-ggg_150x67.png";
 import imgKakao from "./src/assets/img-ci-kakaogames_158x28.png";
 import bgPoe from "./src/assets/poe/bg-keepers.png";
@@ -33,24 +34,28 @@ function App() {
     if (window.electronAPI) {
       // 1. Initial Load
       window.electronAPI.getConfig().then((config: any) => {
-        if (config.activeGame) setActiveGame(config.activeGame);
-        if (config.serviceChannel) setServiceChannel(config.serviceChannel);
-        if (config.themeCache) setThemeCache(config.themeCache);
+        if (config[CONFIG_KEYS.ACTIVE_GAME])
+          setActiveGame(config[CONFIG_KEYS.ACTIVE_GAME]);
+        if (config[CONFIG_KEYS.SERVICE_CHANNEL])
+          setServiceChannel(config[CONFIG_KEYS.SERVICE_CHANNEL]);
+        if (config[CONFIG_KEYS.THEME_CACHE])
+          setThemeCache(config[CONFIG_KEYS.THEME_CACHE]);
 
         // Initial Background Image needs to match the loaded activeGame
-        const initialBg = config.activeGame === "POE2" ? bgPoe2 : bgPoe;
+        const initialBg =
+          config[CONFIG_KEYS.ACTIVE_GAME] === "POE2" ? bgPoe2 : bgPoe;
         setBgImage(initialBg);
       });
 
       // 2. Listen for Changes (Reactive Observer)
       window.electronAPI.onConfigChange((key, value) => {
-        if (key === "activeGame") {
+        if (key === CONFIG_KEYS.ACTIVE_GAME) {
           setActiveGame((prev) => (prev !== value ? value : prev));
         }
-        if (key === "serviceChannel") {
+        if (key === CONFIG_KEYS.SERVICE_CHANNEL) {
           setServiceChannel((prev) => (prev !== value ? value : prev));
         }
-        if (key === "themeCache") {
+        if (key === CONFIG_KEYS.THEME_CACHE) {
           setThemeCache((prev) =>
             JSON.stringify(prev) !== JSON.stringify(value) ? value : prev,
           );
@@ -118,7 +123,7 @@ function App() {
             ...themeCache,
             [targetBg]: { ...colors, hash },
           };
-          window.electronAPI.setConfig("themeCache", updatedCache);
+          window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
         }
       } catch (err) {
         console.error("[Theme] Revalidation failed:", err);
@@ -153,13 +158,13 @@ function App() {
   const handleGameChange = (game: "POE1" | "POE2") => {
     setActiveGame(game);
     // 1. User triggered change moves the "Source of Truth"
-    window.electronAPI?.setConfig("activeGame", game);
+    window.electronAPI?.setConfig(CONFIG_KEYS.ACTIVE_GAME, game);
   };
 
   const handleChannelChange = (channel: "Kakao Games" | "GGG") => {
     setServiceChannel(channel);
     // 2. User triggered change moves the "Source of Truth"
-    window.electronAPI?.setConfig("serviceChannel", channel);
+    window.electronAPI?.setConfig(CONFIG_KEYS.SERVICE_CHANNEL, channel);
   };
 
   const handleGameStart = () => {
