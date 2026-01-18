@@ -3,7 +3,7 @@ import Store from "electron-store";
 
 import { AppConfig } from "../../shared/types";
 
-// Event Types
+// Event Enums
 export enum EventType {
   UI_GAME_START_CLICK = "UI:GAME_START_CLICK",
   CONFIG_CHANGE = "CONFIG:CHANGE",
@@ -11,29 +11,39 @@ export enum EventType {
   PROCESS_STOP = "PROCESS:STOP",
 }
 
-// Payload Interfaces
-export interface ProcessPayload {
-  name: string;
-  // pid?: number; // Optional: Add later if needed
+// --- Payload Definitions & Specific Event Interfaces ---
+
+// 1. Config Change Event
+export interface ConfigChangeEvent {
+  type: EventType.CONFIG_CHANGE;
+  payload: {
+    key: string;
+    oldValue: unknown;
+    newValue: unknown;
+  };
+  timestamp?: number;
 }
 
-export interface ConfigPayload<T = unknown> {
-  key: string;
-  oldValue: T;
-  newValue: T;
+// 2. Process Event (Start/Stop)
+export interface ProcessEvent {
+  type: EventType.PROCESS_START | EventType.PROCESS_STOP;
+  payload: {
+    name: string;
+  };
+  timestamp?: number;
 }
 
-export interface UIPayload {
-  action: string;
-  [key: string]: unknown;
+// 3. UI Game Start Event
+export interface UIGameStartEvent {
+  type: EventType.UI_GAME_START_CLICK;
+  payload?: void; // No payload needed for now
+  timestamp?: number;
 }
 
-// Event Structure
-export interface AppEvent<T = unknown> {
-  type: EventType;
-  payload?: T;
-  timestamp: number;
-}
+// --- Discriminated Union ---
+export type AppEvent = ConfigChangeEvent | ProcessEvent | UIGameStartEvent;
+
+// --- Context & Handler Interfaces ---
 
 // Context passed to handlers
 export interface AppContext {
@@ -43,14 +53,16 @@ export interface AppContext {
   ensureGameWindow: () => BrowserWindow;
 }
 
-// Handler Interface
-export interface EventHandler {
-  id: string; // Identifier for debugging
-  targetEvent: EventType;
+// Generic Handler Interface
+// T extends AppEvent allows us to narrow down the specific event type.
+export interface EventHandler<T extends AppEvent = AppEvent> {
+  id: string;
+  // The specific event type this handler listens to
+  targetEvent: T["type"];
 
-  // Condition check (Return true if this handler should execute)
+  // Optional condition check
   condition?: (context: AppContext) => boolean;
 
   // Execution logic
-  handle: (event: AppEvent, context: AppContext) => Promise<void>;
+  handle: (event: T, context: AppContext) => Promise<void>;
 }

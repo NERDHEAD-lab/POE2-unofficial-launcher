@@ -1,7 +1,8 @@
 import { AppContext, AppEvent, EventHandler, EventType } from "./types";
 
 class EventBus {
-  private handlers: Map<EventType, EventHandler[]> = new Map();
+  // Store handlers as generic handlers
+  private handlers: Map<EventType, EventHandler<any>[]> = new Map();
 
   private log(message: string, ...args: unknown[]) {
     if (process.env.VITE_DEV_SERVER_URL) {
@@ -12,7 +13,7 @@ class EventBus {
   /**
    * Register a new event handler
    */
-  public register(handler: EventHandler) {
+  public register<T extends AppEvent>(handler: EventHandler<T>) {
     if (!this.handlers.has(handler.targetEvent)) {
       this.handlers.set(handler.targetEvent, []);
     }
@@ -22,26 +23,33 @@ class EventBus {
 
   /**
    * Emit an event and execute matching handlers
+   * We use T extends AppEvent to try to enforce type safety,
+   * but typically inference works best if we pass the whole event or strict arguments.
    */
-  public async emit(type: EventType, context: AppContext, payload?: unknown) {
-    const event: AppEvent = {
+  public async emit<T extends AppEvent>(
+    type: T["type"],
+    context: AppContext,
+    payload: T["payload"],
+  ) {
+    // Construct the event object (Casting to T because we know the structure matches)
+    const event = {
       type,
       payload,
       timestamp: Date.now(),
-    };
+    } as T;
 
     this.log(`📢 Emit: ${type}`, payload ? payload : "");
 
     const handlers = this.handlers.get(type) || [];
     const executionPromises = handlers.map(async (handler) => {
       try {
-        // Check condition if it exists
+        // Validation: condition check
         if (handler.condition && !handler.condition(context)) {
-          // Silently skip if condition not met (or log if verbose)
           return;
         }
 
         this.log(`👉 Executing Handler: ${handler.id}`);
+        // Safe validation: We registered usage based on targetEvent, so handler expects T
         await handler.handle(event, context);
       } catch (error) {
         console.error(`[EventBus] ❌ Error in Handler ${handler.id}:`, error);

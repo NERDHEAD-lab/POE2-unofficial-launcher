@@ -1,6 +1,12 @@
-import { AppContext, AppEvent, EventHandler, EventType } from "../types";
+import {
+  AppContext,
+  EventHandler,
+  EventType,
+  UIGameStartEvent,
+} from "../types";
 
-export const StartPoe2KakaoHandler: EventHandler = {
+// Note: We use EventHandler<UIGameStartEvent> to strictly type 'event' argument in handle
+export const StartPoe2KakaoHandler: EventHandler<UIGameStartEvent> = {
   id: "StartPoe2KakaoHandler",
   targetEvent: EventType.UI_GAME_START_CLICK,
 
@@ -18,7 +24,8 @@ export const StartPoe2KakaoHandler: EventHandler = {
     return isPoe2 && isKakao;
   },
 
-  handle: async (event: AppEvent, context: AppContext) => {
+  // 'event' is automatically inferred as UIGameStartEvent
+  handle: async (event, context) => {
     // Dynamically ensure game window exists (Lazy Creation)
     const gameWindow = context.ensureGameWindow();
 

@@ -1,5 +1,5 @@
 import { eventBus } from "../events/EventBus";
-import { AppContext, EventType, ProcessPayload } from "../events/types";
+import { AppContext, EventType, ProcessEvent } from "../events/types";
 import { isProcessRunning } from "../utils/process";
 
 const TARGET_PROCESSES = [
@@ -49,14 +49,9 @@ export class ProcessWatcher {
           ? EventType.PROCESS_START
           : EventType.PROCESS_STOP;
 
-        const payload: ProcessPayload = {
+        eventBus.emit<ProcessEvent>(type, this.context, {
           name: processName,
-        };
-
-        console.log(
-          `[ProcessWatcher] State Change Detected: ${processName} (${type})`,
-        );
-        eventBus.emit(type, this.context, payload);
+        });
       }
     }
   }

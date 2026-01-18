@@ -6,7 +6,12 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { eventBus } from "./events/EventBus";
 import { CleanupPoe2WindowHandler } from "./events/handlers/CleanupPoe2WindowHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
-import { AppContext, ConfigPayload, EventType } from "./events/types";
+import {
+  AppContext,
+  ConfigChangeEvent,
+  EventType,
+  UIGameStartEvent,
+} from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
@@ -40,12 +45,11 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
 
   // Dispatch Config Change Event
   if (appContext) {
-    const payload: ConfigPayload = {
+    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
       key,
       oldValue,
       newValue: value,
-    };
-    eventBus.emit(EventType.CONFIG_CHANGE, appContext, payload);
+    });
   }
 });
 
@@ -185,7 +189,7 @@ function createWindows() {
 ipcMain.on("trigger-game-start", () => {
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
   if (appContext) {
-    eventBus.emit(EventType.UI_GAME_START_CLICK, appContext);
+    eventBus.emit(EventType.UI_GAME_START_CLICK, appContext, undefined);
   } else {
     console.error("[Main] AppContext not initialized!");
   }

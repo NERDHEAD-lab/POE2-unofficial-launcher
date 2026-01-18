@@ -1,14 +1,8 @@
 import { BrowserWindow } from "electron";
 
-import {
-  AppContext,
-  AppEvent,
-  EventHandler,
-  EventType,
-  ProcessPayload,
-} from "../types";
+import { AppContext, EventHandler, EventType, ProcessEvent } from "../types";
 
-export const CleanupPoe2WindowHandler: EventHandler = {
+export const CleanupPoe2WindowHandler: EventHandler<ProcessEvent> = {
   id: "CleanupPoe2WindowHandler",
   targetEvent: EventType.PROCESS_START,
 
@@ -19,8 +13,9 @@ export const CleanupPoe2WindowHandler: EventHandler = {
     return true;
   },
 
-  handle: async (event: AppEvent, context: AppContext) => {
-    const payload = event.payload as ProcessPayload;
+  handle: async (event, context) => {
+    // 'event' is inferred as ProcessEvent. payload is { name: string }
+    const payload = event.payload;
 
     if (!payload || !payload.name) return;
 
