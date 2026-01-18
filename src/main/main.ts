@@ -3,7 +3,15 @@ import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
-import { getConfig, setConfig, setupStoreObservers } from "./store";
+import { eventBus } from "./events/EventBus";
+import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
+import { AppContext, EventType } from "./events/types";
+import {
+  getConfig,
+  setConfig,
+  setupStoreObservers,
+  default as store,
+} from "./store";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
@@ -74,6 +82,9 @@ function createWindows() {
   // Setup Config Observers (Reactive)
   setupStoreObservers(mainWindow);
 
+  // Register Event Handlers
+  eventBus.register(StartPoe2KakaoHandler);
+
   // 2. Game Window (Hidden Background)
   const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
   gameWindow = new BrowserWindow({
@@ -126,33 +137,16 @@ function createWindows() {
 
 // IPC Handlers
 ipcMain.on("trigger-game-start", () => {
-  // ... (Existing Game Start Logic)
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
-  if (gameWindow) {
-    if (gameWindow.isDestroyed()) {
-      console.error(
-        "[Main] Game Window has been destroyed! Please restart the app.",
-      );
-      return;
-    }
-    console.log("[Main] Showing Game Window and Loading URL...");
 
-    if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
-      gameWindow.show();
-    }
+  const context: AppContext = {
+    mainWindow,
+    gameWindow,
+    store,
+  };
 
-    const targetUrl = "https://pathofexile2.game.daum.net/main";
-    gameWindow.loadURL(targetUrl);
-
-    gameWindow.webContents.once("did-finish-load", () => {
-      console.log('[Main] Game Window Loaded. Sending "execute-game-start"...');
-      if (gameWindow && !gameWindow.isDestroyed()) {
-        gameWindow.webContents.send("execute-game-start");
-      }
-    });
-  } else {
-    console.error("[Main] Game Window is null! (Closed by user?)");
-  }
+  // Dispatch Event
+  eventBus.emit(EventType.UI_GAME_START_CLICK, context);
 });
 
 // Window Controls IPC
