@@ -2,8 +2,44 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow, ipcMain } from "electron";
+import Store from "electron-store";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
+
+// --- Configuration Store ---
+interface AppConfig {
+  serviceChannel: "Kakao Games" | "GGG";
+  activeGame: "POE1" | "POE2";
+  themeCache: Record<string, { text: string; accent: string; footer: string }>;
+}
+
+const store = new Store<AppConfig>({
+  defaults: {
+    serviceChannel: "Kakao Games",
+    activeGame: "POE1",
+    themeCache: {},
+  },
+});
+
+// Reactive Config Observer: Notify renderer when config changes
+store.onDidChange("activeGame", (val) => {
+  mainWindow?.webContents.send("config-changed", "activeGame", val);
+});
+store.onDidChange("serviceChannel", (val) => {
+  mainWindow?.webContents.send("config-changed", "serviceChannel", val);
+});
+store.onDidChange("themeCache", (val) => {
+  mainWindow?.webContents.send("config-changed", "themeCache", val);
+});
+
+// IPC Handlers for Configuration
+ipcMain.handle("config:get", (_event, key?: string) => {
+  return key ? store.get(key as any) : store.store;
+});
+
+ipcMain.handle("config:set", (_event, key: string, value: any) => {
+  store.set(key, value);
+});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

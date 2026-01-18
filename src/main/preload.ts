@@ -10,4 +10,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   closeWindow: () => ipcRenderer.send("window-close"),
+  getConfig: (key?: string) => ipcRenderer.invoke("config:get", key),
+  setConfig: (key: string, value: unknown) =>
+    ipcRenderer.invoke("config:set", key, value),
+  onConfigChange: (callback: (key: string, value: any) => void) => {
+    ipcRenderer.on("config-changed", (_event, key, value) =>
+      callback(key, value),
+    );
+  },
 });

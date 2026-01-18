@@ -13,6 +13,9 @@ import SupportLinks from "./src/components/SupportLinks";
 import TitleBar from "./src/components/TitleBar";
 import { extractThemeColors, applyThemeColors } from "./src/utils/theme";
 
+// Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
+const revalidatedFiles = new Set<string>();
+
 function App() {
   const [activeGame, setActiveGame] = useState<"POE1" | "POE2">("POE1");
   const [bgImage, setBgImage] = useState(bgPoe);
@@ -20,42 +23,144 @@ function App() {
   const [serviceChannel, setServiceChannel] = useState<"Kakao Games" | "GGG">(
     "Kakao Games",
   );
+  // Shared Theme Cache State (from Electron Store)
+  const [themeCache, setThemeCache] = useState<Record<string, any>>({});
+
   const isFirstMount = useRef(true);
 
-  // Background & Theme Transition Effect
+  // Synchronize Settings from Main Process (Reactive)
+  useEffect(() => {
+    if (window.electronAPI) {
+      // 1. Initial Load
+      window.electronAPI.getConfig().then((config: any) => {
+        if (config.activeGame) setActiveGame(config.activeGame);
+        if (config.serviceChannel) setServiceChannel(config.serviceChannel);
+        if (config.themeCache) setThemeCache(config.themeCache);
+
+        // Initial Background Image needs to match the loaded activeGame
+        const initialBg = config.activeGame === "POE2" ? bgPoe2 : bgPoe;
+        setBgImage(initialBg);
+      });
+
+      // 2. Listen for Changes (Reactive Observer)
+      window.electronAPI.onConfigChange((key, value) => {
+        if (key === "activeGame") {
+          setActiveGame((prev) => (prev !== value ? value : prev));
+        }
+        if (key === "serviceChannel") {
+          setServiceChannel((prev) => (prev !== value ? value : prev));
+        }
+        if (key === "themeCache") {
+          setThemeCache((prev) =>
+            JSON.stringify(prev) !== JSON.stringify(value) ? value : prev,
+          );
+        }
+      });
+    }
+  }, []);
+
+  // Effect 1: Theme Application (Reacts to game or cache changes)
+  // This is a PURE visual application effect. No setConfig or extraction here.
+  useEffect(() => {
+    const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
+    const poe1Fallback = {
+      text: "#c8c8c8",
+      accent: "#dfcf99",
+      footer: "#0e0e0e",
+    };
+    const poe2Fallback = {
+      text: "#b5c2b5",
+      accent: "#aaddaa",
+      footer: "#0c150c",
+    };
+    const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
+
+    const cached = themeCache[targetBg];
+    if (cached) {
+      applyThemeColors(cached);
+    } else {
+      applyThemeColors(activeFallback);
+    }
+  }, [activeGame, themeCache]);
+
+  // Effect 2: Theme Extraction/Revalidation (Runs in background)
+  useEffect(() => {
+    const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
+    const poe1Fallback = {
+      text: "#c8c8c8",
+      accent: "#dfcf99",
+      footer: "#0e0e0e",
+    };
+    const poe2Fallback = {
+      text: "#b5c2b5",
+      accent: "#aaddaa",
+      footer: "#0c150c",
+    };
+    const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
+
+    const triggerRevalidation = async () => {
+      if (!window.electronAPI) return;
+      const cached = themeCache[targetBg];
+
+      // Skip if already checked in this session AND we have a cache
+      if (revalidatedFiles.has(targetBg) && cached) return;
+
+      try {
+        const { colors, hash } = await extractThemeColors(
+          targetBg,
+          activeFallback,
+        );
+        revalidatedFiles.add(targetBg);
+
+        // Update ONLY if hash has changed (avoids unnecessary store updates)
+        if (!cached || cached.hash !== hash) {
+          const updatedCache = {
+            ...themeCache,
+            [targetBg]: { ...colors, hash },
+          };
+          window.electronAPI.setConfig("themeCache", updatedCache);
+        }
+      } catch (err) {
+        console.error("[Theme] Revalidation failed:", err);
+      }
+    };
+
+    triggerRevalidation();
+  }, [activeGame, themeCache]); // Added themeCache to dependencies to ensure revalidation can update it
+
+  // Effect 3: Background Transition Visuals (NO setConfig here)
   useEffect(() => {
     const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
 
-    // Helper to update colors
-    const updateTheme = () => {
-      extractThemeColors(targetBg, {
-        text: "#c8c8c8",
-        accent: "#dfcf99",
-        footer: "#0e0e0e",
-      }).then((colors) => {
-        applyThemeColors(colors);
-      });
-    };
-
     if (isFirstMount.current) {
-      // Initial Load: Theme update only (Image already set by initial state)
-      // No fade in on first mount to prevent black screen flash
-      updateTheme();
       isFirstMount.current = false;
-    } else {
-      // Transition: Fade Out -> Swap -> Fade In
-      // Use requestAnimationFrame/setTimeout to ensure state updates trigger re-render
-      setTimeout(() => {
-        setBgOpacity(0); // Fade out
-      }, 0);
-
-      setTimeout(() => {
-        setBgImage(targetBg); // Swap image
-        updateTheme(); // Update theme
-        setBgOpacity(1); // Fade in
-      }, 400); // 400ms matches CSS transition
+      return;
     }
+
+    // Visual Transition only
+    const fadeOutTimer = setTimeout(() => setBgOpacity(0), 0);
+    const swapTimer = setTimeout(() => {
+      setBgImage(targetBg);
+      setBgOpacity(1);
+    }, 400);
+
+    return () => {
+      clearTimeout(fadeOutTimer);
+      clearTimeout(swapTimer);
+    };
   }, [activeGame]);
+
+  const handleGameChange = (game: "POE1" | "POE2") => {
+    setActiveGame(game);
+    // 1. User triggered change moves the "Source of Truth"
+    window.electronAPI?.setConfig("activeGame", game);
+  };
+
+  const handleChannelChange = (channel: "Kakao Games" | "GGG") => {
+    setServiceChannel(channel);
+    // 2. User triggered change moves the "Source of Truth"
+    window.electronAPI?.setConfig("serviceChannel", channel);
+  };
 
   const handleGameStart = () => {
     if (window.electronAPI) {
@@ -87,7 +192,7 @@ function App() {
           <div style={{ marginTop: "10px" }}>
             <GameSelector
               activeGame={activeGame}
-              onGameChange={setActiveGame}
+              onGameChange={handleGameChange}
             />
           </div>
 
@@ -113,7 +218,7 @@ function App() {
             <div style={{ width: "340px", marginBottom: "4px" }}>
               <ServiceChannelSelector
                 channel={serviceChannel}
-                onChannelChange={setServiceChannel}
+                onChannelChange={handleChannelChange}
                 onSettingsClick={() => console.log("Settings Clicked")}
               />
             </div>

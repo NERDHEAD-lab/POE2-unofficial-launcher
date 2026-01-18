@@ -65,3 +65,14 @@
 
 - **Source**: 아이콘이 필요한 경우, [Google Fonts Icons](https://fonts.google.com/icons) (Material Symbols/Icons)를 표준 소스로 사용합니다.
 - **Implementation**: 모든 아이콘은 `src/assets/icons/` 디렉토리에 **SVG/PNG 파일**로 저장하여 관리하며, 코드 내에서 Import하여 사용합니다. (Inline SVG 지양)
+
+#### ADR-003: Persistence & Theme Optimization (Reactive Observer)
+
+- **상황**: 앱 재시작 시 설정을 유지해야 하며, 게임 전환 시 IPC 지연으로 인한 테마 색상 반영의 미세한 끊김(Latency)을 해결해야 함.
+- **결정**:
+  - **Persistence**: `electron-store`를 도입하여 메인 프로세스에서 설정을 관리함.
+  - **Reactive Observer Pattern**:
+    - 메인 프로세스의 `store.onDidChange` 이벤트를 구독하여 설정 변경 시 렌더러로 즉시 알림(`config-changed`)을 보냄.
+    - 렌더러는 설정 데이터를 로컬 React State로 동기화하여 관리함.
+  - **Theme Optimization**: 게임 전환 시 비동기 IPC 조회(`await getConfig`) 대신, 로컬 State(`themeCache`)를 즉시 참조하여 **0ms** 반응 속도를 구현함.
+- **결과**: 앱 설정이 영구 저장되며, 테마 전환 시 어떠한 지연도 없는(Zero-latency) 매끄러운 사용자 경험을 제공함.

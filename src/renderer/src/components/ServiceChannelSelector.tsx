@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 import "./ServiceChannelSelector.css";
 import iconSettings from "../assets/icons/ic-settings.svg";
@@ -16,6 +16,26 @@ const ServiceChannelSelector: React.FC<ServiceChannelSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const wasFocusedRef = React.useRef(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const container = document.querySelector(".service-channel-container");
+      if (container && !container.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
 
   return (
     <div className="service-channel-container">
