@@ -1,5 +1,9 @@
 # POE Unofficial Launcher (Unofficial)
 
+![release](https://img.shields.io/github/v/release/NERDHEAD-lab/POE2-unofficial-launcher?include_prereleases&style=flat-square)
+![license](https://img.shields.io/github/license/NERDHEAD-lab/POE2-unofficial-launcher?style=flat-square)
+![downloads](https://img.shields.io/github/downloads/NERDHEAD-lab/POE2-unofficial-launcher/total?style=flat-square)
+
 > **Disclaimer**: This is an **unofficial** launcher for **Path of Exile** & **Path of Exile 2**. It is not affiliated with Grinding Gear Games or Kakao Games. Use at your own risk.
 
 An Electron-based custom launcher designed to automate the launch process for **Path of Exile** and **Path of Exile 2** (Korean Server). It provides a streamlined experience by handling login, Designated PC checks, and intro modals automatically across both game gateways.

@@ -1,5 +1,9 @@
 # POE Unofficial Launcher (비공식)
 
+![release](https://img.shields.io/github/v/release/NERDHEAD-lab/POE2-unofficial-launcher?include_prereleases&style=flat-square)
+![license](https://img.shields.io/github/license/NERDHEAD-lab/POE2-unofficial-launcher?style=flat-square)
+![downloads](https://img.shields.io/github/downloads/NERDHEAD-lab/POE2-unofficial-launcher/total?style=flat-square)
+
 > **면책 조항**: 본 프로그램은 **패스 오브 엑자일(Path of Exile)** 및 **패스 오브 엑자일 2(Path of Exile 2)** 의 **비공식** 런처입니다. Grinding Gear Games 또는 Kakao Games와는 무관합니다. 사용에 따른 책임은 사용자 본인에게 있습니다.
 
 Electron 기반의 커스텀 런처로, **패스 오브 엑자일** 및 **패스 오브 엑자일 2** (한국 서버)의 실행 과정을 자동화하도록 설계되었습니다. 로그인, 지정 PC 확인, 인트로 모달 등을 자동으로 처리하여 간소화된 실행 경험을 제공합니다.
