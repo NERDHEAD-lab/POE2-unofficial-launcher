@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
+import { CleanupPoe2WindowHandler } from "./events/handlers/CleanupPoe2WindowHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { AppContext, ConfigPayload, EventType } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
@@ -38,25 +39,14 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
   setConfig(key, value);
 
   // Dispatch Config Change Event
-  // Note: We need a context here. Since this is outside createWindows, we need to access the global context or reconstruct it.
-  // For now, let's wait until we have a stable context strategy.
-  // Ideally, context creation should be moved to a shared scope or function.
-  // But strictly following the task: "Emit CONFIG_CHANGE".
-
-  // Temporary: Reconstruct context using module-level variables
-  const context: AppContext = {
-    mainWindow,
-    gameWindow,
-    store,
-  };
-
-  const payload: ConfigPayload = {
-    key,
-    oldValue,
-    newValue: value,
-  };
-
-  eventBus.emit(EventType.CONFIG_CHANGE, context, payload);
+  if (appContext) {
+    const payload: ConfigPayload = {
+      key,
+      oldValue,
+      newValue: value,
+    };
+    eventBus.emit(EventType.CONFIG_CHANGE, appContext, payload);
+  }
 });
 
 // --- Shared Window Open Handler ---
@@ -87,6 +77,44 @@ const handleWindowOpen = ({ url }: { url: string }) => {
   } as const;
 };
 
+const initGameWindow = () => {
+  const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    show: false,
+    x: showGameWindow ? 650 : undefined,
+    y: showGameWindow ? 0 : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, "preload-game.js"),
+      nodeIntegration: false,
+      contextIsolation: false,
+    },
+  });
+
+  win.on("closed", () => {
+    console.log("[Main] Game Window Closed");
+    gameWindow = null;
+    if (appContext) appContext.gameWindow = null;
+    // Note: We don't unset context.gameWindow here to avoid null refs in async handlers,
+    // but handlers should check isDestroyed() logic.
+  });
+
+  if (showGameWindow) {
+    win.webContents.openDevTools({ mode: "detach" });
+  }
+
+  win.webContents.setWindowOpenHandler(handleWindowOpen);
+  win.webContents.on("did-finish-load", () => {
+    console.log("[Main] Game Window Loaded:", win?.webContents.getURL());
+  });
+
+  return win;
+};
+
+// Global Context
+let appContext: AppContext;
+
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
@@ -107,43 +135,32 @@ function createWindows() {
 
   // Register Event Handlers
   eventBus.register(StartPoe2KakaoHandler);
+  eventBus.register(CleanupPoe2WindowHandler);
 
-  // Initialize Services
-  const context: AppContext = {
+  // Initialize Global Context
+  // context is declared as const but properties are mutable if it's an object.
+  // However, I need to pass this context to ProcessWatcher.
+  // I will declare context first.
+  appContext = {
     mainWindow,
-    gameWindow: null, // gameWindow is created below, we will update context later if needed or pass mutable ref?
-    // Actually, AppContext in createWindows is local.
-    // Ideally, we should create context ONCE and share it, or Services need access to latest windows.
+    gameWindow: null,
     store,
+    ensureGameWindow: () => {
+      if (!gameWindow || gameWindow.isDestroyed()) {
+        console.log("[Main] creating new Game Window...");
+        gameWindow = initGameWindow();
+        appContext.gameWindow = gameWindow;
+      }
+      return gameWindow;
+    },
   };
 
-  // NOTE: AppContext definition in types has gameWindow: BrowserWindow | null
-  // We need to ensure Watcher gets the correct reference.
-
   // Initialize and Start Process Watcher
-  const processWatcher = new ProcessWatcher(context);
+  const processWatcher = new ProcessWatcher(appContext);
   processWatcher.startWatching();
 
-  // 2. Game Window (Hidden Background)
-
-  const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
-  gameWindow = new BrowserWindow({
-    width: 1280,
-    height: 900,
-    show: false,
-    x: showGameWindow ? 650 : undefined,
-    y: showGameWindow ? 0 : undefined,
-    webPreferences: {
-      preload: path.join(__dirname, "preload-game.js"),
-      nodeIntegration: false,
-      contextIsolation: false,
-    },
-  });
-
-  gameWindow.on("closed", () => {
-    console.log("[Main] Game Window Closed");
-    gameWindow = null;
-  });
+  // 2. Game Window (Lazy Init - Do NOT create here)
+  // Removed initial creation block.
 
   // --- Main Window Loading ---
   if (VITE_DEV_SERVER_URL) {
@@ -158,35 +175,20 @@ function createWindows() {
     app.quit();
   });
 
-  // --- Game Window Loading ---
-  // Initial State: Hidden and Blank.
-  // It will be shown and loaded only when 'trigger-game-start' IPC is received.
-
-  // Optional: Open DevTools if configured, but kept hidden until triggered
-  if (showGameWindow) {
-    gameWindow.webContents.openDevTools({ mode: "detach" });
-  }
+  // Note: We previously attached gameWindow listeners here.
+  // Now they are attached in initGameWindow().
 
   mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
-  gameWindow.webContents.setWindowOpenHandler(handleWindowOpen);
-
-  gameWindow.webContents.on("did-finish-load", () => {
-    console.log("[Main] Game Window Loaded:", gameWindow?.webContents.getURL());
-  });
 }
 
 // IPC Handlers
 ipcMain.on("trigger-game-start", () => {
   console.log('[Main] IPC "trigger-game-start" Received from Renderer');
-
-  const context: AppContext = {
-    mainWindow,
-    gameWindow,
-    store,
-  };
-
-  // Dispatch Event
-  eventBus.emit(EventType.UI_GAME_START_CLICK, context);
+  if (appContext) {
+    eventBus.emit(EventType.UI_GAME_START_CLICK, appContext);
+  } else {
+    console.error("[Main] AppContext not initialized!");
+  }
 });
 
 // Window Controls IPC
@@ -206,7 +208,7 @@ app.on("browser-window-created", (_, window) => {
   // 2. Monitor Navigation for dynamic visibility
   const checkAndShow = () => {
     // CRITICAL: Do not hide the Main UI Window!
-    if (window === mainWindow) return;
+    if (mainWindow && window === mainWindow) return;
 
     const url = window.webContents.getURL();
     const isKakaoLogin = url.includes("accounts.kakao.com");

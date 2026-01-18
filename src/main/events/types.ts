@@ -40,6 +40,7 @@ export interface AppContext {
   mainWindow: BrowserWindow | null;
   gameWindow: BrowserWindow | null;
   store: Store<AppConfig>;
+  ensureGameWindow: () => BrowserWindow;
 }
 
 // Handler Interface

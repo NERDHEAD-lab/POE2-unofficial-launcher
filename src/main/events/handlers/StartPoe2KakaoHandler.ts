@@ -19,14 +19,15 @@ export const StartPoe2KakaoHandler: EventHandler = {
   },
 
   handle: async (event: AppEvent, context: AppContext) => {
-    const { gameWindow } = context;
+    // Dynamically ensure game window exists (Lazy Creation)
+    const gameWindow = context.ensureGameWindow();
 
     console.log(
       `[StartPoe2KakaoHandler] Condition Met! Starting POE2 Kakao Process...`,
     );
 
     if (!gameWindow) {
-      console.error("[StartPoe2KakaoHandler] Game Window is null!");
+      console.error("[StartPoe2KakaoHandler] Failed to create Game Window!");
       return;
     }
 
