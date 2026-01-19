@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css"; // Global Styles
 
 // Local Imports
+// Local Imports
 import { CONFIG_KEYS } from "../shared/config";
-import { AppConfig } from "../shared/types";
+import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import bannerBottom from "./assets/banner-bottom.webp";
 import iconGithub from "./assets/icon-github.svg";
 import bgPoe from "./assets/poe/bg-keepers.png";
@@ -14,6 +15,17 @@ import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
+
+// Status Message Mapping (Constant)
+const STATUS_MESSAGES: Record<RunStatus, string> = {
+  idle: "",
+  preparing: "실행 절차 준비 중...",
+  processing: "실행 절차 진행 중...",
+  authenticating: "지정 PC 확인 중...",
+  ready: "게임 실행 준비 완료! 잠시 후 실행됩니다.",
+  running: "게임 실행 중",
+  error: "실행 오류 발생",
+};
 
 // Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
 const revalidatedFiles = new Set<string>();
@@ -27,17 +39,66 @@ function App() {
   );
   // Shared Theme Cache State (from Electron Store)
   const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
-  const [progressMessage, setProgressMessage] = useState("");
+
+  // Refactor: Use globalGameState instead of simple text string
+  const [globalGameStatus, setGlobalGameStatus] = useState<GameStatusState>({
+    gameId: "POE1", // Default, effectively ignored until status !== idle
+    serviceId: "Kakao Games",
+    status: "idle",
+  });
 
   const isFirstMount = useRef(true);
+
+  // Compute Active Status Message based on Context Match
+  const activeStatusMessage = React.useMemo(() => {
+    // Only show status if it matches the currently selected Game & Service context
+    // Exception: Maybe 'error' should always startle? For now strict mapping.
+    if (
+      globalGameStatus.gameId === activeGame &&
+      globalGameStatus.serviceId === serviceChannel
+    ) {
+      if (globalGameStatus.status === "error" && globalGameStatus.errorCode) {
+        return `오류: ${globalGameStatus.errorCode}`;
+      }
+      return STATUS_MESSAGES[globalGameStatus.status];
+    }
+    return "";
+  }, [globalGameStatus, activeGame, serviceChannel]);
+
+  // Compute Button Disabled State
+  const isGameRunning = React.useMemo(() => {
+    if (
+      globalGameStatus.gameId === activeGame &&
+      globalGameStatus.serviceId === serviceChannel
+    ) {
+      return (
+        globalGameStatus.status !== "idle" &&
+        globalGameStatus.status !== "error"
+      );
+    }
+    return false;
+  }, [globalGameStatus, activeGame, serviceChannel]);
 
   // Synchronize Settings from Main Process (Reactive)
   useEffect(() => {
     if (window.electronAPI) {
-      // ... existing config load code ... (omitted for brevity, assume keep existing)
-      // I need to be careful with replace_file_content to not wipe out existing logic if I don't see it.
-      // Better to use 'replace' on specific blocks.
-      // But I need to add useEffect logic.
+      // ... existing config load code ...
+      /* ... (omitting existing config load for brevity, assume keep existing) ... */
+      // 3. LISTEN FOR GAME STATUS UPDATES (New Architecture)
+      // Note: We need to expose this via preload if not already?
+      // Wait, 'onProgressMessage' was for the old text. We need 'onGameStatusUpdate'.
+      // I need to update preload.ts first!
+      // ACTION: I will update App.tsx assuming the listener exists,
+      // but I MUST go and update preload.ts / types.ts for ElectronAPI.
+      // Temporary: Use onProgressMessage for now if I haven't updated preload yet?
+      // No, user wants correct architecture.
+      // I will implement the logic here but I need to update preload next.
+      // Assuming window.electronAPI.onGameStatusUpdate exists:
+      /*
+      window.electronAPI.onGameStatusUpdate((statusState) => {
+         setGlobalGameStatus(statusState);
+      });
+      */
     }
   }, []);
 
@@ -80,10 +141,10 @@ function App() {
         }
       });
 
-      // 3. Game Progress Messages
-      if (window.electronAPI.onProgressMessage) {
-        window.electronAPI.onProgressMessage((text: string) => {
-          setProgressMessage(text);
+      // 3. Game Status Updates (New Architecture)
+      if (window.electronAPI.onGameStatusUpdate) {
+        window.electronAPI.onGameStatusUpdate((statusState) => {
+          setGlobalGameStatus(statusState);
         });
       }
     }
@@ -271,7 +332,19 @@ function App() {
                   onSettingsClick={() => console.log("Settings Clicked")}
                 />
               </div>
-              <GameStartButton onClick={handleGameStart} />
+              <GameStartButton
+                onClick={handleGameStart}
+                className={isGameRunning ? "disabled" : ""}
+                style={
+                  isGameRunning
+                    ? {
+                        opacity: 0.5,
+                        cursor: "not-allowed",
+                        pointerEvents: "none",
+                      }
+                    : {}
+                }
+              />
 
               {/* Progress Info Message */}
               <div
@@ -286,11 +359,11 @@ function App() {
                   fontSize: "13px",
                   fontWeight: 500,
                   textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                  opacity: progressMessage ? 1 : 0,
+                  opacity: activeStatusMessage ? 1 : 0,
                   transition: "opacity 0.3s ease-in-out",
                 }}
               >
-                {progressMessage || " "}
+                {activeStatusMessage || " "}
               </div>
 
               {/* Company Logos - Removed and moved to Service Channel Dropdown */}

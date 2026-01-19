@@ -3,6 +3,7 @@ import {
   AppContext,
   EventHandler,
   EventType,
+  GameStatusChangeEvent,
   MessageEvent,
   UIEvent,
 } from "../types";
@@ -36,9 +37,15 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
       `[StartPoe2KakaoHandler] Condition Met! Starting POE2 Kakao Process...`,
     );
 
-    eventBus.emit<MessageEvent>(EventType.MESSAGE_GAME_PROGRESS_INFO, context, {
-      text: "게임실행을 준비하는 중입니다...",
-    });
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      context,
+      {
+        gameId: "POE2",
+        serviceId: "Kakao Games",
+        status: "preparing",
+      },
+    );
 
     if (!gameWindow) {
       console.error("[StartPoe2KakaoHandler] Failed to create Game Window!");
@@ -63,11 +70,14 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
       await gameWindow.loadURL(targetUrl);
     } catch (e) {
       console.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
-      eventBus.emit<MessageEvent>(
-        EventType.MESSAGE_GAME_PROGRESS_INFO,
+      eventBus.emit<GameStatusChangeEvent>(
+        EventType.GAME_STATUS_CHANGE,
         context,
         {
-          text: "게임 실행 절차를 진행할 수 없습니다.",
+          gameId: "POE2",
+          serviceId: "Kakao Games",
+          status: "error",
+          errorCode: "URL_LOAD_FAILED",
         },
       );
       return;
@@ -77,9 +87,15 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     console.log(
       '[StartPoe2KakaoHandler] URL Loaded. Sending "execute-game-start"...',
     );
-    eventBus.emit<MessageEvent>(EventType.MESSAGE_GAME_PROGRESS_INFO, context, {
-      text: "게임 실행 절차를 진행합니다...",
-    });
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      context,
+      {
+        gameId: "POE2",
+        serviceId: "Kakao Games",
+        status: "processing",
+      },
+    );
 
     // Using simple explicit wait or just verify not destroyed
     if (!gameWindow.isDestroyed()) {

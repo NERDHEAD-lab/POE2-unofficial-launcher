@@ -1,7 +1,7 @@
 import { BrowserWindow } from "electron";
 import Store from "electron-store";
 
-import { AppConfig } from "../../shared/types";
+import { AppConfig, GameStatusState } from "../../shared/types";
 
 // Event Enums
 export enum EventType {
@@ -10,6 +10,7 @@ export enum EventType {
   PROCESS_START = "PROCESS:START",
   PROCESS_STOP = "PROCESS:STOP",
   MESSAGE_GAME_PROGRESS_INFO = "MESSAGE:GAME_PROGRESS_INFO",
+  GAME_STATUS_CHANGE = "GAME:STATUS_CHANGE",
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -41,7 +42,7 @@ export interface UIEvent {
   timestamp?: number;
 }
 
-// 4. Message Event (Game Progress Info, etc.)
+// 4. Message Event (Legacy - to be phased out or kept for generic msgs)
 export interface MessageEvent {
   type: EventType.MESSAGE_GAME_PROGRESS_INFO;
   payload: {
@@ -50,12 +51,20 @@ export interface MessageEvent {
   timestamp?: number;
 }
 
+// 5. Game Status Change Event (New State-Driven)
+export interface GameStatusChangeEvent {
+  type: EventType.GAME_STATUS_CHANGE;
+  payload: GameStatusState;
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
   | ProcessEvent
   | UIEvent
-  | MessageEvent;
+  | MessageEvent
+  | GameStatusChangeEvent;
 
 // --- Context & Handler Interfaces ---
 

@@ -9,7 +9,7 @@ import {
   GameProcessStartHandler,
   GameProcessStopHandler,
 } from "./events/handlers/GameProcessStatusHandler";
-import { RendererBridgeHandler } from "./events/handlers/RendererBridgeHandler";
+import { GameStatusSyncHandler } from "./events/handlers/GameStatusSyncHandler";
 import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import {
@@ -147,7 +147,7 @@ function createWindows() {
   eventBus.register(StartPoe1KakaoHandler);
   eventBus.register(StartPoe2KakaoHandler);
   eventBus.register(CleanupLauncherWindowHandler);
-  eventBus.register(RendererBridgeHandler);
+  eventBus.register(GameStatusSyncHandler);
   eventBus.register(GameProcessStartHandler);
   eventBus.register(GameProcessStopHandler);
 

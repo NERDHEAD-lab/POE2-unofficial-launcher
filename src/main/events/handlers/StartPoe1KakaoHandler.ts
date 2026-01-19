@@ -3,7 +3,8 @@ import {
   AppContext,
   EventHandler,
   EventType,
-  MessageEvent,
+  GameStatusChangeEvent,
+  MessageEvent, // Kept if needed, otherwise remove
   UIEvent,
 } from "../types";
 
@@ -31,14 +32,20 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     // Dynamically ensure game window exists (Lazy Creation)
     const gameWindow = context.ensureGameWindow();
 
-    // 0. Notify User
+    // 0. Notify User (Preparing)
     console.log(
       `[StartPoe1KakaoHandler] Condition Met! Starting POE1 Kakao Process...`,
     );
 
-    eventBus.emit<MessageEvent>(EventType.MESSAGE_GAME_PROGRESS_INFO, context, {
-      text: "게임실행을 준비하는 중입니다...",
-    });
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      context,
+      {
+        gameId: "POE1",
+        serviceId: "Kakao Games",
+        status: "preparing",
+      },
+    );
 
     if (!gameWindow) {
       console.error("[StartPoe1KakaoHandler] Failed to create Game Window!");
@@ -63,11 +70,14 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
       await gameWindow.loadURL(targetUrl);
     } catch (e) {
       console.error(`[StartPoe1KakaoHandler] Failed to load URL: ${e}`);
-      eventBus.emit<MessageEvent>(
-        EventType.MESSAGE_GAME_PROGRESS_INFO,
+      eventBus.emit<GameStatusChangeEvent>(
+        EventType.GAME_STATUS_CHANGE,
         context,
         {
-          text: "게임 실행 절차를 진행할 수 없습니다.",
+          gameId: "POE1",
+          serviceId: "Kakao Games",
+          status: "error",
+          errorCode: "URL_LOAD_FAILED",
         },
       );
       return;
@@ -77,13 +87,23 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     console.log(
       '[StartPoe1KakaoHandler] URL Loaded. Sending "execute-game-start"...',
     );
-    eventBus.emit<MessageEvent>(EventType.MESSAGE_GAME_PROGRESS_INFO, context, {
-      text: "게임 실행 절차를 진행합니다...",
-    });
+
+    // Status: Processing (Page Loaded, triggering script)
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      context,
+      {
+        gameId: "POE1",
+        serviceId: "Kakao Games",
+        status: "processing",
+      },
+    );
 
     // Using simple explicit wait or just verify not destroyed
     if (!gameWindow.isDestroyed()) {
       gameWindow.webContents.send("execute-game-start");
     }
+    // Note: 'authenticating' and 'ready' usually come from the Preload script -> Main -> EventBus.
+    // For now, this handles the main initiator flow.
   },
 };

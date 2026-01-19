@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+import { GameStatusState } from "../shared/types";
+
 // --- Electron API Expose ---
 // Used by React Renderer (App.tsx)
 
@@ -20,5 +22,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   onProgressMessage: (callback: (text: string) => void) => {
     ipcRenderer.on("message-progress", (_event, text) => callback(text));
+  },
+  onGameStatusUpdate: (callback: (status: GameStatusState) => void) => {
+    ipcRenderer.on("game-status-update", (_event, status) => callback(status));
   },
 });
