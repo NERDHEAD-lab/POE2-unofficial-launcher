@@ -11,6 +11,7 @@ export enum EventType {
   PROCESS_STOP = "PROCESS:STOP",
   MESSAGE_GAME_PROGRESS_INFO = "MESSAGE:GAME_PROGRESS_INFO",
   GAME_STATUS_CHANGE = "GAME:STATUS_CHANGE",
+  DEBUG_LOG = "DEBUG:LOG",
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -59,13 +60,24 @@ export interface GameStatusChangeEvent {
   timestamp?: number;
 }
 
+export interface DebugLogEvent {
+  type: EventType.DEBUG_LOG;
+  payload: {
+    type: "normal" | "admin";
+    content: string;
+    isError: boolean;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
   | ProcessEvent
   | UIEvent
   | MessageEvent
-  | GameStatusChangeEvent;
+  | GameStatusChangeEvent
+  | DebugLogEvent;
 
 // --- Context & Handler Interfaces ---
 

@@ -11,3 +11,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   serviceChannel: "Kakao Games",
   themeCache: {},
 };
+
+export const DEBUG_APP_CONFIG = {
+  TITLE: "Debug Console",
+  HASH: "#debug",
+} as const;

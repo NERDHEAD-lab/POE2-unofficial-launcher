@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
+import { DEBUG_APP_CONFIG } from "../shared/config";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import {
   GameProcessStartHandler,
@@ -17,6 +18,7 @@ import {
   ConfigChangeEvent,
   EventType,
   GameStatusChangeEvent,
+  DebugLogEvent,
 } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
@@ -38,6 +40,7 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let mainWindow: BrowserWindow | null;
 let gameWindow: BrowserWindow | null;
+let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 
@@ -210,6 +213,70 @@ function createWindows() {
   // Now they are attached in initGameWindow().
 
   mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
+
+  // --- Debug Console Window (If Debug Mode) ---
+  if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
+    // Calculate initial position
+    const mainBounds = mainWindow.getBounds();
+
+    debugWindow = new BrowserWindow({
+      width: 600, // Default width
+      height: mainBounds.height, // Match main window height
+      x: mainBounds.x + mainBounds.width, // Attach to right
+      y: mainBounds.y, // Align top
+      parent: mainWindow, // <--- Key change: Syncs focus/minimize/restore
+      title: DEBUG_APP_CONFIG.TITLE,
+      frame: false, // Custom frame
+      movable: false, // Prevent moving independently
+      resizable: true, // Allow resizing (restricted to width by min/max height below)
+      minimizable: true,
+      closable: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.js"),
+      },
+    });
+
+    // Lock Height to match Main Window
+    debugWindow.setMinimumSize(400, mainBounds.height);
+    debugWindow.setMaximumSize(1000, mainBounds.height);
+
+    const debugUrl = VITE_DEV_SERVER_URL
+      ? `${VITE_DEV_SERVER_URL}${DEBUG_APP_CONFIG.HASH}`
+      : `file://${path.join(process.env.DIST as string, "index.html")}${DEBUG_APP_CONFIG.HASH}`;
+
+    debugWindow.loadURL(debugUrl);
+
+    // Docking Logic: Follow Main Window
+    const updateDebugPosition = () => {
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        debugWindow &&
+        !debugWindow.isDestroyed()
+      ) {
+        const bounds = mainWindow.getBounds();
+        debugWindow.setPosition(bounds.x + bounds.width, bounds.y);
+      }
+    };
+
+    mainWindow.on("move", updateDebugPosition);
+
+    // Ensure debug window closes if main window closes (handled by standard logic too)
+    debugWindow.on("closed", () => {
+      debugWindow = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.off("move", updateDebugPosition);
+      }
+    });
+
+    // If main window is closed, we should clean up listeners
+    mainWindow.on("closed", () => {
+      if (debugWindow && !debugWindow.isDestroyed()) {
+        debugWindow.close();
+      }
+    });
+  }
 }
 
 // IPC Handlers
@@ -223,12 +290,23 @@ ipcMain.on("trigger-game-start", () => {
 });
 
 // Window Controls IPC
-ipcMain.on("window-minimize", () => {
-  if (mainWindow) mainWindow.minimize();
+ipcMain.on("window-minimize", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.minimize();
 });
 
-ipcMain.on("window-close", () => {
-  if (mainWindow) mainWindow.close();
+ipcMain.on("window-close", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    if (win === mainWindow) {
+      // If main window, quit app (or close, which triggers closed event)
+      win.close();
+    } else {
+      // If debug window or others, just hide or close based on logic
+      // For debug window, we agreed to 'close' it (app keeps running).
+      win.close();
+    }
+  }
 });
 
 // Game Status Update IPC (From Game Window Preload)
@@ -361,6 +439,22 @@ eventBus.register({
       status === "authenticating"
     ) {
       activeSessionContext = { gameId, serviceId };
+    }
+  },
+});
+
+// Debug Log Handler
+eventBus.register({
+  id: "DebugLogHandler",
+  targetEvent: EventType.DEBUG_LOG,
+  handle: async (event: DebugLogEvent, context: AppContext) => {
+    // Send to Debug Window if it exists
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      debugWindow.webContents.send("debug-log", event.payload);
+    }
+    // Fallback: Also send to Main Window for redundancy (optional)
+    if (context.mainWindow && !context.mainWindow.isDestroyed()) {
+      context.mainWindow.webContents.send("debug-log", event.payload);
     }
   },
 });

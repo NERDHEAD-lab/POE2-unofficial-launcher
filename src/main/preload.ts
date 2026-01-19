@@ -26,4 +26,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onGameStatusUpdate: (callback: (status: GameStatusState) => void) => {
     ipcRenderer.on("game-status-update", (_event, status) => callback(status));
   },
+  onDebugLog: (callback: (log: any) => void) => {
+    const handler = (_event: any, log: any) => callback(log);
+    ipcRenderer.on("debug-log", handler);
+    return () => ipcRenderer.off("debug-log", handler);
+  },
 });

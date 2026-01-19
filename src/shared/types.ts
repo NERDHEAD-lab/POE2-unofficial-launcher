@@ -34,6 +34,7 @@ export interface ElectronAPI {
   onConfigChange: (callback: (key: string, value: unknown) => void) => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
+  onDebugLog?: (callback: (log: any) => void) => () => void;
 }
 
 declare global {

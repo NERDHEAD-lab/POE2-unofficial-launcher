@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 
+import { DEBUG_APP_CONFIG } from "../../../shared/config";
 import { AppContext, EventHandler, EventType, ProcessEvent } from "../types";
 
 export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
@@ -37,8 +38,17 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
       }
 
       // 3. Close Any Other Windows (Popups, etc.)
-      // Note: This might close DevTools if it's a separate window, but acceptable for cleanup.
       if (!win.isDestroyed()) {
+        // Skip Debug Console
+        const url = win.webContents.getURL();
+        if (
+          url.includes(DEBUG_APP_CONFIG.HASH) ||
+          win.title === DEBUG_APP_CONFIG.TITLE
+        ) {
+          console.log("[CleanupHandler] Skipping Debug Console cleanup.");
+          continue;
+        }
+
         console.log(
           `[CleanupHandler] Closing auxiliary window: ${win.title} (ID: ${win.id})`,
         );

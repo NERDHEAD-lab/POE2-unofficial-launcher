@@ -1,9 +1,9 @@
-import { spawn, execFile, ChildProcess } from "node:child_process";
+import { spawn, ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
-import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
+import { eventBus } from "../events/EventBus";
+import { DebugLogEvent, EventType } from "../events/types";
 
 interface PSResult {
   stdout: string;
@@ -20,30 +20,31 @@ interface IPCResponse {
   id: string;
   stdout: string;
   stderr: string;
-  error?: string; // Internal script error
+  error?: string;
+}
+
+interface SessionState {
+  server: net.Server | null;
+  socket: net.Socket | null;
+  process: ChildProcess | null;
+  pendingRequests: Map<string, (res: PSResult) => void>;
+  pipePath: string | null;
 }
 
 export class PowerShellManager {
   private static instance: PowerShellManager;
 
-  // Admin Session State
-  private adminServer: net.Server | null = null;
-  private adminSocket: net.Socket | null = null;
-  private adminProcess: ChildProcess | null = null;
-  private pendingAdminRequests: Map<string, (res: PSResult) => void> =
-    new Map();
-  private pipePath: string | null = null;
-
-  // Normal Session State (To be implemented if persistent normal session is desired,
-  // but for now we stick to execFile/spawn for normal to keep it simple unless optimized)
-  // The user request emphasized "singleton" and "admin session persistence".
-  // Adding consistent method signature for both.
+  // Separate states for Admin and Normal sessions
+  private adminSession: SessionState = this.createEmptySession();
+  private normalSession: SessionState = this.createEmptySession();
 
   private readonly isDebug: boolean;
 
   private constructor() {
-    // Check if we are in dev:test mode (VITE_SHOW_GAME_WINDOW=true)
-    this.isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+    this.isDebug = (process.env.VITE_SHOW_GAME_WINDOW || "").trim() === "true";
+    console.log(
+      `[PowerShellManager] Initialized. isDebug=${this.isDebug}, Env=${process.env.VITE_SHOW_GAME_WINDOW}`,
+    );
   }
 
   public static getInstance(): PowerShellManager {
@@ -53,62 +54,58 @@ export class PowerShellManager {
     return PowerShellManager.instance;
   }
 
-  /**
-   * Executes a PowerShell command.
-   * @param command The PowerShell command to execute
-   * @param useAdmin Whether to run with Administrator privileges
-   */
+  private createEmptySession(): SessionState {
+    return {
+      server: null,
+      socket: null,
+      process: null,
+      pendingRequests: new Map(),
+      pipePath: null,
+    };
+  }
+
   public async execute(
     command: string,
     useAdmin: boolean = false,
   ): Promise<PSResult> {
-    if (useAdmin) {
-      return this.executeAdmin(command);
-    } else {
-      return this.executeNormal(command);
+    const session = useAdmin ? this.adminSession : this.normalSession;
+    return this.executeInSession(session, command, useAdmin);
+  }
+
+  private emitLog(
+    type: "normal" | "admin",
+    content: string,
+    isError: boolean = false,
+  ) {
+    // Only emit if debug mode is active to save resources
+    if (this.isDebug) {
+      if (typeof eventBus !== "undefined") {
+        eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, undefined as any, {
+          type,
+          content,
+          isError,
+        });
+      }
     }
   }
 
-  /**
-   * Execute using normal privileges (Non-persistent spawn for safety/simplicity,
-   * or we could optimize later)
-   */
-  private async executeNormal(command: string): Promise<PSResult> {
-    try {
-      // Using execFile for simple commands.
-      // Note: If large output is expected, maxBuffer might need adjustment.
-      const { stdout, stderr } = await execFileAsync(
-        "powershell",
-        ["-NoProfile", "-NonInteractive", "-Command", command],
-        { windowsHide: !this.isDebug, encoding: "utf8" },
-      );
-      return { stdout, stderr, code: 0 };
-    } catch (e: unknown) {
-      const err = e as {
-        stdout?: string;
-        stderr?: string;
-        code?: number;
-        message?: string;
-      };
-      return {
-        stdout: err.stdout || "",
-        stderr: err.stderr || err.message || "",
-        code: err.code ?? 1,
-      };
-    }
-  }
+  private async executeInSession(
+    session: SessionState,
+    command: string,
+    isAdmin: boolean,
+  ): Promise<PSResult> {
+    // Log Command Start
+    this.emitLog(isAdmin ? "admin" : "normal", `> ${command}`);
 
-  /**
-   * Execute using Elevated Privileges (Persistent Session)
-   */
-  private async executeAdmin(command: string): Promise<PSResult> {
-    // 1. Ensure Admin Session is Ready
-    await this.ensureAdminSession();
+    // 1. Ensure Session
+    await this.ensureSession(session, isAdmin);
 
-    if (!this.adminSocket) {
+    if (!session.socket) {
+      const msg = "Failed to establish connection to PowerShell session";
+      this.emitLog(isAdmin ? "admin" : "normal", msg, true);
       return {
         stdout: "",
-        stderr: "Failed to establish admin connection",
+        stderr: msg,
         code: 1,
       };
     }
@@ -117,71 +114,94 @@ export class PowerShellManager {
     const id = randomUUID();
     const request: IPCRequest = { id, command };
 
-    // Wrapping promise to handle response
     return new Promise<PSResult>((resolve) => {
-      // Set timeout in case the admin process hangs
-      const timeout = setTimeout(() => {
-        if (this.pendingAdminRequests.has(id)) {
-          this.pendingAdminRequests.delete(id);
-          resolve({
-            stdout: "",
-            stderr: "Admin request execution timed out",
-            code: 1,
-          });
-        }
-      }, 30000); // 30s timeout
+      const timeout = setTimeout(
+        () => {
+          if (session.pendingRequests.has(id)) {
+            session.pendingRequests.delete(id);
+            const msg = "Request execution timed out (30s)";
+            this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+            resolve({
+              stdout: "",
+              stderr: msg,
+              code: 1,
+            });
+          }
+        },
+        isAdmin ? 30000 : 10000,
+      ); // Admin setup might take longer, normal usually fast
 
-      this.pendingAdminRequests.set(id, (res) => {
+      session.pendingRequests.set(id, (res) => {
         clearTimeout(timeout);
+        // Log Result
+        if (res.stdout)
+          this.emitLog(isAdmin ? "admin" : "normal", res.stdout.trim());
+        if (res.stderr)
+          this.emitLog(isAdmin ? "admin" : "normal", res.stderr.trim(), true);
         resolve(res);
       });
 
-      // Send JSON + Newline
-      if (this.adminSocket) {
+      if (session.socket) {
+        // Send as single line JSON
         const payload = JSON.stringify(request) + "\n";
-        this.adminSocket.write(payload);
+        session.socket.write(payload, (err) => {
+          if (err) {
+            clearTimeout(timeout);
+            session.pendingRequests.delete(id);
+            const msg = `Socket Write Error: ${err.message}`;
+            this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+            resolve({
+              stdout: "",
+              stderr: msg,
+              code: 1,
+            });
+          }
+        });
       } else {
         clearTimeout(timeout);
-        resolve({ stdout: "", stderr: "Admin socket disconnected", code: 1 });
+        const msg = "Socket disconnected";
+        this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+        resolve({ stdout: "", stderr: msg, code: 1 });
       }
     });
   }
 
-  /**
-   * Initializes the Named Pipe Server and launches the Elevated PowerShell Client
-   */
-  private ensureAdminSession(): Promise<void> {
-    if (this.adminSocket && this.adminServer) {
-      // Double check process
-      if (this.adminProcess && this.adminProcess.exitCode === null) {
+  private ensureSession(
+    session: SessionState,
+    isAdmin: boolean,
+  ): Promise<void> {
+    if (session.socket && session.server) {
+      if (session.process && session.process.exitCode === null) {
         return Promise.resolve();
       }
-      // If process died, cleanup and restart
-      this.cleanupAdmin();
+      this.cleanupSession(session);
     }
 
     return new Promise((resolve, reject) => {
       try {
         const pipeId = randomUUID();
-        this.pipePath = `\\\\.\\pipe\\poe2-launcher-svc-${pipeId}`;
+        const pipeName = `poe2-launcher-${isAdmin ? "admin" : "normal"}-${pipeId}`;
+        session.pipePath = `\\\\.\\pipe\\${pipeName}`;
 
-        // Create Server
-        this.adminServer = net.createServer((socket) => {
-          this.adminSocket = socket;
+        session.server = net.createServer((socket) => {
+          console.log(
+            `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} Client Connected!`,
+          );
+          session.socket = socket;
 
           let buffer = "";
           socket.on("data", (data) => {
             buffer += data.toString();
             const lines = buffer.split("\n");
-            buffer = lines.pop() || ""; // Keep incomplete chunk
+            buffer = lines.pop() || "";
 
             for (const line of lines) {
               if (!line.trim()) continue;
               try {
                 const response: IPCResponse = JSON.parse(line);
-                const callback = this.pendingAdminRequests.get(response.id);
+                const callback = session.pendingRequests.get(response.id);
                 if (callback) {
-                  this.pendingAdminRequests.delete(response.id);
+                  session.pendingRequests.delete(response.id);
                   if (response.error) {
                     callback({ stdout: "", stderr: response.error, code: 1 });
                   } else {
@@ -194,7 +214,7 @@ export class PowerShellManager {
                 }
               } catch (err) {
                 console.error(
-                  "[PowerShellManager] JSON Parse Error from Admin:",
+                  `[PowerShellManager:${isAdmin ? "Admin" : "Normal"}] JSON Parse Error:`,
                   err,
                 );
               }
@@ -202,28 +222,28 @@ export class PowerShellManager {
           });
 
           socket.on("end", () => {
-            // Admin process disconnected
-            this.adminSocket = null;
+            session.socket = null;
           });
 
           socket.on("error", (err) => {
-            console.error("[PowerShellManager] Socket Error:", err);
-            this.adminSocket = null;
+            console.error(
+              `[PowerShellManager:${isAdmin ? "Admin" : "Normal"}] Socket Error:`,
+              err,
+            );
+            session.socket = null;
           });
 
-          // Connection established!
           resolve();
         });
 
-        this.adminServer.listen(this.pipePath, () => {
-          // Server listening, now spawn the admin client
-          this.spawnAdminProcess().catch((err) => {
-            this.cleanupAdmin();
+        session.server.listen(session.pipePath, () => {
+          this.spawnProcess(session, isAdmin, pipeName).catch((err) => {
+            this.cleanupSession(session);
             reject(err);
           });
         });
 
-        this.adminServer.on("error", (err) => {
+        session.server.on("error", (err) => {
           reject(err);
         });
       } catch (e) {
@@ -232,19 +252,27 @@ export class PowerShellManager {
     });
   }
 
-  private async spawnAdminProcess() {
-    if (!this.pipePath) throw new Error("Pipe path not initialized");
+  private async spawnProcess(
+    session: SessionState,
+    isAdmin: boolean,
+    pipeName: string,
+  ) {
+    if (!session.pipePath) throw new Error("Pipe path not initialized");
 
-    // PowerShell Worker Script
-    // Continously reads JSON {id, command} from Pipe, Executes, Writes JSON {id, stdout, stderr}
+    // Pure Pype Name for PowerShell (No \\.\pipe\ prefix needed if we handle it carefully,
+    // but .NET NamedPipeClientStream usually takes just the name part).
+    // Node pipe path: \\.\pipe\NAME
+    // PowerShell NamedPipeClientStream: NAME
+
+    // The previous bug was replace logic. Here we pass simple NAME.
+
     const psScript = `
 $ErrorActionPreference = "Stop"
-$pipeName = "${this.pipePath.replace(/\\\\/g, "\\")}"
-$pipeName = $pipeName -replace '^\\\\\\\\.\\\\pipe\\\\', '' 
+$pipeName = "${pipeName}"
 
 try {
     $npipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $pipeName, [System.IO.Pipes.PipeDirection]::InOut, [System.IO.Pipes.PipeOptions]::None)
-    $npipeClient.Connect(10000) # Wait up to 10s for connection
+    $npipeClient.Connect(10000)
     
     $reader = New-Object System.IO.StreamReader($npipeClient)
     $writer = New-Object System.IO.StreamWriter($npipeClient)
@@ -259,15 +287,13 @@ try {
             $id = $req.id
             $cmd = $req.command
             
-            # Execute Command
-            # Capture Output. We use Invoke-Command or simple script block
-            # Note: We want to capture both stdout and stderr
-            
+            # [Debug] Echo command to console host
+            Write-Host "[IPC] Executing: $cmd" -ForegroundColor Cyan
+
             $outData = @()
             $errData = @()
             
             try {
-                # Execute inside a scriptblock to capture output
                 $results = Invoke-Expression $cmd 2>&1 | ForEach-Object {
                     if ($_ -is [System.Management.Automation.ErrorRecord]) {
                         $errData += $_.ToString()
@@ -289,53 +315,95 @@ try {
             $writer.WriteLine($jsonRes)
             
         } catch {
-            # JSON Parse Error or generic loop error, send error if possible
              $errRes = @{ id = "unknown"; error = $_.Exception.Message } | ConvertTo-Json -Compress
              $writer.WriteLine($errRes)
         }
     }
 } catch {
-   # Crash
    exit 1
 }
     `;
 
-    // Encode script to avoid escaping issues
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
 
-    // Command to launch PowerShell as Admin with this script
-    const windowStyle = this.isDebug ? "Normal" : "Hidden";
-    const wrapper = `Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", "${encodedCommand}" -WindowStyle ${windowStyle}`;
+    const windowStyle = "Hidden";
+    const noExitFlag = this.isDebug ? "-NoExit" : "";
 
-    // We don't wait for it because it runs in background and connects back to us
-    const child = spawn("powershell", ["-NoProfile", "-Command", wrapper], {
-      windowsHide: !this.isDebug,
+    let spawnArgs: string[];
+    let commandToSpawn: string;
+
+    if (isAdmin) {
+      // Admin: Use Start-Process with Verb RunAs
+      commandToSpawn = "powershell";
+      // Construct the full argument list for Start-Process
+      const startProcessArgs = `-Verb RunAs -WindowStyle ${windowStyle} -ArgumentList "${noExitFlag}", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", "${encodedCommand}"`;
+      spawnArgs = [
+        "-NoProfile",
+        "-Command",
+        `Start-Process powershell ${startProcessArgs}`,
+      ];
+    } else {
+      // Normal: Spawn PowerShell directly with encoded command
+      // We want to control visibility directly here if possible?
+      // Node spawn options.windowsHide works for the direct process.
+      // But if we want "-WindowStyle Normal", passing it to powershell.exe works best.
+      commandToSpawn = "powershell";
+      spawnArgs = [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-WindowStyle",
+        windowStyle,
+        noExitFlag,
+        "-EncodedCommand",
+        encodedCommand,
+      ].filter((arg) => arg !== "");
+    }
+
+    console.log(
+      `[PowerShellManager] Spawning ${isAdmin ? "Admin" : "Normal"} Session...`,
+    );
+
+    const child = spawn(commandToSpawn, spawnArgs, {
+      windowsHide: !this.isDebug, // Hide if not debug
       stdio: "ignore",
     });
 
-    this.adminProcess = child;
+    session.process = child;
 
     child.on("error", (err) => {
-      console.error("Failed to spawn admin launcher", err);
+      console.error(
+        `[PowerShellManager] Failed to spawn ${isAdmin ? "Admin" : "Normal"} process:`,
+        err,
+      );
     });
+
+    if (this.isDebug) {
+      child.on("exit", (code) => {
+        console.log(
+          `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
+        );
+      });
+    }
   }
 
   public cleanup() {
-    this.cleanupAdmin();
+    this.cleanupSession(this.adminSession);
+    this.cleanupSession(this.normalSession);
   }
 
-  private cleanupAdmin() {
-    if (this.adminSocket) {
-      this.adminSocket.destroy();
-      this.adminSocket = null;
+  private cleanupSession(session: SessionState) {
+    if (session.socket) {
+      session.socket.destroy();
+      session.socket = null;
     }
-    if (this.adminServer) {
-      this.adminServer.close();
-      this.adminServer = null;
+    if (session.server) {
+      session.server.close();
+      session.server = null;
     }
-    this.pendingAdminRequests.clear();
-    // The ChildProcess object here is just the launcher, the actual Admin PS is detached.
-    // But passing SIGTERM via Socket closure should kill the script loop if implemented correctly (ReadLine returns null).
-    // Ideally we send a "exit" command.
+    session.pendingRequests.clear();
+    // Process is usually detached or managed by helper.
+    // If it's a persistent shell, closing the socket (pipe logic) usually terminates the script loop.
   }
 }
