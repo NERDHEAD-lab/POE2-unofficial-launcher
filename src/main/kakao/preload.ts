@@ -397,9 +397,6 @@ function dispatchPageLogic() {
 
 ipcRenderer.on("execute-game-start", () => {
   console.log('[Game Window] IPC "execute-game-start" RECEIVED!');
-  // Trigger dispatch logic again as this is likely the entry point for Main Page actions
-  // This command is usually sent after page load on the main game site.
-  dispatchPageLogic();
 });
 
 // --- Initialization ---
@@ -410,4 +407,4 @@ window.addEventListener("DOMContentLoaded", () => {
   dispatchPageLogic();
 });
 
-console.log("[Game Window] Preload Loaded (Refactored)");
+console.log("[Game Window] Preload Loaded");
