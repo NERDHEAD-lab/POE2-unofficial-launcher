@@ -41,7 +41,11 @@ class EventBus {
       timestamp: Date.now(),
     } as T;
 
-    this.log(`📢 Emit: ${type}`, payload ? payload : "");
+    // Check if we should suppress log for this event type
+    // We suppress DEBUG_LOG emit logs to prevent terminal spam
+    if (type !== EventType.DEBUG_LOG) {
+      this.log(`📢 Emit: ${type}`, payload ? payload : "");
+    }
 
     const handlers = this.handlers.get(type) || [];
     const executionPromises = handlers.map(async (handler) => {
@@ -51,7 +55,11 @@ class EventBus {
           return;
         }
 
-        this.log(`👉 Executing Handler: ${handler.id}`);
+        // Log execution only if not suppressed
+        if (handler.debug !== false) {
+          this.log(`👉 Executing Handler: ${handler.id}`);
+        }
+
         // Safe validation: We registered usage based on targetEvent, so handler expects T
         await handler.handle(event, context);
       } catch (error) {

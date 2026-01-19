@@ -1,8 +1,8 @@
-import { BrowserWindow } from "electron";
 import Store from "electron-store";
 
 import { DEFAULT_CONFIG, CONFIG_KEYS } from "../shared/config";
 import { AppConfig } from "../shared/types";
+import { AppContext } from "./events/types";
 
 // Initialize Electron Store
 const store = new Store<AppConfig>({
@@ -12,12 +12,12 @@ const store = new Store<AppConfig>({
 /**
  * Setup config observers to notify renderer on changes
  */
-export function setupStoreObservers(mainWindow: BrowserWindow) {
+export function setupStoreObservers(context: AppContext) {
   Object.values(CONFIG_KEYS).forEach((key) => {
     store.onDidChange(key as keyof AppConfig, (newValue) => {
       // Only send if window is not destroyed
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("config-changed", key, newValue);
+      if (context.mainWindow && !context.mainWindow.isDestroyed()) {
+        context.mainWindow.webContents.send("config-changed", key, newValue);
       }
     });
   });

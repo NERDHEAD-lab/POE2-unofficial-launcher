@@ -5,7 +5,9 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
+import { AppConfig, RunStatus } from "../shared/types";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
+import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import {
   GameProcessStartHandler,
   GameProcessStopHandler,
@@ -27,7 +29,7 @@ import {
   setupStoreObservers,
   default as store,
 } from "./store";
-import { AppConfig, RunStatus } from "../shared/types";
+import { PowerShellManager } from "./utils/powershell";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
@@ -137,6 +139,56 @@ const initGameWindow = () => {
   return win;
 };
 
+// 2. Initialize Shared Context
+const context: AppContext = {
+  mainWindow: null,
+  gameWindow: null,
+  debugWindow: null,
+  store,
+  ensureGameWindow: () => {
+    if (!gameWindow || gameWindow.isDestroyed()) {
+      gameWindow = new BrowserWindow({
+        width: 1280,
+        height: 720,
+        title: "POE2 Launcher (Game Window)",
+        webPreferences: {
+          preload: path.join(__dirname, "kakao/preload.js"),
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      });
+
+      // Update Context
+      context.gameWindow = gameWindow;
+
+      // Handle closing
+      gameWindow.on("closed", () => {
+        gameWindow = null;
+        context.gameWindow = null;
+      });
+    }
+    return gameWindow!;
+  },
+};
+
+// 3. Register Global Store Observers
+setupStoreObservers(context);
+
+// 4. Register Event Handlers
+const handlers = [
+  StartPoe1KakaoHandler,
+  StartPoe2KakaoHandler,
+  CleanupLauncherWindowHandler,
+  GameStatusSyncHandler,
+  GameProcessStartHandler,
+  GameProcessStopHandler,
+  DebugLogHandler,
+];
+
+handlers.forEach((handler) => {
+  eventBus.register(handler as any);
+});
+
 // Global Context
 let appContext: AppContext;
 
@@ -155,39 +207,12 @@ function createWindows() {
     },
   });
 
-  // Setup Config Observers (Reactive)
-  setupStoreObservers(mainWindow);
-
-  // Register Event Handlers
-  eventBus.register(StartPoe1KakaoHandler);
-  eventBus.register(StartPoe2KakaoHandler);
-  eventBus.register(CleanupLauncherWindowHandler);
-  eventBus.register(GameStatusSyncHandler);
-  eventBus.register(GameProcessStartHandler);
-  eventBus.register(GameProcessStopHandler);
-
   // Initialize Global Context
-  // context is declared as const but properties are mutable if it's an object.
-  // However, I need to pass this context to ProcessWatcher.
-  // I will declare context first.
-  appContext = {
-    mainWindow,
-    gameWindow: null,
-    store,
-    ensureGameWindow: () => {
-      if (!gameWindow || gameWindow.isDestroyed()) {
-        console.log("[Main] creating new Game Window...");
-        gameWindow = initGameWindow();
-        appContext.gameWindow = gameWindow;
+  appContext = context;
+  appContext.mainWindow = mainWindow;
 
-        // Register window context mapping
-        if (activeSessionContext) {
-          windowContextMap.set(gameWindow.webContents.id, activeSessionContext);
-        }
-      }
-      return gameWindow;
-    },
-  };
+  // Inject Context into PowerShellManager for Debug Logs
+  PowerShellManager.getInstance().setContext(appContext);
 
   // Initialize and Start Process Watcher
   const processWatcher = new ProcessWatcher(appContext);
@@ -237,6 +262,9 @@ function createWindows() {
       },
     });
 
+    // Update Context
+    context.debugWindow = debugWindow;
+
     // Lock Height to match Main Window
     debugWindow.setMinimumSize(400, mainBounds.height);
     debugWindow.setMaximumSize(1000, mainBounds.height);
@@ -265,6 +293,7 @@ function createWindows() {
     // Ensure debug window closes if main window closes (handled by standard logic too)
     debugWindow.on("closed", () => {
       debugWindow = null;
+      context.debugWindow = null;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.off("move", updateDebugPosition);
       }
@@ -439,22 +468,6 @@ eventBus.register({
       status === "authenticating"
     ) {
       activeSessionContext = { gameId, serviceId };
-    }
-  },
-});
-
-// Debug Log Handler
-eventBus.register({
-  id: "DebugLogHandler",
-  targetEvent: EventType.DEBUG_LOG,
-  handle: async (event: DebugLogEvent, context: AppContext) => {
-    // Send to Debug Window if it exists
-    if (debugWindow && !debugWindow.isDestroyed()) {
-      debugWindow.webContents.send("debug-log", event.payload);
-    }
-    // Fallback: Also send to Main Window for redundancy (optional)
-    if (context.mainWindow && !context.mainWindow.isDestroyed()) {
-      context.mainWindow.webContents.send("debug-log", event.payload);
     }
   },
 });

@@ -85,6 +85,7 @@ export type AppEvent =
 export interface AppContext {
   mainWindow: BrowserWindow | null;
   gameWindow: BrowserWindow | null;
+  debugWindow: BrowserWindow | null;
   store: Store<AppConfig>;
   ensureGameWindow: () => BrowserWindow;
 }
@@ -99,6 +100,9 @@ export interface EventHandler<T extends AppEvent = AppEvent> {
   // Optional condition check
   // FIXED: Condition now receives the event to make payload-based decisions
   condition?: (event: T, context: AppContext) => boolean;
+
+  // Optional: If false, suppresses "Executing Handler" log in EventBus (Default: true)
+  debug?: boolean;
 
   // Execution logic
   handle: (event: T, context: AppContext) => Promise<void>;

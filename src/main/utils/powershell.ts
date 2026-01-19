@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 
 import { eventBus } from "../events/EventBus";
-import { DebugLogEvent, EventType } from "../events/types";
+import { AppContext, DebugLogEvent, EventType } from "../events/types";
 
 interface PSResult {
   stdout: string;
@@ -31,8 +31,11 @@ interface SessionState {
   pipePath: string | null;
 }
 
+// ...
+
 export class PowerShellManager {
   private static instance: PowerShellManager;
+  private context: AppContext | null = null;
 
   // Separate states for Admin and Normal sessions
   private adminSession: SessionState = this.createEmptySession();
@@ -52,6 +55,10 @@ export class PowerShellManager {
       PowerShellManager.instance = new PowerShellManager();
     }
     return PowerShellManager.instance;
+  }
+
+  public setContext(context: AppContext) {
+    this.context = context;
   }
 
   private createEmptySession(): SessionState {
@@ -78,9 +85,10 @@ export class PowerShellManager {
     isError: boolean = false,
   ) {
     // Only emit if debug mode is active to save resources
-    if (this.isDebug) {
+    // Also require context to be set to avoid crashes
+    if (this.isDebug && this.context) {
       if (typeof eventBus !== "undefined") {
-        eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, undefined as any, {
+        eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
           type,
           content,
           isError,
