@@ -17,7 +17,6 @@ import {
   ConfigChangeEvent,
   EventType,
   MessageEvent as AppMessageEvent,
-  UIEvent,
 } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {

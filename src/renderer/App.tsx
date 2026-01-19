@@ -4,8 +4,6 @@ import "./App.css"; // Global Styles
 // Local Imports
 import { CONFIG_KEYS } from "../shared/config";
 import { AppConfig } from "../shared/types";
-import imgGGG from "./assets/img-ci-ggg_150x67.png";
-import imgKakao from "./assets/img-ci-kakaogames_158x28.png";
 import bgPoe from "./assets/poe/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
@@ -274,22 +272,8 @@ function App() {
               {progressMessage || " "}
             </div>
 
-            {/* Company Logos */}
-            <div className="company-logos">
-              <img
-                src={imgKakao}
-                alt="Kakao Games"
-                height="14"
-                style={{ opacity: 0.7 }}
-              />
-              <span style={{ color: "#555", fontSize: "10px" }}>|</span>
-              <img
-                src={imgGGG}
-                alt="Grinding Gear Games"
-                height="24"
-                style={{ opacity: 0.7 }}
-              />
-            </div>
+            {/* Company Logos - Removed and moved to Service Channel Dropdown */}
+            <div className="company-logos" style={{ display: "none" }} />
           </div>
         </div>
 

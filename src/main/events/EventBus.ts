@@ -2,7 +2,7 @@ import { AppContext, AppEvent, EventHandler, EventType } from "./types";
 
 class EventBus {
   // Store handlers as generic handlers
-  private handlers: Map<EventType, EventHandler<any>[]> = new Map();
+  private handlers: Map<EventType, EventHandler<AppEvent>[]> = new Map();
 
   private log(message: string, ...args: unknown[]) {
     if (process.env.VITE_DEV_SERVER_URL) {
@@ -17,7 +17,10 @@ class EventBus {
     if (!this.handlers.has(handler.targetEvent)) {
       this.handlers.set(handler.targetEvent, []);
     }
-    this.handlers.get(handler.targetEvent)?.push(handler);
+    // Safe cast: We map EventType -> EventHandler<T> logically, but store as AppEvent for storage
+    this.handlers
+      .get(handler.targetEvent)
+      ?.push(handler as unknown as EventHandler<AppEvent>);
     this.log(`📝 Registered Handler: ${handler.id} for ${handler.targetEvent}`);
   }
 

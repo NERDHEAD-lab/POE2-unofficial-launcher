@@ -1,15 +1,15 @@
 .service-channel-container {
-  width: 100%; /* Match parent width (same as Start Button) */
-  margin-bottom: 1px; /* Very tight spacing to the button below, like Battle.net */
+  width: 100%;
+  margin-bottom: 4px;
   display: flex;
   flex-direction: column;
-  padding: 0 20px; /* Match middle-menu-area padding */
-  box-sizing: border-box; /* Ensure padding doesn't increase width */
+  padding: 0 20px;
+  box-sizing: border-box;
 }
 
 .service-channel-label {
   font-size: 11px;
-  color: #ccc;
+  color: #888;
   margin-bottom: 4px;
   font-weight: 500;
   text-align: left;
@@ -17,54 +17,132 @@
 
 .service-channel-controls {
   display: flex;
-  gap: 2px; /* Tiny gap between dropdown and settings button */
-  height: 32px; /* Fixed height for consistency */
+  gap: 4px;
+  height: 40px; /* Increased height */
+  position: relative;
+  z-index: 100;
 }
 
-/* Dropdown Styles */
-.service-channel-dropdown {
-  flex: 1; /* Takes remaining space */
-  background-color: rgba(20, 20, 20, 0.9);
-  color: #ccc;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Wrapper to isolate Dropdown logic from Settings Button */
+.dropdown-wrapper {
+  flex: 1; /* Fills remaining width */
+  position: relative;
+  height: 100%;
+}
+
+/* Custom Dropdown Trigger */
+.custom-dropdown-trigger {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 2px;
-  padding: 0 8px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Left Align */
   cursor: pointer;
-  appearance: none; /* Remove default arrow to style if needed, but standard is fine for now */
-  /* Re-add arrow image manually if appearance is none, or keep default */
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23CCCCCC%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px top 50%;
-  background-size: 10px auto;
-  appearance: none;
+  transition: all 0.2s;
+  padding-left: 12px; /* Left padding */
+  padding-right: 20px; /* Space for arrow */
+  box-sizing: border-box;
 }
 
-.service-channel-dropdown:focus {
-  /* Default subtle focus border (not accent) */
-  border-color: rgba(255, 255, 255, 0.2);
-  outline: none;
+/* Arrow Styling */
+.custom-dropdown-trigger::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #888;
+  pointer-events: none;
 }
 
-.service-channel-dropdown:hover,
-.service-channel-dropdown.active {
-  background-color: rgba(40, 40, 40, 0.9);
+.custom-dropdown-trigger:hover,
+.custom-dropdown-trigger.active {
+  background-color: rgba(30, 30, 30, 1);
   border-color: var(--theme-accent, #dfcf99);
 }
 
-/* Settings Button Styles */
-.settings-button {
-  width: 36px; /* Square-ish */
-  height: 100%;
-  background-color: #0e86ca; /* Blue to match Battle.net Action Button? Or generic dark? User said "instead of globe". Globe is dark. */
-  /* Wait, Battle.net gear is usually dark gray next to the blue play button. */
-  /* But the user image shows the GE in the Blue Play Button row? No, user says "Settings button ... instead of region selection" */
-  /* Region selection is usually a globe icon next to the text. */
-  /* The user's text says: "Settings button goes to the right of the dropdown instead of the region selection" */
-  /* So it should be on the SAME ROW as the dropdown. */
+.custom-dropdown-trigger.active::after {
+  border-top: none;
+  border-bottom: 5px solid var(--theme-accent, #dfcf99);
+}
 
+/* Dropdown List */
+.custom-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%; /* Matches Wrapper width exactly */
+  margin-top: 4px;
+  background-color: rgba(15, 15, 15, 0.98);
+  border: 1px solid var(--theme-accent, #dfcf99);
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-dropdown-item {
+  height: 40px; /* Consistent height */
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Left Align */
+  padding-left: 12px; /* Left padding matching trigger */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.custom-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.custom-dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.custom-dropdown-item.selected {
+  background-color: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 2px 0 0 0 var(--theme-accent, #dfcf99);
+}
+
+/* Logo Image Styling - STRICT Sizing */
+.channel-logo {
+  max-width: 90%; /* Allow more width */
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: grayscale(0.2);
+  transition: filter 0.2s;
+  display: block;
+}
+
+/* Specific Logo Balancing */
+img.channel-logo[alt="Kakao Games"] {
+  height: 18px; /* Reduce Kakao height to balance width */
+}
+
+img.channel-logo[alt="Grinding Gear Games"] {
+  height: 34px; /* Maximize GGG height within 40px container */
+}
+
+/* Hover Effects */
+.custom-dropdown-item:hover .channel-logo,
+.custom-dropdown-trigger:hover .channel-logo,
+.custom-dropdown-trigger.active .channel-logo {
+  filter: grayscale(0);
+  filter: brightness(1.1);
+}
+
+/* Settings Button */
+.settings-button {
+  width: 40px; /* Square match for 40px height */
+  height: 100%;
   background-color: rgba(30, 30, 30, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 2px;
@@ -72,8 +150,9 @@
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  color: #ccc;
+  color: #888;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .settings-button:hover {
