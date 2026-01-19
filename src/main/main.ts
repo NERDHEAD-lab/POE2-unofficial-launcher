@@ -134,7 +134,7 @@ function createWindows() {
     maximizable: false, // Prevent maximize on double-click
     frame: false, // Disable OS Frame
     titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
-    icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
+    icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
@@ -278,5 +278,8 @@ app.on("activate", () => {
     createWindows();
   }
 });
+
+// Set App User Model ID for Windows Taskbar Icon handling
+app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
 app.whenReady().then(createWindows);

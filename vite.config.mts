@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -58,5 +59,10 @@ export default defineConfig({
   server: {
     port: 54321,
     strictPort: true,
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(
+      JSON.parse(readFileSync("package.json", "utf-8")).version,
+    ),
   },
 });

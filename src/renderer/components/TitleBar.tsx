@@ -8,7 +8,7 @@ interface TitleBarProps {
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({
-  title = "PoE Unofficial Launcher v0.0.1",
+  title = `PoE Unofficial Launcher v${__APP_VERSION__}`,
 }) => {
   return (
     <div className="title-bar">

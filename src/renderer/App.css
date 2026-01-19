@@ -100,14 +100,17 @@ img {
 }
 
 .app-icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  display: block; /* Removes inline descender spacing */
 }
 
 .app-title {
-  font-size: 12px;
+  font-size: 13px;
   color: #888;
-  font-weight: 500;
+  font-weight: 700; /* Bolder text */
+  line-height: 1; /* Tightens text for better vertical centering */
+  padding-top: 1px; /* Optical adjustment: text often looks slightly high */
 }
 
 .title-bar-right {
