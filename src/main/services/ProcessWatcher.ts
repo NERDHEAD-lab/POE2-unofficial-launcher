@@ -1,23 +1,26 @@
 import { eventBus } from "../events/EventBus";
 import { SUPPORTED_PROCESS_NAMES } from "../events/handlers/GameProcessStatusHandler";
 import { AppContext, EventType, ProcessEvent } from "../events/types";
-import { getProcessPaths } from "../utils/process";
+import * as processUtils from "../utils/process";
 
 const TARGET_PROCESSES = SUPPORTED_PROCESS_NAMES;
 
 export class ProcessWatcher {
   private context: AppContext;
   private timer: NodeJS.Timeout | null = null;
-  private processStates: Map<string, boolean> = new Map();
+  /**
+   * PID-based cache for currently running target processes.
+   * Key: Process ID
+   * Value: { name: Process Name, path: Executable Path }
+   */
+  private activePids: Map<number, { name: string; path: string }> = new Map();
 
   constructor(context: AppContext) {
     this.context = context;
-    // Initialize states
-    TARGET_PROCESSES.forEach((name) => this.processStates.set(name, false));
   }
 
   public startWatching(intervalMs: number = 3000) {
-    console.log("[ProcessWatcher] Starting Watcher Service...");
+    console.log("[ProcessWatcher] Starting Watcher Service (PID-based)...");
     this.runCheck(); // Initial check
 
     this.timer = setInterval(() => {
@@ -34,37 +37,47 @@ export class ProcessWatcher {
   }
 
   private async runCheck() {
-    // console.log("[ProcessWatcher] Running Check..."); // Too noisy?
-    for (const processName of TARGET_PROCESSES) {
-      // Use getProcessPaths instead of isProcessRunning to get path info
-      try {
-        const paths = await getProcessPaths(processName);
-        const isRunning = paths.length > 0;
+    try {
+      // 1. Fetch current target processes in a single call
+      const currentProcesses =
+        await processUtils.getProcessesInfo(TARGET_PROCESSES);
+      const currentPidSet = new Set(currentProcesses.map((p) => p.pid));
 
-        const wasRunning = this.processStates.get(processName) || false;
+      // 2. Identify NEW processes (PID not in cache)
+      for (const p of currentProcesses) {
+        if (!this.activePids.has(p.pid)) {
+          // New Process Detected
+          this.activePids.set(p.pid, { name: p.name, path: p.path });
 
-        if (isRunning !== wasRunning) {
           console.log(
-            `[ProcessWatcher] State Change for ${processName}: ${wasRunning} -> ${isRunning}`,
+            `[ProcessWatcher] Process Started: ${p.name} (PID: ${p.pid}, Path: ${p.path || "Unknown"})`,
           );
-          // State Changed
-          this.processStates.set(processName, isRunning);
 
-          const type = isRunning
-            ? EventType.PROCESS_START
-            : EventType.PROCESS_STOP;
-
-          // Include path only on start (first found instance)
-          const path = isRunning ? paths[0] : undefined;
-
-          eventBus.emit<ProcessEvent>(type, this.context, {
-            name: processName,
-            path, // Propagate path
+          eventBus.emit<ProcessEvent>(EventType.PROCESS_START, this.context, {
+            name: p.name,
+            path: p.path,
           });
         }
-      } catch (e) {
-        console.error(`[ProcessWatcher] Error checking ${processName}:`, e);
       }
+
+      // 3. Identify STOPPED processes (PID in cache but not in current list)
+      for (const [pid, info] of this.activePids.entries()) {
+        if (!currentPidSet.has(pid)) {
+          // Process Stopped
+          console.log(
+            `[ProcessWatcher] Process Stopped: ${info.name} (PID: ${pid})`,
+          );
+
+          eventBus.emit<ProcessEvent>(EventType.PROCESS_STOP, this.context, {
+            name: info.name,
+            path: info.path,
+          });
+
+          this.activePids.delete(pid);
+        }
+      }
+    } catch (e) {
+      console.error(`[ProcessWatcher] Error during runCheck:`, e);
     }
   }
 }

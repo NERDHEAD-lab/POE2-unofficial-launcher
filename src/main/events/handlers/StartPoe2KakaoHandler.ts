@@ -4,7 +4,6 @@ import {
   EventHandler,
   EventType,
   GameStatusChangeEvent,
-  MessageEvent,
   UIEvent,
 } from "../types";
 

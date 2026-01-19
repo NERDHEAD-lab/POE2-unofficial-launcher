@@ -41,6 +41,17 @@ let gameWindow: BrowserWindow | null;
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 
+// Track the current game/service being launched to sync context to popups
+interface SessionContext {
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+}
+
+let activeSessionContext: SessionContext | null = null;
+
+// Reliable mapping of window IDs to their game context
+const windowContextMap = new Map<number, SessionContext>();
+
 // IPC Handlers for Configuration
 ipcMain.handle("config:get", (_event, key?: string) => {
   return getConfig(key);
@@ -165,6 +176,11 @@ function createWindows() {
         console.log("[Main] creating new Game Window...");
         gameWindow = initGameWindow();
         appContext.gameWindow = gameWindow;
+
+        // Register window context mapping
+        if (activeSessionContext) {
+          windowContextMap.set(gameWindow.webContents.id, activeSessionContext);
+        }
       }
       return gameWindow;
     },
@@ -227,23 +243,39 @@ ipcMain.on(
     } | null,
   ) => {
     if (appContext) {
-      // Determine context (Use provided context or fallback to Kakao defaults)
-      // Note: msgContext might be null if call came from legacy or unknown source
-      if (!msgContext || !msgContext.gameId || !msgContext.serviceId) {
+      const senderId = _event.sender.id;
+      const mappedContext = windowContextMap.get(senderId);
+
+      // Determine context (Priority: IPC Payload > Window Map > Global Active Session > Defaults)
+      const gameId =
+        msgContext?.gameId ||
+        mappedContext?.gameId ||
+        activeSessionContext?.gameId ||
+        "POE2";
+      const serviceId =
+        msgContext?.serviceId ||
+        mappedContext?.serviceId ||
+        activeSessionContext?.serviceId ||
+        "Kakao Games";
+
+      // Only log error if we absolutely don't know the context and had to use hard-coded defaults
+      if (
+        !msgContext &&
+        !mappedContext &&
+        !activeSessionContext &&
+        (!gameId || !serviceId)
+      ) {
         console.error(
-          `[Main] IPC "game-status-update" received with missing context! (gameId: ${msgContext?.gameId}, serviceId: ${msgContext?.serviceId})`,
+          `[Main] IPC "game-status-update" received from unknown window (${senderId}) with no active session context!`,
         );
       }
-
-      const gameId = msgContext?.gameId || "POE2";
-      const serviceId = msgContext?.serviceId || "Kakao Games";
 
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         appContext,
         {
-          gameId,
-          serviceId,
+          gameId: gameId as any,
+          serviceId: serviceId as any,
           status: status as RunStatus,
         },
       );
@@ -260,6 +292,7 @@ app.on("browser-window-created", (_, window) => {
   const checkAndShow = () => {
     // CRITICAL: Do not hide the Main UI Window!
     if (mainWindow && window === mainWindow) return;
+    if (window.isDestroyed()) return;
 
     const url = window.webContents.getURL();
     const isKakaoLogin = url.includes("accounts.kakao.com");
@@ -282,15 +315,54 @@ app.on("browser-window-created", (_, window) => {
   };
 
   window.webContents.on("did-navigate", checkAndShow);
-  window.webContents.on("did-finish-load", checkAndShow);
+  window.webContents.on("did-finish-load", () => {
+    if (!window.isDestroyed()) {
+      checkAndShow();
+      // Seeding context to new windows if we are in a launch session
+      if (activeSessionContext) {
+        window.webContents.send("execute-game-start", activeSessionContext);
+      }
+    }
+  });
+
+  const wcId = window.webContents.id;
 
   // 3. Debugging Support
   const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
   if (showGameWindow) {
-    window.webContents.openDevTools({ mode: "detach" });
-    console.log("[Main] DevTools opened for new window");
-    window.setMenuBarVisibility(false);
+    if (!window.isDestroyed()) {
+      window.webContents.openDevTools({ mode: "detach" });
+      console.log("[Main] DevTools opened for new window");
+      window.setMenuBarVisibility(false);
+    }
   }
+
+  // Register context mapping for the new window (popup)
+  if (activeSessionContext && !window.isDestroyed()) {
+    windowContextMap.set(wcId, activeSessionContext);
+  }
+
+  // Cleanup mapping when window is destroyed
+  window.on("closed", () => {
+    windowContextMap.delete(wcId);
+  });
+});
+
+// Sync terminal context tracking with internal status changes
+eventBus.register({
+  id: "ActiveSessionTracker",
+  targetEvent: EventType.GAME_STATUS_CHANGE,
+  handle: async (event: GameStatusChangeEvent) => {
+    const { status, gameId, serviceId } = event.payload;
+    // If we are prepared to launch or already launching, update active context
+    if (
+      status === "preparing" ||
+      status === "processing" ||
+      status === "authenticating"
+    ) {
+      activeSessionContext = { gameId, serviceId };
+    }
+  },
 });
 
 app.on("window-all-closed", () => {

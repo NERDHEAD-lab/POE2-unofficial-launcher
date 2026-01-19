@@ -90,6 +90,65 @@ export const getProcessPaths = async (
 };
 
 /**
+ * Get info for multiple running processes by names (Windows)
+ * Uses a single PowerShell/WMI query for efficiency.
+ */
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  path: string;
+}
+
+export const getProcessesInfo = async (
+  processNames: string[],
+): Promise<ProcessInfo[]> => {
+  if (processNames.length === 0) return [];
+
+  try {
+    const filter = processNames.map((name) => `Name = '${name}'`).join(" or ");
+    const psCommand = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId, Name, ExecutablePath | ConvertTo-Json -Compress`;
+
+    const { stdout } = await execFileAsync(
+      "powershell",
+      ["-NoProfile", "-Command", psCommand],
+      { windowsHide: true },
+    );
+
+    if (!stdout || !stdout.trim()) {
+      return [];
+    }
+
+    let result: unknown;
+    try {
+      result = JSON.parse(stdout);
+    } catch (_e) {
+      // If only one process, it's an object, if multiple, it's an array.
+      // But ConvertTo-Json -Compress might fail if there's a parsing error in PS?
+      // Usually it's just empty string if no matches.
+      return [];
+    }
+
+    const rawProcesses = Array.isArray(result) ? result : [result];
+    const processes: ProcessInfo[] = [];
+
+    for (const p of rawProcesses) {
+      if (!p || typeof p.ProcessId !== "number") continue;
+
+      processes.push({
+        pid: p.ProcessId,
+        name: p.Name || "",
+        path: p.ExecutablePath || "", // May be null due to permissions
+      });
+    }
+
+    return processes;
+  } catch (_e) {
+    // If the filter is too long or something fails
+    return [];
+  }
+};
+
+/**
  * Check if a process is running by name
  */
 export const isProcessRunning = async (
