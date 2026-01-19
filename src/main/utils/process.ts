@@ -1,7 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { PowerShellManager } from "./powershell";
 
 /**
  * Get executable paths for a running process by name (Windows)
@@ -18,11 +15,9 @@ export const getProcessPaths = async (
     const psCommand = `Get-CimInstance Win32_Process -Filter "Name = '${processName}'" | Select-Object ProcessId, ExecutablePath | ConvertTo-Json -Compress`;
 
     // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
-    const { stdout, stderr } = await execFileAsync(
-      "powershell",
-      ["-NoProfile", "-Command", psCommand],
-      { windowsHide: true },
-    );
+    // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
+    const { stdout, stderr } =
+      await PowerShellManager.getInstance().execute(psCommand);
 
     if (stderr) {
       console.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
@@ -33,7 +28,7 @@ export const getProcessPaths = async (
     }
 
     // PowerShell ConvertTo-Json can return a single object or an array
-    let result: any;
+    let result: unknown;
     try {
       result = JSON.parse(stdout);
     } catch (e) {
@@ -58,11 +53,8 @@ export const getProcessPaths = async (
         const nameInternal = processName.replace(/\.exe$/i, "");
         try {
           const fallbackCmd = `Get-Process -Name "${nameInternal}" | Select-Object -ExpandProperty Path | Select-Object -Unique`;
-          const { stdout: fallbackOut } = await execFileAsync(
-            "powershell",
-            ["-NoProfile", "-Command", fallbackCmd],
-            { windowsHide: true },
-          );
+          const { stdout: fallbackOut } =
+            await PowerShellManager.getInstance().execute(fallbackCmd);
 
           if (fallbackOut && fallbackOut.trim()) {
             const fallbackPaths = fallbackOut
@@ -71,10 +63,9 @@ export const getProcessPaths = async (
               .filter((l) => l.length > 0);
             paths.push(...fallbackPaths);
           } else {
-            // Still push empty string to acknowledge process exists (for running check)
             paths.push("");
           }
-        } catch (err) {
+        } catch (_err) {
           // Fallback failed (likely Access Denied)
           paths.push("");
         }
@@ -108,11 +99,7 @@ export const getProcessesInfo = async (
     const filter = processNames.map((name) => `Name = '${name}'`).join(" or ");
     const psCommand = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId, Name, ExecutablePath | ConvertTo-Json -Compress`;
 
-    const { stdout } = await execFileAsync(
-      "powershell",
-      ["-NoProfile", "-Command", psCommand],
-      { windowsHide: true },
-    );
+    const { stdout } = await PowerShellManager.getInstance().execute(psCommand);
 
     if (!stdout || !stdout.trim()) {
       return [];

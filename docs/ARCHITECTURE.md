@@ -90,3 +90,15 @@
   - **확장성**: 새로운 기능 추가 시 기존 코드를 수정하지 않고 새로운 핸들러를 등록(`register`)하는 것만으로 기능 확장이 가능함.
 
   > **참고**: 구현 예제 및 상세 가이드는 [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)를 참고하세요.
+
+#### ADR-005: Unified PowerShell Management (Singleton & IPC)
+
+- **상황**: `registry.ts`와 `process.ts` 등 여러 곳에서 개별적으로 PowerShell 프로세스를 `spawn`/`execFile`하여 사용함. 특히 관리자 권한이 필요한 작업마다 매번 새로운 UAC 팝업이 발생하여 사용자 경험을 저해함.
+- **결정**:
+  - **PowerShellManager Singleton**: 모든 PowerShell 요청을 중앙에서 관리하는 싱글톤 클래스를 도입함.
+  - **Persistent Admin Session**: 관리자 권한이 최초 필요할 때만 `Start-Process ... -Verb RunAs`로 프로세스를 띄우고, **Named Pipe**를 통해 메인 프로세스와 지속적으로 통신함.
+  - **IPC Protocol**: JSON 기반의 요청/응답 프로토콜을 사용하여 명령 실행 결과를 안정적으로 비동기 처리함.
+- **결과**:
+  - **UX 개선**: 앱 실행 중 UAC 승인이 최대 1회로 제한됨.
+  - **리소스 효율**: 불필요한 프로세스 생성/종료 오버헤드 감소.
+  - **유지보수**: PowerShell 실행 옵션 및 에러 처리가 한곳으로 통합됨.
