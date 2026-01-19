@@ -419,12 +419,27 @@ function dispatchPageLogic() {
 // Context State
 let activeGameContext: { gameId: string; serviceId: string } | null = null;
 
+// Load persisted context
+try {
+  const stored = sessionStorage.getItem("activeGameContext");
+  if (stored) {
+    activeGameContext = JSON.parse(stored);
+    console.log(
+      "[Game Window] Restored Context from SessionStorage:",
+      activeGameContext,
+    );
+  }
+} catch (e) {
+  console.warn("[Game Window] Failed to restore context:", e);
+}
+
 // --- IPC Listeners ---
 
 ipcRenderer.on("execute-game-start", (_event, context: any) => {
   console.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
   if (context && context.gameId && context.serviceId) {
     activeGameContext = context;
+    sessionStorage.setItem("activeGameContext", JSON.stringify(context));
   }
 });
 
