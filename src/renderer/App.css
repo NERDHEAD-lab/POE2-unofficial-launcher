@@ -19,6 +19,14 @@ body {
   color: var(--theme-text);
 }
 
+#app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
 /* Dedicated Background Layer */
 #app-background {
   position: fixed;
@@ -68,7 +76,16 @@ img {
   justify-content: space-between;
   align-items: center;
   height: 32px; /* Standard small title bar height */
-  background: rgba(0, 0, 0, 0.2); /* Slight background for visibility */
+  /* background: rgba(0, 0, 0, 0.2); (Old flat bg) */
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0) 45%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 1) 80%,
+    rgba(0, 0, 0, 1) 100%
+  ); /* Stronger Gradient: Solid black 20% on sides to cover gaps */
   border-bottom: 1px solid rgba(223, 207, 153, 0.1);
   -webkit-app-region: drag; /* Entire bar is draggable */
   padding: 0 10px;
@@ -112,6 +129,25 @@ img {
   height: 100%;
   position: relative;
   z-index: 50; /* Below Drag Region */
+  padding-bottom: 15px; /* User Request: Bottom Padding */
+  box-sizing: border-box; /* Ensure padding doesn't overflow */
+}
+
+/* ... (omitted sections) ... */
+
+/* --- Footer & Credits (Ported from Plugin) --- */
+.footer-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* Align to bottom */
+  width: 100%;
+  /* margin-top: auto;  Removed to allow overlay */
+  position: absolute; /* Overlay mode */
+  bottom: 0;
+  left: 0;
+  overflow: hidden; /* Clip the pushed-down image */
+  z-index: 30;
+  pointer-events: none; /* Allow clicks to pass through to app-layout if needed, but text needs clicks? */
 }
 
 /* Left Panel: Fixed Width */
@@ -138,7 +174,6 @@ img {
 
 /* Bottom Controls in Left Panel */
 .bottom-controls {
-  margin-bottom: 20px;
   display: flex;
   flex-direction: column;
   align-items: center; /* Center buttons */
@@ -161,4 +196,140 @@ img {
   z-index: 5000;
   pointer-events: auto;
   -webkit-app-region: no-drag;
+}
+
+/* --- Gothic Frame Decorations (Ported from Plugin) --- */
+.frame-decoration {
+  position: absolute;
+  top: 0;
+  z-index: 50;
+  pointer-events: none;
+  filter: brightness(1.5);
+}
+
+.top-left {
+  left: 0;
+  top: 0; /* Reset to content boundary */
+  width: 15%; /* Scaled to 80% (130 * 0.8) */
+  height: 150px; /* Scaled to 80% */
+  transform: translateY(-2%); /* Dynamic offset based on image height */
+  background-image: url("assets/frame-top-left.webp");
+  background-repeat: no-repeat;
+  background-position: top left;
+  background-size: contain; /* Scale while preserving aspect ratio */
+}
+
+.top-right {
+  right: 0;
+  top: 0;
+  width: 15%;
+  height: 150px;
+  transform: translateY(-2%);
+  background-image: url("assets/frame-top-right.webp");
+  background-repeat: no-repeat;
+  background-position: top right;
+  background-size: contain;
+}
+
+.top-center {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 150px;
+  transform: translateY(-30%);
+  background-image: url("assets/frame-top-center.webp");
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 70% auto !important;
+}
+
+/* Side Borders */
+.frame-border {
+  position: absolute;
+  width: 100vh;
+  height: 14px;
+  z-index: 40;
+  background-image: url("assets/frame-tile.webp");
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  pointer-events: none;
+  filter: brightness(1.5);
+}
+
+.border-left {
+  top: 0;
+  left: 14px; /* Offset to align with rotated origin */
+  transform: rotate(90deg);
+  transform-origin: top left;
+}
+
+.border-right {
+  top: 0;
+  right: 14px;
+  transform: rotate(-90deg);
+  transform-origin: top right;
+}
+
+/* --- Footer & Credits (Ported from Plugin) --- */
+.footer-bg-wrapper {
+  width: 100%;
+  position: relative;
+  z-index: 10;
+}
+
+.footer-bg-image {
+  width: 100%;
+  display: block;
+  transform: translateY(18%); /* Push down further to clear text area */
+  filter: brightness(1.5);
+}
+
+.footer-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%; /* Cover full footer area */
+  display: flex;
+  justify-content: center;
+  align-items: flex-end; /* Align text to bottom */
+  padding-bottom: 0; /* Container padding removed */
+  z-index: 20;
+  gap: 6px;
+  pointer-events: auto; /* Restore interactivity for links */
+}
+
+.credits-text {
+  font-family: "Times New Roman", serif;
+  font-size: 11px; /* Increased from 10px */
+  letter-spacing: 1px;
+  color: #bdb3a3; /* Brighter/Lighter color for better visibility */
+  text-transform: uppercase;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  margin-top: 0;
+  padding-bottom: 3px; /* Explicit spacing */
+}
+
+.github-link {
+  display: flex;
+  align-items: center;
+  margin-top: -1px; /* Align icon visually with text */
+  opacity: 0.5;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+  text-decoration: none;
+  padding-bottom: 3px; /* Consistency with text */
+}
+
+.github-link:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.github-icon {
+  width: 12px;
+  height: 12px;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
 }

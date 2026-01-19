@@ -128,8 +128,8 @@ let appContext: AppContext;
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
-    width: 1200, // Increased width for better ratio
-    height: 800, // Slightly increased height
+    width: 1440, // Increased by 20% (1200 * 1.2)
+    height: 960, // Increased by 20% (800 * 1.2)
     resizable: false, // Fixed size
     maximizable: false, // Prevent maximize on double-click
     frame: false, // Disable OS Frame

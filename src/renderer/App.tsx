@@ -4,6 +4,8 @@ import "./App.css"; // Global Styles
 // Local Imports
 import { CONFIG_KEYS } from "../shared/config";
 import { AppConfig } from "../shared/types";
+import bannerBottom from "./assets/banner-bottom.webp";
+import iconGithub from "./assets/icon-github.svg";
 import bgPoe from "./assets/poe/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
@@ -200,7 +202,10 @@ function App() {
   };
 
   return (
-    <div className="app-root-border">
+    <div
+      id="app-container"
+      className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
+    >
       {/* Background Layer for Transitions */}
       <div
         id="app-background"
@@ -210,77 +215,118 @@ function App() {
         }}
       />
 
-      {/* 1. Top Title Bar */}
+      {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
       <TitleBar />
 
-      <div className="app-layout">
-        {/* === Left Panel: Controls (400px width) === */}
-        <div className="left-panel">
-          {/* Section A: Game Selector (Top) */}
-          <div style={{ marginTop: "10px" }}>
-            <GameSelector
-              activeGame={activeGame}
-              onGameChange={handleGameChange}
-            />
-          </div>
+      {/* 2. Main Content Frame */}
+      <div
+        className="app-main-content"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+          zIndex: 10,
+        }}
+      >
+        {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
+        <div className="frame-decoration top-center"></div>
+        <div className="frame-decoration top-left"></div>
+        <div className="frame-decoration top-right"></div>
 
-          {/* Section B: Menu Area (Middle) - Flex Grow */}
-          <div
-            className="middle-menu-area"
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "flex-start" /* Top align */,
-              alignItems: "flex-start" /* Left align */,
-              paddingTop: "40px" /* Some top spacing */,
-              paddingLeft: "20px" /* Small padding for left alignment */,
-              paddingRight: "20px" /* Symmetric padding */,
-            }}
-          >
-            <SupportLinks />
-          </div>
-
-          {/* Section C: Game Start & Company Logos (Bottom) */}
-          <div className="bottom-controls">
-            <div style={{ width: "340px", marginBottom: "4px" }}>
-              <ServiceChannelSelector
-                channel={serviceChannel}
-                onChannelChange={handleChannelChange}
-                onSettingsClick={() => console.log("Settings Clicked")}
+        <div className="app-layout">
+          {/* === Left Panel: Controls (400px width) === */}
+          <div className="left-panel">
+            {/* Section A: Game Selector (Top) */}
+            <div style={{ marginTop: "10px" }}>
+              <GameSelector
+                activeGame={activeGame}
+                onGameChange={handleGameChange}
               />
             </div>
-            <GameStartButton onClick={handleGameStart} />
 
-            {/* Progress Info Message */}
+            {/* Section B: Menu Area (Middle) - Flex Grow */}
             <div
+              className="middle-menu-area"
               style={{
-                height: "20px",
-                marginTop: "2px",
-                marginBottom: "2px",
+                flex: 1,
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--theme-accent)",
-                fontSize: "13px",
-                fontWeight: 500,
-                textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                opacity: progressMessage ? 1 : 0,
-                transition: "opacity 0.3s ease-in-out",
+                flexDirection: "column",
+                justifyContent: "flex-start" /* Top align */,
+                alignItems: "flex-start" /* Left align */,
+                paddingTop: "40px" /* Some top spacing */,
+                paddingLeft: "20px" /* Small padding for left alignment */,
+                paddingRight: "20px" /* Symmetric padding */,
               }}
             >
-              {progressMessage || " "}
+              <SupportLinks />
             </div>
 
-            {/* Company Logos - Removed and moved to Service Channel Dropdown */}
-            <div className="company-logos" style={{ display: "none" }} />
+            {/* Section C: Game Start & Company Logos (Bottom) */}
+            <div className="bottom-controls">
+              <div style={{ width: "340px", marginBottom: "4px" }}>
+                <ServiceChannelSelector
+                  channel={serviceChannel}
+                  onChannelChange={handleChannelChange}
+                  onSettingsClick={() => console.log("Settings Clicked")}
+                />
+              </div>
+              <GameStartButton onClick={handleGameStart} />
+
+              {/* Progress Info Message */}
+              <div
+                style={{
+                  height: "20px",
+                  marginTop: "2px",
+                  marginBottom: "2px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--theme-accent)",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                  opacity: progressMessage ? 1 : 0,
+                  transition: "opacity 0.3s ease-in-out",
+                }}
+              >
+                {progressMessage || " "}
+              </div>
+
+              {/* Company Logos - Removed and moved to Service Channel Dropdown */}
+              <div className="company-logos" style={{ display: "none" }} />
+            </div>
+          </div>
+
+          {/* === Right Panel: Content Area === */}
+          <div className="right-panel">
+            {/* Currently Empty - Reserved for Notices/Patch Notes */}
+            <div className="content-area">{/* Content Placeholder */}</div>
           </div>
         </div>
 
-        {/* === Right Panel: Content Area === */}
-        <div className="right-panel">
-          {/* Currently Empty - Reserved for Notices/Patch Notes */}
-          <div className="content-area">{/* Content Placeholder */}</div>
+        {/* Footer Section (Button + Image Separation) */}
+        <div className="footer-section">
+          {/* 1. Background Image Wrapper (Clipped) */}
+          <div className="footer-bg-wrapper">
+            <img
+              src={bannerBottom}
+              className="footer-bg-image"
+              alt="Footer Banner"
+            />
+          </div>
+
+          {/* 2. Content Overlay (Text & Icon) */}
+          <div className="footer-content">
+            <span className="credits-text">Powered by NERDHEAD LAB</span>
+            <a
+              href="https://github.com/NERDHEAD-lab/POE2-unofficial-launcher"
+              target="_blank"
+              className="github-link"
+            >
+              <img src={iconGithub} className="github-icon" alt="GitHub Repo" />
+            </a>
+          </div>
         </div>
       </div>
     </div>
