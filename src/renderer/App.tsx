@@ -16,27 +16,32 @@ import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
-// Status Message Mapping (Constant)
-const STATUS_MESSAGES: Record<RunStatus, string> = {
-  idle: "",
-  preparing: "실행 절차 준비 중...",
-  processing: "실행 절차 진행 중...",
-  authenticating: "지정 PC 확인 중...",
-  ready: "게임 실행 준비 완료! 잠시 후 실행됩니다.",
-  running: "게임 실행 중",
-  error: "실행 오류 발생",
+// Status Message Configuration Interface
+interface StatusMessageConfig {
+  message: string;
+  timeout: number; // -1 for infinite (sticky), otherwise duration in ms
+}
+
+// Status Message Mapping (Configuration)
+const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
+  idle: { message: "게임이 종료되었습니다.", timeout: 3000 },
+  preparing: { message: "실행 절차 준비 중...", timeout: 3000 },
+  processing: { message: "실행 절차 진행 중...", timeout: 3000 },
+  authenticating: { message: "지정 PC 확인 중...", timeout: 3000 },
+  ready: { message: "게임 실행 준비 완료! 잠시 후 실행됩니다.", timeout: 3000 },
+  running: { message: "게임 실행 중", timeout: -1 }, // Sticky
+  error: { message: "실행 오류 발생", timeout: 3000 },
 };
 
 // Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
 const revalidatedFiles = new Set<string>();
 
 function App() {
-  const [activeGame, setActiveGame] = useState<"POE1" | "POE2">("POE1");
+  const [activeGame, setActiveGame] = useState<AppConfig["activeGame"]>("POE1");
   const [bgImage, setBgImage] = useState(bgPoe);
   const [bgOpacity, setBgOpacity] = useState(1);
-  const [serviceChannel, setServiceChannel] = useState<"Kakao Games" | "GGG">(
-    "Kakao Games",
-  );
+  const [serviceChannel, setServiceChannel] =
+    useState<AppConfig["serviceChannel"]>("Kakao Games");
   // Shared Theme Cache State (from Electron Store)
   const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
 
@@ -47,23 +52,60 @@ function App() {
     status: "idle",
   });
 
+  // Active Status Message State
+  const [activeMessage, setActiveMessage] = useState<string>("");
+
   const isFirstMount = useRef(true);
 
-  // Compute Active Status Message based on Context Match
+  const prevStatusRef = useRef<RunStatus>("idle");
+
+  // Effect: Handle Generic Status Message & Timers
+  useEffect(() => {
+    const status = globalGameStatus.status;
+    const prevStatus = prevStatusRef.current;
+
+    // Ignore initial mount idle state (don't show "Game Exited" on boot)
+    if (status === "idle" && prevStatus === "idle") {
+      return;
+    }
+
+    prevStatusRef.current = status;
+
+    const config = STATUS_MESSAGES[status];
+    if (!config) return;
+
+    let messageText = config.message;
+
+    // Special Case: Error Code Overrides
+    if (status === "error" && globalGameStatus.errorCode) {
+      messageText = `오류: ${globalGameStatus.errorCode}`;
+    }
+
+    // Set Message (Async to avoid synchronous setState warning)
+    setTimeout(() => setActiveMessage(messageText), 0);
+
+    // clear previous timers handled by useEffect cleanup
+
+    // If timeout is defined and positive, set auto-clear
+    if (config.timeout > 0) {
+      const timer = setTimeout(() => {
+        setActiveMessage("");
+      }, config.timeout);
+      return () => clearTimeout(timer);
+    }
+  }, [globalGameStatus.status, globalGameStatus.errorCode]);
+
+  // Compute Active Status Message (Context Aware)
   const activeStatusMessage = React.useMemo(() => {
     // Only show status if it matches the currently selected Game & Service context
-    // Exception: Maybe 'error' should always startle? For now strict mapping.
     if (
       globalGameStatus.gameId === activeGame &&
       globalGameStatus.serviceId === serviceChannel
     ) {
-      if (globalGameStatus.status === "error" && globalGameStatus.errorCode) {
-        return `오류: ${globalGameStatus.errorCode}`;
-      }
-      return STATUS_MESSAGES[globalGameStatus.status];
+      return activeMessage;
     }
     return "";
-  }, [globalGameStatus, activeGame, serviceChannel]);
+  }, [globalGameStatus, activeGame, serviceChannel, activeMessage]);
 
   // Compute Button Disabled State
   const isGameRunning = React.useMemo(() => {
@@ -78,29 +120,6 @@ function App() {
     }
     return false;
   }, [globalGameStatus, activeGame, serviceChannel]);
-
-  // Synchronize Settings from Main Process (Reactive)
-  useEffect(() => {
-    if (window.electronAPI) {
-      // ... existing config load code ...
-      /* ... (omitting existing config load for brevity, assume keep existing) ... */
-      // 3. LISTEN FOR GAME STATUS UPDATES (New Architecture)
-      // Note: We need to expose this via preload if not already?
-      // Wait, 'onProgressMessage' was for the old text. We need 'onGameStatusUpdate'.
-      // I need to update preload.ts first!
-      // ACTION: I will update App.tsx assuming the listener exists,
-      // but I MUST go and update preload.ts / types.ts for ElectronAPI.
-      // Temporary: Use onProgressMessage for now if I haven't updated preload yet?
-      // No, user wants correct architecture.
-      // I will implement the logic here but I need to update preload next.
-      // Assuming window.electronAPI.onGameStatusUpdate exists:
-      /*
-      window.electronAPI.onGameStatusUpdate((statusState) => {
-         setGlobalGameStatus(statusState);
-      });
-      */
-    }
-  }, []);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -241,13 +260,13 @@ function App() {
     };
   }, [activeGame]);
 
-  const handleGameChange = (game: "POE1" | "POE2") => {
+  const handleGameChange = (game: AppConfig["activeGame"]) => {
     setActiveGame(game);
     // 1. User triggered change moves the "Source of Truth"
     window.electronAPI?.setConfig(CONFIG_KEYS.ACTIVE_GAME, game);
   };
 
-  const handleChannelChange = (channel: "Kakao Games" | "GGG") => {
+  const handleChannelChange = (channel: AppConfig["serviceChannel"]) => {
     setServiceChannel(channel);
     // 2. User triggered change moves the "Source of Truth"
     window.electronAPI?.setConfig(CONFIG_KEYS.SERVICE_CHANNEL, channel);

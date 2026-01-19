@@ -31,6 +31,7 @@ export interface ProcessEvent {
   type: EventType.PROCESS_START | EventType.PROCESS_STOP;
   payload: {
     name: string;
+    path?: string;
   };
   timestamp?: number;
 }

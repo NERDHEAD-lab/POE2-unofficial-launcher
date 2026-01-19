@@ -1,75 +1,147 @@
-import { GameId, ServiceId } from "../../../shared/types";
+import { AppConfig } from "../../../shared/types";
 import { eventBus } from "../EventBus";
 import {
+  AppContext,
   EventHandler,
   EventType,
   GameStatusChangeEvent,
-  MessageEvent, // Unused but kept for now to avoid breaking other files if any (though linter complains)
   ProcessEvent,
 } from "../types";
 
-const TARGET_PROCESSES = [
-  "poe2_launcher.exe",
-  "pathofexile.exe",
-  "poe_launcher.exe",
+// --- Callback Definitions ---
+
+type ProcessCallback = (
+  event: ProcessEvent,
+  context: AppContext,
+) => void | Promise<void>;
+
+interface ProcessStrategy {
+  processName: string;
+  onStart?: ProcessCallback;
+  onStop?: ProcessCallback;
+}
+
+// --- Helper: Status Emitters ---
+
+const emitGameStatus = (
+  context: AppContext,
+  gameId: AppConfig["activeGame"],
+  serviceId: AppConfig["serviceChannel"],
+  status: "running" | "idle", // Explicit literal types for status used here
+) => {
+  eventBus.emit<GameStatusChangeEvent>(EventType.GAME_STATUS_CHANGE, context, {
+    gameId,
+    serviceId,
+    status,
+  });
+};
+
+// --- Strategy Implementations ---
+
+// [Kakao Games Note]
+// Kakao Games processes (POE2_Launcher.exe, POE_Launcher.exe) are launched by 'DaumGameStarter'.
+// DaumGameStarter runs with Administrator privileges, so the Electron Main process (User privileges)
+// CANNOT access their ExecutablePath (Access Denied).
+// Therefore, we cannot rely on the 'path' payload for Kakao.
+// We must judge solely by the presence of the process name (which is unique enough).
+// 카카오게임즈는 daumgamestarter가 관리자권한을 요청해서 payload(path)를 가져올 수 없음
+// 단순히 런쳐 켜지고 꺼지는 유무로 밖에 판단 할 수 없음
+
+const PROCESS_STRATEGIES: ProcessStrategy[] = [
+  // 1. Kakao PoE2 Launcher
+  {
+    processName: "POE2_Launcher.exe",
+    onStart: (event, context) => {
+      emitGameStatus(context, "POE2", "Kakao Games", "running");
+    },
+    onStop: (event, context) => {
+      emitGameStatus(context, "POE2", "Kakao Games", "idle");
+    },
+  },
+
+  // 2. Kakao PoE1 Launcher
+  {
+    processName: "POE_Launcher.exe",
+    onStart: (event, context) => {
+      emitGameStatus(context, "POE1", "Kakao Games", "running");
+    },
+    onStop: (event, context) => {
+      emitGameStatus(context, "POE1", "Kakao Games", "idle");
+    },
+  },
+
+  // 3. Kakao Game Client (PathOfExile_KG.exe)
+  // User Instruction: Just register it, rely on Launchers for status.
+  {
+    processName: "PathOfExile_KG.exe",
+  },
+
+  // 4. GGG / Generic Client (PathOfExile.exe)
+  // User Instruction: Restore path detection logic for GGG.
+  {
+    processName: "PathOfExile.exe",
+    onStart: (event, context) => {
+      const { path } = event.payload;
+      const lowerPath = path?.toLowerCase() || "";
+
+      let gameId: AppConfig["activeGame"];
+
+      if (lowerPath.includes("path of exile 2")) {
+        gameId = "POE2";
+      } else if (lowerPath.includes("path of exile")) {
+        gameId = "POE1";
+      } else {
+        return;
+      }
+
+      emitGameStatus(context, gameId, "GGG", "running");
+    },
+    onStop: (event, context) => {
+      const { path } = event.payload;
+      const lowerPath = path?.toLowerCase() || "";
+
+      let gameId: AppConfig["activeGame"];
+      if (lowerPath.includes("path of exile 2")) {
+        gameId = "POE2";
+      } else if (lowerPath.includes("path of exile")) {
+        gameId = "POE1";
+      } else {
+        return;
+      }
+
+      emitGameStatus(context, gameId, "GGG", "idle");
+    },
+  },
 ];
 
+// --- Exported List for Watcher ---
+export const SUPPORTED_PROCESS_NAMES = PROCESS_STRATEGIES.map(
+  (s) => s.processName,
+);
+
 const isTargetProcess = (name: string) => {
-  return TARGET_PROCESSES.includes(name.toLowerCase());
+  return SUPPORTED_PROCESS_NAMES.some(
+    (n) => n.toLowerCase() === name.toLowerCase(),
+  );
 };
 
-const getGameIdFromProcess = (processName: string): GameId | null => {
-  const lower = processName.toLowerCase();
-  if (lower.includes("poe2") || lower.includes("pathofexile_kg")) return "POE2";
-  if (lower.includes("poe_launcher") || lower.includes("pathofexile.exe"))
-    return "POE1"; // poe_launcher is often PoE1 Kakao
-  return null;
-};
-
-// Note: Process Watcher mostly catches Kakao or GGG.
-// Since we don't know ServiceId purely from process name easily (unless path check),
-// We default to what matches the config if possible, or emit a generic status.
-// HOWEVER, to be safe and simple: process watcher usually confirms "Running".
-// We will emit status for BOTH services if needed, or rely on the UI to filter.
-// Better approach: We emit the GameId. The ServiceId might be tricky.
-// Let's assume active context's service channel for now OR emit for both?
-// Actually, UI filters by (ActiveGame && ServiceChannel).
-// If I emit ServiceId="Kakao Games" but user is on GGG, UI hides it.
-// Issue: If I launch GGG, I want to see running.
-// Solution: Process Name mapping to Service is hard without path.
-// Compromise: We check the STORE to see what was last launched?
-// Or: Just emit for the CURRENTLY SELECTED service in store?
-// Let's try to grab Service from Store.
+// --- Handlers ---
 
 export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
   id: "GameProcessStartHandler",
   targetEvent: EventType.PROCESS_START,
 
-  condition: (event, _context) => {
-    return isTargetProcess(event.payload.name);
-  },
+  condition: (event) => isTargetProcess(event.payload.name),
 
   handle: async (event, context) => {
-    const processName = event.payload.name;
-    const gameId = getGameIdFromProcess(processName);
-
-    if (!gameId) return;
-
-    // Get current configured service for this game to ensure UI matches?
-    // Or just emit.
-    // Let's rely on the Store's current selection to "guess" the service if ambiguous,
-    // OR we just emit to the active one.
-    const serviceChannel = context.store.get("serviceChannel") as ServiceId;
-
-    eventBus.emit<GameStatusChangeEvent>(
-      EventType.GAME_STATUS_CHANGE,
-      context,
-      {
-        gameId,
-        serviceId: serviceChannel, // Assume the running process belongs to current channel for feedback
-        status: "running",
-      },
+    const processName = event.payload.name.toLowerCase();
+    const strategy = PROCESS_STRATEGIES.find(
+      (s) => s.processName.toLowerCase() === processName,
     );
+
+    if (strategy?.onStart) {
+      await strategy.onStart(event, context);
+    }
   },
 };
 
@@ -77,27 +149,16 @@ export const GameProcessStopHandler: EventHandler<ProcessEvent> = {
   id: "GameProcessStopHandler",
   targetEvent: EventType.PROCESS_STOP,
 
-  condition: (event, _context) => {
-    return isTargetProcess(event.payload.name);
-  },
+  condition: (event) => isTargetProcess(event.payload.name),
 
   handle: async (event, context) => {
-    const processName = event.payload.name;
-    const gameId = getGameIdFromProcess(processName);
-
-    if (!gameId) return;
-
-    const serviceChannel = context.store.get("serviceChannel") as ServiceId;
-
-    // Emit Idle
-    eventBus.emit<GameStatusChangeEvent>(
-      EventType.GAME_STATUS_CHANGE,
-      context,
-      {
-        gameId,
-        serviceId: serviceChannel,
-        status: "idle",
-      },
+    const processName = event.payload.name.toLowerCase();
+    const strategy = PROCESS_STRATEGIES.find(
+      (s) => s.processName.toLowerCase() === processName,
     );
+
+    if (strategy?.onStop) {
+      await strategy.onStop(event, context);
+    }
   },
 };

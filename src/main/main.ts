@@ -16,7 +16,7 @@ import {
   AppContext,
   ConfigChangeEvent,
   EventType,
-  MessageEvent as AppMessageEvent,
+  GameStatusChangeEvent,
 } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
@@ -25,6 +25,7 @@ import {
   setupStoreObservers,
   default as store,
 } from "./store";
+import { AppConfig, RunStatus } from "../shared/types";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
@@ -214,16 +215,41 @@ ipcMain.on("window-close", () => {
   if (mainWindow) mainWindow.close();
 });
 
-// Game Progress Update IPC (From Game Window)
-ipcMain.on("game-progress-update", (_event, text: string) => {
-  if (appContext) {
-    eventBus.emit<AppMessageEvent>(
-      EventType.MESSAGE_GAME_PROGRESS_INFO,
-      appContext,
-      { text },
-    );
-  }
-});
+// Game Status Update IPC (From Game Window Preload)
+ipcMain.on(
+  "game-status-update",
+  (
+    _event,
+    status: unknown,
+    msgContext: {
+      gameId: AppConfig["activeGame"];
+      serviceId: AppConfig["serviceChannel"];
+    } | null,
+  ) => {
+    if (appContext) {
+      // Determine context (Use provided context or fallback to Kakao defaults)
+      // Note: msgContext might be null if call came from legacy or unknown source
+      if (!msgContext || !msgContext.gameId || !msgContext.serviceId) {
+        console.error(
+          `[Main] IPC "game-status-update" received with missing context! (gameId: ${msgContext?.gameId}, serviceId: ${msgContext?.serviceId})`,
+        );
+      }
+
+      const gameId = msgContext?.gameId || "POE2";
+      const serviceId = msgContext?.serviceId || "Kakao Games";
+
+      eventBus.emit<GameStatusChangeEvent>(
+        EventType.GAME_STATUS_CHANGE,
+        appContext,
+        {
+          gameId,
+          serviceId,
+          status: status as RunStatus,
+        },
+      );
+    }
+  },
+);
 
 // Global Listener for New Windows (Popups)
 app.on("browser-window-created", (_, window) => {

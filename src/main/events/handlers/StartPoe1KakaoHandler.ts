@@ -101,7 +101,10 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
 
     // Using simple explicit wait or just verify not destroyed
     if (!gameWindow.isDestroyed()) {
-      gameWindow.webContents.send("execute-game-start");
+      gameWindow.webContents.send("execute-game-start", {
+        gameId: "POE1",
+        serviceId: "Kakao Games",
+      });
     }
     // Note: 'authenticating' and 'ready' usually come from the Preload script -> Main -> EventBus.
     // For now, this handles the main initiator flow.

@@ -1,13 +1,9 @@
 import { eventBus } from "../events/EventBus";
+import { SUPPORTED_PROCESS_NAMES } from "../events/handlers/GameProcessStatusHandler";
 import { AppContext, EventType, ProcessEvent } from "../events/types";
-import { isProcessRunning } from "../utils/process";
+import { getProcessPaths } from "../utils/process";
 
-const TARGET_PROCESSES = [
-  "POE2_Launcher.exe",
-  "POE_Launcher.exe",
-  "PathOfExile_KG.exe",
-  "PathOfExile.exe",
-];
+const TARGET_PROCESSES = SUPPORTED_PROCESS_NAMES;
 
 export class ProcessWatcher {
   private context: AppContext;
@@ -38,21 +34,36 @@ export class ProcessWatcher {
   }
 
   private async runCheck() {
+    // console.log("[ProcessWatcher] Running Check..."); // Too noisy?
     for (const processName of TARGET_PROCESSES) {
-      const isRunning = await isProcessRunning(processName);
-      const wasRunning = this.processStates.get(processName) || false;
+      // Use getProcessPaths instead of isProcessRunning to get path info
+      try {
+        const paths = await getProcessPaths(processName);
+        const isRunning = paths.length > 0;
 
-      if (isRunning !== wasRunning) {
-        // State Changed
-        this.processStates.set(processName, isRunning);
+        const wasRunning = this.processStates.get(processName) || false;
 
-        const type = isRunning
-          ? EventType.PROCESS_START
-          : EventType.PROCESS_STOP;
+        if (isRunning !== wasRunning) {
+          console.log(
+            `[ProcessWatcher] State Change for ${processName}: ${wasRunning} -> ${isRunning}`,
+          );
+          // State Changed
+          this.processStates.set(processName, isRunning);
 
-        eventBus.emit<ProcessEvent>(type, this.context, {
-          name: processName,
-        });
+          const type = isRunning
+            ? EventType.PROCESS_START
+            : EventType.PROCESS_STOP;
+
+          // Include path only on start (first found instance)
+          const path = isRunning ? paths[0] : undefined;
+
+          eventBus.emit<ProcessEvent>(type, this.context, {
+            name: processName,
+            path, // Propagate path
+          });
+        }
+      } catch (e) {
+        console.error(`[ProcessWatcher] Error checking ${processName}:`, e);
       }
     }
   }

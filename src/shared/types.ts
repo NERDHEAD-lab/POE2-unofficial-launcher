@@ -7,9 +7,6 @@ export interface AppConfig {
   >;
 }
 
-export type GameId = "POE1" | "POE2";
-export type ServiceId = "Kakao Games" | "GGG" | "Steam";
-
 // Granular Status Codes for granular UI feedback
 export type RunStatus =
   | "idle"
@@ -21,8 +18,8 @@ export type RunStatus =
   | "error";
 
 export interface GameStatusState {
-  gameId: GameId;
-  serviceId: ServiceId;
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
   status: RunStatus;
   errorCode?: string;
   timestamp?: number;

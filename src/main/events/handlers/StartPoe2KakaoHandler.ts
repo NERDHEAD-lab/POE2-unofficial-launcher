@@ -68,19 +68,29 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
 
     try {
       await gameWindow.loadURL(targetUrl);
-    } catch (e) {
-      console.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
-      eventBus.emit<GameStatusChangeEvent>(
-        EventType.GAME_STATUS_CHANGE,
-        context,
-        {
-          gameId: "POE2",
-          serviceId: "Kakao Games",
-          status: "error",
-          errorCode: "URL_LOAD_FAILED",
-        },
-      );
-      return;
+    } catch (err: unknown) {
+      const e = err as Error & { code?: number };
+
+      // ERR_ABORTED (-3) is EXPECTED when Electron hands off a custom protocol (daumgamestarter://) to the OS.
+      // This means the external app launch was triggered successfully.
+      if (e.message && (e.message.includes("ERR_ABORTED") || e.code === -3)) {
+        console.log(
+          `[StartPoe2KakaoHandler] Navigation aborted (-3) as expected for custom protocol launch. Success.`,
+        );
+      } else {
+        console.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
+        eventBus.emit<GameStatusChangeEvent>(
+          EventType.GAME_STATUS_CHANGE,
+          context,
+          {
+            gameId: "POE2",
+            serviceId: "Kakao Games",
+            status: "error",
+            errorCode: "URL_LOAD_FAILED",
+          },
+        );
+        return;
+      }
     }
 
     // 3. Send Execute Command to Renderer (Content Script)
@@ -99,7 +109,10 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
 
     // Using simple explicit wait or just verify not destroyed
     if (!gameWindow.isDestroyed()) {
-      gameWindow.webContents.send("execute-game-start");
+      gameWindow.webContents.send("execute-game-start", {
+        gameId: "POE2",
+        serviceId: "Kakao Games",
+      });
     }
   },
 };

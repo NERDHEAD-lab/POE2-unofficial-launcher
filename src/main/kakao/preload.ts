@@ -296,10 +296,7 @@ const SecurityCenterHandler: PageHandler = {
   match: (url) => url.hostname === "security-center.game.daum.net",
   execute: () => {
     console.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
-    ipcRenderer.send(
-      "game-progress-update",
-      "지정 PC 확인 절차를 진행중입니다.",
-    );
+    ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
 
     observeAndInteract((obs) => {
       // 1. Attribute Match
@@ -348,10 +345,7 @@ const LauncherCompletionHandler: PageHandler = {
     url.pathname.includes("/completed.html"),
   execute: () => {
     console.log(`[Handler] Executing ${LauncherCompletionHandler.name}`);
-    ipcRenderer.send(
-      "game-progress-update",
-      "게임실행 준비가 완료되었습니다! 잠시후 실행됩니다",
-    );
+    ipcRenderer.send("game-status-update", "ready", activeGameContext);
 
     observeAndInteract((obs) => {
       for (const sel of SELECTORS.LAUNCHER.GAME_START_BUTTONS) {
@@ -393,10 +387,16 @@ function dispatchPageLogic() {
   }
 }
 
+// Context State
+let activeGameContext: { gameId: string; serviceId: string } | null = null;
+
 // --- IPC Listeners ---
 
-ipcRenderer.on("execute-game-start", () => {
-  console.log('[Game Window] IPC "execute-game-start" RECEIVED!');
+ipcRenderer.on("execute-game-start", (_event, context: any) => {
+  console.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
+  if (context && context.gameId && context.serviceId) {
+    activeGameContext = context;
+  }
 });
 
 // --- Initialization ---
