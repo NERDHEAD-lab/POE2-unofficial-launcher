@@ -53,6 +53,10 @@ const SELECTORS = {
   KAKAO_AUTH: {
     BTN_AGREE: '.btn_agree, button[type="submit"].btn_g',
   },
+  KAKAO_SIMPLE: {
+    // Select first account in list (target a[role="button"] for semantic click)
+    FIRST_ACCOUNT: ".list_easy li:first-child a[role='button']",
+  },
 };
 
 // --- Utils ---
@@ -271,6 +275,30 @@ const DaumLoginHandler: PageHandler = {
   },
 };
 
+const KakaoSimpleLoginHandler: PageHandler = {
+  name: "KakaoSimpleLoginHandler",
+  description: "Kakao Simple Login Page - Auto Click First Account",
+  match: (url) =>
+    url.hostname === "accounts.kakao.com" &&
+    url.pathname.includes("/login/simple"),
+  execute: () => {
+    console.log(`[Handler] Executing ${KakaoSimpleLoginHandler.name}`);
+    observeAndInteract((obs) => {
+      // Try to click the first account in the list
+      const firstItem = document.querySelector(
+        SELECTORS.KAKAO_SIMPLE.FIRST_ACCOUNT,
+      );
+
+      if (safeClick(firstItem as HTMLElement)) {
+        console.log("[KakaoSimpleLoginHandler] Clicked first account in list.");
+        if (obs) obs.disconnect();
+        return true;
+      }
+      return false;
+    });
+  },
+};
+
 const KakaoAuthHandler: PageHandler = {
   name: "KakaoAuthHandler",
   description: "Kakao OAuth Consent",
@@ -367,6 +395,7 @@ const HANDLERS: PageHandler[] = [
   Poe2MainHandler,
   LauncherCheckHandler,
   DaumLoginHandler,
+  KakaoSimpleLoginHandler,
   KakaoAuthHandler,
   SecurityCenterHandler,
   LauncherCompletionHandler,
