@@ -1,7 +1,7 @@
 .logo-container {
   display: flex;
   justify-content: center; /* Centered in the panel */
-  align-items: center;
+  align-items: flex-start; /* Align items to top */
   height: 150px; /* Increased height from 120px */
   position: relative;
   width: 100%;
@@ -11,11 +11,17 @@
 
 .logo-item {
   position: absolute;
-  bottom: 0px; /* Anchor to bottom */
-  transform-origin: bottom center; /* Scale from bottom */
+  top: 0px; /* Anchor to Top */
+  transform-origin: top center; /* Scale from top */
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth ease-out-quad feel */
   cursor: pointer;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  cursor: pointer;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  -webkit-user-drag: none; /* Disable native drag to use Custom JS Drag */
+  user-select: none;
+  height: 140px; /* Base height for physics scaling */
+  width: auto;
 }
 
 /* Active State (Left Aligned, Big) */
