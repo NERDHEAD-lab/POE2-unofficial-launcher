@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import "./GameSelector.css";
 
 // Import Assets
+import logoHots from "../assets/heroes-of-the-storm.webp";
 import logoPoe from "../assets/poe/logo.png";
 import logoPoe2 from "../assets/poe2/logo.png";
 
@@ -18,7 +19,6 @@ type InteractionState =
   | "ANIMATING";
 
 // --- Helper: State Logger ---
-// (Moved outside to keep component clean)
 const logStateChange = (
   oldState: InteractionState,
   newState: InteractionState,
@@ -30,11 +30,13 @@ const logStateChange = (
 
 // --- Physics Configuration (Tuning) ---
 const PHYSICS_CONFIG = {
-  FRICTION: 0.99, // Deceleration (0.0~1.0): Closer to 1 = Slides longer
-  MAX_VELOCITY: 0.45, // Max Spin Speed Cap (Prevents too many spins)
-  DRAG_SENSITIVITY: 0.003, // Mouse Sensitivity
-  SNAP_STRENGTH: 0.08, // Magnet Strength
-  SNAP_THRESHOLD: 0.002, // Speed below which snapping starts
+  FRICTION: 0.99,
+  MAX_VELOCITY: 0.45,
+  DRAG_SENSITIVITY: 0.003,
+  SNAP_STRENGTH: 0.08,
+  SNAP_THRESHOLD: 0.002,
+  EASTER_EGG_THRESHOLD: 0.2,
+  EASTER_EGG_OPACITY_DECAY: 0.97, // Slower fade out (1.0 = no fade)
 };
 
 // --- Module 1: Visual State Calculation ---
@@ -71,6 +73,12 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   const [renderPhase, setRenderPhase] = useState(activeGame === "POE1" ? 0 : 1);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Easter Egg State
+  const hotsRotationRef = useRef(0);
+  const [hotsRotation, setHotsRotation] = useState(0); // Render state for rotation
+  const hotsOpacityRef = useRef(0); // Track opacity physics value
+  const [hotsOpacity, setHotsOpacity] = useState(0); // Render value for opacity
+
   const stateRef = useRef<InteractionState>("IDLE");
   const phaseRef = useRef(activeGame === "POE1" ? 0 : 1);
   const velocityRef = useRef(0);
@@ -98,9 +106,45 @@ const GameSelector: React.FC<GameSelectorProps> = ({
       let vel = velocityRef.current;
       let pos = phaseRef.current;
 
+      // --- Easter Egg Logic ---
+      const absVel = Math.abs(vel);
+      let targetOpacity = 0;
+
+      // Calculate Target Opacity based on Velocity
+      if (absVel > PHYSICS_CONFIG.EASTER_EGG_THRESHOLD) {
+        const range =
+          PHYSICS_CONFIG.MAX_VELOCITY - PHYSICS_CONFIG.EASTER_EGG_THRESHOLD;
+        const excess = absVel - PHYSICS_CONFIG.EASTER_EGG_THRESHOLD;
+        targetOpacity = Math.min(Math.max(excess / range, 0), 1);
+      }
+
+      // Decay / Rise Logic
+      let currentOpacity = hotsOpacityRef.current;
+      if (targetOpacity > currentOpacity) {
+        // Rise fast
+        currentOpacity = targetOpacity;
+      } else {
+        // Decay slow
+        currentOpacity *= PHYSICS_CONFIG.EASTER_EGG_OPACITY_DECAY;
+        // Clamp tiny values to 0 to stop
+        if (currentOpacity < 0.01) currentOpacity = 0;
+      }
+
+      hotsOpacityRef.current = currentOpacity;
+
+      // Spin if visible
+      if (currentOpacity > 0) {
+        hotsRotationRef.current += vel * 20;
+        setHotsRotation(hotsRotationRef.current); // Sync to state for render
+      }
+
+      // Perform Render State Update only if changed significantly
+      if (Math.abs(currentOpacity - hotsOpacity) > 0.001) {
+        setHotsOpacity(currentOpacity);
+      }
+
       switch (stateRef.current) {
         case "DRAGGING":
-          // Handled by MouseMove
           break;
 
         case "THROWING": {
@@ -149,8 +193,8 @@ const GameSelector: React.FC<GameSelectorProps> = ({
         rafIdRef.current = requestAnimationFrame(loopRef.current);
       }
     },
-    [activeGame, onGameChange],
-  ); // PHYSICS_CONFIG is now static, no dep needed
+    [activeGame, onGameChange, hotsOpacity], // Dependent on hotsOpacity for closure if needed, though using Ref generally
+  );
 
   useEffect(() => {
     loopRef.current = updatePhysics;
@@ -181,7 +225,6 @@ const GameSelector: React.FC<GameSelectorProps> = ({
 
       let phaseDelta = -deltaX * PHYSICS_CONFIG.DRAG_SENSITIVITY;
 
-      // Clamp Max Velocity
       if (Math.abs(phaseDelta) > PHYSICS_CONFIG.MAX_VELOCITY) {
         phaseDelta = Math.sign(phaseDelta) * PHYSICS_CONFIG.MAX_VELOCITY;
       }
@@ -269,6 +312,24 @@ const GameSelector: React.FC<GameSelectorProps> = ({
 
   return (
     <div className="logo-container" onMouseDown={handleMouseDown}>
+      {/* Easter Egg Layer */}
+      <img
+        src={logoHots}
+        alt="HOTS Easter Egg"
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "180px",
+          height: "auto",
+          transform: `translate(-50%, -50%) rotate(${hotsRotation}deg)`, // Use state, not ref
+          opacity: hotsOpacity,
+          pointerEvents: "none",
+          zIndex: 0,
+          filter: "drop-shadow(0 0 10px rgba(138, 43, 226, 0.8))",
+        }}
+      />
+
       <img
         src={logoPoe}
         className="logo-item"
