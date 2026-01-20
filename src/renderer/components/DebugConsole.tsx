@@ -102,61 +102,52 @@ const DebugConsole: React.FC = () => {
           <div
             key={i}
             style={{
-              marginBottom: "8px",
+              marginBottom: "4px",
               display: "flex",
-              flexDirection: "column",
+              alignItems: "flex-start", // Top align for multiline content
+              lineHeight: "1.4",
               color: log.isError ? "#f48771" : log.textColor || "#d4d4d4",
             }}
           >
-            {/* Row 1: Time & Type */}
-            <div
+            {/* Timestamp */}
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                marginBottom: "2px",
+                color: "#6a9955",
+                marginRight: "8px",
+                fontSize: "11px",
+                fontFamily: "'Consolas', monospace",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
-              <span
-                style={{
-                  color: "#6a9955",
-                  marginRight: "8px",
-                  fontSize: "11px",
-                  fontFamily: "'Consolas', monospace",
-                }}
-              >
-                [{new Date(log.timestamp).toLocaleTimeString()}]
-              </span>
+              [{new Date(log.timestamp).toLocaleTimeString()}]
+            </span>
+
+            {/* Type - Only show if filter is ALL */}
+            {filter === "ALL" && (
               <span
                 style={{
                   color: log.typeColor || "#ce9178",
                   fontWeight: "bold",
                   fontSize: "11px",
+                  marginRight: "8px",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                 }}
               >
                 [{log.type.toUpperCase()}]
               </span>
-            </div>
+            )}
 
-            {/* Row 2: Content & Count */}
-            <div
-              style={{
-                display: "flex",
-                paddingLeft: "16px",
-                alignItems: "flex-start",
-              }}
-            >
-              <span
-                style={{ wordBreak: "break-all", flex: 1, lineHeight: "1.4" }}
-              >
-                {log.content}
-              </span>
+            {/* Content & Count */}
+            <div style={{ flex: 1, wordBreak: "break-all" }}>
+              <span>{log.content}</span>
               {log.count && log.count > 1 && (
                 <span
                   style={{
                     marginLeft: "8px",
                     color: "#ffcd38",
                     fontWeight: "bold",
-                    flexShrink: 0,
                   }}
                 >
                   (x{log.count})

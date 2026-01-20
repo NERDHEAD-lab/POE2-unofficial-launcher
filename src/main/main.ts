@@ -212,7 +212,7 @@ function createWindows() {
     const mainBounds = mainWindow.getBounds();
 
     debugWindow = new BrowserWindow({
-      width: 600, // Default width
+      width: 900, // Default width (Increased by 50% from 600)
       height: mainBounds.height, // Match main window height
       x: mainBounds.x + mainBounds.width, // Attach to right
       y: mainBounds.y, // Align top

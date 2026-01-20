@@ -24,15 +24,7 @@ class EventBus {
       let content = message;
       if (args.length > 0) {
         const formattedArgs = args
-          .map((arg) => {
-            try {
-              return typeof arg === "object"
-                ? JSON.stringify(arg, null, 2)
-                : String(arg);
-            } catch (e) {
-              return String(arg);
-            }
-          })
+          .map((arg) => smartJSONStringify(arg))
           .join(" ");
         content = `${message} ${formattedArgs}`;
       }
@@ -52,17 +44,22 @@ class EventBus {
   }
 
   /**
-   * Register a new event handler
+   * Registers a handler for a specific event type.
+   * @param handler The handler instance to register.
    */
   public register<T extends AppEvent>(handler: EventHandler<T>) {
-    if (!this.handlers.has(handler.targetEvent)) {
-      this.handlers.set(handler.targetEvent, []);
+    // Note: This matches existing logic, just collapsing for replaced block context
+    const eventType = handler.targetEvent;
+    if (!this.handlers.has(eventType)) {
+      this.handlers.set(eventType, []);
     }
-    // Safe cast: We map EventType -> EventHandler<T> logically, but store as AppEvent for storage
     this.handlers
-      .get(handler.targetEvent)
-      ?.push(handler as unknown as EventHandler<AppEvent>);
-    this.log(`📝 Registered Handler: ${handler.id} for ${handler.targetEvent}`);
+      .get(eventType)!
+      .push(handler as unknown as EventHandler<AppEvent>);
+
+    this.log(
+      `Registered handler for event: ${eventType} (Handler: ${handler.id})`,
+    );
   }
 
   /**
@@ -114,3 +111,62 @@ class EventBus {
 
 // Export Singleton Instance
 export const eventBus = new EventBus();
+
+/**
+ * Smart JSON Stringify
+ * - Recursively checks if an object can fit in one line (<= 80 chars).
+ * - If yes, formats it as single-line JSON.
+ * - If no, expands it but recursively applies the logic to children.
+ * - Handles circular references.
+ */
+function smartJSONStringify(value: unknown, maxLength = 80): string {
+  const seen = new WeakSet();
+
+  const process = (val: unknown, docLevel: number): string => {
+    // Primitives
+    if (typeof val !== "object" || val === null) {
+      return JSON.stringify(val);
+    }
+
+    // Circular check
+    if (seen.has(val as object)) {
+      return '"[Circular]"';
+    }
+    seen.add(val as object);
+
+    // 1. Try compact stringify
+    try {
+      const compact = JSON.stringify(val);
+      if (compact.length <= maxLength) {
+        seen.delete(val as object);
+        return compact;
+      }
+    } catch (e) {
+      // Ignore stringify error (likely circular), proceed to manual expansion
+    }
+
+    // 2. Expand
+    const indent = "  ".repeat(docLevel + 1);
+    const endIndent = "  ".repeat(docLevel);
+
+    let result: string;
+    if (Array.isArray(val)) {
+      const items = val
+        .map((item) => process(item, docLevel + 1))
+        .join(`,\n${indent}`);
+      result = `[\n${indent}${items}\n${endIndent}]`;
+    } else {
+      const entries = Object.entries(val)
+        .map(([k, v]) => {
+          return `${JSON.stringify(k)}: ${process(v, docLevel + 1)}`;
+        })
+        .join(`,\n${indent}`);
+      result = `{\n${indent}${entries}\n${endIndent}}`;
+    }
+
+    seen.delete(val as object);
+    return result;
+  };
+
+  return process(value, 0);
+}
