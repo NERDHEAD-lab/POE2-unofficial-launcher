@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import "./GameSelector.css";
 
 // Import Assets
-import logoHots from "../assets/heroes-of-the-storm.webp";
+import logoOiia from "../assets/oiia-cat.webp";
 import logoPoe from "../assets/poe/logo.png";
 import logoPoe2 from "../assets/poe2/logo.png";
 
@@ -35,8 +35,9 @@ const PHYSICS_CONFIG = {
   DRAG_SENSITIVITY: 0.003,
   SNAP_STRENGTH: 0.08,
   SNAP_THRESHOLD: 0.002,
-  EASTER_EGG_THRESHOLD: 0.2,
-  EASTER_EGG_OPACITY_DECAY: 0.97, // Slower fade out (1.0 = no fade)
+  EASTER_EGG_THRESHOLD: 0.2, // Lower threshold for easier trigger
+  EASTER_EGG_OPACITY_DECAY: 0.99, // Slow fade out
+  EASTER_EGG_HOLD_FRAMES: 90, // Hold for ~1.5 seconds (60fps)
 };
 
 // --- Module 1: Visual State Calculation ---
@@ -74,9 +75,8 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   const [isAnimating, setIsAnimating] = useState(false);
 
   // Easter Egg State
-  const hotsRotationRef = useRef(0);
-  const [hotsRotation, setHotsRotation] = useState(0); // Render state for rotation
   const hotsOpacityRef = useRef(0); // Track opacity physics value
+  const hotsHoldRef = useRef(0); // Track hold frames
   const [hotsOpacity, setHotsOpacity] = useState(0); // Render value for opacity
 
   const stateRef = useRef<InteractionState>("IDLE");
@@ -120,23 +120,28 @@ const GameSelector: React.FC<GameSelectorProps> = ({
 
       // Decay / Rise Logic
       let currentOpacity = hotsOpacityRef.current;
+
       if (targetOpacity > currentOpacity) {
         // Rise fast
         currentOpacity = targetOpacity;
+        // Reset hold timer when rising (active interaction)
+        if (currentOpacity > 0.5) {
+          hotsHoldRef.current = PHYSICS_CONFIG.EASTER_EGG_HOLD_FRAMES;
+        }
       } else {
-        // Decay slow
-        currentOpacity *= PHYSICS_CONFIG.EASTER_EGG_OPACITY_DECAY;
-        // Clamp tiny values to 0 to stop
-        if (currentOpacity < 0.01) currentOpacity = 0;
+        // Decay logic with Hold
+        if (hotsHoldRef.current > 0) {
+          hotsHoldRef.current -= 1;
+          // Maintain current opacity (don't decay yet)
+        } else {
+          // Decay slow
+          currentOpacity *= PHYSICS_CONFIG.EASTER_EGG_OPACITY_DECAY;
+          // Clamp tiny values to 0 to stop
+          if (currentOpacity < 0.01) currentOpacity = 0;
+        }
       }
 
       hotsOpacityRef.current = currentOpacity;
-
-      // Spin if visible
-      if (currentOpacity > 0) {
-        hotsRotationRef.current += vel * 20;
-        setHotsRotation(hotsRotationRef.current); // Sync to state for render
-      }
 
       // Perform Render State Update only if changed significantly
       if (Math.abs(currentOpacity - hotsOpacity) > 0.001) {
@@ -313,22 +318,24 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   return (
     <div className="logo-container" onMouseDown={handleMouseDown}>
       {/* Easter Egg Layer */}
-      <img
-        src={logoHots}
-        alt="HOTS Easter Egg"
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: "180px",
-          height: "auto",
-          transform: `translate(-50%, -50%) rotate(${hotsRotation}deg)`, // Use state, not ref
-          opacity: hotsOpacity,
-          pointerEvents: "none",
-          zIndex: 0,
-          filter: "drop-shadow(0 0 10px rgba(138, 43, 226, 0.8))",
-        }}
-      />
+      {hotsOpacity > 0 && (
+        <img
+          src={logoOiia}
+          alt="Oiia Cat Easter Egg"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "180px",
+            height: "auto",
+            transform: `translate(-50%, -50%)`, // Centering only
+            opacity: hotsOpacity,
+            pointerEvents: "none",
+            zIndex: 0,
+            filter: "drop-shadow(0 0 10px rgba(138, 43, 226, 0.8))",
+          }}
+        />
+      )}
 
       <img
         src={logoPoe}

@@ -21,7 +21,6 @@
 ### Build Commands
 
 - `npm run dev`: 개발 모드 실행 (Vite + Electron)
-- `npm run package:force`: **(필수 검증)** 빌드 전 실행 중인 프로세스를 종료하고 패키징.
 - `npm run build`: TypeScript 컴파일 및 Vite 빌드.
 
 ## 2. Directory Structure
