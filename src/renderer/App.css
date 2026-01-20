@@ -244,6 +244,7 @@ img {
   background-repeat: no-repeat;
   background-position: top center;
   background-size: 70% auto !important;
+  filter: brightness(1); /* Restore brightness per user request */
 }
 
 /* --- Footer & Credits (Ported from Plugin) --- */
