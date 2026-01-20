@@ -216,7 +216,7 @@ img {
   width: 15%; /* Scaled to 80% (130 * 0.8) */
   height: 150px; /* Scaled to 80% */
   transform: translateY(-2%); /* Dynamic offset based on image height */
-  background-image: url("assets/frame-top-left.webp");
+  background-image: url("assets/layout/frame-top-left.webp");
   background-repeat: no-repeat;
   background-position: top left;
   background-size: contain; /* Scale while preserving aspect ratio */
@@ -228,7 +228,7 @@ img {
   width: 15%;
   height: 150px;
   transform: translateY(-2%);
-  background-image: url("assets/frame-top-right.webp");
+  background-image: url("assets/layout/frame-top-right.webp");
   background-repeat: no-repeat;
   background-position: top right;
   background-size: contain;
@@ -240,7 +240,7 @@ img {
   width: 100%;
   height: 150px;
   transform: translateY(-30%);
-  background-image: url("assets/frame-top-center.webp");
+  background-image: url("assets/layout/frame-top-center.webp");
   background-repeat: no-repeat;
   background-position: top center;
   background-size: 70% auto !important;

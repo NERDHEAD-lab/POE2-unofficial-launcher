@@ -2,7 +2,7 @@
   display: block;
   width: 340px; /* Adjusted size (Larger) */
   aspect-ratio: 650 / 136;
-  background-image: url("../assets/btn-game-start.png");
+  background-image: url("../assets/layout/btn-game-start.png");
   background-repeat: no-repeat;
   background-position: center top;
   background-size: 100% auto;
@@ -25,7 +25,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url("../assets/btn-game-start.png");
+  background-image: url("../assets/layout/btn-game-start.png");
   background-repeat: no-repeat;
   background-position: center bottom;
   background-size: 100% auto;

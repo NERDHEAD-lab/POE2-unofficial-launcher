@@ -5,8 +5,8 @@ import "./App.css"; // Global Styles
 // Local Imports
 import { CONFIG_KEYS } from "../shared/config";
 import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
-import bannerBottom from "./assets/banner-bottom.webp";
 import iconGithub from "./assets/icon-github.svg";
+import bannerBottom from "./assets/layout/banner-bottom.webp";
 import bgPoe from "./assets/poe/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
