@@ -45,9 +45,12 @@ const getVisualState = (cyclicPhase: number, isPoe1: boolean) => {
   const p = Math.max(-0.2, Math.min(1.2, cyclicPhase));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+  // Offset to shift everything right (Padding replacement)
+  const baseOffset = 15;
+
   if (isPoe1) {
     return {
-      left: lerp(20, 140, p),
+      left: lerp(20, 140, p) + baseOffset,
       scale: lerp(1.0, 0.65, p),
       opacity: lerp(1, 0.6, p),
       zIndex: p < 0.5 ? 10 : 1,
@@ -56,7 +59,7 @@ const getVisualState = (cyclicPhase: number, isPoe1: boolean) => {
     };
   } else {
     return {
-      left: lerp(160, 20, p),
+      left: lerp(160, 20, p) + baseOffset,
       scale: lerp(0.65, 1.0, p),
       opacity: lerp(0.6, 1, p),
       zIndex: p > 0.5 ? 10 : 1,

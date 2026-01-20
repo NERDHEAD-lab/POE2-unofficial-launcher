@@ -143,13 +143,13 @@ setupStoreObservers(context);
 
 // 4. Register Event Handlers
 const handlers = [
+  DebugLogHandler,
   StartPoe1KakaoHandler,
   StartPoe2KakaoHandler,
   CleanupLauncherWindowHandler,
   GameStatusSyncHandler,
   GameProcessStartHandler,
   GameProcessStopHandler,
-  DebugLogHandler,
   SystemWakeUpHandler,
 ];
 
