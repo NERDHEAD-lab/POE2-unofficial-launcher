@@ -132,7 +132,7 @@ img {
   height: 100%;
   position: relative;
   z-index: 50; /* Below Drag Region */
-  padding-bottom: 15px; /* User Request: Bottom Padding */
+  padding-bottom: 40px; /* User Request: Increased Bottom Padding to prevent overlap */
   box-sizing: border-box; /* Ensure padding doesn't overflow */
 }
 
@@ -207,7 +207,7 @@ img {
   top: 0;
   z-index: 50;
   pointer-events: none;
-  filter: brightness(1.5);
+  filter: brightness(1);
 }
 
 .top-left {
@@ -216,7 +216,7 @@ img {
   width: 15%; /* Scaled to 80% (130 * 0.8) */
   height: 150px; /* Scaled to 80% */
   transform: translateY(-2%); /* Dynamic offset based on image height */
-  background-image: url("assets/layout/frame-top-left.webp");
+  background-image: url("assets/layout/frame-top-left.png");
   background-repeat: no-repeat;
   background-position: top left;
   background-size: contain; /* Scale while preserving aspect ratio */
@@ -228,7 +228,7 @@ img {
   width: 15%;
   height: 150px;
   transform: translateY(-2%);
-  background-image: url("assets/layout/frame-top-right.webp");
+  background-image: url("assets/layout/frame-top-right.png");
   background-repeat: no-repeat;
   background-position: top right;
   background-size: contain;
@@ -240,7 +240,7 @@ img {
   width: 100%;
   height: 150px;
   transform: translateY(-30%);
-  background-image: url("assets/layout/frame-top-center.webp");
+  background-image: url("assets/layout/frame-top-center.png");
   background-repeat: no-repeat;
   background-position: top center;
   background-size: 70% auto !important;
@@ -257,7 +257,7 @@ img {
   width: 100%;
   display: block;
   transform: translateY(18%); /* Push down further to clear text area */
-  filter: brightness(1.5);
+  filter: brightness(1);
 }
 
 .footer-content {

@@ -21,7 +21,7 @@ const GameStartButton: React.FC<GameStartButtonProps> = ({
       style={style}
     >
       <span className="hover-overlay"></span>
-      <span className="text-blind">{label}</span>
+      <span className="main-start__text">{label}</span>
     </button>
   );
 };

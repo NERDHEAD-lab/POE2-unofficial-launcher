@@ -1,3 +1,10 @@
+@font-face {
+  font-family: "GmarketSansTTFBold";
+  src: url("../assets/fonts/GmarketSansTTFBold.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 .main-start__link {
   display: block;
   width: 340px; /* Adjusted size (Larger) */
@@ -27,7 +34,8 @@
   height: 100%;
   background-image: url("../assets/layout/btn-game-start.png");
   background-repeat: no-repeat;
-  background-position: center bottom;
+  /* Adjustment: Push image down slightly (Fine-tuned to 3px) to match normal state alignment */
+  background-position: center calc(100% + 3px);
   background-size: 100% auto;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -37,12 +45,38 @@
   opacity: 1;
 }
 
-.text-blind {
+.main-start__text {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+
+  /* Layout */
   white-space: nowrap;
+  pointer-events: none;
+
+  /* Font & Size */
+  font-family: "GmarketSansTTFBold", sans-serif;
+  font-size: 32px; /* Slightly larger for impact */
+  letter-spacing: 2px;
+  font-weight: normal; /* Naturally bold font */
+
+  /* Gradient Text: Rich Gold (Slightly Desaturated) */
+  background: linear-gradient(
+    180deg,
+    #fffce8 0%,
+    /* Warm White Highlight */ #ebc763 45%,
+    /* Medium Gold (Reduced Saturation) */ #9c7c3f 50%,
+    /* Dark Bronze Shadow */ #bf9f48 50%,
+    /* Medium Bronze Highlight */ #fff8dc 100% /* Cornsilk Bottom Reflection */
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+
+  /* 3D Depth & Shadow (Filter) */
+  filter: drop-shadow(0 2px 0px #2a1f13) /* Dark Brown/Black Depth */
+    drop-shadow(0 4px 2px rgba(0, 0, 0, 0.5)); /* Soft Shadow */
 }
