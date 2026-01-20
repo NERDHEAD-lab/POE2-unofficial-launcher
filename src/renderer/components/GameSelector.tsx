@@ -186,6 +186,10 @@ const GameSelector: React.FC<GameSelectorProps> = ({
 
         case "IDLE":
         case "ANIMATING":
+          // Ensure loop continues if easter egg is still fading out
+          if (hotsOpacityRef.current > 0.001) {
+            break;
+          }
           rafIdRef.current = null;
           return;
       }
@@ -326,12 +330,12 @@ const GameSelector: React.FC<GameSelectorProps> = ({
             position: "absolute",
             top: "50%",
             left: "50%",
-            width: "180px",
+            width: "216px",
             height: "auto",
             transform: `translate(-50%, -50%)`, // Centering only
             opacity: hotsOpacity,
             pointerEvents: "none",
-            zIndex: 0,
+            zIndex: 100,
             filter: "drop-shadow(0 0 10px rgba(138, 43, 226, 0.8))",
           }}
         />
