@@ -6,13 +6,17 @@ export const DebugLogHandler: EventHandler<DebugLogEvent> = {
   debug: false,
 
   handle: async (event: DebugLogEvent, context: AppContext) => {
+    const payloadWithTimestamp = {
+      ...event.payload,
+      timestamp: event.timestamp || Date.now(),
+    };
     // Send to Debug Window if it exists
     if (context.debugWindow && !context.debugWindow.isDestroyed()) {
-      context.debugWindow.webContents.send("debug-log", event.payload);
+      context.debugWindow.webContents.send("debug-log", payloadWithTimestamp);
     }
     // Fallback: Also send to Main Window for redundancy (optional)
     if (context.mainWindow && !context.mainWindow.isDestroyed()) {
-      context.mainWindow.webContents.send("debug-log", event.payload);
+      context.mainWindow.webContents.send("debug-log", payloadWithTimestamp);
     }
   },
 };

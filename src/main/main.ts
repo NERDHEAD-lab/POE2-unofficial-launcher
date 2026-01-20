@@ -20,7 +20,8 @@ import {
   ConfigChangeEvent,
   EventType,
   GameStatusChangeEvent,
-  DebugLogEvent,
+  EventHandler,
+  AppEvent,
 } from "./events/types";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
@@ -104,41 +105,6 @@ const handleWindowOpen = ({ url }: { url: string }) => {
   } as const;
 };
 
-const initGameWindow = () => {
-  const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 900,
-    show: false,
-    x: showGameWindow ? 650 : undefined,
-    y: showGameWindow ? 0 : undefined,
-    webPreferences: {
-      preload: path.join(__dirname, "kakao/preload.js"),
-      nodeIntegration: false,
-      contextIsolation: false,
-    },
-  });
-
-  win.on("closed", () => {
-    console.log("[Main] Game Window Closed");
-    gameWindow = null;
-    if (appContext) appContext.gameWindow = null;
-    // Note: We don't unset context.gameWindow here to avoid null refs in async handlers,
-    // but handlers should check isDestroyed() logic.
-  });
-
-  if (showGameWindow) {
-    win.webContents.openDevTools({ mode: "detach" });
-  }
-
-  win.webContents.setWindowOpenHandler(handleWindowOpen);
-  win.webContents.on("did-finish-load", () => {
-    console.log("[Main] Game Window Loaded:", win?.webContents.getURL());
-  });
-
-  return win;
-};
-
 // 2. Initialize Shared Context
 const context: AppContext = {
   mainWindow: null,
@@ -186,7 +152,7 @@ const handlers = [
 ];
 
 handlers.forEach((handler) => {
-  eventBus.register(handler as any);
+  eventBus.register(handler as EventHandler<AppEvent>);
 });
 
 // Global Context
@@ -381,8 +347,8 @@ ipcMain.on(
         EventType.GAME_STATUS_CHANGE,
         appContext,
         {
-          gameId: gameId as any,
-          serviceId: serviceId as any,
+          gameId: gameId as AppConfig["activeGame"],
+          serviceId: serviceId as AppConfig["serviceChannel"],
           status: status as RunStatus,
         },
       );

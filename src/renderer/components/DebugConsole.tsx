@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 
 interface LogEntry {
-  timestamp: string;
+  timestamp: number;
   type: "normal" | "admin";
   content: string;
   isError: boolean;
@@ -101,7 +101,7 @@ const DebugConsole: React.FC = () => {
             }}
           >
             <span style={{ color: "#808080", marginRight: "8px" }}>
-              [{log.timestamp}]
+              [{new Date(log.timestamp).toLocaleTimeString()}]
             </span>
             <span
               style={{

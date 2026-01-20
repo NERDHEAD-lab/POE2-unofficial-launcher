@@ -25,6 +25,13 @@ export interface GameStatusState {
   timestamp?: number;
 }
 
+export interface DebugLogPayload {
+  type: "normal" | "admin";
+  content: string;
+  isError: boolean;
+  timestamp: number;
+}
+
 export interface ElectronAPI {
   triggerGameStart: () => void;
   minimizeWindow: () => void;
@@ -34,7 +41,7 @@ export interface ElectronAPI {
   onConfigChange: (callback: (key: string, value: unknown) => void) => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
-  onDebugLog?: (callback: (log: any) => void) => () => void;
+  onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
 }
 
 declare global {

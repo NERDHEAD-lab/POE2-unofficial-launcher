@@ -1,6 +1,13 @@
 import { ipcRenderer } from "electron";
 
+import { AppConfig } from "../../shared/types";
+
 // --- Interfaces ---
+
+interface GameSessionContext {
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+}
 
 interface PageHandler {
   name: string;
@@ -417,7 +424,7 @@ function dispatchPageLogic() {
 }
 
 // Context State
-let activeGameContext: { gameId: string; serviceId: string } | null = null;
+let activeGameContext: GameSessionContext | null = null;
 
 // Load persisted context
 try {
@@ -435,7 +442,7 @@ try {
 
 // --- IPC Listeners ---
 
-ipcRenderer.on("execute-game-start", (_event, context: any) => {
+ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
   console.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
   if (context && context.gameId && context.serviceId) {
     activeGameContext = context;
