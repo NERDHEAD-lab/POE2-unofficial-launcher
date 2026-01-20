@@ -246,33 +246,6 @@ img {
   background-size: 70% auto !important;
 }
 
-/* Side Borders */
-.frame-border {
-  position: absolute;
-  width: 100vh;
-  height: 14px;
-  z-index: 40;
-  background-image: url("assets/frame-tile.webp");
-  background-repeat: repeat-x;
-  background-size: auto 100%;
-  pointer-events: none;
-  filter: brightness(1.5);
-}
-
-.border-left {
-  top: 0;
-  left: 14px; /* Offset to align with rotated origin */
-  transform: rotate(90deg);
-  transform-origin: top left;
-}
-
-.border-right {
-  top: 0;
-  right: 14px;
-  transform: rotate(-90deg);
-  transform-origin: top right;
-}
-
 /* --- Footer & Credits (Ported from Plugin) --- */
 .footer-bg-wrapper {
   width: 100%;
