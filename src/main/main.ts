@@ -15,6 +15,7 @@ import {
 import { GameStatusSyncHandler } from "./events/handlers/GameStatusSyncHandler";
 import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
+import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -149,6 +150,7 @@ const handlers = [
   GameProcessStartHandler,
   GameProcessStopHandler,
   DebugLogHandler,
+  SystemWakeUpHandler,
 ];
 
 handlers.forEach((handler) => {
@@ -183,7 +185,20 @@ function createWindows() {
 
   // Initialize and Start Process Watcher
   const processWatcher = new ProcessWatcher(appContext);
+  // Assign to context for handlers (e.g., SystemWakeUpHandler)
+  appContext.processWatcher = processWatcher;
   processWatcher.startWatching();
+
+  // --- ProcessWatcher Optimization & wake-up integrated in Class ---
+  mainWindow.on("blur", () => {
+    console.log("[Main] Window blurred (Focus Lost).");
+    processWatcher.scheduleSuspension();
+  });
+
+  mainWindow.on("focus", () => {
+    console.log("[Main] Window focused.");
+    processWatcher.cancelSuspension();
+  });
 
   // 2. Game Window (Lazy Init - Do NOT create here)
   // Removed initial creation block.
@@ -243,6 +258,17 @@ function createWindows() {
     debugWindow.loadURL(debugUrl);
 
     // Docking Logic: Follow Main Window
+
+    // --- ProcessWatcher Integration for Debug Window ---
+    debugWindow.on("blur", () => {
+      console.log("[Debug] Console blurred (Focus Lost).");
+      processWatcher.scheduleSuspension();
+    });
+
+    debugWindow.on("focus", () => {
+      console.log("[Debug] Console focused.");
+      processWatcher.cancelSuspension();
+    });
     const updateDebugPosition = () => {
       if (
         mainWindow &&

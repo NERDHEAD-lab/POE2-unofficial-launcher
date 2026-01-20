@@ -16,6 +16,7 @@ export enum EventType {
   MESSAGE_GAME_PROGRESS_INFO = "MESSAGE:GAME_PROGRESS_INFO",
   GAME_STATUS_CHANGE = "GAME:STATUS_CHANGE",
   DEBUG_LOG = "DEBUG:LOG",
+  SYSTEM_WAKE_UP = "SYSTEM:WAKE_UP",
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -70,6 +71,14 @@ export interface DebugLogEvent {
   timestamp?: number;
 }
 
+export interface SystemWakeUpEvent {
+  type: EventType.SYSTEM_WAKE_UP;
+  payload: {
+    reason: string;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
@@ -77,7 +86,8 @@ export type AppEvent =
   | UIEvent
   | MessageEvent
   | GameStatusChangeEvent
-  | DebugLogEvent;
+  | DebugLogEvent
+  | SystemWakeUpEvent;
 
 // --- Context & Handler Interfaces ---
 
@@ -87,6 +97,14 @@ export interface AppContext {
   gameWindow: BrowserWindow | null;
   debugWindow: BrowserWindow | null;
   store: Store<AppConfig>;
+  // We use a loose type or interface to avoid strict circular dependency with class
+  processWatcher?: {
+    startWatching: () => void;
+    stopWatching: () => void;
+    scheduleSuspension: () => void;
+    cancelSuspension: () => void;
+    wakeUp: (reason: string) => void;
+  };
   ensureGameWindow: () => BrowserWindow;
 }
 
