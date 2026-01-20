@@ -141,7 +141,7 @@ function smartJSONStringify(value: unknown, maxLength = 80): string {
         seen.delete(val as object);
         return compact;
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore stringify error (likely circular), proceed to manual expansion
     }
 

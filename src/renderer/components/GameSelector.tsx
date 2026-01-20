@@ -105,7 +105,7 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   const loopRef = useRef<(time: number) => void>();
 
   const updatePhysics = useCallback(
-    (time: number) => {
+    (_time: number) => {
       let vel = velocityRef.current;
       let pos = phaseRef.current;
 
