@@ -1,12 +1,53 @@
-import { AppContext, AppEvent, EventHandler, EventType } from "./types";
+import {
+  AppContext,
+  AppEvent,
+  EventHandler,
+  EventType,
+  DebugLogEvent,
+} from "./types";
 
 class EventBus {
+  private context: AppContext | null = null;
+
+  public setContext(context: AppContext) {
+    this.context = context;
+  }
   // Store handlers as generic handlers
   private handlers: Map<EventType, EventHandler<AppEvent>[]> = new Map();
 
   private log(message: string, ...args: unknown[]) {
     if (process.env.VITE_DEV_SERVER_URL) {
       console.log(`[EventBus] ${message}`, ...args);
+    }
+
+    if (this.context) {
+      let content = message;
+      if (args.length > 0) {
+        const formattedArgs = args
+          .map((arg) => {
+            try {
+              return typeof arg === "object"
+                ? JSON.stringify(arg, null, 2)
+                : String(arg);
+            } catch (e) {
+              return String(arg);
+            }
+          })
+          .join(" ");
+        content = `${message} ${formattedArgs}`;
+      }
+
+      // Check if we should suppress known noisy logs (e.g. detailed payloads)
+      // For now, we allow everything but could filter if needed
+
+      this.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
+        type: "event_bus",
+        content,
+        isError: false,
+        timestamp: Date.now(),
+        typeColor: "#dcdcaa", // Light Yellow for EventBus events
+        textColor: "#d4d4d4", // Default text color
+      });
     }
   }
 

@@ -179,6 +179,7 @@ function createWindows() {
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
+  eventBus.setContext(appContext);
 
   // Initialize and Start Process Watcher
   const processWatcher = new ProcessWatcher(appContext);

@@ -76,13 +76,14 @@ export class PowerShellManager {
     useAdmin: boolean = false,
   ): Promise<PSResult> {
     const session = useAdmin ? this.adminSession : this.normalSession;
-    return this.executeInSession(session, command, useAdmin);
+    return this.executeCommand(command, session, useAdmin);
   }
 
   private emitLog(
-    type: "normal" | "admin",
+    type: string,
     content: string,
     isError: boolean = false,
+    options: { typeColor?: string; textColor?: string } = {},
   ) {
     // Only emit if debug mode is active to save resources
     // Also require context to be set to avoid crashes
@@ -92,25 +93,56 @@ export class PowerShellManager {
           type,
           content,
           isError,
+          timestamp: Date.now(),
+          typeColor: options.typeColor,
+          textColor: options.textColor,
         });
       }
     }
   }
 
-  private async executeInSession(
-    session: SessionState,
+  /**
+   * Helper to determine colors based on session type
+   */
+  private getLogColors(
+    isAdmin: boolean,
+    isError: boolean,
+  ): { typeColor: string; textColor: string } {
+    if (isError) {
+      return {
+        typeColor: isAdmin ? "#c586c0" : "#4ec9b0",
+        textColor: "#f48771", // Red
+      };
+    }
+    return isAdmin
+      ? { typeColor: "#c586c0", textColor: "#569cd6" } // Admin: Purple / Blue
+      : { typeColor: "#4ec9b0", textColor: "#d4d4d4" }; // Normal: Teal / Grey
+  }
+
+  public async executeCommand(
     command: string,
+    session: SessionState,
     isAdmin: boolean,
   ): Promise<PSResult> {
     // Log Command Start
-    this.emitLog(isAdmin ? "admin" : "normal", `> ${command}`);
+    this.emitLog(
+      isAdmin ? "process_admin" : "process_normal",
+      `> ${command}`,
+      false,
+      this.getLogColors(isAdmin, false),
+    );
 
     // 1. Ensure Session
     await this.ensureSession(session, isAdmin);
 
     if (!session.socket) {
       const msg = "Failed to establish connection to PowerShell session";
-      this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+      this.emitLog(
+        isAdmin ? "process_admin" : "process_normal",
+        msg,
+        true,
+        this.getLogColors(isAdmin, true),
+      );
       return {
         stdout: "",
         stderr: msg,
@@ -128,7 +160,12 @@ export class PowerShellManager {
           if (session.pendingRequests.has(id)) {
             session.pendingRequests.delete(id);
             const msg = "Request execution timed out (30s)";
-            this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+            this.emitLog(
+              isAdmin ? "process_admin" : "process_normal",
+              msg,
+              true,
+              this.getLogColors(isAdmin, true),
+            );
             resolve({
               stdout: "",
               stderr: msg,
@@ -143,9 +180,19 @@ export class PowerShellManager {
         clearTimeout(timeout);
         // Log Result
         if (res.stdout)
-          this.emitLog(isAdmin ? "admin" : "normal", res.stdout.trim());
+          this.emitLog(
+            isAdmin ? "process_admin" : "process_normal",
+            res.stdout.trim(),
+            false,
+            this.getLogColors(isAdmin, false),
+          );
         if (res.stderr)
-          this.emitLog(isAdmin ? "admin" : "normal", res.stderr.trim(), true);
+          this.emitLog(
+            isAdmin ? "process_admin" : "process_normal",
+            res.stderr.trim(),
+            true,
+            this.getLogColors(isAdmin, true),
+          );
         resolve(res);
       });
 
@@ -157,7 +204,12 @@ export class PowerShellManager {
             clearTimeout(timeout);
             session.pendingRequests.delete(id);
             const msg = `Socket Write Error: ${err.message}`;
-            this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+            this.emitLog(
+              isAdmin ? "process_admin" : "process_normal",
+              msg,
+              true,
+              this.getLogColors(isAdmin, true),
+            );
             resolve({
               stdout: "",
               stderr: msg,
@@ -168,7 +220,12 @@ export class PowerShellManager {
       } else {
         clearTimeout(timeout);
         const msg = "Socket disconnected";
-        this.emitLog(isAdmin ? "admin" : "normal", msg, true);
+        this.emitLog(
+          isAdmin ? "process_admin" : "process_normal",
+          msg,
+          true,
+          this.getLogColors(isAdmin, true),
+        );
         resolve({ stdout: "", stderr: msg, code: 1 });
       }
     });

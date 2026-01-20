@@ -1,7 +1,11 @@
 import { BrowserWindow } from "electron";
 import Store from "electron-store";
 
-import { AppConfig, GameStatusState } from "../../shared/types";
+import {
+  AppConfig,
+  GameStatusState,
+  DebugLogPayload,
+} from "../../shared/types";
 
 // Event Enums
 export enum EventType {
@@ -62,11 +66,7 @@ export interface GameStatusChangeEvent {
 
 export interface DebugLogEvent {
   type: EventType.DEBUG_LOG;
-  payload: {
-    type: "normal" | "admin";
-    content: string;
-    isError: boolean;
-  };
+  payload: DebugLogPayload;
   timestamp?: number;
 }
 

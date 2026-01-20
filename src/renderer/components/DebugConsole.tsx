@@ -2,14 +2,17 @@ import React, { useEffect, useState, useRef } from "react";
 
 interface LogEntry {
   timestamp: number;
-  type: "normal" | "admin";
+  type: string;
   content: string;
   isError: boolean;
   count?: number;
+  typeColor?: string;
+  textColor?: string;
 }
 
 const DebugConsole: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [filter, setFilter] = useState<string>("ALL");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,7 +50,14 @@ const DebugConsole: React.FC = () => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+  }, [logs, filter]);
+
+  // Compute unique types for tabs (always include ALL)
+  const tabs = ["ALL", ...Array.from(new Set(logs.map((l) => l.type)))];
+
+  // Filter logs logic
+  const visibleLogs =
+    filter === "ALL" ? logs : logs.filter((l) => l.type === filter);
 
   return (
     <div
@@ -88,45 +98,115 @@ const DebugConsole: React.FC = () => {
           whiteSpace: "pre-wrap",
         }}
       >
-        {logs.map((log, i) => (
+        {visibleLogs.map((log, i) => (
           <div
             key={i}
             style={{
-              marginBottom: "2px",
-              color: log.isError
-                ? "#f48771"
-                : log.type === "admin"
-                  ? "#569cd6"
-                  : "#d4d4d4",
+              marginBottom: "8px",
+              display: "flex",
+              flexDirection: "column",
+              color: log.isError ? "#f48771" : log.textColor || "#d4d4d4",
             }}
           >
-            <span style={{ color: "#808080", marginRight: "8px" }}>
-              [{new Date(log.timestamp).toLocaleTimeString()}]
-            </span>
-            <span
+            {/* Row 1: Time & Type */}
+            <div
               style={{
-                color: log.type === "admin" ? "#c586c0" : "#4ec9b0",
-                marginRight: "8px",
-                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                marginBottom: "2px",
               }}
             >
-              {log.type.toUpperCase()}
-            </span>
-            <span>{log.content}</span>
-            {log.count && log.count > 1 && (
               <span
                 style={{
-                  marginLeft: "8px",
-                  color: "#ffcd38", // Warning-ish color for repeat count
-                  fontWeight: "bold",
+                  color: "#6a9955",
+                  marginRight: "8px",
+                  fontSize: "11px",
+                  fontFamily: "'Consolas', monospace",
                 }}
               >
-                (x{log.count})
+                [{new Date(log.timestamp).toLocaleTimeString()}]
               </span>
-            )}
+              <span
+                style={{
+                  color: log.typeColor || "#ce9178",
+                  fontWeight: "bold",
+                  fontSize: "11px",
+                }}
+              >
+                [{log.type.toUpperCase()}]
+              </span>
+            </div>
+
+            {/* Row 2: Content & Count */}
+            <div
+              style={{
+                display: "flex",
+                paddingLeft: "16px",
+                alignItems: "flex-start",
+              }}
+            >
+              <span
+                style={{ wordBreak: "break-all", flex: 1, lineHeight: "1.4" }}
+              >
+                {log.content}
+              </span>
+              {log.count && log.count > 1 && (
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    color: "#ffcd38",
+                    fontWeight: "bold",
+                    flexShrink: 0,
+                  }}
+                >
+                  (x{log.count})
+                </span>
+              )}
+            </div>
           </div>
         ))}
         <div ref={bottomRef} />
+      </div>
+
+      {/* Footer Tabs */}
+      <div
+        style={{
+          borderTop: "1px solid #333",
+          backgroundColor: "#252526",
+          display: "flex",
+          flexWrap: "wrap",
+        }}
+      >
+        {tabs.map((tab) => {
+          // Find the color for this tab from the first log of this type
+          const sampleLog = logs.find((l) => l.type === tab);
+          const tabColor = sampleLog?.typeColor || "#969696";
+
+          return (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              style={{
+                background: filter === tab ? "#3e3e42" : "transparent",
+                color: filter === tab ? "#fff" : tabColor, // Use type color for inactive tabs too? Or just active/indicator
+                // Let's make the text color matching the type color for better visibility
+                // But keep active state distinct
+                border: "none",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontFamily: "inherit",
+                borderRight: "1px solid #333",
+                borderTop:
+                  filter === tab
+                    ? `2px solid ${tabColor}`
+                    : "2px solid transparent", // Indicator
+              }}
+            >
+              {tab.toUpperCase()}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

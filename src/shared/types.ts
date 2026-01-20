@@ -26,10 +26,12 @@ export interface GameStatusState {
 }
 
 export interface DebugLogPayload {
-  type: "normal" | "admin";
+  type: string; // Allow dynamic types (e.g., "process_normal", "process_admin")
   content: string;
   isError: boolean;
   timestamp: number;
+  typeColor?: string; // Hex color for the [TYPE] label
+  textColor?: string; // Hex color for the content text
 }
 
 export interface ElectronAPI {
