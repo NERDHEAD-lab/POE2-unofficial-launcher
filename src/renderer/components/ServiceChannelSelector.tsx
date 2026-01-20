@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { AppConfig } from "../../shared/types";
-import iconSettings from "../assets/icons/ic-settings.svg";
 import imgGGG from "../assets/img-ci-ggg_150x67.png";
 import imgKakao from "../assets/img-ci-kakaogames_158x28.png";
 import "./ServiceChannelSelector.css";
@@ -111,21 +110,11 @@ const ServiceChannelSelector: React.FC<ServiceChannelSelectorProps> = ({
           title="설정 (Settings)"
         >
           <span
-            style={{
-              display: "inline-block",
-              width: "20px",
-              height: "20px",
-              backgroundColor: "currentColor",
-              maskImage: `url(${iconSettings})`,
-              maskSize: "contain",
-              maskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskImage: `url(${iconSettings})`,
-              WebkitMaskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-            }}
-          />
+            className="material-symbols-outlined"
+            style={{ fontSize: "20px" }}
+          >
+            settings
+          </span>
         </button>
       </div>
     </div>

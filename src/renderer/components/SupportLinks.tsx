@@ -1,24 +1,19 @@
 import React from "react";
 
-// Icon Import
-import iconBugReport from "../assets/icons/ic-bug-report.svg";
-import iconCoffee from "../assets/icons/ic-coffee.svg";
+// Local Settings CSS needed for font?
+// It is imported in App -> SettingsModal -> Settings.css, so likely globally available.
+// But to be safe and explicit, or relying on global bundle.
 
 const SupportLinks: React.FC = () => {
-  // Using generic Material Symbols style URLs for icons based on user request (setting icon)
-  // For now, simpler SVG or text emojis to ensure rendering without external font dependency issues if not loaded.
-  // User asked for "https://fonts.google.com/icons?icon.size=24&icon.color=%231f1f1f&icon.query=setting"
-  // We'll use a local SVG or a text fallback for now to ensure it works offline/standalone.
-
   const linkStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
     color: "#ccc",
     textDecoration: "none",
-    fontSize: "14px", // Increased from 12px
-    padding: "6px 10px", // Increased padding
+    fontSize: "14px",
+    padding: "6px 10px",
     transition: "color 0.2s",
-    gap: "8px", // Increased gap
+    gap: "8px",
   };
 
   const hoverStyle = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -47,21 +42,11 @@ const SupportLinks: React.FC = () => {
         onMouseLeave={leaveStyle}
       >
         <span
-          style={{
-            display: "inline-block",
-            width: "16px",
-            height: "16px",
-            backgroundColor: "currentColor",
-            maskImage: `url(${iconCoffee})`,
-            maskSize: "contain",
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskImage: `url(${iconCoffee})`,
-            WebkitMaskSize: "contain",
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-          }}
-        />
+          className="material-symbols-outlined"
+          style={{ fontSize: "16px" }}
+        >
+          local_cafe
+        </span>
         후원하기
       </a>
       <a
@@ -73,21 +58,11 @@ const SupportLinks: React.FC = () => {
         onMouseLeave={leaveStyle}
       >
         <span
-          style={{
-            display: "inline-block",
-            width: "16px",
-            height: "16px",
-            backgroundColor: "currentColor",
-            maskImage: `url(${iconBugReport})`,
-            maskSize: "contain",
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskImage: `url(${iconBugReport})`,
-            WebkitMaskSize: "contain",
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-          }}
-        />
+          className="material-symbols-outlined"
+          style={{ fontSize: "16px" }}
+        >
+          bug_report
+        </span>
         기능 건의/버그 제보
       </a>
     </div>

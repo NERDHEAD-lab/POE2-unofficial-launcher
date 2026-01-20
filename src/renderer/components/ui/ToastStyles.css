@@ -1,0 +1,37 @@
+/* Toast.css */
+.shared-toast {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: #1e1e1e; /* Dark Gray Background as requested */
+  border: 1px solid var(--theme-accent, #dfcf99); /* Dynamic Theme Border */
+  color: var(--theme-text, #eee);
+  padding: 8px 20px; /* Slimmer height */
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.shared-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Context Positioning */
+.shared-toast.type-main {
+  bottom: 100px; /* Main Launcher Bottom Position */
+}
+
+.shared-toast.type-setting {
+  bottom: 30px; /* Settings Modal Bottom Position */
+}

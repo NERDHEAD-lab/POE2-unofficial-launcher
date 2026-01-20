@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./App.css"; // Global Styles
+import React, { useState, useEffect, useRef, useMemo } from "react";
 
-// Local Imports
-// Local Imports
+import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
 import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import iconGithub from "./assets/icon-github.svg";
@@ -12,6 +10,7 @@ import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
+import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
@@ -44,6 +43,9 @@ function App() {
     useState<AppConfig["serviceChannel"]>("Kakao Games");
   // Shared Theme Cache State (from Electron Store)
   const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
+
+  // Settings Modal State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Refactor: Use globalGameState instead of simple text string
   const [globalGameStatus, setGlobalGameStatus] = useState<GameStatusState>({
@@ -96,7 +98,7 @@ function App() {
   }, [globalGameStatus.status, globalGameStatus.errorCode]);
 
   // Compute Active Status Message (Context Aware)
-  const activeStatusMessage = React.useMemo(() => {
+  const activeStatusMessage = useMemo(() => {
     // Only show status if it matches the currently selected Game & Service context
     if (
       globalGameStatus.gameId === activeGame &&
@@ -108,7 +110,7 @@ function App() {
   }, [globalGameStatus, activeGame, serviceChannel, activeMessage]);
 
   // Compute Button Disabled State
-  const isGameRunning = React.useMemo(() => {
+  const isGameRunning = useMemo(() => {
     if (
       globalGameStatus.gameId === activeGame &&
       globalGameStatus.serviceId === serviceChannel
@@ -286,6 +288,11 @@ function App() {
       id="app-container"
       className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
     >
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+
       {/* Background Layer for Transitions */}
       <div
         id="app-background"
@@ -348,7 +355,7 @@ function App() {
                 <ServiceChannelSelector
                   channel={serviceChannel}
                   onChannelChange={handleChannelChange}
-                  onSettingsClick={() => console.log("Settings Clicked")}
+                  onSettingsClick={() => setIsSettingsOpen(true)}
                 />
               </div>
               <GameStartButton
