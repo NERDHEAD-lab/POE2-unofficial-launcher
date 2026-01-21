@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
-import { GameStatusState } from "../shared/types";
+import { GameStatusState, AppConfig, NewsCategory } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 
 // --- Electron API Expose ---
@@ -37,4 +37,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   saveReport: (files: { name: string; content: string }[]) =>
     ipcRenderer.invoke("report:save", files),
+  getNews: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => ipcRenderer.invoke("news:get", game, service, category),
+  getNewsCache: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => ipcRenderer.invoke("news:get-cache", game, service, category),
+  getNewsContent: (id: string, link: string) =>
+    ipcRenderer.invoke("news:get-content", id, link),
+  markNewsAsRead: (id: string) => ipcRenderer.invoke("news:mark-as-read", id),
+  onNewsUpdated: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("news-updated", handler);
+    return () => ipcRenderer.off("news-updated", handler);
+  },
+  openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
 });

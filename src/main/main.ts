@@ -3,12 +3,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
-import { AppConfig, RunStatus } from "../shared/types";
+import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import {
@@ -27,6 +27,7 @@ import {
   EventHandler,
   AppEvent,
 } from "./events/types";
+import { newsService } from "./services/NewsService";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
@@ -184,6 +185,43 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
   }
 });
 
+// --- News Dashboard IPC Handlers ---
+ipcMain.handle(
+  "news:get",
+  async (
+    _event,
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => {
+    return newsService.fetchNewsList(game, service, category);
+  },
+);
+
+ipcMain.handle(
+  "news:get-cache",
+  (
+    _event,
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => {
+    return newsService.getCacheItems({ game, service, category });
+  },
+);
+
+ipcMain.handle("news:get-content", async (_event, id: string, link: string) => {
+  return newsService.fetchNewsContent(id, link);
+});
+
+ipcMain.handle("news:mark-as-read", async (_event, id: string) => {
+  return newsService.markAsRead(id);
+});
+
+ipcMain.handle("shell:open-external", async (_event, url: string) => {
+  return shell.openExternal(url);
+});
+
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
   console.log(`[Main] Window Open Request: ${url}`);
@@ -265,6 +303,11 @@ handlers.forEach((handler) => {
 
 // Global Context
 let appContext: AppContext;
+
+// Initialize Services
+newsService.init(() => {
+  mainWindow?.webContents.send("news:updated");
+});
 
 function createWindows() {
   // 1. Main Window (UI)

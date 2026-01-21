@@ -9,6 +9,7 @@ import bgPoe from "./assets/poe/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
+import NewsDashboard from "./components/news/NewsDashboard";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -423,8 +424,10 @@ function App() {
 
           {/* === Right Panel: Content Area === */}
           <div className="right-panel">
-            {/* Currently Empty - Reserved for Notices/Patch Notes */}
-            <div className="content-area">{/* Content Placeholder */}</div>
+            <NewsDashboard
+              activeGame={activeGame}
+              serviceChannel={serviceChannel}
+            />
           </div>
         </div>
 

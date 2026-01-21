@@ -60,6 +60,43 @@ export interface ElectronAPI {
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
   onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
+  getNews: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => Promise<NewsItem[]>;
+  getNewsCache: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+    category: NewsCategory,
+  ) => Promise<NewsItem[]>;
+  getNewsContent: (id: string, link: string) => Promise<string>;
+  markNewsAsRead: (id: string) => Promise<void>;
+  onNewsUpdated: (callback: () => void) => () => void;
+  openExternal: (url: string) => Promise<void>;
+}
+
+export interface NewsItem {
+  id: string; // Thread ID or unique hash
+  title: string;
+  link: string;
+  date: string;
+  type: NewsCategory;
+  isNew?: boolean;
+}
+
+export type NewsCategory = "notice" | "news" | "patch-notes";
+
+export interface NewsContent {
+  id: string;
+  content: string;
+  lastUpdated: number;
+}
+
+export interface NewsServiceState {
+  items: Record<string, NewsItem[]>; // Key: "game-service-category"
+  contents: Record<string, NewsContent>; // Key: threadId
+  lastReadIds: string[]; // For 'N' marker logic
 }
 
 declare global {
