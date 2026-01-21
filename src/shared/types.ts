@@ -1,4 +1,14 @@
+export type ConfigCategory = "General" | "Game" | "Appearance";
+
+export interface ConfigDefinition {
+  key: string;
+  name: string;
+  category: ConfigCategory;
+  description: string;
+}
+
 export interface AppConfig {
+  [key: string]: unknown;
   serviceChannel: "Kakao Games" | "GGG";
   activeGame: "POE1" | "POE2";
   themeCache: Partial<
@@ -43,10 +53,13 @@ export interface ElectronAPI {
   getConfig: (key?: string) => Promise<unknown>;
   setConfig: (key: string, value: unknown) => Promise<void>;
   getFileHash: (path: string) => Promise<string>;
-  onConfigChange: (callback: (key: string, value: unknown) => void) => void;
+  onConfigChange: (
+    callback: (key: string, value: unknown) => void,
+  ) => () => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
   onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
+  saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
 }
 
 declare global {

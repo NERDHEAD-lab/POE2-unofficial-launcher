@@ -71,7 +71,7 @@
 - **결정**:
   - **Persistence**: `electron-store`를 도입하여 메인 프로세스에서 설정을 관리함.
   - **Reactive Observer Pattern**:
-    - 메인 프로세스의 `store.onDidChange` 이벤트를 구독하여 설정 변경 시 렌더러로 즉시 알림(`config-changed`)을 보냄.
+    - 메인 프로세스의 `store.onDidChange` 이벤트를 구독하여 설정 변경 시 `mainWindow`, `debugWindow`, `gameWindow` 등 모든 활성 창으로 즉시 알림(`config-changed`)을 브로드캐스트함.
     - 렌더러는 설정 데이터를 로컬 React State로 동기화하여 관리함.
 - **Theme Optimization**:
   - **Zero-latency Application**: 로컬 State(`themeCache`)를 즉시 참조하여 게임 전환 시 테마를 **0ms** 반응 속도로 적용함.
@@ -104,3 +104,16 @@
   - **UX 개선**: 앱 실행 중 UAC 승인이 최대 1회로 제한됨.
   - **리소스 효율**: 불필요한 프로세스 생성/종료 오버헤드 감소.
   - **유지보수**: PowerShell 실행 옵션 및 에러 처리가 한곳으로 통합됨.
+
+#### ADR-006: Enhanced Debug Console (Raw Config Editor)
+
+- **상황**: 개발 및 디버깅 과정에서 앱 설정(Config)을 실시간으로 확인하고 안전하게 수정할 수 있는 기능이 필요함. 특히 `config.ts` 메타데이터에 정의되지 않은 고아(Orphaned) 설정들을 식별하고 관리해야 함.
+- **결정**:
+  - **Categorized Config Viewer**: `CONFIG_METADATA`를 기반으로 설정을 카테고리별(General, Game, Appearance)로 분류하여 시각화함.
+  - **Inline JSON Editor**: 설정을 인라인에서 바로 편집할 수 있는 기능을 추가하고, `JSON.parse` 및 커스텀 제약 조건(예: `activeGame`은 'POE1'/'POE2'만 허용)을 통한 유효성 검증을 수행함.
+  - **Orphaned Config Detection**: `electron-store`에는 존재하지만 코드상 메타데이터에는 매핑되지 않은 설정들을 별도 섹션(Orange Accent)으로 분리하여 표시함.
+  - **Performance Optimization**: 로그 병합 및 해시 계산 등 무거운 헬퍼 함수들을 컴포넌트 외부로 추출하여 React의 불필요한 리렌더링 오버헤드를 줄임.
+- **결과**:
+  - **개발 효율성**: 외부 도구 없이 런처 내에서 직접 설정을 제어할 수 있어 디버깅 속도가 향상됨.
+  - **안정성**: 엄격한 유효성 검증을 통해 잘못된 데이터 주입으로 인한 앱 크래시를 방지함.
+  - **가독성 및 유지보수**: 고아 데이터 식별을 통해 불필요한 설정 키를 정리하고 시스템 무결성을 유지하기 쉬워짐.

@@ -132,17 +132,25 @@ function App() {
       window.electronAPI.getConfig().then((rawConfig: unknown) => {
         const config = rawConfig as AppConfig;
         if (config[CONFIG_KEYS.ACTIVE_GAME])
-          setActiveGame(config[CONFIG_KEYS.ACTIVE_GAME]);
+          setActiveGame(
+            config[CONFIG_KEYS.ACTIVE_GAME] as AppConfig["activeGame"],
+          );
         if (config[CONFIG_KEYS.SERVICE_CHANNEL])
-          setServiceChannel(config[CONFIG_KEYS.SERVICE_CHANNEL]);
+          setServiceChannel(
+            config[CONFIG_KEYS.SERVICE_CHANNEL] as AppConfig["serviceChannel"],
+          );
         if (config[CONFIG_KEYS.THEME_CACHE])
-          setThemeCache(config[CONFIG_KEYS.THEME_CACHE]);
+          setThemeCache(
+            config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
+          );
 
         setIsConfigLoaded(true);
 
-        // Initial Background Image needs to match the loaded activeGame
         const initialBg =
-          config[CONFIG_KEYS.ACTIVE_GAME] === "POE2" ? bgPoe2 : bgPoe;
+          (config[CONFIG_KEYS.ACTIVE_GAME] as AppConfig["activeGame"]) ===
+          "POE2"
+            ? bgPoe2
+            : bgPoe;
         setBgImage(initialBg);
       });
 

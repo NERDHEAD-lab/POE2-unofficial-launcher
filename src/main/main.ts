@@ -3,7 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
@@ -88,6 +89,56 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
     });
   }
 });
+
+ipcMain.handle(
+  "report:save",
+  async (_event, files: { name: string; content: string }[]) => {
+    if (!files || files.length === 0) return false;
+
+    try {
+      const win = BrowserWindow.fromWebContents(_event.sender);
+      if (!win) return false;
+
+      if (files.length === 1) {
+        // Single File: Direct Save
+        const file = files[0];
+        const ext = path.extname(file.name) || ".txt";
+        const { filePath, canceled } = await dialog.showSaveDialog(win, {
+          title: "Save Report File",
+          defaultPath: file.name,
+          filters: [
+            { name: "Report File", extensions: [ext.replace(".", "")] },
+          ],
+        });
+
+        if (canceled || !filePath) return false;
+        await fs.writeFile(filePath, file.content);
+        return true;
+      } else {
+        // Multi Files: Zip & Save
+        const zip = new JSZip();
+        files.forEach((f) => {
+          zip.file(f.name, f.content);
+        });
+
+        const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+        const { filePath, canceled } = await dialog.showSaveDialog(win, {
+          title: "Save Report ZIP",
+          defaultPath: "report.zip",
+          filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+        });
+
+        if (canceled || !filePath) return false;
+        await fs.writeFile(filePath, zipBuffer);
+        return true;
+      }
+    } catch (error) {
+      console.error("[Main] Failed to save report:", error);
+      return false;
+    }
+  },
+);
 
 ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
   try {

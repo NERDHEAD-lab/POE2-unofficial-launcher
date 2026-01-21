@@ -18,9 +18,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("config:set", key, value),
   getFileHash: (path: string) => ipcRenderer.invoke("file:get-hash", path),
   onConfigChange: (callback: (key: string, value: unknown) => void) => {
-    ipcRenderer.on("config-changed", (_event, key, value) =>
-      callback(key, value),
-    );
+    const handler = (_event: IpcRendererEvent, key: string, value: unknown) =>
+      callback(key, value);
+    ipcRenderer.on("config-changed", handler);
+    return () => ipcRenderer.off("config-changed", handler);
   },
   onProgressMessage: (callback: (text: string) => void) => {
     ipcRenderer.on("message-progress", (_event, text) => callback(text));
@@ -34,4 +35,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("debug-log", handler);
     return () => ipcRenderer.off("debug-log", handler);
   },
+  saveReport: (files: { name: string; content: string }[]) =>
+    ipcRenderer.invoke("report:save", files),
 });

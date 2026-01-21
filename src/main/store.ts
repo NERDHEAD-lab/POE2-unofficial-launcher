@@ -15,10 +15,18 @@ const store = new Store<AppConfig>({
 export function setupStoreObservers(context: AppContext) {
   Object.values(CONFIG_KEYS).forEach((key) => {
     store.onDidChange(key as keyof AppConfig, (newValue) => {
-      // Only send if window is not destroyed
-      if (context.mainWindow && !context.mainWindow.isDestroyed()) {
-        context.mainWindow.webContents.send("config-changed", key, newValue);
-      }
+      // Broadcast to all active windows in the context
+      const windows = [
+        context.mainWindow,
+        context.debugWindow,
+        context.gameWindow,
+      ];
+
+      windows.forEach((win) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("config-changed", key, newValue);
+        }
+      });
     });
   });
 }

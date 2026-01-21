@@ -26,12 +26,14 @@
   },
   "dependencies": {
     "electron-store": "^11.0.2",
+    "jszip": "^3.10.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/chrome": "^0.1.33",
+    "@types/jszip": "^3.4.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
