@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 
 import { NewsService } from "../services/NewsService";
 
@@ -41,7 +41,7 @@ describe("NewsService", () => {
       </table>
     `;
 
-    (globalThis.fetch as any).mockResolvedValue({
+    (globalThis.fetch as Mock).mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(mockHtml),
     });
@@ -63,7 +63,7 @@ describe("NewsService", () => {
       </div>
     `;
 
-    (globalThis.fetch as any).mockResolvedValue({
+    (globalThis.fetch as Mock).mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(mockHtml),
     });

@@ -1,27 +1,21 @@
 import Store from "electron-store";
 import { parse } from "node-html-parser";
 
-import { MAX_NEWS_COUNT, NEWS_REFRESH_INTERVAL } from "../../shared/constants";
+import {
+  MAX_NEWS_COUNT,
+  NEWS_REFRESH_INTERVAL,
+  GGG_BASE_URL,
+  KAKAO_BASE_URL,
+  NEWS_URL_MAP,
+  NEWS_CACHE_STORE_NAME,
+  NEWS_CACHE_DEFAULTS,
+} from "../../shared/news-config";
 import {
   NewsItem,
   NewsCategory,
   NewsServiceState,
   AppConfig,
 } from "../../shared/types";
-
-const GGG_BASE_URL = "https://www.pathofexile.com";
-const KAKAO_BASE_URL = "https://poe.game.daum.net";
-
-const URL_MAP: Record<string, string> = {
-  "GGG-POE2-notice": `${GGG_BASE_URL}/forum/view-forum/2211`,
-  "GGG-POE2-patch-notes": `${GGG_BASE_URL}/forum/view-forum/2212`,
-  "Kakao Games-POE2-notice": `${KAKAO_BASE_URL}/forum/view-forum/news2`,
-  "Kakao Games-POE2-patch-notes": `${KAKAO_BASE_URL}/forum/view-forum/patch-notes2`,
-  "GGG-POE1-notice": `${GGG_BASE_URL}/forum/view-forum/news`,
-  "GGG-POE1-patch-notes": `${GGG_BASE_URL}/forum/view-forum/patch-notes`,
-  "Kakao Games-POE1-notice": `${KAKAO_BASE_URL}/forum/view-forum/news`,
-  "Kakao Games-POE1-patch-notes": `${KAKAO_BASE_URL}/forum/view-forum/patch-notes`,
-};
 
 export class NewsService {
   private store: Store<NewsServiceState>;
@@ -34,12 +28,8 @@ export class NewsService {
 
   constructor() {
     this.store = new Store<NewsServiceState>({
-      name: "news-cache",
-      defaults: {
-        items: {},
-        contents: {},
-        lastReadIds: [],
-      },
+      name: NEWS_CACHE_STORE_NAME,
+      defaults: NEWS_CACHE_DEFAULTS,
     });
   }
 
@@ -102,7 +92,7 @@ export class NewsService {
   ): Promise<NewsItem[]> {
     this.lastConfig = { game, service };
     const key = `${service}-${game}-${category}`;
-    const url = URL_MAP[key];
+    const url = NEWS_URL_MAP[key];
 
     if (!url) return [];
 

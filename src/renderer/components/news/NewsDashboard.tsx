@@ -9,120 +9,182 @@ interface NewsDashboardProps {
   serviceChannel: AppConfig["serviceChannel"];
 }
 
+const combinations = [
+  { game: "POE1", service: "GGG" },
+  { game: "POE2", service: "GGG" },
+  { game: "POE1", service: "Kakao Games" },
+  { game: "POE2", service: "Kakao Games" },
+] as const;
+
+interface NewsViewState {
+  notices: NewsItem[];
+  patchNotes: NewsItem[];
+}
+
 const NewsDashboard: React.FC<NewsDashboardProps> = ({
   activeGame,
   serviceChannel,
 }) => {
-  const [notices, setNotices] = useState<NewsItem[]>([]);
-  const [patchNotes, setPatchNotes] = useState<NewsItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Store news for all 4 combinations to allow instant switching
+  const [allNews, setAllNews] = useState<Record<string, NewsViewState>>({
+    "GGG-POE1": { notices: [], patchNotes: [] },
+    "GGG-POE2": { notices: [], patchNotes: [] },
+    "Kakao Games-POE1": { notices: [], patchNotes: [] },
+    "Kakao Games-POE2": { notices: [], patchNotes: [] },
+  });
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const fetchNews = useCallback(
-    async (useCacheOnly = false) => {
-      if (!useCacheOnly) setIsLoading(true);
-
-      try {
-        // 1. Load from cache first (instant)
-        const [cachedNotices, cachedPatches] = await Promise.all([
-          window.electronAPI.getNewsCache(activeGame, serviceChannel, "notice"),
-          window.electronAPI.getNewsCache(
-            activeGame,
-            serviceChannel,
-            "patch-notes",
-          ),
+  const fetchAllNews = useCallback(async (forced = false) => {
+    const results = await Promise.all(
+      combinations.map(async ({ game, service }) => {
+        const [notices, patchNotes] = await Promise.all([
+          forced
+            ? window.electronAPI.getNews(game, service, "notice")
+            : window.electronAPI.getNewsCache(game, service, "notice"),
+          forced
+            ? window.electronAPI.getNews(game, service, "patch-notes")
+            : window.electronAPI.getNewsCache(game, service, "patch-notes"),
         ]);
+        return { key: `${service}-${game}`, notices, patchNotes };
+      }),
+    );
 
-        if (cachedNotices.length > 0 || cachedPatches.length > 0) {
-          setNotices(cachedNotices);
-          setPatchNotes(cachedPatches);
-          setIsLoading(false); // Hide loading as we have cache
-        }
-
-        // 2. Fetch live data if not cache-only
-        if (!useCacheOnly) {
-          const [noticeList, patchList] = await Promise.all([
-            window.electronAPI.getNews(activeGame, serviceChannel, "notice"),
-            window.electronAPI.getNews(
-              activeGame,
-              serviceChannel,
-              "patch-notes",
-            ),
-          ]);
-          setNotices(noticeList);
-          setPatchNotes(patchList);
-        }
-      } catch (error) {
-        console.error("Failed to fetch news:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [activeGame, serviceChannel],
-  );
-
-  useEffect(() => {
-    fetchNews();
-
-    // Listen for background updates
-    const unlisten = window.electronAPI.onNewsUpdated(() => {
-      // Background update: we just fetch without showing global loading
-      fetchNews(false);
+    setAllNews((prev) => {
+      const next = { ...prev };
+      results.forEach((res) => {
+        next[res.key] = { notices: res.notices, patchNotes: res.patchNotes };
+      });
+      return next;
     });
 
-    return () => unlisten();
-  }, [fetchNews]);
+    if (!forced) {
+      // If we only loaded cache, trigger a live fetch for everything in background
+      Promise.all(
+        combinations.map(async ({ game, service }) => {
+          const [notices, patchNotes] = await Promise.all([
+            window.electronAPI.getNews(game, service, "notice"),
+            window.electronAPI.getNews(game, service, "patch-notes"),
+          ]);
+          return { key: `${service}-${game}`, notices, patchNotes };
+        }),
+      ).then((liveResults) => {
+        setAllNews((prev) => {
+          const next = { ...prev };
+          liveResults.forEach((res) => {
+            next[res.key] = {
+              notices: res.notices,
+              patchNotes: res.patchNotes,
+            };
+          });
+          return next;
+        });
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const init = async () => {
+      await fetchAllNews();
+      if (isMounted) {
+        setIsInitialized(true);
+      }
+    };
+
+    init();
+
+    const unlisten = window.electronAPI.onNewsUpdated(() => {
+      fetchAllNews(true);
+    });
+
+    return () => {
+      isMounted = false;
+      unlisten();
+    };
+  }, [fetchAllNews]);
 
   const handleRead = (id: string) => {
     window.electronAPI.markNewsAsRead(id);
-    // Locally update the UI to remove 'N' marker immediately
-    setNotices((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, isNew: false } : item)),
-    );
-    setPatchNotes((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, isNew: false } : item)),
-    );
+    // Locally update all instances in state to remove 'N' marker
+    setAllNews((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        next[key] = {
+          notices: next[key].notices.map((item) =>
+            item.id === id ? { ...item, isNew: false } : item,
+          ),
+          patchNotes: next[key].patchNotes.map((item) =>
+            item.id === id ? { ...item, isNew: false } : item,
+          ),
+        };
+      });
+      return next;
+    });
   };
 
   const gggBase = "https://www.pathofexile.com/forum/view-forum";
   const kakaoBase = "https://poe.game.daum.net/forum/view-forum";
-  const baseUrl = serviceChannel === "GGG" ? gggBase : kakaoBase;
 
-  const forumUrls = {
-    notice:
-      activeGame === "POE2"
-        ? serviceChannel === "GGG"
-          ? `${baseUrl}/2211`
-          : `${baseUrl}/news2`
-        : `${baseUrl}/news`,
-    patchNotes:
-      activeGame === "POE2"
-        ? serviceChannel === "GGG"
-          ? `${baseUrl}/2212`
-          : `${baseUrl}/patch-notes2`
-        : `${baseUrl}/patch-notes`,
+  const getForumUrls = (game: string, service: string) => {
+    const baseUrl = service === "GGG" ? gggBase : kakaoBase;
+    return {
+      notice:
+        game === "POE2"
+          ? service === "GGG"
+            ? `${baseUrl}/2211`
+            : `${baseUrl}/news2`
+          : `${baseUrl}/news`,
+      patchNotes:
+        game === "POE2"
+          ? service === "GGG"
+            ? `${baseUrl}/2212`
+            : `${baseUrl}/patch-notes2`
+          : `${baseUrl}/patch-notes`,
+    };
   };
 
   return (
     <div className="news-dashboard-container">
-      {isLoading && notices.length === 0 && (
+      {!isInitialized && (
         <div className="news-dashboard-loading-overlay">
           <span>최신 소식을 불러오는 중...</span>
         </div>
       )}
       <div className="news-dashboard-content">
-        <NewsSection
-          title="공지사항"
-          items={notices}
-          forumUrl={forumUrls.notice}
-          onRead={handleRead}
-        />
-        <div className="divider"></div>
-        <NewsSection
-          title="패치노트"
-          items={patchNotes}
-          forumUrl={forumUrls.patchNotes}
-          onRead={handleRead}
-        />
+        {combinations.map(({ game, service }) => {
+          const key = `${service}-${game}`;
+          const isActive = game === activeGame && service === serviceChannel;
+          const urls = getForumUrls(game, service);
+          const data = allNews[key];
+
+          return (
+            <div
+              key={key}
+              className="news-view-wrapper"
+              style={{
+                display: isActive ? "flex" : "none",
+                width: "100%",
+                height: "100%",
+                gap: "30px",
+              }}
+            >
+              <NewsSection
+                title="공지사항"
+                items={data.notices}
+                forumUrl={urls.notice}
+                onRead={handleRead}
+              />
+              <div className="divider"></div>
+              <NewsSection
+                title="패치노트"
+                items={data.patchNotes}
+                forumUrl={urls.patchNotes}
+                onRead={handleRead}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
