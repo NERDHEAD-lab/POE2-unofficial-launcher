@@ -73,8 +73,11 @@
   - **Reactive Observer Pattern**:
     - 메인 프로세스의 `store.onDidChange` 이벤트를 구독하여 설정 변경 시 렌더러로 즉시 알림(`config-changed`)을 보냄.
     - 렌더러는 설정 데이터를 로컬 React State로 동기화하여 관리함.
-  - **Theme Optimization**: 게임 전환 시 비동기 IPC 조회(`await getConfig`) 대신, 로컬 State(`themeCache`)를 즉시 참조하여 **0ms** 반응 속도를 구현함.
-- **결과**: 앱 설정이 영구 저장되며, 테마 전환 시 어떠한 지연도 없는(Zero-latency) 매끄러운 사용자 경험을 제공함.
+- **Theme Optimization**:
+  - **Zero-latency Application**: 로컬 State(`themeCache`)를 즉시 참조하여 게임 전환 시 테마를 **0ms** 반응 속도로 적용함.
+  - **Hash-first Validation**: 렌더러에서 무거운 이미지를 로드하기 전, 메인 프로세스를 통해 이미지 파일의 **MD5 해시**를 먼저 비교함.
+  - **Asset-Specific Indexing**: 이미지 경로 대신 `gameId`('POE1', 'POE2')를 키로 사용하여 각 게임당 최적의 테마 데이터를 유지하고 관리 복잡도를 낮춤.
+- **결과**: 앱 설정이 영구 저장되며, 리소스 낭비(불필요한 이미지 디코딩)가 없는 매끄러운 사용자 경험을 제공함.
 
 #### ADR-004: Type-Safe Event Bus (Pub-Sub Pattern)
 

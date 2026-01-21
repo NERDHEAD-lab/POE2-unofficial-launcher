@@ -1,9 +1,11 @@
 export interface AppConfig {
   serviceChannel: "Kakao Games" | "GGG";
   activeGame: "POE1" | "POE2";
-  themeCache: Record<
-    string,
-    { text: string; accent: string; footer: string; hash: string }
+  themeCache: Partial<
+    Record<
+      "POE1" | "POE2",
+      { text: string; accent: string; footer: string; hash: string }
+    >
   >;
 }
 
@@ -40,6 +42,7 @@ export interface ElectronAPI {
   closeWindow: () => void;
   getConfig: (key?: string) => Promise<unknown>;
   setConfig: (key: string, value: unknown) => Promise<void>;
+  getFileHash: (path: string) => Promise<string>;
   onConfigChange: (callback: (key: string, value: unknown) => void) => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;

@@ -42,7 +42,10 @@ function App() {
   const [serviceChannel, setServiceChannel] =
     useState<AppConfig["serviceChannel"]>("Kakao Games");
   // Shared Theme Cache State (from Electron Store)
-  const [themeCache, setThemeCache] = useState<AppConfig["themeCache"]>({});
+  const [themeCache, setThemeCache] = useState<
+    Partial<AppConfig["themeCache"]>
+  >({});
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -135,6 +138,8 @@ function App() {
         if (config[CONFIG_KEYS.THEME_CACHE])
           setThemeCache(config[CONFIG_KEYS.THEME_CACHE]);
 
+        setIsConfigLoaded(true);
+
         // Initial Background Image needs to match the loaded activeGame
         const initialBg =
           config[CONFIG_KEYS.ACTIVE_GAME] === "POE2" ? bgPoe2 : bgPoe;
@@ -174,7 +179,6 @@ function App() {
   // Effect 1: Theme Application (Reacts to game or cache changes)
   // This is a PURE visual application effect. No setConfig or extraction here.
   useEffect(() => {
-    const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
     const poe1Fallback = {
       text: "#c8c8c8",
       accent: "#dfcf99",
@@ -187,7 +191,7 @@ function App() {
     };
     const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
 
-    const cached = themeCache[targetBg];
+    const cached = themeCache[activeGame];
     if (cached) {
       applyThemeColors(cached);
     } else {
@@ -197,7 +201,6 @@ function App() {
 
   // Effect 2: Theme Extraction/Revalidation (Runs in background)
   useEffect(() => {
-    const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
     const poe1Fallback = {
       text: "#c8c8c8",
       accent: "#dfcf99",
@@ -211,34 +214,47 @@ function App() {
     const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
 
     const triggerRevalidation = async () => {
-      if (!window.electronAPI) return;
-      const cached = themeCache[targetBg];
+      if (!window.electronAPI || !isConfigLoaded) return;
+      const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
+      const cached = themeCache[activeGame];
 
-      // Skip if already checked in this session AND we have a cache
-      if (revalidatedFiles.has(targetBg) && cached) return;
+      // Skip if already checked in this session
+      if (revalidatedFiles.has(activeGame)) return;
 
       try {
+        // [Hash-first Optimization]
+        // Get FS-level hash before loading image in renderer
+        const fsHash = await window.electronAPI.getFileHash(targetBg);
+
+        // If hash matches, we are GOOD. Avoid expensive image load & extraction.
+        if (cached && cached.hash === fsHash) {
+          revalidatedFiles.add(activeGame);
+          return;
+        }
+
+        // Only if hash changed (or no cache), we load the image and extract colors
         const { colors, hash } = await extractThemeColors(
           targetBg,
           activeFallback,
         );
-        revalidatedFiles.add(targetBg);
+        revalidatedFiles.add(activeGame);
 
-        // Update ONLY if hash has changed (avoids unnecessary store updates)
-        if (!cached || cached.hash !== hash) {
-          const updatedCache = {
-            ...themeCache,
-            [targetBg]: { ...colors, hash },
-          };
-          window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
-        }
+        // Update the store
+        const currentCache = (await window.electronAPI.getConfig(
+          CONFIG_KEYS.THEME_CACHE,
+        )) as AppConfig["themeCache"];
+        const updatedCache = {
+          ...(currentCache || {}),
+          [activeGame]: { ...colors, hash },
+        };
+        window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
       } catch (err) {
         console.error("[Theme] Revalidation failed:", err);
       }
     };
 
     triggerRevalidation();
-  }, [activeGame, themeCache]); // Added themeCache to dependencies to ensure revalidation can update it
+  }, [activeGame, isConfigLoaded, themeCache]); // themeCache added for dependency integrity, revalidatedFiles prevents loops
 
   // Effect 3: Background Transition Visuals (NO setConfig here)
   useEffect(() => {

@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,6 +68,15 @@ ipcMain.handle("config:get", (_event, key?: string) => {
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
   const oldValue = getConfig(key);
+
+  // Optimization: Only update and emit if value has changed
+  const oldStr = JSON.stringify(oldValue);
+  const newStr = JSON.stringify(value);
+
+  if (oldStr === newStr) {
+    return;
+  }
+
   setConfig(key, value);
 
   // Dispatch Config Change Event
@@ -75,6 +86,50 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
       oldValue,
       newValue: value,
     });
+  }
+});
+
+ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
+  try {
+    let targetPath = filePath;
+
+    // Resolve URL-like paths (e.g., from VITE assets or data URLs)
+    if (filePath.startsWith("data:")) {
+      return crypto.createHash("md5").update(filePath).digest("hex");
+    }
+
+    if (filePath.startsWith("file://")) {
+      targetPath = fileURLToPath(filePath);
+    } else if (!path.isAbsolute(filePath)) {
+      // In dev mode, assets are served from /src/renderer/assets or /public
+      // In prod mode, they are in the packaged app
+      const possiblePaths = [
+        path.join(process.env.VITE_PUBLIC || "", filePath),
+        path.join(app.getAppPath(), "dist", filePath),
+        path.join(
+          app.getAppPath(),
+          "src/renderer",
+          filePath.replace(/\//g, path.sep),
+        ),
+        path.join(app.getAppPath(), filePath.replace(/\//g, path.sep)),
+      ];
+
+      for (const p of possiblePaths) {
+        try {
+          await fs.access(p);
+          targetPath = p;
+          break;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    const fileBuffer = await fs.readFile(targetPath);
+    return crypto.createHash("md5").update(fileBuffer).digest("hex");
+  } catch (error) {
+    console.error(`[Hash] Failed to get hash for ${filePath}:`, error);
+    return "";
   }
 });
 
