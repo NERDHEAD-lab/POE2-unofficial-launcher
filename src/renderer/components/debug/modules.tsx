@@ -30,7 +30,9 @@ export const LogModule: DebugModule<LogViewerProps> = {
             content: logState.all
               .map(
                 (l) =>
-                  `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}`,
+                  `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}${
+                    l.count && l.count > 1 ? ` (x${l.count})` : ""
+                  }`,
               )
               .join("\n"),
           },
@@ -45,7 +47,9 @@ export const LogModule: DebugModule<LogViewerProps> = {
             content: logState.byType[type]
               .map(
                 (l) =>
-                  `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}`,
+                  `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}${
+                    l.count && l.count > 1 ? ` (x${l.count})` : ""
+                  }`,
               )
               .join("\n"),
           },
