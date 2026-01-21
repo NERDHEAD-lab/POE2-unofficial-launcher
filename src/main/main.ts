@@ -218,6 +218,10 @@ ipcMain.handle("news:mark-as-read", async (_event, id: string) => {
   return newsService.markAsRead(id);
 });
 
+ipcMain.handle("news:mark-multiple-as-read", async (_event, ids: string[]) => {
+  return newsService.markMultipleAsRead(ids);
+});
+
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   return shell.openExternal(url);
 });

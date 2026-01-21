@@ -236,11 +236,23 @@ export class NewsService {
   }
 
   markAsRead(id: string): void {
+    this.markMultipleAsRead([id]);
+  }
+
+  markMultipleAsRead(ids: string[]): void {
     const lastReadIds = this.store.get("lastReadIds");
-    if (!lastReadIds.includes(id)) {
-      lastReadIds.push(id);
-      // Keep only last 100 IDs to avoid store bloat
-      if (lastReadIds.length > 100) lastReadIds.shift();
+    let changed = false;
+
+    for (const id of ids) {
+      if (!lastReadIds.includes(id)) {
+        lastReadIds.push(id);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      // Keep only last 200 IDs (increased slightly for safety)
+      while (lastReadIds.length > 200) lastReadIds.shift();
       this.store.set("lastReadIds", lastReadIds);
     }
   }

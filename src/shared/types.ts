@@ -72,6 +72,7 @@ export interface ElectronAPI {
   ) => Promise<NewsItem[]>;
   getNewsContent: (id: string, link: string) => Promise<string>;
   markNewsAsRead: (id: string) => Promise<void>;
+  markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
   openExternal: (url: string) => Promise<void>;
 }

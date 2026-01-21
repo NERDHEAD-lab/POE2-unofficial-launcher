@@ -58,6 +58,14 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
           ) : (
             <div
               className="news-item-content forum-content"
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                const anchor = target.closest("a");
+                if (anchor && anchor.href) {
+                  e.preventDefault();
+                  window.electronAPI.openExternal(anchor.href);
+                }
+              }}
               dangerouslySetInnerHTML={{
                 __html: DOMPurify.sanitize(content || ""),
               }}

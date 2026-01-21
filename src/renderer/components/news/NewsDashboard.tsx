@@ -86,6 +86,10 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
     let isMounted = true;
 
     const init = async () => {
+      // Wait for 500ms to let initial configs settle (avoid accidental transition clearing)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!isMounted) return;
+
       await fetchAllNews();
       if (isMounted) {
         setIsInitialized(true);
@@ -103,6 +107,42 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
       unlisten();
     };
   }, [fetchAllNews]);
+
+  // Handle transition: clear 'N' markers locally AND in backend for the PREVIOUSLY active view
+  const [prevKey, setPrevKey] = useState(`${serviceChannel}-${activeGame}`);
+
+  const currentKey = `${serviceChannel}-${activeGame}`;
+  if (prevKey !== currentKey) {
+    // 1. Mark as read in backend store for persistence
+    const prevViewData = allNews[prevKey];
+    if (prevViewData) {
+      const ids = [
+        ...prevViewData.notices.map((n) => n.id),
+        ...prevViewData.patchNotes.map((p) => p.id),
+      ];
+      if (ids.length > 0) {
+        window.electronAPI.markMultipleNewsAsRead(ids);
+      }
+    }
+
+    // 2. Clear locally for immediate UI update
+    setPrevKey(currentKey);
+    setAllNews((prevNews) => {
+      const next = { ...prevNews };
+      if (!next[prevKey]) return prevNews;
+      next[prevKey] = {
+        notices: next[prevKey].notices.map((item) => ({
+          ...item,
+          isNew: false,
+        })),
+        patchNotes: next[prevKey].patchNotes.map((item) => ({
+          ...item,
+          isNew: false,
+        })),
+      };
+      return next;
+    });
+  }
 
   const handleRead = (id: string) => {
     window.electronAPI.markNewsAsRead(id);

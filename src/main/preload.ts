@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getNewsContent: (id: string, link: string) =>
     ipcRenderer.invoke("news:get-content", id, link),
   markNewsAsRead: (id: string) => ipcRenderer.invoke("news:mark-as-read", id),
+  markMultipleNewsAsRead: (ids: string[]) =>
+    ipcRenderer.invoke("news:mark-multiple-as-read", ids),
   onNewsUpdated: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("news-updated", handler);
