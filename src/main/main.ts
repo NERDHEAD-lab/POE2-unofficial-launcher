@@ -18,6 +18,7 @@ import {
 import { GameStatusSyncHandler } from "./events/handlers/GameStatusSyncHandler";
 import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
+import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
 import {
   AppContext,
@@ -301,6 +302,7 @@ const handlers = [
   DebugLogHandler,
   StartPoe1KakaoHandler,
   StartPoe2KakaoHandler,
+  StartPoeGggHandler,
   CleanupLauncherWindowHandler,
   GameStatusSyncHandler,
   GameProcessStartHandler,
