@@ -136,6 +136,11 @@ export class NewsService {
           const idMatch = link.match(/view-thread\/(\d+)/);
           const id = idMatch ? idMatch[1] : link;
 
+          // Detect Sticky flag
+          const isSticky = !!row.querySelector(
+            "td.flags.first div.flag.sticky",
+          );
+
           items.push({
             id,
             title,
@@ -143,6 +148,7 @@ export class NewsService {
             date,
             type: category,
             isNew: !lastReadIds.includes(id),
+            isSticky,
           });
         }
       }

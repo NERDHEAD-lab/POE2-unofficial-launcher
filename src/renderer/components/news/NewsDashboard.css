@@ -135,9 +135,17 @@
 .news-item-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   margin-right: 16px;
+  overflow: hidden;
+}
+
+.news-sticky-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
 }
 
 .new-badge {

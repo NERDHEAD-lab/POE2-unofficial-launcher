@@ -45,8 +45,9 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
     >
       <div className="news-item-header" onClick={handleToggle}>
         <div className="news-item-title-row">
-          {item.isNew && <span className="new-badge">N</span>}
+          {item.isSticky && <span className="news-sticky-icon">📌</span>}
           <span className="news-item-title">{item.title}</span>
+          {item.isNew && <span className="new-badge">N</span>}
         </div>
         <span className="news-item-date">{item.date}</span>
       </div>

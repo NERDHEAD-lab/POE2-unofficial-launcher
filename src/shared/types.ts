@@ -84,6 +84,7 @@ export interface NewsItem {
   date: string;
   type: NewsCategory;
   isNew?: boolean;
+  isSticky?: boolean;
 }
 
 export type NewsCategory = "notice" | "news" | "patch-notes";
