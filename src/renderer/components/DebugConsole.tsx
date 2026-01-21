@@ -77,7 +77,7 @@ const DebugConsole: React.FC = () => {
 
   const handleExport = async (selectedIds: string[]) => {
     const allSources = modules.flatMap((m) =>
-      m.getExportSources(getModuleProps(m.id)),
+      m.getExportSources(getModuleContext(m.id)),
     );
 
     const files: { name: string; content: string }[] = [];
