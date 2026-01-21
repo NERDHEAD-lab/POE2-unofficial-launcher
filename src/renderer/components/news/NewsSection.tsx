@@ -8,6 +8,7 @@ interface NewsSectionProps {
   items: NewsItemType[];
   forumUrl: string;
   onRead: (id: string) => void;
+  isDevSection?: boolean;
 }
 
 const NewsSection: React.FC<NewsSectionProps> = ({
@@ -15,6 +16,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
   items,
   forumUrl,
   onRead,
+  isDevSection,
 }) => {
   const handleOpenForum = () => {
     if (forumUrl) {
@@ -23,12 +25,14 @@ const NewsSection: React.FC<NewsSectionProps> = ({
   };
 
   return (
-    <div className="news-section">
+    <div className={`news-section ${isDevSection ? "dev-section" : ""}`}>
       <div className="news-section-header">
         <h3 className="news-section-title">{title}</h3>
-        <button className="view-more-btn" onClick={handleOpenForum}>
-          자세히 보기 <span className="arrow">▶</span>
-        </button>
+        {forumUrl && (
+          <button className="view-more-btn" onClick={handleOpenForum}>
+            자세히 보기 <span className="arrow">▶</span>
+          </button>
+        )}
       </div>
 
       <div className="news-list">
@@ -37,7 +41,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
             <NewsItem key={item.id} item={item} onRead={onRead} />
           ))
         ) : (
-          <div className="no-news">등록된 소식이 없습니다.</div>
+          <div className="no-news">게시글이 없습니다-</div>
         )}
       </div>
     </div>

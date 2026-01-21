@@ -1,10 +1,8 @@
 /* News Dashboard Container */
 .news-dashboard-container {
-  position: absolute;
-  bottom: 20px;
-  left: 40px;
-  right: 40px;
-  height: 380px;
+  position: relative;
+  flex: 3; /* Stretch to occupy 2/3 of available space */
+  margin: 0 40px 100px 40px;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 20px;
@@ -12,6 +10,7 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   animation: newsFadeIn 0.5s ease-out forwards;
+  min-height: 0; /* Critical for inner scrolling */
 }
 
 .news-dashboard-content {

@@ -13,6 +13,8 @@ export const NEWS_URL_MAP: Record<string, string> = {
   "GGG-POE1-patch-notes": `${GGG_BASE_URL}/forum/view-forum/patch-notes`,
   "Kakao Games-POE1-notice": `${KAKAO_BASE_URL}/forum/view-forum/news`,
   "Kakao Games-POE1-patch-notes": `${KAKAO_BASE_URL}/forum/view-forum/patch-notes`,
+  "dev-notice":
+    "https://nerdhead-lab.github.io/POE2-quick-launch-for-kakao/notice/list.json",
 };
 
 export const NEWS_CACHE_STORE_NAME = "news-cache";

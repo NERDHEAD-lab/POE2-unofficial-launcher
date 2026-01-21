@@ -131,9 +131,9 @@ img {
   width: 100%;
   height: 100%;
   position: relative;
-  z-index: 50; /* Below Drag Region */
-  padding-bottom: 40px; /* User Request: Increased Bottom Padding to prevent overlap */
-  box-sizing: border-box; /* Ensure padding doesn't overflow */
+  z-index: 100; /* Increased to ensure interactive elements are on top */
+  padding-bottom: 40px;
+  box-sizing: border-box;
 }
 
 /* ... (omitted sections) ... */
@@ -173,6 +173,23 @@ img {
   flex-direction: column;
   position: relative;
   -webkit-app-region: no-drag;
+  gap: 30px;
+}
+
+.dev-notice-container {
+  width: auto; /* Allow box model to work with margin */
+  margin: 100px 40px 0 40px; /* Match Dashboard internal layout */
+  /* height: 240px; */
+  flex: 2;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 12px 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex; /* Ensure inner NewsSection flows well */
 }
 
 /* Bottom Controls in Left Panel */

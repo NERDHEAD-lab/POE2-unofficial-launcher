@@ -58,6 +58,11 @@ export class NewsService {
         this.lastConfig.service,
         "patch-notes",
       ),
+      this.fetchDevNotices().then((items) => {
+        const allItems = this.store.get("items");
+        allItems["dev-notice"] = items;
+        this.store.set("items", allItems);
+      }),
     ]);
 
     if (this.onUpdated) this.onUpdated();
@@ -173,6 +178,50 @@ export class NewsService {
         error,
       );
       return this.getCacheItems(key);
+    }
+  }
+
+  async fetchDevNotices(): Promise<NewsItem[]> {
+    const url = NEWS_URL_MAP["dev-notice"];
+    if (!url) return [];
+
+    try {
+      const response = await this.fetchWithRetry(url, {
+        headers: { "Cache-Control": "no-cache" },
+      });
+      const data = await response.json();
+
+      if (!Array.isArray(data)) return [];
+
+      const items: NewsItem[] = data.map(
+        (file: { name?: string; id?: string; url?: string; date?: string }) => {
+          // Filename based extraction
+          const name = file.name || "Untitled";
+          const isPriority = name.startsWith("!");
+          const title = isPriority ? name.substring(1) : name;
+          const id = file.id || name;
+
+          return {
+            id,
+            title,
+            link: file.url || "",
+            date: file.date || new Date().toLocaleDateString(),
+            type: "dev-notice" as NewsCategory,
+            isNew: false, // Dev notices don't use 'N' per user request yet
+            isSticky: isPriority,
+          };
+        },
+      );
+
+      // Sort: Priority (!) first, then by date descending
+      return items.sort((a, b) => {
+        if (a.isSticky && !b.isSticky) return -1;
+        if (!a.isSticky && b.isSticky) return 1;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+    } catch (error) {
+      console.error("[NewsService] Failed to fetch dev notices:", error);
+      return [];
     }
   }
 

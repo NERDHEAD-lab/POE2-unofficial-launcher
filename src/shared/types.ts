@@ -87,7 +87,7 @@ export interface NewsItem {
   isSticky?: boolean;
 }
 
-export type NewsCategory = "notice" | "news" | "patch-notes";
+export type NewsCategory = "notice" | "news" | "patch-notes" | "dev-notice";
 
 export interface NewsContent {
   id: string;

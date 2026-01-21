@@ -2,14 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 
 import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
-import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import iconGithub from "./assets/icon-github.svg";
+import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
+import { NewsItem } from "../shared/types";
 import bannerBottom from "./assets/layout/banner-bottom.png";
 import bgPoe from "./assets/poe1/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
 import NewsDashboard from "./components/news/NewsDashboard";
+import NewsSection from "./components/news/NewsSection";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -308,6 +310,27 @@ function App() {
     }
   };
 
+  // Developer Notices State
+  const [devNotices, setDevNotices] = useState<NewsItem[]>([]);
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI
+        .getNewsCache("POE1", "GGG", "dev-notice")
+        .then(setDevNotices);
+      window.electronAPI
+        .getNews("POE1", "GGG", "dev-notice")
+        .then(setDevNotices);
+    }
+  }, []);
+
+  const handleDevRead = (id: string) => {
+    window.electronAPI.markNewsAsRead(id);
+    setDevNotices((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, isNew: false } : item)),
+    );
+  };
+
   return (
     <div
       id="app-container"
@@ -424,6 +447,15 @@ function App() {
 
           {/* === Right Panel: Content Area === */}
           <div className="right-panel">
+            <div className="dev-notice-container">
+              <NewsSection
+                title="개발자 공지사항"
+                items={devNotices}
+                forumUrl=""
+                onRead={handleDevRead}
+                isDevSection={true}
+              />
+            </div>
             <NewsDashboard
               activeGame={activeGame}
               serviceChannel={serviceChannel}
