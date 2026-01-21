@@ -57,6 +57,16 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
       return next;
     });
 
+    // Mark all fetched items as "seen" in the backend store
+    // so they won't have 'N' on next launcher restart.
+    const allIds = results.flatMap((res) => [
+      ...res.notices.map((n) => n.id),
+      ...res.patchNotes.map((p) => p.id),
+    ]);
+    if (allIds.length > 0) {
+      window.electronAPI.markMultipleNewsAsRead(allIds);
+    }
+
     if (!forced) {
       // If we only loaded cache, trigger a live fetch for everything in background
       Promise.all(
@@ -78,6 +88,14 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
           });
           return next;
         });
+
+        const liveIds = liveResults.flatMap((res) => [
+          ...res.notices.map((n) => n.id),
+          ...res.patchNotes.map((p) => p.id),
+        ]);
+        if (liveIds.length > 0) {
+          window.electronAPI.markMultipleNewsAsRead(liveIds);
+        }
       });
     }
   }, []);

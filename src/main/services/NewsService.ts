@@ -240,7 +240,7 @@ export class NewsService {
   }
 
   markMultipleAsRead(ids: string[]): void {
-    const lastReadIds = this.store.get("lastReadIds");
+    const lastReadIds = this.store.get("lastReadIds") || [];
     let changed = false;
 
     for (const id of ids) {
