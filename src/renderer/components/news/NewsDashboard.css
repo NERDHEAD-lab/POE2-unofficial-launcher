@@ -1,8 +1,8 @@
 /* News Dashboard Container */
 .news-dashboard-container {
   position: relative;
-  flex: 3 0 0%; /* Shrink 0, Basis 0 */
-  margin: 0 60px 100px 20px;
+  flex: 5 0 0%; /* Shrink 0, Basis 0 */
+  margin: 0 60px 40px 20px;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 20px;

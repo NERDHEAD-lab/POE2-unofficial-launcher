@@ -183,7 +183,7 @@ img {
 .dev-notice-container {
   width: auto;
   margin: 100px 60px 0 20px;
-  flex: 2 1 0%; /* Explicitly set basis to 0 to force ratio */
+  flex: 4 1 0%; /* Explicitly set basis to 0 to force ratio */
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 12px 20px;
