@@ -454,6 +454,7 @@ function App() {
                 forumUrl=""
                 onRead={handleDevRead}
                 isDevSection={true}
+                headerVariant="long"
               />
             </div>
             <NewsDashboard

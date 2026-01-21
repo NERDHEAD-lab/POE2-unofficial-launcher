@@ -2,7 +2,7 @@
 .news-dashboard-container {
   position: relative;
   flex: 3; /* Stretch to occupy 2/3 of available space */
-  margin: 0 40px 100px 40px;
+  margin: 0 60px 100px 20px;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 20px;
@@ -55,18 +55,27 @@
   align-items: center;
   margin-bottom: 12px;
   position: relative;
-  height: 32px;
-  background-image: url("../../assets/layout/title.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
 }
 
+.news-section-header.long {
+  height: 64px;
+  background-image: url("../../assets/layout/title.png");
+}
+
+.news-section-header.short {
+  height: 40px; /* Adjust as needed for short variant */
+  background-image: url("../../assets/layout/title.png"); /* Later replace with short image */
+  background-size: 80% auto; /* Make current long image look shorter/smaller if reuse */
+}
+
 .news-section-title {
   color: #af944f;
-  font-size: 16px;
+  font-size: 24px;
   font-weight: bold;
-  margin: 0;
+  margin: 0 0 6px 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
   z-index: 1;
 }

@@ -155,11 +155,11 @@ img {
 
 /* Left Panel: Fixed Width */
 .left-panel {
-  width: 360px; /* Decreased from 400px to match button size */
+  width: 360px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 10px; /* Reduced from 20px */
+  padding: 10px;
   box-sizing: border-box;
   /* background: rgba(0, 0, 0, 0.4); Optional: Tint for separation */
   /* border-right: 1px solid rgba(255, 255, 255, 0.05); Optional: Divider */
@@ -178,7 +178,7 @@ img {
 
 .dev-notice-container {
   width: auto; /* Allow box model to work with margin */
-  margin: 100px 40px 0 40px; /* Match Dashboard internal layout */
+  margin: 100px 60px 0 20px; /* Match Dashboard internal layout */
   /* height: 240px; */
   flex: 2;
   background: rgba(0, 0, 0, 0.4);

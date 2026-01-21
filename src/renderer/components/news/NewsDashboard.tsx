@@ -232,6 +232,7 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
                 items={data.notices}
                 forumUrl={urls.notice}
                 onRead={handleRead}
+                headerVariant="short"
               />
               <div className="divider"></div>
               <NewsSection
@@ -239,6 +240,7 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
                 items={data.patchNotes}
                 forumUrl={urls.patchNotes}
                 onRead={handleRead}
+                headerVariant="short"
               />
             </div>
           );

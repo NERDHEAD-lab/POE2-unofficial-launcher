@@ -9,6 +9,7 @@ interface NewsSectionProps {
   forumUrl: string;
   onRead: (id: string) => void;
   isDevSection?: boolean;
+  headerVariant?: "long" | "short";
 }
 
 const NewsSection: React.FC<NewsSectionProps> = ({
@@ -17,6 +18,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
   forumUrl,
   onRead,
   isDevSection,
+  headerVariant,
 }) => {
   const handleOpenForum = () => {
     if (forumUrl) {
@@ -26,7 +28,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
 
   return (
     <div className={`news-section ${isDevSection ? "dev-section" : ""}`}>
-      <div className="news-section-header">
+      <div className={`news-section-header ${headerVariant || "short"}`}>
         <h3 className="news-section-title">{title}</h3>
         {forumUrl && (
           <button className="view-more-btn" onClick={handleOpenForum}>
