@@ -5,7 +5,7 @@ import { CONFIG_KEYS } from "../shared/config";
 import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import iconGithub from "./assets/icon-github.svg";
 import bannerBottom from "./assets/layout/banner-bottom.png";
-import bgPoe from "./assets/poe/bg-keepers.png";
+import bgPoe from "./assets/poe1/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";

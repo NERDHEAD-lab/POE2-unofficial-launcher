@@ -152,18 +152,25 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
 
     if (filePath.startsWith("file://")) {
       targetPath = fileURLToPath(filePath);
-    } else if (!path.isAbsolute(filePath)) {
+    } else if (!path.isAbsolute(filePath) || filePath.startsWith("/")) {
+      // Normalize path to handle leading slashes correctly with path.join on Windows
+      // path.join('C:\\a', '/b') results in 'C:\\b' on Windows, which we want to avoid.
+      const normalizedFilePath = filePath.replace(/^\/+/, "");
+
+      // Project root directory
+      const projectRoot = app.isPackaged ? app.getAppPath() : process.cwd();
+
       // In dev mode, assets are served from /src/renderer/assets or /public
       // In prod mode, they are in the packaged app
       const possiblePaths = [
-        path.join(process.env.VITE_PUBLIC || "", filePath),
-        path.join(app.getAppPath(), "dist", filePath),
+        path.join(process.env.VITE_PUBLIC || "", normalizedFilePath),
+        path.join(projectRoot, "dist", normalizedFilePath),
+        path.join(projectRoot, normalizedFilePath.replace(/\//g, path.sep)),
         path.join(
-          app.getAppPath(),
+          projectRoot,
           "src/renderer",
-          filePath.replace(/\//g, path.sep),
+          normalizedFilePath.replace(/\//g, path.sep),
         ),
-        path.join(app.getAppPath(), filePath.replace(/\//g, path.sep)),
       ];
 
       for (const p of possiblePaths) {

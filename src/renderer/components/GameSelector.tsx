@@ -3,7 +3,7 @@ import "./GameSelector.css";
 
 // Import Assets
 import logoOiia from "../assets/oiia-cat.webp";
-import logoPoe from "../assets/poe/logo.png";
+import logoPoe from "../assets/poe1/logo.png";
 import logoPoe2 from "../assets/poe2/logo.png";
 
 interface GameSelectorProps {
