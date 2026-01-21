@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 
-import ConfigViewer, { getConfigExportSources } from "./debug/ConfigViewer";
 import ExportModal from "./debug/ExportModal";
 import { mergeLog } from "./debug/helpers";
-import LogViewer, { getLogExportSources } from "./debug/LogViewer";
-import { LogEntry } from "./debug/types";
+import { LogModule, ConfigModule } from "./debug/modules";
+import { LogEntry, DebugModule } from "./debug/types";
 import { AppConfig } from "../../shared/types";
 
 const DebugConsole: React.FC = () => {
@@ -13,6 +12,9 @@ const DebugConsole: React.FC = () => {
     all: LogEntry[];
     byType: { [key: string]: LogEntry[] };
   }>({ all: [], byType: {} });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const modules: DebugModule<any>[] = [LogModule, ConfigModule];
   const [filter, setFilter] = useState<string>("ALL");
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -40,14 +42,46 @@ const DebugConsole: React.FC = () => {
     setSaveError(null);
   };
 
+  const getModuleContext = (moduleId: string) => {
+    if (moduleId === "log-module") return { logState };
+    if (moduleId === "config-module") return { currentConfig };
+    return {};
+  };
+
+  const getModuleProps = (tabId: string) => {
+    const module = modules.find((m) =>
+      m.getTabs(getModuleContext(m.id)).some((t) => t.id === tabId),
+    );
+    if (!module) return {};
+
+    if (module.id === "log-module") {
+      return { logState, filter: tabId, bottomRef };
+    }
+    if (module.id === "config-module") {
+      return {
+        currentConfig,
+        editingKey,
+        initialValue,
+        editValue,
+        saveError,
+        editorRef,
+        startEditing,
+        cancelEditing,
+        saveConfig,
+        setEditValue,
+        setSaveError,
+      };
+    }
+    return {};
+  };
+
   const handleExport = async (selectedIds: string[]) => {
-    const sources = [
-      ...getLogExportSources(logState),
-      ...getConfigExportSources(currentConfig),
-    ];
+    const allSources = modules.flatMap((m) =>
+      m.getExportSources(getModuleProps(m.id)),
+    );
 
     const files: { name: string; content: string }[] = [];
-    sources.forEach((source) => {
+    allSources.forEach((source) => {
       if (selectedIds.includes(source.id)) {
         files.push(...source.getFiles());
       }
@@ -148,7 +182,9 @@ const DebugConsole: React.FC = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logState, filter]);
 
-  const tabs = ["ALL", ...Object.keys(logState.byType)];
+  const activeModule = modules.find((m) =>
+    m.getTabs(getModuleContext(m.id)).some((t) => t.id === filter),
+  );
 
   return (
     <div
@@ -232,27 +268,7 @@ const DebugConsole: React.FC = () => {
           whiteSpace: filter === "RAW CONFIGS" ? "normal" : "pre-wrap",
         }}
       >
-        {filter === "RAW CONFIGS" ? (
-          <ConfigViewer
-            currentConfig={currentConfig}
-            editingKey={editingKey}
-            initialValue={initialValue}
-            editValue={editValue}
-            saveError={saveError}
-            editorRef={editorRef}
-            startEditing={startEditing}
-            cancelEditing={cancelEditing}
-            saveConfig={saveConfig}
-            setEditValue={setEditValue}
-            setSaveError={setSaveError}
-          />
-        ) : (
-          <LogViewer
-            logState={logState}
-            filter={filter}
-            bottomRef={bottomRef}
-          />
-        )}
+        {activeModule?.renderPanel(filter, getModuleProps(filter))}
       </div>
 
       {/* Footer Tabs & Settings */}
@@ -261,76 +277,92 @@ const DebugConsole: React.FC = () => {
           borderTop: "1px solid #333",
           backgroundColor: "#252526",
           display: "flex",
-          justifyContent: "space-between", // Split logs (left) and config (right)
+          justifyContent: "space-between",
           flexWrap: "nowrap",
           overflowX: "auto",
         }}
       >
-        {/* Left Side: Logs */}
+        {/* Left Aligned Modules (Logs etc) */}
         <div style={{ display: "flex", overflowX: "auto" }}>
-          {tabs.map((tab) => {
-            const sampleLog = logState.all.find((l) => l.type === tab);
-            const tabColor = sampleLog?.typeColor || "#969696";
+          {modules
+            .filter((m) => m.position === "left")
+            .sort((a, b) => a.order - b.order)
+            .flatMap((m) => m.getTabs(getModuleContext(m.id)))
+            .map((tab) => {
+              const isActive = filter === tab.id;
+              const tabColor = tab.color || "#007acc";
 
-            return (
-              <button
-                key={tab}
-                onClick={() => setFilter(tab)}
-                style={{
-                  background: filter === tab ? "#3e3e42" : "transparent",
-                  color: filter === tab ? "#fff" : tabColor,
-                  border: "none",
-                  padding: "8px 16px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  fontFamily: "inherit",
-                  borderRight: "1px solid #333",
-                  borderTop:
-                    filter === tab
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter(tab.id)}
+                  style={{
+                    background: isActive ? "#3e3e42" : "transparent",
+                    color: isActive ? "#fff" : tab.color || "#ccc",
+                    border: "none",
+                    padding: "8px 16px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontFamily: "inherit",
+                    borderRight: "1px solid #333",
+                    borderTop: isActive
                       ? `2px solid ${tabColor}`
                       : "2px solid transparent",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {tab.toUpperCase()}
-              </button>
-            );
-          })}
+                    whiteSpace: "nowrap",
+                    opacity: isActive ? 1 : 0.7,
+                  }}
+                >
+                  {tab.label.toUpperCase()}
+                </button>
+              );
+            })}
         </div>
 
-        {/* Right Side: Raw Configs */}
-        <button
-          onClick={() => setFilter("RAW CONFIGS")}
-          style={{
-            background: filter === "RAW CONFIGS" ? "#007acc" : "#333",
-            color: "#fff",
-            border: "none",
-            padding: "8px 20px",
-            cursor: "pointer",
-            fontSize: "12px",
-            fontWeight: "bold",
-            fontFamily: "inherit",
-            borderLeft: "1px solid #444",
-            borderTop:
-              filter === "RAW CONFIGS"
-                ? "2px solid #fff"
-                : "2px solid transparent",
-            whiteSpace: "nowrap",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          ⚙️ RAW CONFIGS
-        </button>
+        {/* Right Aligned Modules (Config etc) */}
+        <div style={{ display: "flex" }}>
+          {modules
+            .filter((m) => m.position === "right")
+            .sort((a, b) => a.order - b.order)
+            .flatMap((m) => m.getTabs(getModuleContext(m.id)))
+            .map((tab) => {
+              const isActive = filter === tab.id;
+              const tabColor = tab.color || "#007acc";
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter(tab.id)}
+                  style={{
+                    background: isActive ? tabColor : "#333",
+                    color: "#fff",
+                    border: "none",
+                    padding: "8px 20px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    fontFamily: "inherit",
+                    borderLeft: "1px solid #444",
+                    borderTop: isActive
+                      ? "2px solid #fff"
+                      : "2px solid transparent",
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  {tab.label.toUpperCase()}
+                </button>
+              );
+            })}
+        </div>
       </div>
       {/* Export Modal */}
       {showExportModal && (
         <ExportModal
-          sources={[
-            ...getLogExportSources(logState),
-            ...getConfigExportSources(currentConfig),
-          ]}
+          sources={modules.flatMap((m) =>
+            m.getExportSources(getModuleContext(m.id)),
+          )}
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
         />

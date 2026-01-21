@@ -7,7 +7,7 @@ import {
   ConfigDefinition,
 } from "../../../shared/types";
 
-interface ConfigViewerProps {
+export interface ConfigViewerProps {
   currentConfig: Partial<AppConfig>;
   editingKey: string | null;
   initialValue: unknown;
@@ -298,21 +298,6 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
       )}
     </div>
   );
-};
-
-export const getConfigExportSources = (currentConfig: Partial<AppConfig>) => {
-  return [
-    {
-      id: "raw-configs",
-      label: "⚙️ RAW CONFIGS",
-      getFiles: () => [
-        {
-          name: "raw_config.json",
-          content: JSON.stringify(currentConfig, null, 2),
-        },
-      ],
-    },
-  ];
 };
 
 export default ConfigViewer;

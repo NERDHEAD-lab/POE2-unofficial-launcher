@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 
 import { LogEntry } from "./types";
 
-interface LogViewerProps {
+export interface LogViewerProps {
   logState: {
     all: LogEntry[];
     byType: { [key: string]: LogEntry[] };
@@ -146,45 +146,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
       <div ref={bottomRef} />
     </div>
   );
-};
-
-export const getLogExportSources = (logState: {
-  all: LogEntry[];
-  byType: { [key: string]: LogEntry[] };
-}) => {
-  const sources = [
-    {
-      id: "log-all",
-      label: "📄 ALL LOGS",
-      getFiles: () => [
-        {
-          name: "all.log",
-          content: logState.all
-            .map(
-              (l) =>
-                `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}`,
-            )
-            .join("\n"),
-        },
-      ],
-    },
-    ...Object.keys(logState.byType).map((type) => ({
-      id: `log-${type}`,
-      label: `📝 ${type.toUpperCase()} LOGS`,
-      getFiles: () => [
-        {
-          name: `${type.toLowerCase()}.log`,
-          content: logState.byType[type]
-            .map(
-              (l) =>
-                `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type}] ${l.content}`,
-            )
-            .join("\n"),
-        },
-      ],
-    })),
-  ];
-  return sources;
 };
 
 export default LogViewer;
