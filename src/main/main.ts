@@ -389,6 +389,37 @@ function createWindows() {
 
     mainWindow.on("move", updateDebugPosition);
 
+    // Enforce docking during resize: Only allow resizing from the right edge
+    // by forcing the left edge (x coordinate) to stay fixed to mainWindow's right edge.
+    debugWindow.on("resize", () => {
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        debugWindow &&
+        !debugWindow.isDestroyed()
+      ) {
+        const mainBounds = mainWindow.getBounds();
+        const debugBounds = debugWindow.getBounds();
+        const targetX = mainBounds.x + mainBounds.width;
+
+        // If the left edge moved, we fix the position and adjust the width
+        // to maintain the right edge's position if possible,
+        // or just force it back if it was an unintentional move.
+        if (
+          debugBounds.x !== targetX ||
+          debugBounds.y !== mainBounds.y ||
+          debugBounds.height !== mainBounds.height
+        ) {
+          debugWindow.setBounds({
+            x: targetX,
+            y: mainBounds.y,
+            height: mainBounds.height,
+            width: debugBounds.width + (debugBounds.x - targetX),
+          });
+        }
+      }
+    });
+
     // Ensure debug window closes if main window closes (handled by standard logic too)
     debugWindow.on("closed", () => {
       debugWindow = null;
