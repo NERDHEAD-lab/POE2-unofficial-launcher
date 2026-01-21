@@ -11,3 +11,14 @@ export interface LogEntry {
   mergeGroupId?: string;
   mergeGroupSize?: number;
 }
+
+export interface ExportableFile {
+  name: string;
+  content: string;
+}
+
+export interface ExportSource {
+  id: string;
+  label: string;
+  getFiles: () => ExportableFile[];
+}

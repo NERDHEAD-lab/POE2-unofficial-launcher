@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 
-import ConfigViewer from "./debug/ConfigViewer";
+import ConfigViewer, { getConfigExportSources } from "./debug/ConfigViewer";
 import ExportModal from "./debug/ExportModal";
 import { mergeLog } from "./debug/helpers";
-import LogViewer from "./debug/LogViewer";
+import LogViewer, { getLogExportSources } from "./debug/LogViewer";
 import { LogEntry } from "./debug/types";
 import { AppConfig } from "../../shared/types";
 
@@ -24,10 +24,6 @@ const DebugConsole: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [showExportModal, setShowExportModal] = useState(false);
-  const [selectedExportItems, setSelectedExportItems] = useState<string[]>([
-    "ALL",
-    "RAW CONFIGS",
-  ]);
 
   // --- Configuration Helpers ---
   const startEditing = (key: string, val: unknown) => {
@@ -44,34 +40,16 @@ const DebugConsole: React.FC = () => {
     setSaveError(null);
   };
 
-  const handleExport = async () => {
-    const files: { name: string; content: string }[] = [];
+  const handleExport = async (selectedIds: string[]) => {
+    const sources = [
+      ...getLogExportSources(logState),
+      ...getConfigExportSources(currentConfig),
+    ];
 
-    selectedExportItems.forEach((item) => {
-      if (item === "RAW CONFIGS") {
-        files.push({
-          name: "raw_config.json",
-          content: JSON.stringify(currentConfig, null, 2),
-        });
-      } else {
-        const logs = logState.byType[item] || [];
-        if (logs.length > 0) {
-          const content = logs
-            .map((l) => `[${l.timestamp}] [${l.type}] ${l.content}`)
-            .join("\n");
-          files.push({
-            name: `${item.toLowerCase()}.log`,
-            content,
-          });
-        } else if (item === "ALL") {
-          const content = logState.all
-            .map((l) => `[${l.timestamp}] [${l.type}] ${l.content}`)
-            .join("\n");
-          files.push({
-            name: "all.log",
-            content,
-          });
-        }
+    const files: { name: string; content: string }[] = [];
+    sources.forEach((source) => {
+      if (selectedIds.includes(source.id)) {
+        files.push(...source.getFiles());
       }
     });
 
@@ -349,10 +327,12 @@ const DebugConsole: React.FC = () => {
       {/* Export Modal */}
       {showExportModal && (
         <ExportModal
-          selectedExportItems={selectedExportItems}
-          setSelectedExportItems={setSelectedExportItems}
-          setShowExportModal={setShowExportModal}
-          handleExport={handleExport}
+          sources={[
+            ...getLogExportSources(logState),
+            ...getConfigExportSources(currentConfig),
+          ]}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
         />
       )}
     </div>

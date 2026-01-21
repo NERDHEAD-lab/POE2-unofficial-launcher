@@ -300,4 +300,19 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
   );
 };
 
+export const getConfigExportSources = (currentConfig: Partial<AppConfig>) => {
+  return [
+    {
+      id: "raw-configs",
+      label: "⚙️ RAW CONFIGS",
+      getFiles: () => [
+        {
+          name: "raw_config.json",
+          content: JSON.stringify(currentConfig, null, 2),
+        },
+      ],
+    },
+  ];
+};
+
 export default ConfigViewer;

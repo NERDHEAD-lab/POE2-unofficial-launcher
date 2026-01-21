@@ -1,18 +1,22 @@
 import React from "react";
 
+import { ExportSource } from "./types";
+
 interface ExportModalProps {
-  selectedExportItems: string[];
-  setSelectedExportItems: (items: string[]) => void;
-  setShowExportModal: (show: boolean) => void;
-  handleExport: () => Promise<void>;
+  sources: ExportSource[];
+  onClose: () => void;
+  onExport: (selectedIds: string[]) => void;
 }
 
 const ExportModal: React.FC<ExportModalProps> = ({
-  selectedExportItems,
-  setSelectedExportItems,
-  setShowExportModal,
-  handleExport,
+  sources,
+  onClose,
+  onExport,
 }) => {
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(
+    sources.map((s) => s.id),
+  );
+
   return (
     <div
       style={{
@@ -54,18 +58,14 @@ const ExportModal: React.FC<ExportModalProps> = ({
             flexDirection: "column",
             gap: "10px",
             marginBottom: "20px",
+            maxHeight: "300px",
+            overflowY: "auto",
+            paddingRight: "5px",
           }}
         >
-          {[
-            "ALL",
-            "SYSTEM",
-            "PROCESS",
-            "EVENT_BUS",
-            "DEBUG",
-            "RAW CONFIGS",
-          ].map((item) => (
+          {sources.map((source) => (
             <label
-              key={item}
+              key={source.id}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -77,18 +77,18 @@ const ExportModal: React.FC<ExportModalProps> = ({
             >
               <input
                 type="checkbox"
-                checked={selectedExportItems.includes(item)}
+                checked={selectedIds.includes(source.id)}
                 onChange={(e) => {
                   if (e.target.checked) {
-                    setSelectedExportItems([...selectedExportItems, item]);
+                    setSelectedIds([...selectedIds, source.id]);
                   } else {
-                    setSelectedExportItems(
-                      selectedExportItems.filter((i) => i !== item),
+                    setSelectedIds(
+                      selectedIds.filter((id) => id !== source.id),
                     );
                   }
                 }}
               />
-              {item}
+              {source.label}
             </label>
           ))}
         </div>
@@ -96,7 +96,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
           style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
         >
           <button
-            onClick={() => setShowExportModal(false)}
+            onClick={onClose}
             style={{
               background: "transparent",
               color: "#ccc",
@@ -109,17 +109,16 @@ const ExportModal: React.FC<ExportModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleExport}
-            disabled={selectedExportItems.length === 0}
+            onClick={() => onExport(selectedIds)}
+            disabled={selectedIds.length === 0}
             style={{
               background: "#007acc",
               color: "#fff",
               border: "none",
               padding: "5px 12px",
               borderRadius: "3px",
-              cursor:
-                selectedExportItems.length === 0 ? "not-allowed" : "pointer",
-              opacity: selectedExportItems.length === 0 ? 0.5 : 1,
+              cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+              opacity: selectedIds.length === 0 ? 0.5 : 1,
             }}
           >
             Download
