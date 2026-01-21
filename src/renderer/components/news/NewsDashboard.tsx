@@ -223,7 +223,6 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
               style={{
                 display: isActive ? "flex" : "none",
                 width: "100%",
-                height: "100%",
                 gap: "30px",
               }}
             >

@@ -127,13 +127,14 @@ img {
 /* Main Layout: Split Panels */
 .app-layout {
   display: flex;
-  flex: 1;
+  flex: 1 1 0%; /* Explicit basis */
   width: 100%;
   height: 100%;
   position: relative;
-  z-index: 100; /* Increased to ensure interactive elements are on top */
+  z-index: 100;
   padding-bottom: 40px;
   box-sizing: border-box;
+  min-height: 0; /* Important */
 }
 
 /* ... (omitted sections) ... */
@@ -168,19 +169,21 @@ img {
 
 /* Right Panel: Flexible */
 .right-panel {
-  flex: 1;
+  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
   position: relative;
   -webkit-app-region: no-drag;
   gap: 30px;
+  height: 100%;
+  min-height: 0; /* Important: allow shrinking */
+  overflow: hidden;
 }
 
 .dev-notice-container {
-  width: auto; /* Allow box model to work with margin */
-  margin: 100px 60px 0 20px; /* Match Dashboard internal layout */
-  /* height: 240px; */
-  flex: 2;
+  width: auto;
+  margin: 100px 60px 0 20px;
+  flex: 2 1 0%; /* Explicitly set basis to 0 to force ratio */
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 12px 20px;
@@ -189,7 +192,9 @@ img {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   z-index: 100;
   box-sizing: border-box;
-  display: flex; /* Ensure inner NewsSection flows well */
+  display: flex;
+  min-height: 0; /* Important: allow flexing below content size */
+  overflow: hidden; /* Force clipping */
 }
 
 /* Bottom Controls in Left Panel */

@@ -362,6 +362,8 @@ function App() {
           flexDirection: "column",
           position: "relative",
           zIndex: 10,
+          minHeight: 0 /* Force flex constraints */,
+          overflow: "hidden" /* Clip any runaway contents */,
         }}
       >
         {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
