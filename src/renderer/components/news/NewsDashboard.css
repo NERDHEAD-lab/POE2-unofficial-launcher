@@ -76,22 +76,28 @@
 
 .news-section-header.long {
   height: 64px;
-  background-image: url("../../assets/layout/title.png");
+  background-image: url("../../assets/layout/title_long.png");
 }
 
 .news-section-header.short {
   height: 40px; /* Adjust as needed for short variant */
-  background-image: url("../../assets/layout/title.png"); /* Later replace with short image */
-  background-size: 80% auto; /* Make current long image look shorter/smaller if reuse */
+  background-image: url("../../assets/layout/title_short.png"); /* Later replace with short image */
 }
 
 .news-section-title {
   color: #af944f;
-  font-size: 24px;
   font-weight: bold;
   margin: 0 0 6px 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
   z-index: 1;
+}
+
+.news-section-header.long .news-section-title {
+  font-size: 19px; /* Reduced by 20% from 24px */
+}
+
+.news-section-header.short .news-section-title {
+  font-size: 14px; /* Reduced by 40% from 24px */
 }
 
 .view-more-btn {
