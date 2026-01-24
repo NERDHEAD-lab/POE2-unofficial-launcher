@@ -54,24 +54,36 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
 
       {isExpanded && (
         <div className="news-item-content-wrapper">
-          {isLoading ? (
-            <div className="news-content-loading">Loading content...</div>
-          ) : (
-            <div
-              className="news-item-content forum-content"
-              onClick={(e) => {
-                const target = e.target as HTMLElement;
-                const anchor = target.closest("a");
-                if (anchor && anchor.href) {
-                  e.preventDefault();
-                  window.electronAPI.openExternal(anchor.href);
-                }
-              }}
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(content || ""),
-              }}
-            />
-          )}
+          <button
+            className="news-browser-btn"
+            onClick={(e) => {
+              e.stopPropagation(); // 부모의 toggle 이벤트 전파 방지
+              window.electronAPI.openExternal(item.link);
+            }}
+          >
+            <span>🌐</span> 브라우저에서 보기
+          </button>
+
+          <div className="news-scroll-view">
+            {isLoading ? (
+              <div className="news-content-loading">Loading content...</div>
+            ) : (
+              <div
+                className="news-item-content forum-content"
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  const anchor = target.closest("a");
+                  if (anchor && anchor.href) {
+                    e.preventDefault();
+                    window.electronAPI.openExternal(anchor.href);
+                  }
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(content || ""),
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
