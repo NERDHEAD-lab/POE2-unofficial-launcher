@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./NewsDashboard.css";
 import NewsSection from "./NewsSection";
 import { NewsItem, AppConfig } from "../../../shared/types";
+import { FORUM_URLS } from "../../../shared/urls";
 
 interface NewsDashboardProps {
   activeGame: AppConfig["activeGame"];
@@ -181,11 +182,12 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
     });
   };
 
-  const gggBase = "https://www.pathofexile.com/forum/view-forum";
-  const kakaoBase = "https://poe.game.daum.net/forum/view-forum";
-
   const getForumUrls = (game: string, service: string) => {
-    const baseUrl = service === "GGG" ? gggBase : kakaoBase;
+    // urls.ts의 상수를 사용하여 로직 간소화
+    // Service Channel 타입을 단언하거나 일치하는지 확인 필요하지만, 여기서는 string으로 들어오므로 매핑
+    const serviceKey = service as AppConfig["serviceChannel"];
+    const baseUrl = FORUM_URLS[serviceKey] || FORUM_URLS["GGG"];
+
     return {
       notice:
         game === "POE2"

@@ -1,3 +1,4 @@
+import { BASE_URLS } from "../../../shared/urls";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
@@ -62,7 +63,7 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     }
 
     // 2. Load Target URL
-    const targetUrl = "https://poe.game.daum.net";
+    const targetUrl = BASE_URLS["Kakao Games"].POE1;
     console.log(`[StartPoe1KakaoHandler] Loading URL: ${targetUrl}`);
 
     try {

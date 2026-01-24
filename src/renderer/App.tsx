@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 
 import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
+import { DOWNLOAD_URLS } from "../shared/urls";
 import iconGithub from "./assets/icon-github.svg";
 import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import { NewsItem } from "../shared/types";
@@ -121,20 +122,38 @@ function App() {
     ) {
       return activeMessage;
     }
-    return "";
   }, [globalGameStatus, activeGame, serviceChannel, activeMessage]);
 
   // Compute Button Disabled State
-  const isGameRunning = useMemo(() => {
+  const isButtonDisabled = useMemo(() => {
+    // Context mismatch check
     if (
-      globalGameStatus.gameId === activeGame &&
-      globalGameStatus.serviceId === serviceChannel
+      globalGameStatus.gameId !== activeGame ||
+      globalGameStatus.serviceId !== serviceChannel
     ) {
-      return (
-        globalGameStatus.status !== "idle" &&
-        globalGameStatus.status !== "error"
-      );
+      return false; // Actually, if context mismatch, we might want to allow "Starting" new context?
+      // But adhering to original logic:
+      return false;
     }
+
+    const s = globalGameStatus.status;
+
+    // ACTIVE: "Install" button should be ENABLED (not disabled)
+    // allowing user to click and go to download page.
+    if (s === "uninstalled") return false;
+
+    // Running states -> Disabled
+    if (
+      s === "preparing" ||
+      s === "processing" ||
+      s === "authenticating" ||
+      s === "ready" ||
+      s === "running"
+    ) {
+      return true;
+    }
+
+    // Idle / Error -> Enabled
     return false;
   }, [globalGameStatus, activeGame, serviceChannel]);
 
@@ -317,20 +336,15 @@ function App() {
     }
 
     if (globalGameStatus.status === "uninstalled") {
-      // Open Download Page
-      let url = "";
-      if (serviceChannel === "Kakao Games") {
-        url =
-          activeGame === "POE2"
-            ? "https://poe2.game.daum.net/"
-            : "https://poe.game.daum.net/";
+      // Open Download Page using centralized URL constants
+      const downloadUrl = DOWNLOAD_URLS[serviceChannel][activeGame];
+      if (downloadUrl) {
+        window.electronAPI.openExternal(downloadUrl);
       } else {
-        url =
-          activeGame === "POE2"
-            ? "https://pathofexile2.com/"
-            : "https://www.pathofexile.com/";
+        console.error(
+          `[App] No download URL found for ${activeGame} / ${serviceChannel}`,
+        );
       }
-      window.electronAPI.openExternal(url);
       return;
     }
 
@@ -443,9 +457,9 @@ function App() {
                     ? "설치하기"
                     : "게임 시작"
                 }
-                className={isGameRunning ? "disabled" : ""}
+                className={isButtonDisabled ? "disabled" : ""}
                 style={
-                  isGameRunning
+                  isButtonDisabled
                     ? {
                         opacity: 0.5,
                         cursor: "not-allowed",

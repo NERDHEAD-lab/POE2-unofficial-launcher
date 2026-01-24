@@ -1,8 +1,4 @@
-import React from "react";
-
-// Local Settings CSS needed for font?
-// It is imported in App -> SettingsModal -> Settings.css, so likely globally available.
-// But to be safe and explicit, or relying on global bundle.
+import { SUPPORT_URLS } from "../../shared/urls";
 
 const SupportLinks: React.FC = () => {
   const linkStyle: React.CSSProperties = {
@@ -34,7 +30,7 @@ const SupportLinks: React.FC = () => {
       }}
     >
       <a
-        href="https://nerdhead-lab.github.io/POE2-quick-launch-for-kakao?docs=SUPPORT.md"
+        href={SUPPORT_URLS.DONATION}
         target="_blank"
         rel="noreferrer"
         style={linkStyle}
@@ -50,7 +46,7 @@ const SupportLinks: React.FC = () => {
         후원하기
       </a>
       <a
-        href="https://github.com/NERDHEAD-lab/POE2-quick-launch-for-kakao/issues"
+        href={SUPPORT_URLS.ISSUES}
         target="_blank"
         rel="noreferrer"
         style={linkStyle}
