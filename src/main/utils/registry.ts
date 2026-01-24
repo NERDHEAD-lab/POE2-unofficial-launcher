@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import { PowerShellManager } from "./powershell";
@@ -149,4 +150,23 @@ export const setDaumGameStarterCommand = async (
   )}" -Force`;
   const { code } = await runPowerShell(psCommand, true);
   return code === 0;
+};
+
+/**
+ * Checks if the game is actually installed by verifying registry path and folder presence
+ */
+export const isGameInstalled = async (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+): Promise<boolean> => {
+  try {
+    const installPath = await getGameInstallPath(serviceId, gameId);
+    if (!installPath) return false;
+
+    // Check if directory exists
+    const stats = await fs.stat(installPath);
+    return stats.isDirectory();
+  } catch (_e) {
+    return false;
+  }
 };

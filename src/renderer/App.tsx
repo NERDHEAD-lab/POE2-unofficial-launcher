@@ -27,6 +27,7 @@ interface StatusMessageConfig {
 // Status Message Mapping (Configuration)
 const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
   idle: { message: "게임이 종료되었습니다.", timeout: 3000 },
+  uninstalled: { message: "설치된 게임을 찾을 수 없습니다.", timeout: -1 }, // Sticky
   preparing: { message: "실행 절차 준비 중...", timeout: 3000 },
   processing: { message: "실행 절차 진행 중...", timeout: 3000 },
   authenticating: { message: "지정 PC 확인 중...", timeout: 3000 },
@@ -74,6 +75,14 @@ function App() {
 
     // Ignore initial mount idle state (don't show "Game Exited" on boot)
     if (status === "idle" && prevStatus === "idle") {
+      return;
+    }
+
+    // Also ignore transition from "uninstalled" to "idle" (re-install or config switch)
+    // BUT we must CLEAR the sticky "uninstalled" message!
+    if (status === "idle" && prevStatus === "uninstalled") {
+      setTimeout(() => setActiveMessage(""), 0);
+      prevStatusRef.current = status;
       return;
     }
 
@@ -302,12 +311,31 @@ function App() {
   };
 
   const handleGameStart = () => {
-    if (window.electronAPI) {
-      window.electronAPI.triggerGameStart();
-      console.log(`Game Start Triggered via IPC (${activeGame})`);
-    } else {
+    if (!window.electronAPI) {
       console.warn("Electron API not available");
+      return;
     }
+
+    if (globalGameStatus.status === "uninstalled") {
+      // Open Download Page
+      let url = "";
+      if (serviceChannel === "Kakao Games") {
+        url =
+          activeGame === "POE2"
+            ? "https://poe2.game.daum.net/"
+            : "https://poe.game.daum.net/";
+      } else {
+        url =
+          activeGame === "POE2"
+            ? "https://pathofexile2.com/"
+            : "https://www.pathofexile.com/";
+      }
+      window.electronAPI.openExternal(url);
+      return;
+    }
+
+    window.electronAPI.triggerGameStart();
+    console.log(`Game Start Triggered via IPC (${activeGame})`);
   };
 
   // Developer Notices State
@@ -410,6 +438,11 @@ function App() {
               </div>
               <GameStartButton
                 onClick={handleGameStart}
+                label={
+                  globalGameStatus.status === "uninstalled"
+                    ? "설치하기"
+                    : "게임 시작"
+                }
                 className={isGameRunning ? "disabled" : ""}
                 style={
                   isGameRunning

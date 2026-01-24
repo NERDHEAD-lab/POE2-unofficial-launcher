@@ -11,6 +11,7 @@ import { DEBUG_APP_CONFIG } from "../shared/config";
 import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
+import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
 import {
   GameProcessStartHandler,
   GameProcessStopHandler,
@@ -307,6 +308,7 @@ const handlers = [
   GameStatusSyncHandler,
   GameProcessStartHandler,
   GameProcessStopHandler,
+  GameInstallCheckHandler,
   SystemWakeUpHandler,
 ];
 
@@ -340,6 +342,24 @@ function createWindows() {
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
+
+  // Perform initial installation check
+  const initialConfig = getConfig() as AppConfig;
+  import("./utils/registry").then(async ({ isGameInstalled }) => {
+    const installed = await isGameInstalled(
+      initialConfig.serviceChannel,
+      initialConfig.activeGame,
+    );
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      appContext,
+      {
+        gameId: initialConfig.activeGame,
+        serviceId: initialConfig.serviceChannel,
+        status: installed ? "idle" : "uninstalled",
+      },
+    );
+  });
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);

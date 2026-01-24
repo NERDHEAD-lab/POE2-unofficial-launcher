@@ -22,6 +22,7 @@ export interface AppConfig {
 // Granular Status Codes for granular UI feedback
 export type RunStatus =
   | "idle"
+  | "uninstalled" // "게시판이나 공식 홈페이지를 통해 먼저 설치해주세요."
   | "preparing" // "실행 절차 준비"
   | "processing" // "실행 절차 진행 중"
   | "authenticating" // "지정 PC 확인"
