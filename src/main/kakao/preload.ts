@@ -428,7 +428,12 @@ let activeGameContext: GameSessionContext | null = null;
 
 // Load persisted context
 try {
-  const stored = sessionStorage.getItem("activeGameContext");
+  // Safe Storage Check
+  const stored =
+    typeof window !== "undefined" && window.sessionStorage
+      ? sessionStorage.getItem("activeGameContext")
+      : null;
+
   if (stored) {
     activeGameContext = JSON.parse(stored);
     console.log(
@@ -437,7 +442,7 @@ try {
     );
   }
 } catch (e) {
-  console.warn("[Game Window] Failed to restore context:", e);
+  console.warn("[Game Window] SessionStorage access denied or failed:", e);
 }
 
 // --- IPC Listeners ---
@@ -446,7 +451,16 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
   console.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
   if (context && context.gameId && context.serviceId) {
     activeGameContext = context;
-    sessionStorage.setItem("activeGameContext", JSON.stringify(context));
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        sessionStorage.setItem("activeGameContext", JSON.stringify(context));
+      }
+    } catch (e) {
+      console.warn(
+        "[Game Window] Failed to persist context to SessionStorage:",
+        e,
+      );
+    }
   }
 });
 

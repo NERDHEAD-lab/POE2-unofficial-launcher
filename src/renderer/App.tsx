@@ -71,7 +71,7 @@ function App() {
   const prevStatusRef = useRef<RunStatus>("idle");
 
   // [NEW] Update State
-  const [updateStatus, setUpdateStatus] = useState<RunStatus>("idle"); // Reuse RunStatus or create separate? Using separate state object is better
+  // [NEW] Update State (Using object for richer metadata)
   const [updateState, setUpdateState] = useState<{
     state: "idle" | "checking" | "available" | "downloaded";
     version?: string;
