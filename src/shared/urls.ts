@@ -14,7 +14,7 @@ export const BASE_URLS: ServiceGameMap = {
   },
   "Kakao Games": {
     POE1: "https://poe.game.daum.net",
-    POE2: "https://poe2.game.daum.net",
+    POE2: "https://pathofexile2.game.daum.net",
   },
 };
 
