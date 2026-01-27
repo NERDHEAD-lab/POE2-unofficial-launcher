@@ -21,6 +21,7 @@ import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
+import { UpdateHandler } from "./events/handlers/UpdateHandler";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -28,6 +29,7 @@ import {
   GameStatusChangeEvent,
   EventHandler,
   AppEvent,
+  UIUpdateCheckEvent,
 } from "./events/types";
 import { newsService } from "./services/NewsService";
 import { ProcessWatcher } from "./services/ProcessWatcher";
@@ -310,7 +312,19 @@ const handlers = [
   GameProcessStopHandler,
   GameInstallCheckHandler,
   SystemWakeUpHandler,
+  UpdateHandler,
 ];
+
+// --- Update Check IPC ---
+ipcMain.on("ui:update-check", () => {
+  if (appContext) {
+    eventBus.emit<UIUpdateCheckEvent>(
+      EventType.UI_UPDATE_CHECK,
+      appContext,
+      undefined,
+    );
+  }
+});
 
 handlers.forEach((handler) => {
   eventBus.register(handler as EventHandler<AppEvent>);

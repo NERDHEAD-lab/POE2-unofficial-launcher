@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 
 import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
-import { DOWNLOAD_URLS } from "../shared/urls";
+import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
 import iconGithub from "./assets/icon-github.svg";
 import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
 import { NewsItem } from "../shared/types";
@@ -17,6 +17,7 @@ import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
+import UpdateModal from "./components/UpdateModal"; // [NEW]
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
 // Status Message Configuration Interface
@@ -68,6 +69,44 @@ function App() {
   const isFirstMount = useRef(true);
 
   const prevStatusRef = useRef<RunStatus>("idle");
+
+  // [NEW] Update State
+  const [updateStatus, setUpdateStatus] = useState<RunStatus>("idle"); // Reuse RunStatus or create separate? Using separate state object is better
+  const [updateState, setUpdateState] = useState<{
+    state: "idle" | "checking" | "available" | "downloaded";
+    version?: string;
+  }>({ state: "idle" });
+
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+
+  // [NEW] Update Check Effect
+  useEffect(() => {
+    if (window.electronAPI) {
+      // Listen for update status
+      const unsubscribe = window.electronAPI.onUpdateStatusChange((status) => {
+        console.log("[App] Update status:", status);
+        if (status.state === "available") {
+          setUpdateState({ state: "available", version: status.version });
+          setIsUpdateModalOpen(true); // Auto-open modal on detection
+        }
+      });
+
+      // Trigger check
+      window.electronAPI.checkForUpdates();
+
+      return () => unsubscribe();
+    }
+  }, []);
+
+  const handleUpdateClick = () => {
+    // Open external link to releases or trigger auto-update
+    window.electronAPI.openExternal(SUPPORT_URLS.GITHUB_REPO + "/releases");
+    setIsUpdateModalOpen(false);
+  };
+
+  const handleUpdateDismiss = () => {
+    setIsUpdateModalOpen(false);
+  };
 
   // Effect: Handle Generic Status Message & Timers
   useEffect(() => {
@@ -378,6 +417,13 @@ function App() {
       id="app-container"
       className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
     >
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        version={updateState.version || ""}
+        onUpdate={handleUpdateClick}
+        onClose={handleUpdateDismiss}
+      />
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -393,7 +439,10 @@ function App() {
       />
 
       {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
-      <TitleBar />
+      <TitleBar
+        showUpdateIcon={!isUpdateModalOpen && updateState.state === "available"}
+        onUpdateClick={() => setIsUpdateModalOpen(true)}
+      />
 
       {/* 2. Main Content Frame */}
       <div
@@ -528,7 +577,7 @@ function App() {
           <div className="footer-content">
             <span className="credits-text">Powered by NERDHEAD LAB</span>
             <a
-              href="https://github.com/NERDHEAD-lab/POE2-unofficial-launcher"
+              href={SUPPORT_URLS.GITHUB_REPO}
               target="_blank"
               className="github-link"
             >

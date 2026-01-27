@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
-import { GameStatusState, AppConfig, NewsCategory } from "../shared/types";
+import {
+  GameStatusState,
+  AppConfig,
+  NewsCategory,
+  UpdateStatus,
+} from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 
 // --- Electron API Expose ---
@@ -58,4 +63,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.off("news-updated", handler);
   },
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+
+  // [Update API]
+  checkForUpdates: () => ipcRenderer.send("ui:update-check"),
+  onUpdateStatusChange: (callback: (status: UpdateStatus) => void) => {
+    const handler = (_event: IpcRendererEvent, status: UpdateStatus) =>
+      callback(status);
+    ipcRenderer.on("update-status-change", handler);
+    return () => ipcRenderer.off("update-status-change", handler);
+  },
 });

@@ -44,7 +44,8 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         with:
           files: |
-            dist/*.exe
+            dist/POE2 Unofficial Launcher Setup *.exe
+            dist/latest.yml
           tag_name: ${{ steps.release.outputs.tag_name }}
           append_body: true
           body: |

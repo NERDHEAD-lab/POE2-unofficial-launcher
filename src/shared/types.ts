@@ -76,7 +76,20 @@ export interface ElectronAPI {
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
   openExternal: (url: string) => Promise<void>;
+  checkForUpdates: () => Promise<void>; // Manually trigger check
+  onUpdateStatusChange: (
+    callback: (status: UpdateStatus) => void,
+  ) => () => void;
 }
+
+export type UpdateStatus =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "available"; version: string }
+  | { state: "not-available" }
+  | { state: "error"; message?: string }
+  | { state: "downloading"; progress: number }
+  | { state: "downloaded" };
 
 export interface NewsItem {
   id: string; // Thread ID or unique hash
