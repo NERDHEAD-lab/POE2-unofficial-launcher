@@ -241,25 +241,25 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
 const handleWindowOpen = ({ url }: { url: string }) => {
   console.log(`[Main] Window Open Request: ${url}`);
 
-  // User Logic: Only 'accounts.kakao.com' should be visible strictly.
-  // Other popups (e.g. security checks) should generally be hidden unless in debug mode.
-  const isKakaoLogin = url.includes("accounts.kakao.com");
   const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+  const isKakaoLogin = url.includes("accounts.kakao.com");
+  const isSimpleLogin = url.includes("/login/simple");
 
-  const shouldShow = isKakaoLogin || isDebug;
+  // Logic: Show ONLY if (Debug Mode) OR (Kakao Login AND NOT Simple Login)
+  const shouldShow = isDebug || (isKakaoLogin && !isSimpleLogin);
 
-  // Always allow, but control visibility
+  // Always Allow creation + Always Inject Preload (for automation)
   return {
     action: "allow",
     overrideBrowserWindowOptions: {
       width: 800,
       height: 600,
       autoHideMenuBar: true,
-      show: shouldShow,
+      show: shouldShow, // Visibility Control
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: false,
-        preload: path.join(__dirname, "kakao/preload.js"),
+        preload: path.join(__dirname, "kakao/preload.js"), // Always inject
       },
     },
   } as const;
@@ -635,21 +635,50 @@ app.on("browser-window-created", (_, window) => {
     if (window.isDestroyed()) return;
 
     const url = window.webContents.getURL();
-    const isKakaoLogin = url.includes("accounts.kakao.com");
+    // 0. Ignore empty/initial loading to prevent premature closing
+    if (!url || url === "about:blank") return;
+
     const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
 
-    // Scenario A: Login page detected -> Show window
-    if (isKakaoLogin) {
-      if (!window.isVisible()) {
-        console.log(`[Main] Login Page Detected. Showing window: ${url}`);
-        window.show();
+    // 1. Debug Mode: Allow everything
+    if (isDebug) return;
+
+    // 2. Production Mode: Strict Filtering
+    const isGameWindow = context.gameWindow && window === context.gameWindow;
+    const isKakaoLogin = url.includes("accounts.kakao.com");
+    const isSimpleLogin = url.includes("/login/simple");
+
+    // Case A: Game Window (Background Worker)
+    if (isGameWindow) {
+      if (isKakaoLogin && !isSimpleLogin) {
+        // Show only on real login page
+        if (!window.isVisible()) {
+          console.log(`[Main] GameWindow Login Page Detected. Showing: ${url}`);
+          window.show();
+        }
+      } else {
+        // Hide otherwise
+        if (window.isVisible()) {
+          console.log(`[Main] Hiding prohibited/background window: ${url}`);
+          window.hide();
+        }
       }
-    }
-    // Scenario B: Navigated AWAY from login -> Hide window (unless debug)
-    else {
-      if (window.isVisible() && !isDebug) {
-        console.log(`[Main] Non-Login Page Detected. Hiding window: ${url}`);
-        window.hide();
+    } else {
+      // Logic: Show ONLY if (Kakao Login AND NOT Simple Login) OR Debug
+      const isSimpleLogin = url.includes("/login/simple");
+      const isKakaoLogin = url.includes("accounts.kakao.com");
+      const shouldShow = isDebug || (isKakaoLogin && !isSimpleLogin);
+
+      if (shouldShow) {
+        if (!window.isVisible()) {
+          console.log(`[Main] Showing window: ${url}`);
+          window.show();
+        }
+      } else {
+        if (window.isVisible()) {
+          console.log(`[Main] Hiding window: ${url}`);
+          window.hide();
+        }
       }
     }
   };
