@@ -455,6 +455,8 @@ function App() {
           zIndex: 10,
           minHeight: 0 /* Force flex constraints */,
           overflow: "hidden" /* Clip any runaway contents */,
+          paddingTop:
+            "32px" /* Ensure content starts below absolute TitleBar */,
         }}
       >
         {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
