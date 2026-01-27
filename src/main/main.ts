@@ -353,6 +353,19 @@ function createWindows() {
     },
   });
 
+  // FIX: Prevent forced fullscreen/maximize on monitor driver reset
+  mainWindow.on("maximize", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.unmaximize();
+    }
+  });
+
+  mainWindow.on("enter-full-screen", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setFullScreen(false);
+    }
+  });
+
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
