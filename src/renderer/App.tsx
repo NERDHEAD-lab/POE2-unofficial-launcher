@@ -147,7 +147,13 @@ function App() {
     setPatchModalState((prev) => ({
       ...prev,
       mode: "progress",
-      progress: { fileName: "준비 중...", status: "waiting", progress: 0 },
+      progress: {
+        status: "waiting",
+        overallProgress: 0,
+        total: 0,
+        current: 0,
+        files: [],
+      },
     }));
   };
 

@@ -150,9 +150,19 @@ export interface SystemWakeUpEvent {
 export interface PatchProgressEvent {
   type: EventType.PATCH_PROGRESS;
   payload: {
-    fileName: string;
     status: "waiting" | "downloading" | "done" | "error";
-    progress: number;
+    total: number;
+    current: number;
+    overallProgress: number;
+    files: {
+      fileName: string;
+      status: "waiting" | "downloading" | "done" | "error";
+      progress: number;
+      error?: string;
+    }[];
+    // Legacy support if needed, but for now we enforce new structure
+    fileName?: string;
+    progress?: number;
     error?: string;
   };
   timestamp?: number;

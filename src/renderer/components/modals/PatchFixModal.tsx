@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 
 import "./PatchFixModal.css";
-import { PatchProgress } from "../../../shared/types";
+import { PatchProgress, FileProgress } from "../../../shared/types";
 
 interface PatchFixModalProps {
   isOpen: boolean;
@@ -24,9 +24,13 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
   onConfirm,
   onCancel,
   onClose,
-
   autoStart: _autoStart = false,
 }) => {
+  // Derive visible files list
+  const fileList = useMemo(() => {
+    return initialProgress?.files || [];
+  }, [initialProgress]);
+
   if (!isOpen) return null;
 
   return (
@@ -40,13 +44,34 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
                 ? "check_circle"
                 : "build"}
           </span>
-          <h2>
-            {initialMode === "confirm" && "패치 오류 감지됨"}
-            {initialMode === "progress" && "패치 복구 진행 중..."}
-            {initialMode === "done" && "패치 복구 완료"}
-            {initialMode === "error" && "패치 복구 실패"}
-          </h2>
+          <div className="header-text">
+            <h2>
+              {initialMode === "confirm" && "패치 오류 감지됨"}
+              {initialMode === "progress" && "패치 복구 진행 중..."}
+              {initialMode === "done" && "패치 복구 완료"}
+              {initialMode === "error" && "패치 복구 실패"}
+            </h2>
+            {/* Overall Progress displayed in Header area for prominence */}
+            {(initialMode === "progress" || initialMode === "done") &&
+              initialProgress && (
+                <div className="header-progress-info">
+                  총 진행률 {initialProgress.current}/{initialProgress.total} (
+                  {initialProgress.overallProgress}%)
+                </div>
+              )}
+          </div>
         </div>
+
+        {/* Overall Progress Bar - Slim line at top of body/bottom of header style */}
+        {(initialMode === "progress" || initialMode === "done") &&
+          initialProgress && (
+            <div className="overall-progress-bar-bg">
+              <div
+                className="overall-progress-bar-fill"
+                style={{ width: `${initialProgress.overallProgress}%` }}
+              />
+            </div>
+          )}
 
         <div className="patch-body">
           {initialMode === "confirm" && (
@@ -68,19 +93,32 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
           {(initialMode === "progress" || initialMode === "done") &&
             initialProgress && (
               <div className="progress-container">
-                <div className="progress-status">
-                  <span className="file-name">{initialProgress.fileName}</span>
-                  <span className="percent">{initialProgress.progress}%</span>
-                </div>
-                <div className="progress-bar-bg">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${initialProgress.progress}%` }}
-                  ></div>
-                </div>
-                <div className="progress-detail">
-                  {initialProgress.total !== undefined &&
-                    `${initialProgress.current} / ${initialProgress.total} 파일 처리 중`}
+                {/* File Queue List - As Progress Bars */}
+                <div className="file-queue-list">
+                  {fileList.map((file: FileProgress) => (
+                    <div
+                      key={file.fileName}
+                      className={`file-item-bar-layout ${file.status}`}
+                    >
+                      <div className="file-info-row">
+                        <span className="name">{file.fileName}</span>
+                        <span className="status-text">
+                          {file.status === "downloading" && `${file.progress}%`}
+                          {file.status === "waiting" && "대기 중"}
+                          {file.status === "done" && "완료"}
+                          {file.status === "error" && "오류"}
+                        </span>
+                      </div>
+                      <div className="file-progress-bg">
+                        <div
+                          className="file-progress-fill"
+                          style={{
+                            width: `${file.status === "waiting" ? 0 : file.status === "done" ? 100 : file.progress}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -96,9 +134,9 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
 
           {initialMode === "done" && (
             <p className="success-message">
-              모든 복구 작업이 완료되었습니다.
+              모든 패치 파일이 정상적으로 복구되었습니다.
               <br />
-              게임을 다시 실행해주세요.
+              이제 게임을 실행하실 수 있습니다.
             </p>
           )}
         </div>

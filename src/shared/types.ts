@@ -40,12 +40,22 @@ export interface GameStatusState {
   timestamp?: number;
 }
 
-export interface PatchProgress {
+export interface FileProgress {
   fileName: string;
   status: "waiting" | "downloading" | "done" | "error";
   progress: number;
-  total?: number;
-  current?: number;
+  error?: string;
+}
+
+export interface PatchProgress {
+  status: "waiting" | "downloading" | "done" | "error";
+  total: number;
+  current: number;
+  overallProgress: number; // New: Overall percentage
+  files: FileProgress[]; // New: Detailed list
+  // Legacy/Convenience helpers for single-file view (optional, can be derived)
+  fileName?: string;
+  progress?: number;
   error?: string;
 }
 

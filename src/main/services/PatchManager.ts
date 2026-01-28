@@ -3,7 +3,7 @@ import path from "path";
 
 import axios from "axios";
 
-import { AppConfig, PatchProgress } from "../../shared/types";
+import { AppConfig, PatchProgress, FileProgress } from "../../shared/types";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
 import {
@@ -25,19 +25,10 @@ export class PatchManager {
   private shouldStop: boolean = false;
   private abortController: AbortController | null = null;
 
-  // ... (constructor and cancelPatch omitted - they are fine)
-  // Wait, I am replacing from Top or just block?
-  // Let's replace just the block in startSelfDiagnosis first, but I need access to import.
-  // I will use `replace_file_content` to add import and update startSelfDiagnosis.
-
-  // Actually, I can do it in chunks.
-  // Chunk 1: Top of file (Imports).
-  // Chunk 2: startSelfDiagnosis config lookup.
-  // Chunk 3: startSelfDiagnosis defaults lookup.
-  // Chunk 4: analyzeLog expand logic.
-
-  // Let's use `multi_replace_file_content` in next step.
-  // This step: Import only.
+  // State Tracking
+  private fileStates: Map<string, FileProgress> = new Map();
+  private totalFilesCount: number = 0;
+  private completedFilesCount: number = 0;
 
   constructor(context: AppContext) {
     this.context = context;
@@ -49,7 +40,7 @@ export class PatchManager {
       if (this.abortController) {
         this.abortController.abort();
       }
-      console.log("[PatchManager] Cancel requested.");
+      this.emitLog("[PatchManager] Cancel requested.");
     }
   }
 
@@ -62,6 +53,9 @@ export class PatchManager {
       this.isPatching = true;
       this.shouldStop = false;
       this.abortController = new AbortController();
+      this.fileStates.clear();
+      this.totalFilesCount = 0;
+      this.completedFilesCount = 0;
 
       const profile = GAME_SERVICE_PROFILES[serviceId];
       if (!profile) throw new Error(`Unknown service: ${serviceId}`);
@@ -73,22 +67,11 @@ export class PatchManager {
 
       const logPath = path.join(installPath, "logs", config.logName);
 
-      this.emitProgress("waiting", "로그 분석 중...", 0);
+      this.emitGlobalStatus("waiting", "로그 분석 중...", 0);
 
-      // Check if we have overrides to skip full analysis or augment it
       let logInfo: ParsedLogInfo;
 
       if (overrides?.webRoot) {
-        // We have WebRoot from LogWatcher, but we still might need to check queued files
-        // OR we just use defaults if no queue info passed.
-        // For robustness, let's still analyze log to find QUEUED files,
-        // but use the provided WebRoot as fallback or primary if log doesn't have it (e.g. rotated).
-        // Actually, LogWatcher found it, so it's reliable.
-
-        // Let's call analyzeLog but pass the known WebRoot hint?
-        // Or just implement a lighter check.
-        // To keep it simple and robust: Run analyzeLog. If it fails to find WebRoot, use override.
-
         const analyzed = await this.analyzeLog(
           serviceId,
           logPath,
@@ -106,30 +89,29 @@ export class PatchManager {
       }
 
       if (!logInfo.webRoot) {
-        // Fallback or Error
-        // For self diagnosis, if no error found, we might want to ask user if they want force check
-        // but for now let's just error out if no WebRoot found.
         throw new Error("최근 로그에서 Web Root 정보를 찾을 수 없습니다.");
       }
 
-      // If no files to download detected, we can either say "All Good" or assume user wants to force fix known executables?
-      // The user tool logic: If auto-fix or manual 'F' press, it adds executables manually.
-      // Let's adopt 'Force Fix' behavior if this is triggered manually, OR strict behavior.
-      // For now, let's include default executables if list is empty to be safe (Force Mode).
-
       let targetFiles = logInfo.filesToDownload;
       if (targetFiles.length === 0) {
-        // Force Mode defaults
         targetFiles = [...profile.essentialExecutables];
       }
+      targetFiles = [...new Set(targetFiles)]; // Dedup
 
-      // Remove Duplicates
-      targetFiles = [...new Set(targetFiles)];
+      // Initialize State
+      this.totalFilesCount = targetFiles.length;
+      targetFiles.forEach((f) => {
+        this.fileStates.set(f, {
+          fileName: f,
+          status: "waiting",
+          progress: 0,
+        });
+      });
 
-      this.emitProgress(
+      this.emitGlobalStatus(
         "waiting",
-        `대상 파일 확인: ${targetFiles.length}개`,
-        10,
+        `대상 파일 확인: ${this.totalFilesCount}개`,
+        0,
       );
 
       await this.processDownloads(
@@ -139,18 +121,17 @@ export class PatchManager {
         logInfo.backupWebRoot,
       );
 
-      this.emitProgress("done", "패치 복구 완료", 100);
+      this.emitGlobalStatus("done", "패치 복구 완료", 100);
     } catch (e: unknown) {
       console.error("[PatchManager] Error:", e);
       const msg = e instanceof Error ? e.message : String(e);
-      this.emitProgress("error", msg || "알 수 없는 오류", 0, msg);
+      this.emitGlobalStatus("error", msg || "알 수 없는 오류", 0, msg);
     } finally {
       this.isPatching = false;
       this.shouldStop = false;
     }
   }
 
-  // Reuse logic from LogWatcher/Tool for parsing
   private async analyzeLog(
     serviceId: AppConfig["serviceChannel"],
     logPath: string,
@@ -168,9 +149,6 @@ export class PatchManager {
     const READ_SIZE = 2 * 1024 * 1024; // 2MB
 
     let content = "";
-
-    // Read Logic matching logParser.ts
-    // If small enough, read whole file. If large, read last 2MB.
     if (size <= READ_SIZE) {
       content = await fs.promises.readFile(logPath, "utf-8");
     } else {
@@ -182,14 +160,12 @@ export class PatchManager {
     }
 
     const lines = content.split("\n");
-
     let webRoot: string | null = null;
     let backupWebRoot: string | null = null;
     let files: string[] = [];
     let currentPid: string | null = null;
-    let hasError = false; // logic import from logParser
+    let hasError = false;
 
-    // Find last session start
     let lastIndex = -1;
     for (let i = lines.length - 1; i >= 0; i--) {
       if (lines[i].includes(startMarker)) {
@@ -197,12 +173,9 @@ export class PatchManager {
         break;
       }
     }
-    // If marker not found (or log rotated within 2MB?), parse from start of buffer
     if (lastIndex === -1) lastIndex = 0;
 
     const recentLines = lines.slice(lastIndex);
-
-    // 1. Detect PID
     const pidRegex = /\[(?:INFO|WARN|ERROR)\s+Client\s+(\d+)\]/;
     for (const line of recentLines) {
       const match = line.match(pidRegex);
@@ -212,19 +185,9 @@ export class PatchManager {
       }
     }
 
-    // 2. Scan lines
     for (const line of recentLines) {
-      // Filter by PID
-      if (currentPid && !line.includes(`Client ${currentPid}`)) {
-        continue;
-      }
-
-      // Check Error
-      if (line.includes("Transferred a partial file")) {
-        hasError = true;
-      }
-
-      // Extract Web Root
+      if (currentPid && !line.includes(`Client ${currentPid}`)) continue;
+      if (line.includes("Transferred a partial file")) hasError = true;
       if (line.includes("Web root:")) {
         const match = line.match(/Web root: (https?:\/\/[^\s]+)/);
         if (match) webRoot = match[1];
@@ -232,14 +195,11 @@ export class PatchManager {
         const match = line.match(/Backup Web root: (https?:\/\/[^\s]+)/);
         if (match) backupWebRoot = match[1];
       }
-
-      // Extract Queue files
       const queuePattern = "Queue file to download:";
       if (line.includes(queuePattern)) {
         const parts = line.split(queuePattern);
         if (parts.length > 1) {
           const f = parts[1].trim();
-          // Validation
           if (f && !f.includes(" ")) {
             const isExtMatch =
               f.endsWith(".exe") ||
@@ -247,7 +207,6 @@ export class PatchManager {
               f.endsWith(".bundle") ||
               f.endsWith(".dll");
             const isEssential = profile.essentialExecutables.includes(f);
-
             if (isExtMatch || isEssential) {
               if (!files.includes(f)) files.push(f);
             }
@@ -256,21 +215,11 @@ export class PatchManager {
       }
     }
 
-    // Logic: If NO error detected in logs, we shouldn't rely on "Queue file" lines
-    // because they might be from successful downloads (queued then done).
-    // logParser checks: if (!hasError) filesToDownload = [];
-    // However, for Manual Repair in PatchManager, we might WANT to download whatever was last queued if we suspect issues.
-    // But adhering to logParser logic:
-    if (!hasError) {
-      files = [];
-    }
+    if (!hasError) files = [];
 
-    // Expansion Logic (Mirroring logParser / current PatchManager)
-    // If Kakao/Essential file involved, expand to check all essentials
     const hasEssential = files.some((f) =>
       profile.essentialExecutables.includes(f),
     );
-
     if (hasEssential) {
       for (const exe of profile.essentialExecutables) {
         if (!files.includes(exe)) files.push(exe);
@@ -293,124 +242,115 @@ export class PatchManager {
     const tempDir = path.join(installPath, ".patch_temp");
     const backupDir = path.join(installPath, ".patch_backups");
     const isBackupEnabled =
-      this.context.store.get("backupPatchFiles") !== false; // Default true
+      this.context.store.get("backupPatchFiles") !== false;
 
     if (!fs.existsSync(tempDir))
       await fs.promises.mkdir(tempDir, { recursive: true });
     if (isBackupEnabled && !fs.existsSync(backupDir))
       await fs.promises.mkdir(backupDir, { recursive: true });
 
-    const total = files.length;
-    let completed = 0;
+    // Parallel Download Logic
+    const CONCURRENCY_LIMIT = 2; // Fixed as requested
+    const queue = [...files];
+    const activePromises: Promise<void>[] = [];
 
-    for (const file of files) {
+    // Initial emit
+    this.emitCurrentState("downloading");
+
+    const processFile = async (file: string) => {
       if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");
 
+      this.updateFileStatus(file, "downloading", 0);
       const url = `${webRoot.endsWith("/") ? webRoot : webRoot + "/"}${file}`;
       const dest = path.join(tempDir, file);
       const finalDest = path.join(installPath, file);
 
-      this.emitProgress(
-        "downloading",
-        file,
-        Math.floor((completed / total) * 100),
-        undefined,
-        total,
-        completed,
-      );
-
-      this.emitLog(`Downloading: ${file} (${completed + 1}/${total})`);
+      this.emitLog(`Downloading: ${file} ...`);
 
       try {
-        // 1. Download to Temp
-        await this.downloadFile(url, dest);
+        await this.downloadFile(url, dest, file);
 
-        // 2. Backup if exists
         if (isBackupEnabled && fs.existsSync(finalDest)) {
           const backupDest = path.join(backupDir, file);
-          // Ensure subdirs if any
           const backupSubDir = path.dirname(backupDest);
           if (!fs.existsSync(backupSubDir))
             await fs.promises.mkdir(backupSubDir, { recursive: true });
-
           await fs.promises.copyFile(finalDest, backupDest);
         }
 
-        // 3. Move/Overwrite
-        // Ensure subdirs
         const finalSubDir = path.dirname(finalDest);
         if (!fs.existsSync(finalSubDir))
           await fs.promises.mkdir(finalSubDir, { recursive: true });
-
         await fs.promises.copyFile(dest, finalDest);
 
-        completed++;
+        this.updateFileStatus(file, "done", 100);
+        this.completedFilesCount++;
+        this.emitCurrentState("downloading");
       } catch (e: unknown) {
         console.error(`Failed to download/install ${file} due to:`, e);
 
-        // Fallback Logic
+        // Backup URL Retry Logic
         if (backupWebRoot && backupWebRoot !== webRoot && !this.shouldStop) {
-          console.warn(
-            `[PatchManager] Retrying ${file} with Backup Web Root: ${backupWebRoot}`,
-          );
           const backupUrl = `${backupWebRoot.endsWith("/") ? backupWebRoot : backupWebRoot + "/"}${file}`;
           try {
-            await this.downloadFile(backupUrl, dest);
+            this.emitLog(`Retrying with backup: ${file}`);
+            await this.downloadFile(backupUrl, dest, file);
 
-            // If Success, proceed with backup/move steps (duplicated logic or shared?)
-            // To avoid duplication, we could wrap the backup/move part.
-            // But let's just re-run the post-download steps here for safety.
-
-            // 2. Backup if exists
-            if (isBackupEnabled && fs.existsSync(finalDest)) {
-              const backupDest = path.join(backupDir, file);
-              const backupSubDir = path.dirname(backupDest);
-              if (!fs.existsSync(backupSubDir))
-                await fs.promises.mkdir(backupSubDir, { recursive: true });
-              await fs.promises.copyFile(finalDest, backupDest);
-            }
-
-            // 3. Move/Overwrite
+            // Copy/Move Steps again
             const finalSubDir = path.dirname(finalDest);
             if (!fs.existsSync(finalSubDir))
               await fs.promises.mkdir(finalSubDir, { recursive: true });
             await fs.promises.copyFile(dest, finalDest);
 
-            completed++;
-            continue; // Success, next file
-          } catch (backupError: unknown) {
-            console.error(
-              `Backup download also failed for ${file}:`,
-              backupError,
-            );
-            // Should we just fall through to error throw?
+            this.updateFileStatus(file, "done", 100);
+            this.completedFilesCount++;
+            this.emitCurrentState("downloading");
+            return;
+          } catch (_backupResult) {
+            // Ignore backup failure, proceed to throw main error
           }
         }
 
         const msg = e instanceof Error ? e.message : String(e);
+        this.updateFileStatus(file, "error", 0, msg);
         throw new Error(`${file} 처리 실패: ${msg}`);
+      }
+    };
+
+    while (queue.length > 0) {
+      if (this.shouldStop) break;
+
+      if (activePromises.length < CONCURRENCY_LIMIT) {
+        const file = queue.shift();
+        if (!file) break;
+
+        const p = processFile(file).finally(() => {
+          const idx = activePromises.indexOf(p);
+          if (idx !== -1) activePromises.splice(idx, 1);
+        });
+        activePromises.push(p);
+      } else {
+        await Promise.race(activePromises);
       }
     }
 
-    // Cleanup Temp
+    await Promise.all(activePromises);
+
+    // Cleanup
     try {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     } catch {
-      // Ignore
+      // Ignore cleanup errors
     }
   }
 
-  private async downloadFile(url: string, dest: string) {
-    if (this.shouldStop) {
-      throw new Error("취소됨");
-    }
+  private async downloadFile(url: string, dest: string, fileName: string) {
+    if (this.shouldStop) throw new Error("취소됨");
 
-    const writer = fs.createWriteStream(dest);
-
-    // Ensure dir exists (already done in processDownloads but safe)
     const dir = path.dirname(dest);
     if (!fs.existsSync(dir)) await fs.promises.mkdir(dir, { recursive: true });
 
+    const writer = fs.createWriteStream(dest);
     const response = await axios({
       url,
       method: "GET",
@@ -425,42 +365,115 @@ export class PatchManager {
       },
     });
 
+    const totalLength = parseInt(response.headers["content-length"] || "0", 10);
+    let transferred = 0;
+
+    // Throttle progress updates (per file)
+    let lastUpdate = 0;
+
+    response.data.on("data", (chunk: Buffer) => {
+      transferred += chunk.length;
+      const now = Date.now();
+      if (now - lastUpdate > 100) {
+        // 100ms throttle
+        lastUpdate = now;
+        const pct =
+          totalLength > 0 ? Math.floor((transferred / totalLength) * 100) : 0;
+        // Update state silently, rely on throttled emit?
+        // Implementing per-chunk emit might be too spammy if we emit full list.
+        // We can update the map, and implementation of throttled GLOBAL emit is safer.
+        this.updateFileStatus(fileName, "downloading", pct);
+        this.emitCurrentState("downloading", true); // throttled
+      }
+    });
+
     response.data.pipe(writer);
 
     return new Promise((resolve, reject) => {
-      writer.on("finish", resolve);
+      writer.on("finish", () => {
+        this.updateFileStatus(fileName, "downloading", 100);
+        resolve(null);
+      });
       writer.on("error", (err) => {
         writer.close();
-        fs.unlink(dest, () => {}); // cleanup
+        fs.unlink(dest, () => {});
         reject(err);
       });
-
-      // Handle abort if signal fires during stream
       if (this.abortController) {
         this.abortController.signal.addEventListener("abort", () => {
           writer.close();
           writer.destroy();
-          fs.unlink(dest, () => {}); // cleanup
+          fs.unlink(dest, () => {});
           reject(new Error("사용자에 의해 취소되었습니다."));
         });
       }
     });
   }
 
-  private emitProgress(
-    status: PatchProgress["status"],
+  // --- Progress Helpers ---
+
+  private updateFileStatus(
     fileName: string,
+    status: FileProgress["status"],
+    progress: number,
+    error?: string,
+  ) {
+    const current = this.fileStates.get(fileName);
+    if (current) {
+      current.status = status;
+      current.progress = progress;
+      if (error) current.error = error;
+    }
+  }
+
+  private lastEmitTime: number = 0;
+  private emitCurrentState(
+    globalStatus: PatchProgress["status"],
+    throttle: boolean = false,
+  ) {
+    if (throttle) {
+      const now = Date.now();
+      if (now - this.lastEmitTime < 200) return; // 200ms global debounce
+      this.lastEmitTime = now;
+    } else {
+      this.lastEmitTime = Date.now();
+    }
+
+    const files = Array.from(this.fileStates.values());
+    const overall =
+      this.totalFilesCount > 0
+        ? Math.floor((this.completedFilesCount / this.totalFilesCount) * 100)
+        : 0;
+
+    const payload: PatchProgress = {
+      status: globalStatus,
+      total: this.totalFilesCount,
+      current: this.completedFilesCount,
+      overallProgress: overall,
+      files,
+    };
+
+    eventBus.emit<PatchProgressEvent>(
+      EventType.PATCH_PROGRESS,
+      this.context,
+      payload,
+    );
+  }
+
+  // Fallback for simple single-message states
+  private emitGlobalStatus(
+    status: PatchProgress["status"],
+    _message: string, // Not used in new structure but kept signature conceptually
     percent: number,
     error?: string,
-    total?: number,
-    current?: number,
   ) {
+    const files = Array.from(this.fileStates.values());
     const payload: PatchProgress = {
-      fileName,
-      status,
-      progress: percent,
-      total,
-      current,
+      status, // waiting / done / error
+      total: this.totalFilesCount,
+      current: this.completedFilesCount,
+      overallProgress: percent,
+      files,
       error,
     };
 

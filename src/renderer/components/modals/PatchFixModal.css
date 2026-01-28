@@ -14,141 +14,190 @@
 }
 
 .patch-fix-modal-content {
-  background: #1e1e24;
+  background: #1a1a1a;
   width: 450px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px; /* Match Settings */
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  border: 1px solid #333; /* Match Settings border */
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .patch-header {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 16px 20px;
+  background: #1e1e1e; /* Slightly lighter header like Settings */
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 16px;
+  position: relative;
+  border-bottom: 1px solid #333;
 }
 
 .patch-header .icon {
   font-size: 28px;
-  color: #fab005; /* Default Warning Yellow */
+  color: var(--theme-accent, #dfcf99);
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
 }
 
 .patch-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #fff;
+  color: var(--theme-text, #eee);
 }
 
-.patch-body {
-  padding: 24px 20px;
-  color: #e0e0e0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.patch-body p {
-  margin: 0 0 16px 0;
-}
-
-.patch-info {
-  background: rgba(0, 0, 0, 0.2);
-  padding: 8px 12px;
-  border-radius: 6px;
+.header-progress-info {
+  font-size: 12px;
+  color: #888;
   font-family: monospace;
-  font-size: 13px;
-  color: #aaa;
-  margin-bottom: 20px;
 }
 
-/* Progress Bar */
-.progress-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Overall Progress Bar (Slim) */
+.overall-progress-bar-bg {
+  height: 4px;
+  background: #111;
+  width: 100%;
 }
 
-.progress-status {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: #ccc;
-}
-
-.progress-bar-bg {
-  height: 8px;
-  background: #333;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
+.overall-progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #fab005, #ffec99);
+  background: var(--theme-accent, #dfcf99);
+  box-shadow: 0 0 10px rgba(223, 207, 153, 0.3); /* Subtle glow based on gold */
   transition: width 0.3s ease;
 }
 
-.progress-detail {
+.patch-body {
+  padding: 20px;
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #1a1a1a;
+}
+
+/* File Queue List Container */
+.file-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* File Item Layout (Bar Style) */
+.file-item-bar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.file-info-row .name {
+  color: var(--theme-text, #eee);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.file-info-row .status-text {
+  color: #666;
   font-size: 12px;
-  color: #777;
-  text-align: right;
+  font-family: monospace;
 }
 
-.success-message {
-  color: #40c057 !important;
-  text-align: center;
-  font-weight: 600;
+.file-progress-bg {
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
-.error-message {
+.file-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition:
+    width 0.3s ease,
+    background-color 0.3s ease;
+  background-color: var(--theme-accent, #dfcf99); /* Default */
+}
+
+/* Contextual Colors using Parent State Classes */
+
+/* Downloading: Use Accent */
+.file-item-bar-layout.downloading .file-progress-fill {
+  background-color: var(--theme-accent, #dfcf99);
+}
+.file-item-bar-layout.downloading .status-text {
+  color: var(--theme-accent, #dfcf99);
+}
+
+/* Done: Use Success Green (or Accent if preferred, but Green is standard for Done) 
+   User asked for "Atmosphere", settings checks are Green. So Green is good. */
+.file-item-bar-layout.done .file-progress-fill {
+  background-color: #40c057;
+}
+.file-item-bar-layout.done .status-text {
+  color: #40c057;
+}
+
+/* Error: Red */
+.file-item-bar-layout.error .file-progress-fill {
+  background-color: #fa5252;
+}
+.file-item-bar-layout.error .status-text {
   color: #fa5252;
-  text-align: center;
-}
-.error-message .sub-text {
-  color: #888;
-  font-size: 12px;
-  margin-top: 4px;
 }
 
+/* Actions */
 .patch-actions {
   padding: 16px 20px;
-  background: rgba(0, 0, 0, 0.15);
+  background: #151515; /* Footer dark bg like Settings */
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  border-top: 1px solid #333;
 }
 
 .patch-actions button {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 4px; /* Settings uses 4px */
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   border: none;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-cancel {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ccc;
+  background: #333;
+  color: #eee;
 }
 .btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: #444;
   color: #fff;
 }
 
 .btn-confirm {
-  background: #fab005;
-  color: #1e1e24;
-  font-weight: 600;
+  background: var(--theme-accent, #dfcf99);
+  color: #000;
 }
 .btn-confirm:hover {
-  background: #fcc419;
+  filter: brightness(1.1);
   transform: translateY(-1px);
 }
 
@@ -161,4 +210,19 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Scrollbar */
+.patch-body::-webkit-scrollbar {
+  width: 6px;
+}
+.patch-body::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+.patch-body::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+.patch-body::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
