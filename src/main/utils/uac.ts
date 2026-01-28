@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { app } from "electron";
+import { app, shell, dialog } from "electron";
 
 // Registry Keys
 const PROTOCOL_KEY = join(
@@ -239,46 +239,36 @@ shell.Run "schtasks /run /tn ""${TASK_NAME}""", 0, False
 
 /**
  * Disables the UAC Bypass.
+ * Instead of restoring registry, it guides user to reinstall DaumGameStarter.
  */
 export async function disableUACBypass(): Promise<boolean> {
-  const backupCmd = await new Promise<string | null>((resolve) => {
-    const child = spawn(
-      "reg",
-      ["query", BACKUP_KEY_PATH, "/v", BACKUP_VALUE_NAME],
-      { windowsHide: true },
-    );
-    let out = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.on("close", (code) => {
-      if (code !== 0) {
-        resolve(null);
-        return;
-      }
-      const match = out.match(/REG_SZ\s+(.*)/);
-      resolve(match ? match[1].trim() : null);
-    });
+  // Open the Daum Game Starter download/repair page
+  await shell.openExternal(
+    "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
+  );
+
+  await dialog.showMessageBox({
+    type: "info",
+    title: "Daum 게임 스타터 복구 필요",
+    message: "Daum 게임 스타터 설치 페이지가 열렸습니다.",
+    detail:
+      "UAC 우회 기능을 해제하려면, 열린 페이지에서 스타터를 수동으로 다운로드하여 설치(복구)해주세요.",
+    buttons: ["확인"],
   });
 
-  if (!backupCmd) {
-    console.error("[UAC] No backup found. Cannot restore safely.");
-    return false;
-  }
+  // We consider this "success" as we guided the user to the fix
+  console.log("[UAC] Guided user to reinstall DaumGameStarter.");
 
-  const regRestoreScript = `Set-Item -Path "Registry::${PROTOCOL_KEY}" -Value '${backupCmd}'`;
-  const taskDeleteScript = `schtasks /delete /tn "${TASK_NAME}" /f`;
-  const combinedRestoreScript = `${regRestoreScript}\n${taskDeleteScript}`;
+  // Cleanup local files only (Task remains until overwrite, but files are gone)
+  // Actually, we can try to clean up the task if possible, but the main goal is to stop using our proxy.
+  // Reinstaling the starter will overwrite the registry key anyway.
 
-  console.log("[UAC] Restoring original settings...");
-  const result = await runPowerShellAsAdmin(combinedRestoreScript);
-
-  if (!result) {
-    console.error("[UAC] Failed to restore settings.");
-    return false;
-  }
-
-  // Cleanup files
   const workDir = getWorkDirectory();
   try {
+    const taskDeleteScript = `schtasks /delete /tn "${TASK_NAME}" /f`;
+    // Try to delete the task silently (best effort)
+    runPowerShellAsAdmin(taskDeleteScript).catch(() => {});
+
     ["proxy.vbs", "runner.vbs", "launch_args.txt", "uac_debug.log"].forEach(
       (f) => {
         const p = join(workDir, f);
