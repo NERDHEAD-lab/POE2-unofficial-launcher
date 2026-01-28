@@ -244,6 +244,16 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "autorenew",
           },
           {
+            id: "autoGameStartAfterFix",
+            type: "switch",
+            label: "패치 복구 후 게임 자동 시작",
+            description:
+              "패치 오류 자동 수정이 완료되면, 해당 서비스를 통해 게임을 자동으로 실행합니다.",
+            defaultValue: false,
+            icon: "play_circle",
+            dependsOn: "autoFixPatchError",
+          },
+          {
             id: "backupPatchFiles",
             type: "switch",
             label: "패치 파일 백업 (Backup)",

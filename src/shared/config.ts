@@ -14,6 +14,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "게임을 실행할 서비스 플랫폼 (Kakao Games 또는 GGG)을 설정합니다.",
   },
+  AUTO_GAME_START_AFTER_FIX: {
+    key: "autoGameStartAfterFix",
+    name: "Auto Start Game after Fix",
+    category: "General",
+    description:
+      "패치 오류 자동 수정 완료 후 게임을 자동으로 다시 시작할지 설정합니다.",
+  },
   THEME_CACHE: {
     key: "themeCache",
     name: "Theme Cache",
@@ -27,6 +34,7 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
 export const CONFIG_KEYS = {
   ACTIVE_GAME: CONFIG_METADATA.ACTIVE_GAME.key,
   SERVICE_CHANNEL: CONFIG_METADATA.SERVICE_CHANNEL.key,
+  AUTO_GAME_START_AFTER_FIX: CONFIG_METADATA.AUTO_GAME_START_AFTER_FIX.key,
   THEME_CACHE: CONFIG_METADATA.THEME_CACHE.key,
 } as const;
 
@@ -35,6 +43,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   serviceChannel: "Kakao Games",
   themeCache: {},
   autoFixPatchError: false,
+  autoGameStartAfterFix: false,
   backupPatchFiles: true,
 };
 

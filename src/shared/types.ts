@@ -18,6 +18,7 @@ export interface AppConfig {
     >
   >;
   autoFixPatchError: boolean;
+  autoGameStartAfterFix: boolean;
   backupPatchFiles: boolean;
 }
 

@@ -13,6 +13,7 @@ import {
   LogBackupWebRootFoundEvent,
   ProcessEvent,
   DebugLogEvent,
+  UIEvent, // Added
 } from "../types";
 
 // --- Helper for UI Logging ---
@@ -253,6 +254,24 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
               webRoot,
               backupWebRoot,
             });
+
+            // [NEW] Auto Game Start Logic
+            const autoStartGame = context.store.get(
+              "autoGameStartAfterFix",
+              false,
+            );
+            if (autoStartGame) {
+              emitLog(
+                context,
+                `[AutoPatch] Auto-Start enabled. Triggering Game Start for ${gameId} (${serviceId})...`,
+              );
+              // Trigger Game Start (Assumes active config matches the patched game)
+              eventBus.emit<UIEvent>(
+                EventType.UI_GAME_START_CLICK,
+                context,
+                undefined,
+              );
+            }
           }
           stateManager.clearSession(pid); // Done
         } else {
