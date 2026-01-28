@@ -768,6 +768,13 @@ ipcMain.on(
     );
 
     if (installPath) {
+      // [FIX] Trigger UI Modal for Feedback
+      mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+        autoStart: false,
+        serviceId,
+        gameId: activeGame,
+      });
+
       activeManualPatchManager
         .startSelfDiagnosis(installPath, serviceId)
         .finally(() => {

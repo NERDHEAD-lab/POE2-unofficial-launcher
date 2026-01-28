@@ -103,14 +103,22 @@ function App() {
     if (window.electronAPI) {
       if (window.electronAPI.onPatchProgress) {
         window.electronAPI.onPatchProgress((progress: PatchProgress) => {
+          const isDone = progress.status === "done";
+          if (isDone) {
+            setActiveMessage(
+              "패치 복구가 완료되었습니다. 이제 게임을 실행할 수 있습니다.",
+            );
+            // Auto-clear after 5 seconds
+            setTimeout(() => setActiveMessage(""), 5000);
+          }
+
           setPatchModalState((prev) => ({
             ...prev,
-            mode:
-              progress.status === "done"
-                ? "done"
-                : progress.status === "error"
-                  ? "error"
-                  : "progress",
+            mode: isDone
+              ? "done"
+              : progress.status === "error"
+                ? "error"
+                : "progress",
             isOpen: true,
             progress,
           }));

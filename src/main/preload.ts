@@ -101,6 +101,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("patch:progress", handler);
     return () => ipcRenderer.off("patch:progress", handler);
   },
-  triggerManualPatchFix: () => ipcRenderer.send("patch:start-manual"),
+  triggerManualPatchFix: (
+    serviceId?: AppConfig["serviceChannel"],
+    gameId?: AppConfig["activeGame"],
+  ) => {
+    if (serviceId || gameId) {
+      // Explicit trigger (e.g., from Settings 'Restore' button)
+      ipcRenderer.send("patch:trigger-manual", serviceId, gameId);
+    } else {
+      // Resume pending (e.g., from Auto-Fix Confirmation Modal)
+      ipcRenderer.send("patch:start-manual");
+    }
+  },
   triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
+  checkBackupAvailability: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => ipcRenderer.invoke("patch:check-backup", serviceId, gameId),
 });
