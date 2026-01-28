@@ -142,7 +142,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             },
           },
           {
-            // [DUMMY]
             id: "btn_logout",
             type: "button",
             label: "로그아웃",

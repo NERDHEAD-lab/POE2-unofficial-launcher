@@ -88,6 +88,7 @@ export interface ElectronAPI {
 
   // [App Control]
   relaunchApp: () => void;
+  logoutSession: () => Promise<boolean>;
 }
 
 export type UpdateStatus =

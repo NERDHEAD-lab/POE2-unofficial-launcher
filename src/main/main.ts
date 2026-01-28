@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, session } from "electron";
 import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
@@ -98,6 +98,25 @@ ipcMain.handle("config:get", (_event, key?: string) => {
 ipcMain.on("app:relaunch", () => {
   app.relaunch();
   app.exit(0);
+});
+
+ipcMain.handle("session:logout", async () => {
+  try {
+    await session.defaultSession.clearStorageData({
+      storages: [
+        "cookies",
+        "localstorage",
+        "cachestorage",
+        "indexdb",
+        "serviceworkers",
+      ],
+    });
+    console.log("[Main] Session storage cleared (Logout).");
+    return true;
+  } catch (error) {
+    console.error("[Main] Failed to clear session storage:", error);
+    return false;
+  }
 });
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {

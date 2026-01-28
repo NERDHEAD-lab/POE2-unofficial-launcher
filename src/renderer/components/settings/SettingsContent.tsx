@@ -77,8 +77,22 @@ const SettingsContent: React.FC<Props> = ({
     initValues();
   }, [category]);
 
-  const handleAction = (actionId: string) => {
+  const handleAction = async (actionId: string) => {
     console.log(`[Settings] Action Triggered: ${actionId}`);
+
+    if (actionId === "logout_kakao") {
+      if (window.electronAPI) {
+        onShowToast("[로그아웃] 카카오 계정 연동을 해제 중입니다...");
+        const success = await window.electronAPI.logoutSession();
+        if (success) {
+          onShowToast("[로그아웃] 성공적으로 연동 해제되었습니다.");
+        } else {
+          onShowToast("[로그아웃] 연동 해제에 실패했습니다.");
+        }
+      }
+      return;
+    }
+
     onShowToast(`[버튼 클릭] 액션: ${actionId}`);
   };
 
