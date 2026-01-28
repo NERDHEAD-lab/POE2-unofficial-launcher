@@ -274,7 +274,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "version_info",
             type: "text",
             label: "현재 버전",
-            value: `v${__APP_VERSION__} (Live)`,
+            value: `v${__APP_VERSION__} (${__APP_HASH__})`,
             icon: "tag",
           },
           {

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -8,6 +9,15 @@ import electron from "vite-plugin-electron";
 import renderer from "vite-plugin-electron-renderer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+let commitHash = "Dev";
+try {
+  const hash = execSync("git rev-parse --short HEAD").toString().trim();
+  const isDirty =
+    execSync("git status --porcelain").toString().trim().length > 0;
+  commitHash = isDirty ? `${hash}-dirty` : hash;
+} catch {
+  // Fallback to Dev if git is not available or fails
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -64,5 +74,6 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(
       JSON.parse(readFileSync("package.json", "utf-8")).version,
     ),
+    __APP_HASH__: JSON.stringify(commitHash),
   },
 });
