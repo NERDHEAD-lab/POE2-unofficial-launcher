@@ -45,8 +45,10 @@ export class LogWatcher {
   }
 
   public init() {
-    // ... (unchanged listeners)
     eventBus.on(EventType.PROCESS_START, async (event: ProcessEvent) => {
+      const { name, pid } = event.payload;
+      this.emitLog(`[Event:PROCESS_START] Received for ${name} (PID: ${pid})`);
+
       const serviceId = this.context.store.get(
         "serviceChannel",
       ) as AppConfig["serviceChannel"];
@@ -54,8 +56,11 @@ export class LogWatcher {
         "activeGame",
       ) as AppConfig["activeGame"];
 
-      if (this.isGameProcess(event.payload.name, serviceId)) {
-        await this.startMonitoring(serviceId, activeGame, event.payload.pid);
+      if (this.isGameProcess(name, serviceId)) {
+        this.emitLog(
+          `[Event:PROCESS_START] Matched Game Process: ${name} (PID: ${pid}) -> Starting Monitor`,
+        );
+        await this.startMonitoring(serviceId, activeGame, pid);
       }
     });
 
@@ -90,20 +95,20 @@ export class LogWatcher {
   ) {
     if (this.isMonitoring) return;
 
-    this.emitLog(`Starting log monitor for ${serviceId} / ${gameId}`);
-
-    const installPath = await getGameInstallPath(serviceId, gameId);
-    if (!installPath) {
-      this.emitLog("Could not find install path. Skipping.", true);
-      return;
-    }
-
-    const config = GAME_SERVICE_PROFILES[serviceId];
-    if (!config) return;
-
-    const logPath = path.join(installPath, "logs", config.logFileName);
-
     try {
+      this.emitLog(`Starting log monitor for ${serviceId} / ${gameId}`);
+
+      const installPath = await getGameInstallPath(serviceId, gameId);
+      if (!installPath) {
+        this.emitLog("Could not find install path. Skipping.", true);
+        return;
+      }
+
+      const config = GAME_SERVICE_PROFILES[serviceId];
+      if (!config) return;
+
+      const logPath = path.join(installPath, "logs", config.logFileName);
+
       if (!fs.existsSync(logPath)) {
         this.emitLog(`Log file not found at ${logPath}`, true);
         return;
@@ -134,6 +139,8 @@ export class LogWatcher {
   }
 
   public stopMonitoring() {
+    if (!this.isMonitoring) return;
+
     if (this.watchTimer) {
       clearInterval(this.watchTimer);
       this.watchTimer = null;
@@ -206,13 +213,54 @@ export class LogWatcher {
 
         for (const line of lines) {
           const config = GAME_SERVICE_PROFILES[this.lastCheckedServiceId!];
+
+          // Check for Session Marker
           if (line.includes(config.logStartMarker)) {
             this.errorCount = 0;
-            // ...
+            if (this.currentPid) {
+              this.emitLog(`Session Marker Found (PID: ${this.currentPid})`);
+              eventBus.emit(EventType.LOG_SESSION_START, this.context, {
+                gameId: this.lastCheckedGameId!,
+                serviceId: this.lastCheckedServiceId!,
+                pid: this.currentPid,
+                timestamp: Date.now(),
+              });
+            }
           }
 
           if (this.currentPid && !line.includes(`Client ${this.currentPid}`)) {
             if (!line.includes(config.logStartMarker)) continue;
+          }
+
+          // Check for Backup Web Root
+          if (line.includes("Backup Web root:")) {
+            const match = line.match(/Backup Web root: (https?:\/\/[^\s]+)/);
+            if (match && this.currentPid) {
+              const url = match[1];
+              this.emitLog(`Backup Web Root Found: ${url}`);
+              eventBus.emit(EventType.LOG_BACKUP_WEB_ROOT_FOUND, this.context, {
+                gameId: this.lastCheckedGameId!,
+                serviceId: this.lastCheckedServiceId!,
+                pid: this.currentPid,
+                backupWebRoot: url,
+                timestamp: Date.now(),
+              });
+            }
+          }
+          // Check for Web Root (Exclusive)
+          else if (line.includes("Web root:")) {
+            const match = line.match(/Web root: (https?:\/\/[^\s]+)/);
+            if (match && this.currentPid) {
+              const url = match[1];
+              this.emitLog(`Web Root Found: ${url}`);
+              eventBus.emit(EventType.LOG_WEB_ROOT_FOUND, this.context, {
+                gameId: this.lastCheckedGameId!,
+                serviceId: this.lastCheckedServiceId!,
+                pid: this.currentPid,
+                webRoot: url,
+                timestamp: Date.now(),
+              });
+            }
           }
 
           if (line.includes(ERROR_PATTERN)) {
@@ -226,7 +274,7 @@ export class LogWatcher {
 
         if (this.errorCount >= ERROR_THRESHOLD) {
           this.emitLog(
-            "ERROR THRESHOLD REACHED! Triggering Auto-Patch...",
+            "ERROR THRESHOLD REACHED! Sending notification...",
             true,
           );
 
@@ -236,12 +284,11 @@ export class LogWatcher {
             {
               gameId: this.lastCheckedGameId!,
               serviceId: this.lastCheckedServiceId!,
+              pid: this.currentPid!,
               errorCount: this.errorCount,
               logPath: this.currentLogPath,
             },
           );
-
-          this.stopMonitoring();
         }
       }
     } catch (e: unknown) {

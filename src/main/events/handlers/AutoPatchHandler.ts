@@ -1,106 +1,166 @@
 import { PatchManager } from "../../services/PatchManager";
+import { AppConfig } from "../../shared/types";
 import { getGameInstallPath } from "../../utils/registry";
 import {
   AppContext,
   EventHandler,
   EventType,
   LogErrorDetectedEvent,
+  LogSessionStartEvent,
+  LogWebRootFoundEvent,
+  LogBackupWebRootFoundEvent,
+  ProcessEvent,
 } from "../types";
 
-// Simple polling helper to wait for process exit
-const waitForProcessExit = async (
-  processName: string,
-  timeoutMs: number = 30000,
-): Promise<boolean> => {
-  const start = Date.now();
-  // Dynamic import to avoid circular dep if process utils are elsewhere
-  // But we reused `ProcessWatcher` logic or `ps-list` wrapper in `process.ts`
-  const { isProcessRunning } = await import("../../utils/process"); // Assuming this exists or similar
+// --- State Manager ---
+interface SessionState {
+  serviceId: AppConfig["serviceChannel"];
+  gameId: AppConfig["activeGame"];
+  webRoot?: string;
+  backupWebRoot?: string;
+  errorCount: number;
+  startTime: number;
+}
 
-  while (Date.now() - start < timeoutMs) {
-    const running = await isProcessRunning(processName);
-    if (!running) return true;
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  return false;
-};
+class AutoPatchStateManager {
+  // Key: PID
+  private sessions = new Map<number, SessionState>();
+  private patchManager: PatchManager | null = null;
 
-export class AutoPatchHandler implements EventHandler<LogErrorDetectedEvent> {
-  public id = "AutoPatchHandler";
-  public targetEvent: EventType.LOG_ERROR_DETECTED =
-    EventType.LOG_ERROR_DETECTED;
-
-  private patchManager: PatchManager;
-
-  constructor(context: AppContext) {
-    this.patchManager = new PatchManager(context);
-
-    // Also listen for Manual trigger from IPC (We will wire this up in main.ts possibly,
-    // or handle manual execution here if we had a MANAGED_EVENT for manual trigger)
-    // For now, IPC calls will likely invoke `patchManager` directly or via a wrapper.
-    // But let's expose patchManager to Instance if needed, or keep it private.
-  }
-
-  // Public accessor for Main to use in IPC
-  public getManager() {
+  public getPatchManager(context: AppContext) {
+    if (!this.patchManager) {
+      this.patchManager = new PatchManager(context);
+    }
     return this.patchManager;
   }
 
-  public async handle(event: LogErrorDetectedEvent, context: AppContext) {
-    console.log(
-      `[AutoPatchHandler] Error Detected! Count: ${event.payload.errorCount}`,
-    );
+  public startSession(
+    pid: number,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) {
+    this.sessions.set(pid, {
+      serviceId,
+      gameId,
+      errorCount: 0,
+      startTime: Date.now(),
+    });
+  }
 
-    // 1. Check Auto-Fix Setting
-    const autoFix = context.store.get("autoFixPatchError", false);
-    const serviceId = event.payload.serviceId;
-    const gameId = event.payload.gameId;
-
-    // 2. Determine Process Name to wait for
-    // Kakao: PathOfExile_KG.exe or POE2_KG...
-    // We should probably look at what ProcessWatcher detected or use Config.
-    // For simplicity, let's wait for generic names.
-    const targetProcess =
-      serviceId === "Kakao Games" ? "PathOfExile_KG.exe" : "PathOfExile.exe"; // Simplified
-
-    // 3. Notify User (if not auto-fix, or even if auto-fix but as toast)
-    // If Manual: Show Modal requesting confirmation -> "Close Game & Fix"
-    // If Auto: Show Toast "Error detected, fixing after exit..." -> Wait -> Fix
-
-    if (autoFix) {
-      // Auto Mode
-      console.log(
-        "[AutoPatchHandler] Auto-Fix ENABLED. Waiting for process exit...",
-      );
-      // Show Toast/Notification via MessageEvent or direct IPC?
-      // eventBus.emit(EventType.MESSAGE_GAME_PROGRESS_INFO, ...);
-
-      // Wait for exit
-      const exited = await waitForProcessExit(targetProcess);
-      if (exited) {
-        const installPath = await getGameInstallPath(serviceId, gameId);
-        if (installPath) {
-          // Trigger UI Modal in "Auto/Progress" mode
-          context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
-            autoStart: true,
-          });
-
-          // Start Patch
-          await this.patchManager.startSelfDiagnosis(installPath, serviceId);
-        }
-      } else {
-        console.warn(
-          "[AutoPatchHandler] Process did not exit. Aborting auto-fix.",
-        );
-      }
-    } else {
-      // Manual Mode
-      // Trigger UI Modal in "Confirm" mode
-      context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
-        autoStart: false,
-        serviceId,
-        gameId,
-      });
+  public setWebRoot(pid: number, webRoot: string) {
+    const session = this.sessions.get(pid);
+    if (session) {
+      session.webRoot = webRoot;
     }
   }
+
+  public setBackupWebRoot(pid: number, backupWebRoot: string) {
+    const session = this.sessions.get(pid);
+    if (session) {
+      session.backupWebRoot = backupWebRoot;
+    }
+  }
+
+  public addError(pid: number, errorCount: number) {
+    const session = this.sessions.get(pid);
+    if (session) {
+      session.errorCount = errorCount;
+    }
+  }
+
+  public getSession(pid: number) {
+    return this.sessions.get(pid);
+  }
+
+  public clearSession(pid: number) {
+    this.sessions.delete(pid);
+  }
 }
+
+const stateManager = new AutoPatchStateManager();
+
+// --- Handlers ---
+
+export const LogSessionHandler: EventHandler<LogSessionStartEvent> = {
+  id: "LogSessionHandler",
+  targetEvent: EventType.LOG_SESSION_START,
+  handle: async (event, _context) => {
+    const { pid, serviceId, gameId } = event.payload;
+    stateManager.startSession(pid, serviceId, gameId);
+  },
+};
+
+export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
+  id: "LogWebRootHandler",
+  targetEvent: EventType.LOG_WEB_ROOT_FOUND,
+  handle: async (event, _context) => {
+    const { pid, webRoot } = event.payload;
+    stateManager.setWebRoot(pid, webRoot);
+  },
+};
+
+export const LogBackupWebRootHandler: EventHandler<LogBackupWebRootFoundEvent> =
+  {
+    id: "LogBackupWebRootHandler",
+    targetEvent: EventType.LOG_BACKUP_WEB_ROOT_FOUND,
+    handle: async (event, _context) => {
+      const { pid, backupWebRoot } = event.payload;
+      stateManager.setBackupWebRoot(pid, backupWebRoot);
+    },
+  };
+
+export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
+  id: "LogErrorHandler",
+  targetEvent: EventType.LOG_ERROR_DETECTED,
+  handle: async (event, _context) => {
+    const { pid, errorCount } = event.payload;
+    stateManager.addError(pid, errorCount);
+  },
+};
+
+export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
+  id: "AutoPatchProcessStopHandler",
+  targetEvent: EventType.PROCESS_STOP,
+  handle: async (event, context) => {
+    const pid = event.payload.pid;
+    const session = stateManager.getSession(pid);
+
+    if (session) {
+      const THRESHOLD = 10;
+      if (session.errorCount >= THRESHOLD) {
+        console.log(
+          `[AutoPatch] Process ${pid} exited with high error count (${session.errorCount}). Triggering Fix.`,
+        );
+
+        const autoFix = context.store.get("autoFixPatchError", false);
+        const { serviceId, gameId, webRoot, backupWebRoot } = session;
+
+        if (autoFix) {
+          // Auto Fix
+          const installPath = await getGameInstallPath(serviceId, gameId);
+          if (installPath) {
+            context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+              autoStart: true,
+            });
+
+            const manager = stateManager.getPatchManager(context);
+
+            await manager.startSelfDiagnosis(installPath, serviceId, {
+              webRoot,
+              backupWebRoot,
+            });
+          }
+        } else {
+          // Manual Fix Confirmation
+          context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+            autoStart: false,
+            serviceId,
+            gameId,
+          });
+        }
+      }
+
+      stateManager.clearSession(pid);
+    }
+  },
+};

@@ -18,8 +18,64 @@ export enum EventType {
   GAME_STATUS_CHANGE = "GAME:STATUS_CHANGE",
   DEBUG_LOG = "DEBUG:LOG",
   SYSTEM_WAKE_UP = "SYSTEM:WAKE_UP",
+  LOG_SESSION_START = "LOG:SESSION_START",
+  LOG_WEB_ROOT_FOUND = "LOG:WEB_ROOT_FOUND",
+  LOG_BACKUP_WEB_ROOT_FOUND = "LOG:BACKUP_WEB_ROOT_FOUND",
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
+}
+
+// ...
+
+export interface LogBackupWebRootFoundEvent {
+  type: EventType.LOG_BACKUP_WEB_ROOT_FOUND;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    backupWebRoot: string;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
+
+// ...
+
+// ...
+
+export interface LogSessionStartEvent {
+  type: EventType.LOG_SESSION_START;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
+
+export interface LogWebRootFoundEvent {
+  type: EventType.LOG_WEB_ROOT_FOUND;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    webRoot: string;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
+
+export interface LogErrorDetectedEvent {
+  type: EventType.LOG_ERROR_DETECTED;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    errorCount: number;
+    logPath: string;
+  };
+  timestamp?: number;
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -89,16 +145,7 @@ export interface SystemWakeUpEvent {
   timestamp?: number;
 }
 
-export interface LogErrorDetectedEvent {
-  type: EventType.LOG_ERROR_DETECTED;
-  payload: {
-    gameId: AppConfig["activeGame"];
-    serviceId: AppConfig["serviceChannel"];
-    errorCount: number;
-    logPath: string;
-  };
-  timestamp?: number;
-}
+// LogErrorDetectedEvent removed (using the one above)
 
 export interface PatchProgressEvent {
   type: EventType.PATCH_PROGRESS;
@@ -121,6 +168,9 @@ export type AppEvent =
   | GameStatusChangeEvent
   | DebugLogEvent
   | SystemWakeUpEvent
+  | LogSessionStartEvent
+  | LogWebRootFoundEvent
+  | LogBackupWebRootFoundEvent
   | LogErrorDetectedEvent
   | PatchProgressEvent;
 

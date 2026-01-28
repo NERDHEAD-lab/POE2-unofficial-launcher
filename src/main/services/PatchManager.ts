@@ -10,6 +10,7 @@ import { AppContext, EventType, PatchProgressEvent } from "../events/types";
 
 interface ParsedLogInfo {
   webRoot: string | null;
+  backupWebRoot: string | null;
   filesToDownload: string[];
 }
 
@@ -50,6 +51,7 @@ export class PatchManager {
   public async startSelfDiagnosis(
     installPath: string,
     serviceId: AppConfig["serviceChannel"],
+    overrides?: { webRoot?: string; backupWebRoot?: string },
   ): Promise<void> {
     try {
       this.isPatching = true;
@@ -68,11 +70,35 @@ export class PatchManager {
 
       this.emitProgress("waiting", "로그 분석 중...", 0);
 
-      const logInfo = await this.analyzeLog(
-        serviceId,
-        logPath,
-        config.startMarker,
-      );
+      // Check if we have overrides to skip full analysis or augment it
+      let logInfo: ParsedLogInfo;
+
+      if (overrides?.webRoot) {
+        // We have WebRoot from LogWatcher, but we still might need to check queued files
+        // OR we just use defaults if no queue info passed.
+        // For robustness, let's still analyze log to find QUEUED files,
+        // but use the provided WebRoot as fallback or primary if log doesn't have it (e.g. rotated).
+        // Actually, LogWatcher found it, so it's reliable.
+
+        // Let's call analyzeLog but pass the known WebRoot hint?
+        // Or just implement a lighter check.
+        // To keep it simple and robust: Run analyzeLog. If it fails to find WebRoot, use override.
+
+        const analyzed = await this.analyzeLog(
+          serviceId,
+          logPath,
+          config.startMarker,
+        );
+
+        logInfo = {
+          webRoot: analyzed.webRoot || overrides.webRoot || null,
+          backupWebRoot:
+            analyzed.backupWebRoot || overrides.backupWebRoot || null,
+          filesToDownload: analyzed.filesToDownload,
+        };
+      } else {
+        logInfo = await this.analyzeLog(serviceId, logPath, config.startMarker);
+      }
 
       if (!logInfo.webRoot) {
         // Fallback or Error
@@ -101,7 +127,12 @@ export class PatchManager {
         10,
       );
 
-      await this.processDownloads(installPath, logInfo.webRoot, targetFiles);
+      await this.processDownloads(
+        installPath,
+        logInfo.webRoot,
+        targetFiles,
+        logInfo.backupWebRoot,
+      );
 
       this.emitProgress("done", "패치 복구 완료", 100);
     } catch (e: unknown) {
@@ -127,25 +158,33 @@ export class PatchManager {
     const profile = GAME_SERVICE_PROFILES[serviceId];
     if (!profile) throw new Error("Unknown Service ID");
 
-    // Read last 2MB
     const stats = await fs.promises.stat(logPath);
     const size = stats.size;
-    const readSize = Math.min(size, 2 * 1024 * 1024);
+    const READ_SIZE = 2 * 1024 * 1024; // 2MB
 
-    const buffer = Buffer.alloc(readSize);
-    const fd = await fs.promises.open(logPath, "r");
-    await fd.read(buffer, 0, readSize, size - readSize);
-    await fd.close();
+    let content = "";
 
-    const content = buffer.toString("utf8");
+    // Read Logic matching logParser.ts
+    // If small enough, read whole file. If large, read last 2MB.
+    if (size <= READ_SIZE) {
+      content = await fs.promises.readFile(logPath, "utf-8");
+    } else {
+      const buffer = Buffer.alloc(READ_SIZE);
+      const fd = await fs.promises.open(logPath, "r");
+      await fd.read(buffer, 0, READ_SIZE, size - READ_SIZE);
+      await fd.close();
+      content = buffer.toString("utf8");
+    }
+
     const lines = content.split("\n");
 
     let webRoot: string | null = null;
     let backupWebRoot: string | null = null;
-    const files: string[] = [];
+    let files: string[] = [];
     let currentPid: string | null = null;
+    let hasError = false; // logic import from logParser
 
-    // Find last session
+    // Find last session start
     let lastIndex = -1;
     for (let i = lines.length - 1; i >= 0; i--) {
       if (lines[i].includes(startMarker)) {
@@ -153,6 +192,7 @@ export class PatchManager {
         break;
       }
     }
+    // If marker not found (or log rotated within 2MB?), parse from start of buffer
     if (lastIndex === -1) lastIndex = 0;
 
     const recentLines = lines.slice(lastIndex);
@@ -167,12 +207,19 @@ export class PatchManager {
       }
     }
 
-    // 2. Scan lines with PID filtering
+    // 2. Scan lines
     for (const line of recentLines) {
+      // Filter by PID
       if (currentPid && !line.includes(`Client ${currentPid}`)) {
         continue;
       }
 
+      // Check Error
+      if (line.includes("Transferred a partial file")) {
+        hasError = true;
+      }
+
+      // Extract Web Root
       if (line.includes("Web root:")) {
         const match = line.match(/Web root: (https?:\/\/[^\s]+)/);
         if (match) webRoot = match[1];
@@ -181,12 +228,13 @@ export class PatchManager {
         if (match) backupWebRoot = match[1];
       }
 
+      // Extract Queue files
       const queuePattern = "Queue file to download:";
       if (line.includes(queuePattern)) {
         const parts = line.split(queuePattern);
         if (parts.length > 1) {
           const f = parts[1].trim();
-          // Basic sanity check to avoid parsing garbage
+          // Validation
           if (f && !f.includes(" ")) {
             const isExtMatch =
               f.endsWith(".exe") ||
@@ -203,7 +251,17 @@ export class PatchManager {
       }
     }
 
-    // [Logic from Tool] Expand Service Exes if one is missing/queued
+    // Logic: If NO error detected in logs, we shouldn't rely on "Queue file" lines
+    // because they might be from successful downloads (queued then done).
+    // logParser checks: if (!hasError) filesToDownload = [];
+    // However, for Manual Repair in PatchManager, we might WANT to download whatever was last queued if we suspect issues.
+    // But adhering to logParser logic:
+    if (!hasError) {
+      files = [];
+    }
+
+    // Expansion Logic (Mirroring logParser / current PatchManager)
+    // If Kakao/Essential file involved, expand to check all essentials
     const hasEssential = files.some((f) =>
       profile.essentialExecutables.includes(f),
     );
@@ -214,13 +272,18 @@ export class PatchManager {
       }
     }
 
-    return { webRoot: webRoot || backupWebRoot, filesToDownload: files };
+    return {
+      webRoot: webRoot || backupWebRoot,
+      backupWebRoot,
+      filesToDownload: files,
+    };
   }
 
   private async processDownloads(
     installPath: string,
     webRoot: string,
     files: string[],
+    backupWebRoot?: string | null,
   ) {
     const tempDir = path.join(installPath, ".patch_temp");
     const backupDir = path.join(installPath, ".patch_backups");
@@ -276,7 +339,47 @@ export class PatchManager {
 
         completed++;
       } catch (e: unknown) {
-        console.error(`Failed to download/install ${file}:`, e);
+        console.error(`Failed to download/install ${file} due to:`, e);
+
+        // Fallback Logic
+        if (backupWebRoot && backupWebRoot !== webRoot && !this.shouldStop) {
+          console.warn(
+            `[PatchManager] Retrying ${file} with Backup Web Root: ${backupWebRoot}`,
+          );
+          const backupUrl = `${backupWebRoot.endsWith("/") ? backupWebRoot : backupWebRoot + "/"}${file}`;
+          try {
+            await this.downloadFile(backupUrl, dest);
+
+            // If Success, proceed with backup/move steps (duplicated logic or shared?)
+            // To avoid duplication, we could wrap the backup/move part.
+            // But let's just re-run the post-download steps here for safety.
+
+            // 2. Backup if exists
+            if (isBackupEnabled && fs.existsSync(finalDest)) {
+              const backupDest = path.join(backupDir, file);
+              const backupSubDir = path.dirname(backupDest);
+              if (!fs.existsSync(backupSubDir))
+                await fs.promises.mkdir(backupSubDir, { recursive: true });
+              await fs.promises.copyFile(finalDest, backupDest);
+            }
+
+            // 3. Move/Overwrite
+            const finalSubDir = path.dirname(finalDest);
+            if (!fs.existsSync(finalSubDir))
+              await fs.promises.mkdir(finalSubDir, { recursive: true });
+            await fs.promises.copyFile(dest, finalDest);
+
+            completed++;
+            continue; // Success, next file
+          } catch (backupError: unknown) {
+            console.error(
+              `Backup download also failed for ${file}:`,
+              backupError,
+            );
+            // Should we just fall through to error throw?
+          }
+        }
+
         const msg = e instanceof Error ? e.message : String(e);
         throw new Error(`${file} 처리 실패: ${msg}`);
       }

@@ -9,7 +9,12 @@ import JSZip from "jszip";
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
-import { AutoPatchHandler } from "./events/handlers/AutoPatchHandler";
+import {
+  LogSessionHandler,
+  LogWebRootHandler,
+  LogErrorHandler,
+  AutoPatchProcessStopHandler,
+} from "./events/handlers/AutoPatchHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
@@ -403,7 +408,10 @@ const handlers = [
   GameInstallCheckHandler,
   SystemWakeUpHandler,
   UpdateHandler,
-  AutoPatchHandler,
+  LogSessionHandler,
+  LogWebRootHandler,
+  LogErrorHandler,
+  AutoPatchProcessStopHandler,
 ];
 
 // --- Update Check IPC ---
