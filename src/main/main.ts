@@ -108,7 +108,7 @@ const BLOCKED_PERMISSIONS = [
   "midiSysex",
   "pointerLock",
   "fullscreen",
-  "openExternal",
+  // "openExternal",
   "clipboard-read", // Programmatic clipboard read
 ];
 
