@@ -86,7 +86,15 @@ const DEBUG_KEYS = [
  * This does not persist the forced value to the store.
  */
 function getEffectiveConfig(key: string): unknown {
+  // 1. Force Debug Mode via Env Var
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) return true;
+
+  // 2. Resolve Dependency: If dev_mode is disabled, force dependent keys to false
+  if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
+    const isDevMode = getConfig("dev_mode") === true;
+    if (!isDevMode) return false;
+  }
+
   return getConfig(key);
 }
 
@@ -474,6 +482,7 @@ function createWindows() {
   }
 
   // Ensure app quits when main UI window is closed
+  // Ensure app quits when main UI window is closed
   mainWindow.on("closed", () => {
     mainWindow = null;
     app.quit();
@@ -482,32 +491,57 @@ function createWindows() {
   // Note: We previously attached gameWindow listeners here.
   // Now they are attached in initGameWindow().
 
-  // --- Debug Console Window ---
+  // Ensure app quits when main UI window is closed
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    app.quit();
+  });
+
+  // Note: We previously attached gameWindow listeners here.
+  // Now they are attached in initGameWindow().
+
+  // --- Debug Window Management ---
+  initDebugWindow();
+}
+
+/**
+ * Creates the debug window based on current configuration on app start.
+ */
+function initDebugWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
   const isDevMode = getEffectiveConfig("dev_mode") === true;
   const isDebugConsole = getEffectiveConfig("debug_console") === true;
+  const shouldShow = isDevMode && isDebugConsole;
 
-  if (isDevMode && isDebugConsole) {
-    if (debugWindow && !debugWindow.isDestroyed()) {
-      debugWindow.show();
-      return;
-    }
+  console.log("[Main] Init Debug Window Check:", {
+    isDevMode,
+    isDebugConsole,
+    shouldShow,
+  });
 
-    // Calculate initial position
+  if (shouldShow) {
+    // Check bounds
     const mainBounds = mainWindow.getBounds();
+    const targetX = mainBounds.x + mainBounds.width;
+    const targetY = mainBounds.y;
+
+    console.log("[Main] Creating Debug Window at:", { targetX, targetY });
 
     debugWindow = new BrowserWindow({
-      width: 900, // Default width (Increased by 50% from 600)
-      height: mainBounds.height, // Match main window height
-      x: mainBounds.x + mainBounds.width, // Attach to right
-      y: mainBounds.y, // Align top
-      parent: mainWindow, // <--- Key change: Syncs focus/minimize/restore
+      width: 900,
+      height: mainBounds.height,
+      x: targetX,
+      y: targetY,
+      parent: mainWindow,
       title: DEBUG_APP_CONFIG.TITLE,
-      frame: false, // Custom frame
-      movable: false, // Prevent moving independently
-      resizable: true, // Allow resizing (restricted to width by min/max height below)
+      frame: false,
+      movable: false,
+      resizable: true,
       minimizable: true,
       closable: true,
       autoHideMenuBar: true,
+      show: true, // Explicitly show
       webPreferences: {
         preload: path.join(__dirname, "preload.js"),
       },
@@ -526,18 +560,21 @@ function createWindows() {
 
     debugWindow.loadURL(debugUrl);
 
-    // Docking Logic: Follow Main Window
-
     // --- ProcessWatcher Integration for Debug Window ---
     debugWindow.on("blur", () => {
-      console.log("[Debug] Console blurred (Focus Lost).");
-      processWatcher.scheduleSuspension();
+      // console.log("[Debug] Console blurred (Focus Lost).");
+      if (appContext?.processWatcher) {
+        appContext.processWatcher.scheduleSuspension();
+      }
     });
 
     debugWindow.on("focus", () => {
-      console.log("[Debug] Console focused.");
-      processWatcher.cancelSuspension();
+      // console.log("[Debug] Console focused.");
+      if (appContext?.processWatcher) {
+        appContext.processWatcher.cancelSuspension();
+      }
     });
+
     const updateDebugPosition = () => {
       if (
         mainWindow &&
@@ -552,8 +589,7 @@ function createWindows() {
 
     mainWindow.on("move", updateDebugPosition);
 
-    // Enforce docking during resize: Only allow resizing from the right edge
-    // by forcing the left edge (x coordinate) to stay fixed to mainWindow's right edge.
+    // Enforce docking during resize
     debugWindow.on("resize", () => {
       if (
         mainWindow &&
@@ -565,9 +601,6 @@ function createWindows() {
         const debugBounds = debugWindow.getBounds();
         const targetX = mainBounds.x + mainBounds.width;
 
-        // If the left edge moved, we fix the position and adjust the width
-        // to maintain the right edge's position if possible,
-        // or just force it back if it was an unintentional move.
         if (
           debugBounds.x !== targetX ||
           debugBounds.y !== mainBounds.y ||
@@ -583,7 +616,6 @@ function createWindows() {
       }
     });
 
-    // Ensure debug window closes if main window closes (handled by standard logic too)
     debugWindow.on("closed", () => {
       debugWindow = null;
       context.debugWindow = null;
@@ -592,12 +624,14 @@ function createWindows() {
       }
     });
 
-    // If main window is closed, we should clean up listeners
+    // Clean up if main window closes (redundant with parent, but safe)
     mainWindow.on("closed", () => {
       if (debugWindow && !debugWindow.isDestroyed()) {
         debugWindow.close();
       }
     });
+
+    console.log("[Main] Debug Console Created.");
   }
 }
 
