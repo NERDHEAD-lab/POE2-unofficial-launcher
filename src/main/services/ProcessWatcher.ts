@@ -112,6 +112,7 @@ export class ProcessWatcher {
           eventBus.emit<ProcessEvent>(EventType.PROCESS_START, this.context, {
             name: p.name,
             path: p.path,
+            pid: p.pid,
           });
         }
       }
@@ -127,6 +128,7 @@ export class ProcessWatcher {
           eventBus.emit<ProcessEvent>(EventType.PROCESS_STOP, this.context, {
             name: info.name,
             path: info.path,
+            pid: pid, // Using the key from valid iteration
           });
 
           this.activePids.delete(pid);

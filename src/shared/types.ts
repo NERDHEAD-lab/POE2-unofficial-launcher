@@ -17,6 +17,8 @@ export interface AppConfig {
       { text: string; accent: string; footer: string; hash: string }
     >
   >;
+  autoFixPatchError: boolean;
+  backupPatchFiles: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -36,6 +38,15 @@ export interface GameStatusState {
   status: RunStatus;
   errorCode?: string;
   timestamp?: number;
+}
+
+export interface PatchProgress {
+  fileName: string;
+  status: "waiting" | "downloading" | "done" | "error";
+  progress: number;
+  total?: number;
+  current?: number;
+  error?: string;
 }
 
 export interface DebugLogPayload {
@@ -60,6 +71,23 @@ export interface ElectronAPI {
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
   onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
   onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
+  onPatchProgress?: (callback: (progress: PatchProgress) => void) => () => void; // New
+  onShowPatchFixModal?: (
+    callback: (data: {
+      autoStart: boolean;
+      serviceId?: string;
+      gameId?: string;
+    }) => void,
+  ) => () => void; // New
+  triggerManualPatchFix: (
+    serviceId?: AppConfig["serviceChannel"],
+    gameId?: AppConfig["activeGame"],
+  ) => void; // New
+  triggerPatchCancel: () => void; // New
+  checkBackupAvailability?: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => Promise<boolean>; // New
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
   getNews: (
     game: AppConfig["activeGame"],

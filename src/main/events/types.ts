@@ -18,6 +18,8 @@ export enum EventType {
   GAME_STATUS_CHANGE = "GAME:STATUS_CHANGE",
   DEBUG_LOG = "DEBUG:LOG",
   SYSTEM_WAKE_UP = "SYSTEM:WAKE_UP",
+  LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
+  PATCH_PROGRESS = "PATCH:PROGRESS",
 }
 
 // --- Payload Definitions & Specific Event Interfaces ---
@@ -39,6 +41,7 @@ export interface ProcessEvent {
   payload: {
     name: string;
     path?: string;
+    pid: number;
   };
   timestamp?: number;
 }
@@ -86,6 +89,28 @@ export interface SystemWakeUpEvent {
   timestamp?: number;
 }
 
+export interface LogErrorDetectedEvent {
+  type: EventType.LOG_ERROR_DETECTED;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    errorCount: number;
+    logPath: string;
+  };
+  timestamp?: number;
+}
+
+export interface PatchProgressEvent {
+  type: EventType.PATCH_PROGRESS;
+  payload: {
+    fileName: string;
+    status: "waiting" | "downloading" | "done" | "error";
+    progress: number;
+    error?: string;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
@@ -95,7 +120,9 @@ export type AppEvent =
   | MessageEvent
   | GameStatusChangeEvent
   | DebugLogEvent
-  | SystemWakeUpEvent;
+  | SystemWakeUpEvent
+  | LogErrorDetectedEvent
+  | PatchProgressEvent;
 
 // --- Context & Handler Interfaces ---
 

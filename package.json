@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@types/dompurify": "^3.0.5",
+    "axios": "^1.13.4",
     "dompurify": "^3.3.1",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.1.7",

@@ -294,7 +294,7 @@ img {
   width: 100%;
   height: 150px;
   transform: translateY(-30%);
-  background-image: url("assets/layout/frame-top-center.png");
+  background-image: url("assets/layout/frame-top-center.gif");
   background-repeat: no-repeat;
   background-position: top center;
   background-size: 70% auto !important;

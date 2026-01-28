@@ -93,6 +93,35 @@ const SettingsContent: React.FC<Props> = ({
       return;
     }
 
+    if (actionId.startsWith("restore_backup_")) {
+      if (window.electronAPI && window.electronAPI.triggerManualPatchFix) {
+        const parts = actionId.replace("restore_backup_", "").split("_");
+        // e.g. kakao_poe1 -> service=Kakao Games, game=POE1
+        // e.g. ggg_poe2 -> service=GGG, game=POE2
+        let service: "Kakao Games" | "GGG" = "Kakao Games";
+        let game: "POE1" | "POE2" = "POE1";
+
+        if (parts.includes("ggg")) service = "GGG";
+        if (parts.includes("poe2")) game = "POE2";
+
+        onShowToast(`[복구] ${service} / ${game} 패치 복구를 시작합니다...`);
+
+        // TODO: Update IPC to support arguments or use context switching?
+        // For now, let's assume we can pass these as arguments if I update the signature.
+        // Current signature: triggerManualPatchFix() -> void.
+        // I will update it in next step. For now, calling it with args (TS might complain, casting to any).
+        (
+          window.electronAPI.triggerManualPatchFix as (
+            serviceId: "Kakao Games" | "GGG",
+            gameId: "POE1" | "POE2",
+          ) => void
+        )(service, game);
+      } else {
+        onShowToast("기능을 사용할 수 없습니다 (Electron API 미연동)");
+      }
+      return;
+    }
+
     onShowToast(`[버튼 클릭] 액션: ${actionId}`);
   };
 
@@ -232,6 +261,11 @@ const SettingsContent: React.FC<Props> = ({
                   isForcedParent || parentValue === true;
 
                 if (!resolvedParentValue) return null;
+              }
+
+              // [New] Visibility Logic for Buttons (based on onInit result)
+              if (item.type === "button" && values[item.id] === false) {
+                return null;
               }
 
               const isText = item.type === "text";

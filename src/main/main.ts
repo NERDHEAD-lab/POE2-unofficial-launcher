@@ -9,6 +9,7 @@ import JSZip from "jszip";
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
+import { AutoPatchHandler } from "./events/handlers/AutoPatchHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
@@ -31,6 +32,7 @@ import {
   AppEvent,
   UIUpdateCheckEvent,
 } from "./events/types";
+import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
@@ -401,6 +403,7 @@ const handlers = [
   GameInstallCheckHandler,
   SystemWakeUpHandler,
   UpdateHandler,
+  AutoPatchHandler,
 ];
 
 // --- Update Check IPC ---
@@ -501,6 +504,15 @@ function createWindows() {
   // Assign to context for handlers (e.g., SystemWakeUpHandler)
   appContext.processWatcher = processWatcher;
   processWatcher.startWatching();
+
+  // Initialize LogWatcher
+  const logWatcher = new LogWatcher(appContext);
+  logWatcher.init();
+
+  // Save AutoPatchHandler instance for IPC access (via find in handlers list or a better way)
+  // For simplicity, we can get it from the handlers array if we need reference,
+  // OR we can make a dedicated IPC handler class if code grows.
+  // But here we need to implement `triggerManualPatchFix` IPC which calls `AutoPatchHandler` -> `PatchManager`.
 
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
@@ -684,6 +696,95 @@ ipcMain.on("trigger-game-start", () => {
     eventBus.emit(EventType.UI_GAME_START_CLICK, appContext, undefined);
   } else {
     console.error("[Main] AppContext not initialized!");
+  }
+});
+
+// --- Patch Management IPC ---
+// Keep track of the active patch manager for cancellation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let activeManualPatchManager: any = null;
+
+ipcMain.on(
+  "patch:trigger-manual",
+  async (
+    _event,
+    serviceIdOverride?: AppConfig["serviceChannel"],
+    gameIdOverride?: AppConfig["activeGame"],
+  ) => {
+    const { PatchManager } = await import("./services/PatchManager");
+
+    // Cancel previous instance if running?
+    if (activeManualPatchManager) {
+      try {
+        activeManualPatchManager.cancelPatch();
+      } catch {
+        // Ignore
+      }
+    }
+
+    activeManualPatchManager = new PatchManager(appContext);
+
+    const serviceId =
+      serviceIdOverride || appContext.store.get("serviceChannel");
+    const activeGame = gameIdOverride || appContext.store.get("activeGame");
+    const installPath = await import("./utils/registry").then((m) =>
+      m.getGameInstallPath(serviceId, activeGame),
+    );
+
+    console.log(
+      `[Main] Triggering Manual Patch Fix for ${serviceId} / ${activeGame}`,
+    );
+
+    if (installPath) {
+      activeManualPatchManager
+        .startSelfDiagnosis(installPath, serviceId)
+        .finally(() => {
+          // Cleanup reference if it finished (optional, but good for GC)
+          // But we have to check if IT is the same instance
+          // activeManualPatchManager = null;
+        });
+    } else {
+      console.error("Install path not found for manual patch fix.");
+    }
+  },
+);
+
+ipcMain.handle(
+  "patch:check-backup",
+  async (
+    _event,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => {
+    try {
+      const { getGameInstallPath } = await import("./utils/registry");
+      const installPath = await getGameInstallPath(serviceId, gameId);
+
+      if (!installPath) return false;
+
+      const backupDir = path.join(installPath, ".patch_backups");
+      try {
+        const stats = await fs.stat(backupDir);
+        if (!stats.isDirectory()) return false;
+
+        const files = await fs.readdir(backupDir);
+        return files.length > 0;
+      } catch {
+        return false;
+      }
+    } catch (error) {
+      console.error("[Main] Failed to check backup availability:", error);
+      return false;
+    }
+  },
+);
+
+ipcMain.on("patch:cancel", () => {
+  console.log("[Main] Patch Cancel requested.");
+  if (activeManualPatchManager) {
+    activeManualPatchManager.cancelPatch();
+  } else {
+    console.log("[Main] No active manual patch manager to cancel.");
   }
 });
 

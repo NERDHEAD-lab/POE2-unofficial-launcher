@@ -34,6 +34,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   activeGame: "POE1",
   serviceChannel: "Kakao Games",
   themeCache: {},
+  autoFixPatchError: false,
+  backupPatchFiles: true,
 };
 
 export const DEBUG_APP_CONFIG = {

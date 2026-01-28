@@ -4,13 +4,19 @@ import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
 import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
 import iconGithub from "./assets/icon-github.svg";
-import { AppConfig, GameStatusState, RunStatus } from "../shared/types";
-import { NewsItem } from "../shared/types";
 import bannerBottom from "./assets/layout/banner-bottom.png";
 import bgPoe from "./assets/poe1/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
+import {
+  AppConfig,
+  GameStatusState,
+  RunStatus,
+  NewsItem,
+  PatchProgress,
+} from "../shared/types";
+import { PatchFixModal } from "./components/modals/PatchFixModal"; // [NEW]
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
@@ -78,6 +84,83 @@ function App() {
   }>({ state: "idle" });
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+
+  // [NEW] Patch Modal State
+  const [patchModalState, setPatchModalState] = useState<{
+    isOpen: boolean;
+    mode: "confirm" | "progress" | "done" | "error";
+    gameId?: string;
+    serviceId?: string;
+    progress?: PatchProgress;
+    autoStart?: boolean;
+  }>({
+    isOpen: false,
+    mode: "confirm",
+  });
+
+  // [NEW] Patch Progress Listener
+  useEffect(() => {
+    if (window.electronAPI) {
+      if (window.electronAPI.onPatchProgress) {
+        window.electronAPI.onPatchProgress((progress: PatchProgress) => {
+          setPatchModalState((prev) => ({
+            ...prev,
+            mode:
+              progress.status === "done"
+                ? "done"
+                : progress.status === "error"
+                  ? "error"
+                  : "progress",
+            isOpen: true,
+            progress,
+          }));
+        });
+      }
+
+      // Listener for showing modal (from AutoPatchHandler or Manual trigger)
+      if (window.electronAPI.onShowPatchFixModal) {
+        window.electronAPI.onShowPatchFixModal(
+          (data: {
+            autoStart: boolean;
+            serviceId?: string;
+            gameId?: string;
+          }) => {
+            // data: { autoStart: boolean, serviceId?: string, gameId?: string }
+            const isAuto = data.autoStart;
+            setPatchModalState((prev) => ({
+              ...prev,
+              isOpen: true,
+              mode: isAuto ? "progress" : "confirm",
+              autoStart: isAuto,
+              serviceId: data.serviceId,
+              gameId: data.gameId,
+            }));
+          },
+        );
+      }
+    }
+  }, []);
+
+  const handlePatchConfirm = () => {
+    // Trigger Manual Fix execution via Main IPC
+    window.electronAPI.triggerManualPatchFix();
+    setPatchModalState((prev) => ({
+      ...prev,
+      mode: "progress",
+      progress: { fileName: "준비 중...", status: "waiting", progress: 0 },
+    }));
+  };
+
+  const handlePatchCancel = () => {
+    if (patchModalState.mode === "progress") {
+      window.electronAPI.triggerPatchCancel();
+    }
+    setPatchModalState((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  const handlePatchClose = () => {
+    setPatchModalState((prev) => ({ ...prev, isOpen: false }));
+  };
 
   // [NEW] Update Check Effect
   useEffect(() => {
@@ -427,6 +510,18 @@ function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <PatchFixModal
+        isOpen={patchModalState.isOpen}
+        mode={patchModalState.mode}
+        gameId={patchModalState.gameId}
+        serviceId={patchModalState.serviceId}
+        progress={patchModalState.progress}
+        autoStart={patchModalState.autoStart}
+        onConfirm={handlePatchConfirm}
+        onCancel={handlePatchCancel}
+        onClose={handlePatchClose}
       />
 
       {/* Background Layer for Transitions */}

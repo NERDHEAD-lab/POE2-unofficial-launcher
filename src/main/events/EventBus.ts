@@ -63,6 +63,40 @@ class EventBus {
   }
 
   /**
+   * Registers a simple callback for a specific event type.
+   * Useful for services that don't need full EventHandler structure.
+   */
+  public on<T extends AppEvent>(
+    type: T["type"],
+    callback: (event: T) => void,
+  ): void {
+    const handler: EventHandler<T> = {
+      id: `anonymous_${type}_${Date.now()}_${Math.random()}`,
+      targetEvent: type,
+      handle: async (event: T) => {
+        callback(event);
+      },
+    };
+    this.register(handler);
+  }
+
+  /**
+   * Removes a simple callback or handler.
+   * Note: Currently basic implementation, removing specific anonymous handlers is hard without ID.
+   * For now, this is a placeholder or requires storing the wrapper.
+   * Better to use full Handler class if unregistration is needed properly.
+   */
+  public off(type: EventType, handlerId: string) {
+    if (!this.handlers.has(type)) return;
+    const list = this.handlers.get(type)!;
+    const index = list.findIndex((h) => h.id === handlerId);
+    if (index !== -1) {
+      list.splice(index, 1);
+      this.log(`Unregistered handler: ${handlerId}`);
+    }
+  }
+
+  /**
    * Emit an event and execute matching handlers
    * We use T extends AppEvent to try to enforce type safety,
    * but typically inference works best if we pass the whole event or strict arguments.

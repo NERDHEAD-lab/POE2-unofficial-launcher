@@ -199,18 +199,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "프로세스 관리",
         items: [
           {
-            // [DUMMY]
-            id: "kill_switch",
-            type: "button",
-            label: "POERunner 강제 종료",
-            buttonText: "종료 실행",
-            actionId: "kill_runner",
-            variant: "danger",
-            description:
-              "게임이 멈췄을 때 관련된 프로세스를 강제로 정리합니다.",
-            icon: "dangerous",
-          },
-          {
             id: "uac_bypass",
             type: "switch",
             label: "DaumGameStarter UAC 우회",
@@ -238,6 +226,115 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
                   showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
                 }
               }
+            },
+          },
+        ],
+      },
+      {
+        id: "adv_patch",
+        title: "패치 복구 설정",
+        items: [
+          {
+            id: "autoFixPatchError",
+            type: "switch",
+            label: "패치 오류 자동 수정 (Auto Fix)",
+            description:
+              "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
+            defaultValue: false,
+            icon: "autorenew",
+          },
+          {
+            id: "backupPatchFiles",
+            type: "switch",
+            label: "패치 파일 백업 (Backup)",
+            description:
+              "패치 파일 교체 시 원본 파일을 안전한 곳(.patch_backups)에 보관합니다.",
+            defaultValue: true,
+            icon: "save",
+          },
+          // Restore Buttons (Conditional based on logic, but here statically defined for now)
+          {
+            id: "restore_kakao_poe1",
+            type: "button",
+            label: "카카오 POE1 복구",
+            buttonText: "복구 실행",
+            actionId: "restore_backup_kakao_poe1",
+            icon: "history",
+            dependsOn: "backupPatchFiles", // UI toggle dependency only
+            onInit: async () => {
+              if (
+                window.electronAPI &&
+                window.electronAPI.checkBackupAvailability
+              ) {
+                return await window.electronAPI.checkBackupAvailability(
+                  "Kakao Games",
+                  "POE1",
+                );
+              }
+              return false; // Default hidden
+            },
+          },
+          {
+            id: "restore_kakao_poe2",
+            type: "button",
+            label: "카카오 POE2 복구",
+            buttonText: "복구 실행",
+            actionId: "restore_backup_kakao_poe2",
+            icon: "history",
+            dependsOn: "backupPatchFiles",
+            onInit: async () => {
+              if (
+                window.electronAPI &&
+                window.electronAPI.checkBackupAvailability
+              ) {
+                return await window.electronAPI.checkBackupAvailability(
+                  "Kakao Games",
+                  "POE2",
+                );
+              }
+              return false;
+            },
+          },
+          {
+            id: "restore_ggg_poe1",
+            type: "button",
+            label: "GGG POE1 복구",
+            buttonText: "복구 실행",
+            actionId: "restore_backup_ggg_poe1",
+            icon: "history",
+            dependsOn: "backupPatchFiles",
+            onInit: async () => {
+              if (
+                window.electronAPI &&
+                window.electronAPI.checkBackupAvailability
+              ) {
+                return await window.electronAPI.checkBackupAvailability(
+                  "GGG",
+                  "POE1",
+                );
+              }
+              return false;
+            },
+          },
+          {
+            id: "restore_ggg_poe2",
+            type: "button",
+            label: "GGG POE2 복구",
+            buttonText: "복구 실행",
+            actionId: "restore_backup_ggg_poe2",
+            icon: "history",
+            dependsOn: "backupPatchFiles",
+            onInit: async () => {
+              if (
+                window.electronAPI &&
+                window.electronAPI.checkBackupAvailability
+              ) {
+                return await window.electronAPI.checkBackupAvailability(
+                  "GGG",
+                  "POE2",
+                );
+              }
+              return false;
             },
           },
         ],
