@@ -98,6 +98,20 @@ function getEffectiveConfig(key: string): unknown {
   return getConfig(key);
 }
 
+// Security: Explicitly blocked permissions
+const BLOCKED_PERMISSIONS = [
+  "authenticator", // WebAuthn (Passkey)
+  "media", // Camera/Microphone
+  "geolocation", // Location
+  "notifications", // Browser Notifications
+  "midi",
+  "midiSysex",
+  "pointerLock",
+  "fullscreen",
+  "openExternal",
+  "clipboard-read", // Programmatic clipboard read
+];
+
 // IPC Handlers for Configuration
 ipcMain.handle("config:get", (_event, key?: string) => {
   return getConfig(key);
@@ -110,6 +124,18 @@ ipcMain.on("app:relaunch", () => {
 
 ipcMain.handle("session:logout", async () => {
   try {
+    // 1. Reset Context
+    activeSessionContext = null;
+
+    // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
+    if (gameWindow && !gameWindow.isDestroyed()) {
+      console.log("[Main] Closing GameWindow for logout...");
+      gameWindow.close();
+      gameWindow = null;
+      context.gameWindow = null;
+    }
+
+    // 3. Clear Storage
     await session.defaultSession.clearStorageData({
       storages: [
         "cookies",
@@ -414,6 +440,22 @@ function createWindows() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
+  // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
+  session.defaultSession.setPermissionRequestHandler(
+    (webContents, permission, callback) => {
+      const isBlocked = BLOCKED_PERMISSIONS.includes(permission);
+
+      if (isBlocked) {
+        console.log(`[Security] Blocked permission request: ${permission}`);
+        return callback(false); // DENY
+      }
+
+      // Allow others (e.g., clipboard)
+      callback(true);
+    },
+  );
 
   // FIX: Prevent forced fullscreen/maximize on monitor driver reset
   mainWindow.on("maximize", () => {
