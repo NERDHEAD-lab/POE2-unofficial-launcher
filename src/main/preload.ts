@@ -76,4 +76,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   isUACBypassEnabled: () => ipcRenderer.invoke("uac:is-enabled"),
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),
   disableUACBypass: () => ipcRenderer.invoke("uac:disable"),
+
+  relaunchApp: () => ipcRenderer.send("app:relaunch"),
 });

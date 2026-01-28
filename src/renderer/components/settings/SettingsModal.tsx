@@ -14,6 +14,8 @@ interface Props {
 const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [activeCatId, setActiveCatId] = useState(DUMMY_SETTINGS[0].id);
   const [isVisible, setIsVisible] = useState(false);
+  const [isRestartNeeded, setIsRestartNeeded] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
   // Toast State (Lifted)
   const [toastMsg, setToastMsg] = useState("");
@@ -54,10 +56,24 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     e.stopPropagation();
   };
 
+  const handleCloseAttempt = () => {
+    if (isRestartNeeded) {
+      setShowRestartConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleRelaunch = () => {
+    if (window.electronAPI) {
+      window.electronAPI.relaunchApp();
+    }
+  };
+
   return (
     <div
       className="settings-overlay"
-      onClick={onClose}
+      onClick={handleCloseAttempt}
       style={{ opacity: isOpen ? 1 : 0, transition: "opacity 0.2s" }}
     >
       <div
@@ -82,9 +98,43 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
         {/* Right Content */}
         <SettingsContent
           category={activeCategory}
-          onClose={onClose}
+          onClose={handleCloseAttempt}
           onShowToast={showToast}
+          onRestartRequired={() => setIsRestartNeeded(true)}
         />
+
+        {/* Restart Confirmation Popup */}
+        {showRestartConfirm && (
+          <div
+            className="confirm-overlay"
+            onClick={() => setShowRestartConfirm(false)}
+          >
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="confirm-header">재시작 필요</div>
+              <div className="confirm-body">
+                일부 설정을 적용하려면 프로그램 재시작이 필요합니다. 지금
+                재시작하시겠습니까?
+              </div>
+              <div className="confirm-footer">
+                <button
+                  className="confirm-btn cancel"
+                  onClick={() => {
+                    setShowRestartConfirm(false);
+                    onClose(); // Just close, will apply on next manual restart
+                  }}
+                >
+                  나중에
+                </button>
+                <button
+                  className="confirm-btn primary"
+                  onClick={handleRelaunch}
+                >
+                  지금 재시작
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

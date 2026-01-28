@@ -18,13 +18,23 @@ interface Props {
   category: SettingsCategory;
   onClose: () => void;
   onShowToast: (msg: string) => void;
+  onRestartRequired: () => void;
 }
 
 const SettingsContent: React.FC<Props> = ({
   category,
   onClose,
   onShowToast,
+  onRestartRequired,
 }) => {
+  // Constants for environment variable priority
+  const FORCE_DEBUG = import.meta.env.VITE_SHOW_GAME_WINDOW === "true";
+  const DEBUG_SETTING_IDS = [
+    "dev_mode",
+    "debug_console",
+    "show_inactive_windows",
+    "show_inactive_window_console",
+  ];
   // Tooltip State
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -34,6 +44,8 @@ const SettingsContent: React.FC<Props> = ({
 
   // Local state for demonstration. In real app, this would sync with Electron Store.
   const [values, setValues] = useState<Record<string, SettingValue>>({});
+  // Track if restart is required due to changes in this session
+  const [restartRequired, setRestartRequired] = useState(false);
 
   // [NEW] Initialize settings based on item definitions
   useEffect(() => {
@@ -79,6 +91,16 @@ const SettingsContent: React.FC<Props> = ({
   const handleItemChange = (item: SettingItem, val: SettingValue) => {
     handleChange(item.id, val);
 
+    // [New] Persist to Electron Store
+    if (window.electronAPI) {
+      window.electronAPI.setConfig(item.id, val);
+    }
+
+    if (item.requiresRestart) {
+      setRestartRequired(true);
+      onRestartRequired();
+    }
+
     // Generic Listener Execution
     // Pass 'showToast' as a utility to the listener
     if ("onChangeListener" in item && item.onChangeListener) {
@@ -99,22 +121,33 @@ const SettingsContent: React.FC<Props> = ({
   };
 
   const renderItemControl = (item: SettingItem) => {
-    // Get current value or default
-    // specific check to avoid any cast since not all items have defaultValue
+    const isForced = FORCE_DEBUG && DEBUG_SETTING_IDS.includes(item.id);
+
+    // Initial value resolved with priority: Env (if forced) > Values (Store) > Default
     const defaultVal =
       "defaultValue" in item
         ? item.defaultValue
         : "value" in item
           ? item.value
           : undefined;
-    const val = values[item.id] ?? defaultVal;
 
-    const onChange = (id: string, v: SettingValue) => handleItemChange(item, v);
+    const val = isForced ? true : (values[item.id] ?? defaultVal);
+    const isDisabled = item.disabled || isForced;
+
+    const onChange = (id: string, v: SettingValue) => {
+      // Prevent changing if forced by environment variable
+      if (isForced) return;
+      handleItemChange(item, v);
+    };
 
     switch (item.type) {
       case "switch":
         return (
-          <SwitchItem item={item} value={val as boolean} onChange={onChange} />
+          <SwitchItem
+            item={{ ...item, disabled: isDisabled }}
+            value={val as boolean}
+            onChange={onChange}
+          />
         );
       case "radio":
         return (
@@ -175,6 +208,18 @@ const SettingsContent: React.FC<Props> = ({
             )}
 
             {section.items.map((item) => {
+              // Dependency Logic: Hide if parent setting is false
+              if (item.dependsOn) {
+                const parentValue = values[item.dependsOn];
+                const isForcedParent =
+                  FORCE_DEBUG && DEBUG_SETTING_IDS.includes(item.dependsOn);
+                // Parent value is considered true if forced or if explicitly true in values
+                const resolvedParentValue =
+                  isForcedParent || parentValue === true;
+
+                if (!resolvedParentValue) return null;
+              }
+
               const isText = item.type === "text";
               const isExpanded = expandedItems.has(item.id);
               const isExpandable = isText && (item.value as string).length > 50;
@@ -265,6 +310,15 @@ const SettingsContent: React.FC<Props> = ({
           </div>
         ))}
       </div>
+
+      {restartRequired && (
+        <div className="restart-notice-wrapper">
+          <div className="restart-notice">
+            <span className="material-symbols-outlined">info</span>
+            <span>일부 설정은 앱을 재시작해야 적용됩니다.</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -117,3 +117,28 @@
   - **개발 효율성**: 외부 도구 없이 런처 내에서 직접 설정을 제어할 수 있어 디버깅 속도가 향상됨.
   - **안정성**: 엄격한 유효성 검증을 통해 잘못된 데이터 주입으로 인한 앱 크래시를 방지함.
   - **가독성 및 유지보수**: 고아 데이터 식별을 통해 불필요한 설정 키를 정리하고 시스템 무결성을 유지하기 쉬워짐.
+
+#### ADR-007: Setting Dependency & Environment Priority (Developer Mode)
+
+- **상황**: 디버그 및 개발 관련 설정들이 늘어남에 따라 일반 사용자의 UI 복잡성을 낮추고, 특정 개발 환경(예: 특정 창 강제 노출)에서 설정을 안전하고 편리하게 강제할 수 있는 메커니즘이 필요함.
+- **결정**:
+  - **Dependency Mechanism (`dependsOn`)**: 설정 항목 간의 부모-자식 관계를 정의함. 부모 설정(`dev_mode`)이 활성화된 경우에만 하위 설정 아이템들이 렌더링되도록 구현하여 UI 가독성을 개선함.
+  - **Environment Priority Logic**: `VITE_SHOW_GAME_WINDOW=true`와 같은 환경 변수가 감지될 경우, 관련 설정값을 강제로 `true`로 덮어쓰고 UI 상에서 비활성화(Disabled) 처리함.
+  - **Smart Persistence (Selective Saving)**:
+    - 환경 변수에 의해 **강제된 값**은 저장소(`electron-store`)에 **기록하지 않음**. 이를 통해 환경 변수 없이 재시작 시 원래의 사용자 설정을 유지함.
+    - 일반적인 상황에서 사용자가 직접 조작한 설정값은 `setConfig`를 통해 **즉시 영구 저장**됨.
+  - **Restart-Required Policy**: 실시간 창 제어의 복잡성을 피하기 위해, 중요 설정 변경 시 UI 하단에 '재시작 필요' 안내를 표시하고 다음 실행 시 적용되는 방식을 채택함.
+- **결과**:
+  - **사용자 경험 성숙도**: 복잡한 설정 간의 관계를 시각적으로 명확히 전달하며, 적용 시점(재시작)을 명시하여 혼란을 방지함.
+
+## 5. Documentation Map
+
+이 프로젝트의 주요 기능 및 가이드는 다음 문서와 연결되어 있습니다.
+
+| 기능 영역 (Area)   | 관련 문서 (Document)                                                                               | 비고 (Note)                              |
+| :----------------- | :------------------------------------------------------------------------------------------------- | :--------------------------------------- |
+| **설정 시스템**    | [Settings Guide](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/types.ts)  | `dependsOn`, `onInit` 등 인터페이스 정의 |
+| **이벤트 시스템**  | [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)                                                   | ADR-004 관련 상세 가이드                 |
+| **빌드 및 릴리즈** | [README.md](../README.md)                                                                          | 설치 및 빌드 환경 변수 설명              |
+| **개발자 모드**    | [Walkthrough](../../.gemini/antigravity/brain/1d4cd62b-eadf-4401-ad03-4f7212fb6e98/walkthrough.md) | 최신 구현 내역 (영속성 로직 포함)        |
+| **UAC 우회**       | [uac.ts](../src/main/utils/uac.ts)                                                                 | 시스템 레지스트리 및 작업 스케줄러 로직  |

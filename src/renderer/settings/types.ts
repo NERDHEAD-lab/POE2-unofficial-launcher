@@ -31,6 +31,8 @@ export interface BaseSettingItem {
   disabled?: boolean;
   /** 표시될 아이콘 이름 (Material Symbols 기반, 옵션) */
   icon?: string;
+  /** 특정 설정이 활성화되었을 때만 항목을 표시하기 위한 부모 설정 ID (옵션) */
+  dependsOn?: string;
   /** 마우스 오버 시 표시될 가이드 이미지 경로 (옵션) */
   infoImage?: string;
   /**
@@ -39,6 +41,8 @@ export interface BaseSettingItem {
    * @returns 현재 시스템의 실제 상태값
    */
   onInit?: () => Promise<SettingValue | undefined>;
+  /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
+  requiresRestart?: boolean;
 }
 
 // --- Specific Item Types ---

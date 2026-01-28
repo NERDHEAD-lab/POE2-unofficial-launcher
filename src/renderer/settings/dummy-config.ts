@@ -248,15 +248,39 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "디버깅",
         items: [
           {
-            // [DUMMY]
             id: "dev_mode",
             type: "switch",
             label: "개발자 모드 활성화",
             defaultValue: false,
             icon: "bug_report",
-            onChangeListener: (val, { showToast }) => {
-              showToast(`[개발자 모드] ${val ? "활성화됨" : "비활성화됨"}`);
-            },
+            requiresRestart: true,
+          },
+          {
+            id: "debug_console",
+            type: "switch",
+            label: "디버그 콘솔 표시",
+            defaultValue: false,
+            icon: "terminal",
+            dependsOn: "dev_mode",
+            requiresRestart: true,
+          },
+          {
+            id: "show_inactive_windows",
+            type: "switch",
+            label: "비활성 윈도우 표시",
+            defaultValue: false,
+            icon: "visibility",
+            dependsOn: "dev_mode",
+            requiresRestart: true,
+          },
+          {
+            id: "show_inactive_window_console",
+            type: "switch",
+            label: "비활성 윈도우 콘솔 표시",
+            defaultValue: false,
+            icon: "javascript",
+            dependsOn: "dev_mode",
+            requiresRestart: true,
           },
         ],
       },

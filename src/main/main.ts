@@ -72,9 +72,32 @@ let activeSessionContext: SessionContext | null = null;
 // Reliable mapping of window IDs to their game context
 const windowContextMap = new Map<number, SessionContext>();
 
+// Debug Constants
+const FORCE_DEBUG = process.env.VITE_SHOW_GAME_WINDOW === "true";
+const DEBUG_KEYS = [
+  "dev_mode",
+  "debug_console",
+  "show_inactive_windows",
+  "show_inactive_window_console",
+];
+
+/**
+ * Get configuration value considering environment variable priority.
+ * This does not persist the forced value to the store.
+ */
+function getEffectiveConfig(key: string): unknown {
+  if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) return true;
+  return getConfig(key);
+}
+
 // IPC Handlers for Configuration
 ipcMain.handle("config:get", (_event, key?: string) => {
   return getConfig(key);
+});
+
+ipcMain.on("app:relaunch", () => {
+  app.relaunch();
+  app.exit(0);
 });
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
@@ -251,12 +274,14 @@ ipcMain.handle("uac:disable", () => disableUACBypass());
 const handleWindowOpen = ({ url }: { url: string }) => {
   console.log(`[Main] Window Open Request: ${url}`);
 
-  const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+  const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
+  const showInactive = getEffectiveConfig("show_inactive_windows") === true;
   const isKakaoLogin = url.includes("accounts.kakao.com");
   const isSimpleLogin = url.includes("/login/simple");
 
-  // Logic: Show ONLY if (Debug Mode) OR (Kakao Login AND NOT Simple Login)
-  const shouldShow = isDebug || (isKakaoLogin && !isSimpleLogin);
+  // Logic: Show ONLY if (Debug Env) OR (Show Inactive Setting) OR (Kakao Login AND NOT Simple Login)
+  const shouldShow =
+    isDebugEnv || showInactive || (isKakaoLogin && !isSimpleLogin);
 
   // Always Allow creation + Always Inject Preload (for automation)
   return {
@@ -438,10 +463,16 @@ function createWindows() {
   // Note: We previously attached gameWindow listeners here.
   // Now they are attached in initGameWindow().
 
-  mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
+  // --- Debug Console Window ---
+  const isDevMode = getEffectiveConfig("dev_mode") === true;
+  const isDebugConsole = getEffectiveConfig("debug_console") === true;
 
-  // --- Debug Console Window (If Debug Mode) ---
-  if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
+  if (isDevMode && isDebugConsole) {
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      debugWindow.show();
+      return;
+    }
+
     // Calculate initial position
     const mainBounds = mainWindow.getBounds();
 
@@ -648,10 +679,11 @@ app.on("browser-window-created", (_, window) => {
     // 0. Ignore empty/initial loading to prevent premature closing
     if (!url || url === "about:blank") return;
 
-    const isDebug = process.env.VITE_SHOW_GAME_WINDOW === "true";
+    const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
+    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
 
-    // 1. Debug Mode: Allow everything
-    if (isDebug) return;
+    // 1. Debug Mode or Show Inactive: Allow everything
+    if (isDebugEnv || showInactive) return;
 
     // 2. Production Mode: Strict Filtering
     const isGameWindow = context.gameWindow && window === context.gameWindow;
@@ -677,7 +709,8 @@ app.on("browser-window-created", (_, window) => {
       // Logic: Show ONLY if (Kakao Login AND NOT Simple Login) OR Debug
       const isSimpleLogin = url.includes("/login/simple");
       const isKakaoLogin = url.includes("accounts.kakao.com");
-      const shouldShow = isDebug || (isKakaoLogin && !isSimpleLogin);
+      const shouldShow =
+        isDebugEnv || showInactive || (isKakaoLogin && !isSimpleLogin);
 
       if (shouldShow) {
         if (!window.isVisible()) {
@@ -707,8 +740,11 @@ app.on("browser-window-created", (_, window) => {
   const wcId = window.webContents.id;
 
   // 3. Debugging Support
-  const showGameWindow = process.env.VITE_SHOW_GAME_WINDOW === "true";
-  if (showGameWindow) {
+  const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
+  const showConsole =
+    getEffectiveConfig("show_inactive_window_console") === true;
+
+  if (isDebugEnv || showConsole) {
     if (!window.isDestroyed()) {
       window.webContents.openDevTools({ mode: "detach" });
       console.log("[Main] DevTools opened for new window");

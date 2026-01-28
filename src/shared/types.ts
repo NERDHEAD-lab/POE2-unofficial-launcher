@@ -85,6 +85,9 @@ export interface ElectronAPI {
   isUACBypassEnabled: () => Promise<boolean>;
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
+
+  // [App Control]
+  relaunchApp: () => void;
 }
 
 export type UpdateStatus =
