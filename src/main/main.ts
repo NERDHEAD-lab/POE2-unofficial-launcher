@@ -14,6 +14,9 @@ import {
   LogWebRootHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
+  PatchProgressHandler, // Added
+  triggerPendingManualPatches, // Added
+  cancelPendingPatches, // Added
 } from "./events/handlers/AutoPatchHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
@@ -107,16 +110,21 @@ function getEffectiveConfig(key: string): unknown {
 
 // Security: Explicitly blocked permissions
 const BLOCKED_PERMISSIONS = [
-  "authenticator", // WebAuthn (Passkey)
-  "media", // Camera/Microphone
-  "geolocation", // Location
-  "notifications", // Browser Notifications
+  // WebAuthn (Passkey)
+  "authenticator",
+  // Camera/Microphone
+  "media",
+  // Location
+  "geolocation",
+  // Browser Notifications
+  "notifications",
   "midi",
   "midiSysex",
   "pointerLock",
   "fullscreen",
   // "openExternal",
-  "clipboard-read", // Programmatic clipboard read
+  // Programmatic clipboard read
+  "clipboard-read",
 ];
 
 // IPC Handlers for Configuration
@@ -412,7 +420,23 @@ const handlers = [
   LogWebRootHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
+  PatchProgressHandler, // Added
 ];
+
+// --- Patch IPC ---
+ipcMain.on("patch:start-manual", () => {
+  if (appContext) {
+    console.log("[Main] Triggering Manual Patch via IPC");
+    triggerPendingManualPatches(appContext);
+  }
+});
+
+ipcMain.on("patch:cancel", () => {
+  if (appContext) {
+    console.log("[Main] Cancelling Patch via IPC");
+    cancelPendingPatches(appContext);
+  }
+});
 
 // --- Update Check IPC ---
 ipcMain.on("ui:update-check", () => {

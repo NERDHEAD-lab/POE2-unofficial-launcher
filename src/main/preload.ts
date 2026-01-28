@@ -79,4 +79,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   relaunchApp: () => ipcRenderer.send("app:relaunch"),
   logoutSession: () => ipcRenderer.invoke("session:logout"),
+
+  // [Patch API]
+  onShowPatchFixModal: (
+    callback: (data: {
+      autoStart: boolean;
+      serviceId?: string;
+      gameId?: string;
+    }) => void,
+  ) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (_event: IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on("UI:SHOW_PATCH_MODAL", handler);
+    return () => ipcRenderer.off("UI:SHOW_PATCH_MODAL", handler);
+  },
+  onPatchProgress: (callback: (progress: any) => void) => {
+    const handler = (
+      _event: IpcRendererEvent,
+      progress: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    ) => callback(progress);
+    ipcRenderer.on("patch:progress", handler);
+    return () => ipcRenderer.off("patch:progress", handler);
+  },
+  triggerManualPatchFix: () => ipcRenderer.send("patch:start-manual"),
+  triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
 });

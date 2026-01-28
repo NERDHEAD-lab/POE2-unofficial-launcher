@@ -274,7 +274,7 @@ export class LogWatcher {
 
         if (this.errorCount >= ERROR_THRESHOLD) {
           this.emitLog(
-            "ERROR THRESHOLD REACHED! Sending notification...",
+            "ERROR THRESHOLD REACHED! Flagging for repair (waiting for exit)...",
             true,
           );
 

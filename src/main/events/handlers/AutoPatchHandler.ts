@@ -1,8 +1,10 @@
 import { PatchManager } from "../../services/PatchManager";
 import { AppConfig } from "../../shared/types";
 import { getGameInstallPath } from "../../utils/registry";
+import { eventBus } from "../EventBus";
 import {
   AppContext,
+  AppEvent, // Added
   EventHandler,
   EventType,
   LogErrorDetectedEvent,
@@ -10,7 +12,24 @@ import {
   LogWebRootFoundEvent,
   LogBackupWebRootFoundEvent,
   ProcessEvent,
+  DebugLogEvent,
 } from "../types";
+
+// --- Helper for UI Logging ---
+function emitLog(
+  context: AppContext,
+  content: string,
+  isError: boolean = false,
+) {
+  eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, context, {
+    type: "auto_patch",
+    content,
+    isError,
+    timestamp: Date.now(),
+    typeColor: "#dcdcaa", // Beige for Logic
+    textColor: isError ? "#f48771" : "#d4d4d4",
+  });
+}
 
 // --- State Manager ---
 interface SessionState {
@@ -25,6 +44,9 @@ interface SessionState {
 class AutoPatchStateManager {
   // Key: PID
   private sessions = new Map<number, SessionState>();
+  // Key: serviceId (Pending manual confirmation)
+  private pendingManualPatches = new Map<string, SessionState>();
+
   private patchManager: PatchManager | null = null;
 
   public getPatchManager(context: AppContext) {
@@ -75,9 +97,71 @@ class AutoPatchStateManager {
   public clearSession(pid: number) {
     this.sessions.delete(pid);
   }
+
+  // --- Pending Manual Patch Management ---
+  public setPendingManualPatch(serviceId: string, session: SessionState) {
+    this.pendingManualPatches.set(serviceId, session);
+  }
+
+  public getAllPendingPatches() {
+    return Array.from(this.pendingManualPatches.values());
+  }
+
+  public clearPendingPatch(serviceId: string) {
+    this.pendingManualPatches.delete(serviceId);
+  }
 }
 
 const stateManager = new AutoPatchStateManager();
+
+// --- Exported Control Functions for IPC ---
+
+export async function triggerPendingManualPatches(context: AppContext) {
+  const patches = stateManager.getAllPendingPatches();
+
+  if (patches.length === 0) {
+    emitLog(context, "[AutoPatch] No pending patches found.");
+    return;
+  }
+
+  for (const session of patches) {
+    const { serviceId, gameId, webRoot, backupWebRoot } = session;
+    const installPath = await getGameInstallPath(serviceId, gameId);
+
+    if (installPath) {
+      emitLog(
+        context,
+        `[AutoPatch] Executing Manual Patch for ${serviceId}...`,
+      );
+      const manager = stateManager.getPatchManager(context);
+
+      // Start safely
+      manager
+        .startSelfDiagnosis(installPath, serviceId, {
+          webRoot,
+          backupWebRoot,
+        })
+        .catch((err) => {
+          emitLog(context, `[AutoPatch] Patch execution failed: ${err}`, true);
+        });
+    } else {
+      emitLog(
+        context,
+        `[AutoPatch] Install path not found for ${serviceId}`,
+        true,
+      );
+    }
+
+    // Clear after triggering
+    stateManager.clearPendingPatch(serviceId);
+  }
+}
+
+export function cancelPendingPatches(context: AppContext) {
+  const patches = stateManager.getAllPendingPatches();
+  patches.forEach((p) => stateManager.clearPendingPatch(p.serviceId));
+  emitLog(context, "[AutoPatch] All pending patches cancelled.");
+}
 
 // --- Handlers ---
 
@@ -112,9 +196,22 @@ export const LogBackupWebRootHandler: EventHandler<LogBackupWebRootFoundEvent> =
 export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
   id: "LogErrorHandler",
   targetEvent: EventType.LOG_ERROR_DETECTED,
-  handle: async (event, _context) => {
+  handle: async (event, context) => {
     const { pid, errorCount } = event.payload;
     stateManager.addError(pid, errorCount);
+
+    emitLog(
+      context,
+      `[AutoPatch] Error count updated for PID ${pid}: ${errorCount}`,
+    );
+
+    if (errorCount >= 10) {
+      emitLog(
+        context,
+        `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
+        true,
+      );
+    }
   },
 };
 
@@ -126,10 +223,17 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
     const session = stateManager.getSession(pid);
 
     if (session) {
+      emitLog(
+        context,
+        `[AutoPatch] Process ${pid} stop detected. Checking session state...`,
+      );
+
       const THRESHOLD = 10;
       if (session.errorCount >= THRESHOLD) {
-        console.log(
+        emitLog(
+          context,
           `[AutoPatch] Process ${pid} exited with high error count (${session.errorCount}). Triggering Fix.`,
+          true,
         );
 
         const autoFix = context.store.get("autoFixPatchError", false);
@@ -150,17 +254,44 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
               backupWebRoot,
             });
           }
+          stateManager.clearSession(pid); // Done
         } else {
           // Manual Fix Confirmation
+          emitLog(
+            context,
+            `[AutoPatch] Requesting User Confirmation (Manual Mode)`,
+          );
+
+          // Store in pending (PERSIST DATA for manual trigger)
+          stateManager.setPendingManualPatch(serviceId, session);
+
           context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
             autoStart: false,
             serviceId,
             gameId,
           });
-        }
-      }
 
-      stateManager.clearSession(pid);
+          stateManager.clearSession(pid); // Clear from active sessions
+        }
+      } else {
+        emitLog(
+          context,
+          `[AutoPatch] Session ended normally (Errors: ${session.errorCount})`,
+        );
+        stateManager.clearSession(pid);
+      }
+    }
+  },
+};
+
+export const PatchProgressHandler: EventHandler<AppEvent> = {
+  // Using any/custom event type
+  id: "PatchProgressHandler",
+  targetEvent: EventType.PATCH_PROGRESS,
+  handle: async (event, context) => {
+    // Forward to UI
+    if (context.mainWindow && !context.mainWindow.isDestroyed()) {
+      context.mainWindow.webContents.send("patch:progress", event.payload);
     }
   },
 };
