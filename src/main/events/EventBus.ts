@@ -53,9 +53,16 @@ class EventBus {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, []);
     }
-    this.handlers
-      .get(eventType)!
-      .push(handler as unknown as EventHandler<AppEvent>);
+    // Prevent duplicate registration by ID
+    const handlersList = this.handlers.get(eventType)!;
+    if (handlersList.some((h) => h.id === handler.id)) {
+      this.log(
+        `[Warning] Handler already registered: ${handler.id} for event ${eventType}. Skipping.`,
+      );
+      return;
+    }
+
+    handlersList.push(handler as unknown as EventHandler<AppEvent>);
 
     this.log(
       `Registered handler for event: ${eventType} (Handler: ${handler.id})`,
