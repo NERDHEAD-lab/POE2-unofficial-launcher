@@ -46,11 +46,9 @@ const SettingsContent: React.FC<Props> = ({
         for (const item of section.items) {
           try {
             if (item.onInit) {
-              // Priority 1: Custom initialization logic
               const val = await item.onInit();
               if (val !== undefined) newValues[item.id] = val;
             } else {
-              // Priority 2: Standard Electron Store
               const saved = await window.electronAPI.getConfig(item.id);
               if (saved !== undefined)
                 newValues[item.id] = saved as SettingValue;
@@ -103,7 +101,12 @@ const SettingsContent: React.FC<Props> = ({
   const renderItemControl = (item: SettingItem) => {
     // Get current value or default
     // specific check to avoid any cast since not all items have defaultValue
-    const defaultVal = "defaultValue" in item ? item.defaultValue : undefined;
+    const defaultVal =
+      "defaultValue" in item
+        ? item.defaultValue
+        : "value" in item
+          ? item.value
+          : undefined;
     const val = values[item.id] ?? defaultVal;
 
     const onChange = (id: string, v: SettingValue) => handleItemChange(item, v);
@@ -135,6 +138,7 @@ const SettingsContent: React.FC<Props> = ({
         return (
           <TextItem
             item={item}
+            value={val as string}
             isExpanded={expandedItems.has(item.id)}
             onToggleExpand={(expanded) => {
               setExpandedItems((prev) => {

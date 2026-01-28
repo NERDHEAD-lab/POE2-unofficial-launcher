@@ -12,6 +12,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "시작 설정",
         items: [
           {
+            // [DUMMY]
             id: "run_startup",
             type: "switch",
             label: "컴퓨터 시작 시 자동 실행",
@@ -31,6 +32,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         id: "gen_action",
         items: [
           {
+            // [DUMMY]
             id: "close_action",
             type: "radio",
             label: "닫기 설정",
@@ -55,6 +57,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "언어 설정",
         items: [
           {
+            // [DUMMY]
             id: "language",
             type: "select",
             label: "런처 언어",
@@ -84,6 +87,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "테마 및 모양",
         items: [
           {
+            // [DUMMY]
             id: "ui_scale",
             type: "slider",
             label: "UI 크기 조절",
@@ -98,6 +102,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             },
           },
           {
+            // [DUMMY]
             id: "bg_dim",
             type: "number",
             label: "배경 밝기 조절",
@@ -124,6 +129,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "Kakao 계정 연동",
         items: [
           {
+            // [DUMMY]
             id: "kakao_auto_login",
             type: "switch",
             label: "자동 로그인 사용",
@@ -136,6 +142,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             },
           },
           {
+            // [DUMMY]
             id: "btn_logout",
             type: "button",
             label: "로그아웃",
@@ -158,6 +165,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         id: "noti_general",
         items: [
           {
+            // [DUMMY]
             id: "noti_patch",
             type: "switch",
             label: "업데이트 알림 받기",
@@ -168,6 +176,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             },
           },
           {
+            // [DUMMY]
             id: "noti_server",
             type: "switch",
             label: "서버 점검 알림",
@@ -191,6 +200,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "프로세스 관리",
         items: [
           {
+            // [DUMMY]
             id: "kill_switch",
             type: "button",
             label: "POERunner 강제 종료",
@@ -238,6 +248,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "디버깅",
         items: [
           {
+            // [DUMMY]
             id: "dev_mode",
             type: "switch",
             label: "개발자 모드 활성화",
@@ -263,10 +274,11 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "version_info",
             type: "text",
             label: "현재 버전",
-            value: "v0.0.1 (Early Access)",
+            value: `v${__APP_VERSION__} (Live)`,
             icon: "tag",
           },
           {
+            // [DUMMY]
             id: "license_open",
             type: "text",
             label: "오픈소스 라이선스",

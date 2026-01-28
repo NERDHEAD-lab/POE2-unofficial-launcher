@@ -4,12 +4,18 @@ import { SettingText } from "../../../settings/types";
 
 interface Props {
   item: SettingText;
+  value?: string;
   isExpanded?: boolean;
   onToggleExpand?: (expanded: boolean) => void;
 }
 
-export const TextItem: React.FC<Props> = ({ item, isExpanded = false }) => {
-  const isExpandable = item.isExpandable && item.value.length > 50;
+export const TextItem: React.FC<Props> = ({
+  item,
+  value,
+  isExpanded = false,
+}) => {
+  const displayValue = value ?? item.value;
+  const isExpandable = item.isExpandable && displayValue.length > 50;
 
   return (
     <div
@@ -28,7 +34,7 @@ export const TextItem: React.FC<Props> = ({ item, isExpanded = false }) => {
           wordBreak: "break-all",
         }}
       >
-        {item.value}
+        {displayValue}
         {isExpandable && !isExpanded && (
           <span style={{ color: "#dfcf99", marginLeft: "5px" }}>(More)</span>
         )}
