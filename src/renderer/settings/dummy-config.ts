@@ -1,4 +1,5 @@
 import { SettingsCategory } from "./types";
+import imgUacTooltip from "../assets/settings/uac-tooltip.png";
 
 export const DUMMY_SETTINGS: SettingsCategory[] = [
   {
@@ -199,6 +200,36 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             description:
               "게임이 멈췄을 때 관련된 프로세스를 강제로 정리합니다.",
             icon: "dangerous",
+          },
+          {
+            id: "uac_bypass",
+            type: "switch",
+            label: "DaumGameStarter UAC 우회",
+            description:
+              "게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
+            defaultValue: false,
+            icon: "verified_user",
+            infoImage: imgUacTooltip,
+            onInit: async () => {
+              if (window.electronAPI) {
+                return await window.electronAPI.isUACBypassEnabled();
+              }
+              return false;
+            },
+            onChangeListener: async (val, { showToast }) => {
+              if (window.electronAPI) {
+                showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
+                const result = val
+                  ? await window.electronAPI.enableUACBypass()
+                  : await window.electronAPI.disableUACBypass();
+
+                if (result) {
+                  showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
+                } else {
+                  showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
+                }
+              }
+            },
           },
         ],
       },

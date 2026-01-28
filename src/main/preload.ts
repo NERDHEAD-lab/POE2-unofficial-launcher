@@ -72,4 +72,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("update-status-change", handler);
     return () => ipcRenderer.off("update-status-change", handler);
   },
+
+  // [UAC Bypass API]
+  isUACBypassEnabled: () => ipcRenderer.invoke("uac:is-enabled"),
+  enableUACBypass: () => ipcRenderer.invoke("uac:enable"),
+  disableUACBypass: () => ipcRenderer.invoke("uac:disable"),
 });

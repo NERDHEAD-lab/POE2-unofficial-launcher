@@ -40,6 +40,11 @@ import {
   default as store,
 } from "./store";
 import { PowerShellManager } from "./utils/powershell";
+import {
+  isUACBypassEnabled,
+  enableUACBypass,
+  disableUACBypass,
+} from "./utils/uac";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
@@ -236,6 +241,11 @@ ipcMain.handle("news:mark-multiple-as-read", async (_event, ids: string[]) => {
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   return shell.openExternal(url);
 });
+
+// --- UAC Bypass IPC Handlers ---
+ipcMain.handle("uac:is-enabled", () => isUACBypassEnabled());
+ipcMain.handle("uac:enable", () => enableUACBypass());
+ipcMain.handle("uac:disable", () => disableUACBypass());
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {

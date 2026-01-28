@@ -8,6 +8,8 @@ export type SettingItemType =
   | "text" // Static Text / Info (DivText)
   | "button"; // Action Button
 
+export type SettingValue = string | number | boolean;
+
 export interface BaseSettingItem {
   id: string;
   type: SettingItemType;
@@ -15,6 +17,8 @@ export interface BaseSettingItem {
   description?: string;
   disabled?: boolean;
   icon?: string; // Material Symbols Icon Name
+  infoImage?: string; // Tooltip image path (Optional)
+  onInit?: () => Promise<SettingValue | undefined>; // Initialization logic (Optional)
 }
 
 // --- Specific Item Types ---

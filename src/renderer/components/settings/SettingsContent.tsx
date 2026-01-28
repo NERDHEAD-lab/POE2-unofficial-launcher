@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 import { ButtonItem } from "./items/SettingButton";
 import { NumberItem } from "./items/SettingNumber";
@@ -7,7 +7,11 @@ import { SelectItem } from "./items/SettingSelect";
 import { SliderItem } from "./items/SettingSlider";
 import { SwitchItem } from "./items/SettingSwitch";
 import { TextItem } from "./items/SettingText";
-import { SettingsCategory, SettingItem } from "../../settings/types";
+import {
+  SettingsCategory,
+  SettingItem,
+  SettingValue,
+} from "../../settings/types";
 import "../../settings/Settings.css";
 
 interface Props {
@@ -16,15 +20,49 @@ interface Props {
   onShowToast: (msg: string) => void;
 }
 
-type SettingValue = string | number | boolean;
-
 const SettingsContent: React.FC<Props> = ({
   category,
   onClose,
   onShowToast,
 }) => {
+  // Tooltip State
+  const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   // Local state for demonstration. In real app, this would sync with Electron Store.
   const [values, setValues] = useState<Record<string, SettingValue>>({});
+
+  // [NEW] Initialize settings based on item definitions
+  useEffect(() => {
+    const initValues = async () => {
+      if (!window.electronAPI) return;
+
+      const newValues: Record<string, SettingValue> = {};
+
+      for (const section of category.sections) {
+        for (const item of section.items) {
+          try {
+            if (item.onInit) {
+              // Priority 1: Custom initialization logic
+              const val = await item.onInit();
+              if (val !== undefined) newValues[item.id] = val;
+            } else {
+              // Priority 2: Standard Electron Store
+              const saved = await window.electronAPI.getConfig(item.id);
+              if (saved !== undefined)
+                newValues[item.id] = saved as SettingValue;
+            }
+          } catch (error) {
+            console.error(`[Settings] Failed to init ${item.id}:`, error);
+          }
+        }
+      }
+
+      setValues((prev) => ({ ...prev, ...newValues }));
+    };
+
+    initValues();
+  }, [category]);
 
   const handleAction = (actionId: string) => {
     console.log(`[Settings] Action Triggered: ${actionId}`);
@@ -128,7 +166,41 @@ const SettingsContent: React.FC<Props> = ({
                   )}
                   <div className="setting-info">
                     <div className="setting-label">
-                      {item.label}
+                      <div className="label-wrapper">
+                        {item.label}
+                        {item.infoImage && (
+                          <div
+                            className="info-icon-trigger"
+                            onMouseEnter={(e) => {
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              setTooltipPos({
+                                x: rect.right + 10,
+                                y: rect.top,
+                              });
+                              setHoveredInfo(item.id);
+                            }}
+                            onMouseLeave={() => setHoveredInfo(null)}
+                          >
+                            <span className="material-symbols-outlined">
+                              info
+                            </span>
+
+                            {hoveredInfo === item.id && (
+                              <div
+                                className="image-tooltip-popup"
+                                style={{
+                                  position: "fixed",
+                                  left: tooltipPos.x,
+                                  top: tooltipPos.y,
+                                }}
+                              >
+                                <img src={item.infoImage} alt="Setup Guide" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {/* Min/Max Display for Number Inputs */}
                       {item.type === "number" &&
                         item.min !== undefined &&

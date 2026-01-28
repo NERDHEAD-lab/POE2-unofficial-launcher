@@ -80,6 +80,11 @@ export interface ElectronAPI {
   onUpdateStatusChange: (
     callback: (status: UpdateStatus) => void,
   ) => () => void;
+
+  // [UAC Bypass API]
+  isUACBypassEnabled: () => Promise<boolean>;
+  enableUACBypass: () => Promise<boolean>;
+  disableUACBypass: () => Promise<boolean>;
 }
 
 export type UpdateStatus =
