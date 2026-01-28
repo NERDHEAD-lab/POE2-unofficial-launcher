@@ -270,7 +270,8 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "license_open",
             type: "text",
             label: "오픈소스 라이선스",
-            value: "MIT License Used...",
+            value:
+              "MIT License - Copyright (c) 2026 NERDHEAD.\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files...",
             isExpandable: true,
             icon: "description",
           },

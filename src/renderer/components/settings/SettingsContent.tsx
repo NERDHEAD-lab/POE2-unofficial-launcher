@@ -29,6 +29,9 @@ const SettingsContent: React.FC<Props> = ({
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
+  // UI State for expandable items
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
   // Local state for demonstration. In real app, this would sync with Electron Store.
   const [values, setValues] = useState<Record<string, SettingValue>>({});
 
@@ -129,7 +132,20 @@ const SettingsContent: React.FC<Props> = ({
       case "button":
         return <ButtonItem item={item} onClick={handleAction} />;
       case "text":
-        return <TextItem item={item} />;
+        return (
+          <TextItem
+            item={item}
+            isExpanded={expandedItems.has(item.id)}
+            onToggleExpand={(expanded) => {
+              setExpandedItems((prev) => {
+                const next = new Set(prev);
+                if (expanded) next.add(item.id);
+                else next.delete(item.id);
+                return next;
+              });
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -154,72 +170,94 @@ const SettingsContent: React.FC<Props> = ({
               <div className="section-title">{section.title}</div>
             )}
 
-            {section.items.map((item) => (
-              <div key={item.id} className={`setting-item type-${item.type}`}>
-                <div className="setting-header-group">
-                  {item.icon && (
-                    <div className="setting-icon">
-                      <span className="material-symbols-outlined">
-                        {item.icon}
-                      </span>
-                    </div>
-                  )}
-                  <div className="setting-info">
-                    <div className="setting-label">
-                      <div className="label-wrapper">
-                        {item.label}
-                        {item.infoImage && (
-                          <div
-                            className="info-icon-trigger"
-                            onMouseEnter={(e) => {
-                              const rect =
-                                e.currentTarget.getBoundingClientRect();
-                              setTooltipPos({
-                                x: rect.right + 10,
-                                y: rect.top,
-                              });
-                              setHoveredInfo(item.id);
-                            }}
-                            onMouseLeave={() => setHoveredInfo(null)}
-                          >
-                            <span className="material-symbols-outlined">
-                              info
-                            </span>
+            {section.items.map((item) => {
+              const isText = item.type === "text";
+              const isExpanded = expandedItems.has(item.id);
+              const isExpandable = isText && (item.value as string).length > 50;
 
-                            {hoveredInfo === item.id && (
-                              <div
-                                className="image-tooltip-popup"
-                                style={{
-                                  position: "fixed",
-                                  left: tooltipPos.x,
-                                  top: tooltipPos.y,
-                                }}
-                              >
-                                <img src={item.infoImage} alt="Setup Guide" />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {/* Min/Max Display for Number Inputs */}
-                      {item.type === "number" &&
-                        item.min !== undefined &&
-                        item.max !== undefined && (
-                          <span className="limit-label">
-                            ({item.min} ~ {item.max})
-                          </span>
-                        )}
-                    </div>
-                    {item.description && (
-                      <div className="setting-description">
-                        {item.description}
+              return (
+                <div
+                  key={item.id}
+                  className={`setting-item type-${item.type} ${
+                    isExpanded ? "is-expanded" : ""
+                  } ${isExpandable ? "is-clickable" : ""}`}
+                  onClick={() => {
+                    if (isExpandable) {
+                      setExpandedItems((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(item.id)) next.delete(item.id);
+                        else next.add(item.id);
+                        return next;
+                      });
+                    }
+                  }}
+                  style={{ cursor: isExpandable ? "pointer" : "default" }}
+                >
+                  <div className="setting-header-group">
+                    {item.icon && (
+                      <div className="setting-icon">
+                        <span className="material-symbols-outlined">
+                          {item.icon}
+                        </span>
                       </div>
                     )}
+                    <div className="setting-info">
+                      <div className="setting-label">
+                        <div className="label-wrapper">
+                          {item.label}
+                          {item.infoImage && (
+                            <div
+                              className="info-icon-trigger"
+                              onMouseEnter={(e) => {
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setTooltipPos({
+                                  x: rect.right + 10,
+                                  y: rect.top,
+                                });
+                                setHoveredInfo(item.id);
+                              }}
+                              onMouseLeave={() => setHoveredInfo(null)}
+                            >
+                              <span className="material-symbols-outlined">
+                                info
+                              </span>
+
+                              {hoveredInfo === item.id && (
+                                <div
+                                  className="image-tooltip-popup"
+                                  style={{
+                                    position: "fixed",
+                                    left: tooltipPos.x,
+                                    top: tooltipPos.y,
+                                  }}
+                                >
+                                  <img src={item.infoImage} alt="Setup Guide" />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Min/Max Display for Number Inputs */}
+                        {item.type === "number" &&
+                          item.min !== undefined &&
+                          item.max !== undefined && (
+                            <span className="limit-label">
+                              ({item.min} ~ {item.max})
+                            </span>
+                          )}
+                      </div>
+                      {item.description && (
+                        <div className="setting-description">
+                          {item.description}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {renderItemControl(item)}
                 </div>
-                {renderItemControl(item)}
-              </div>
-            ))}
+              );
+            })}
           </div>
         ))}
       </div>

@@ -206,10 +206,17 @@
   border-color: #444;
 }
 
+.setting-item.is-clickable:hover {
+  background: #2a2a2a;
+  border-color: var(--theme-accent, #dfcf99);
+}
+
 /* Common Info Area */
 .setting-info {
   flex: 1;
+  flex-shrink: 0; /* Prevent label from being crushed by long text values */
   padding-right: 20px;
+  min-width: 150px;
 }
 
 .setting-icon {
@@ -419,6 +426,38 @@
   color: var(--theme-accent, #dfcf99);
   width: 40px;
   text-align: right;
+}
+
+/* Text Control specific */
+.text-control {
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.setting-item.type-text {
+  flex-wrap: wrap; /* Allow wrapping */
+}
+
+/* If it has an expanded text control, ensure it stacks properly */
+.setting-item.type-text.is-expanded {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+.setting-item.type-text.is-expanded .setting-header-group {
+  width: 100% !important;
+  flex: none !important;
+  border-bottom: 1px solid #333;
+  padding-bottom: 12px;
+  margin-bottom: 0px;
+}
+
+.setting-item.type-text.is-expanded .text-control.is-expanded {
+  flex: none !important;
+  width: 100% !important;
+  margin-top: 12px;
+  justify-content: flex-start;
+  padding-top: 4px;
 }
 
 /* Buttons */
