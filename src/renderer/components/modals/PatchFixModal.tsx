@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
 import "./PatchFixModal.css";
 import { PatchProgress, FileProgress } from "../../../shared/types";
@@ -24,8 +24,38 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
   onConfirm,
   onCancel,
   onClose,
-  autoStart: _autoStart = false,
+  autoStart = false,
 }) => {
+  const [autoCloseTimer, setAutoCloseTimer] = useState<number | null>(null);
+
+  // Auto-close Timer Logic
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (initialMode === "done" && autoStart) {
+      // Use setTimeout to avoid "setState synchronously within an effect" warning
+      // This defers the state update to the next tick
+      setTimeout(() => setAutoCloseTimer(3), 0);
+
+      intervalId = setInterval(() => {
+        setAutoCloseTimer((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(intervalId);
+            if (prev === 1) onClose();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setTimeout(() => setAutoCloseTimer(null), 0);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [initialMode, autoStart, onClose]);
+
   // Derive visible files list
   const fileList = useMemo(() => {
     return initialProgress?.files || [];
@@ -37,7 +67,7 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
     <div className="patch-fix-modal-overlay">
       <div className="patch-fix-modal-content">
         <div className="patch-header">
-          <span className="material-icons-round icon">
+          <span className="material-symbols-outlined icon">
             {initialMode === "error"
               ? "error"
               : initialMode === "done"
@@ -159,7 +189,10 @@ export const PatchFixModal: React.FC<PatchFixModalProps> = ({
           )}
           {initialMode === "done" && (
             <button className="btn-confirm" onClick={onClose}>
-              확인 (닫기)
+              확인{" "}
+              {autoCloseTimer !== null
+                ? `(${autoCloseTimer}초 후 닫힘)`
+                : "(닫기)"}
             </button>
           )}
           {initialMode === "error" && (
