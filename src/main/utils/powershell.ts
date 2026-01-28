@@ -41,13 +41,8 @@ export class PowerShellManager {
   private adminSession: SessionState = this.createEmptySession();
   private normalSession: SessionState = this.createEmptySession();
 
-  private readonly isDebug: boolean;
-
   private constructor() {
-    this.isDebug = (process.env.VITE_SHOW_GAME_WINDOW || "").trim() === "true";
-    console.log(
-      `[PowerShellManager] Initialized. isDebug=${this.isDebug}, Env=${process.env.VITE_SHOW_GAME_WINDOW}`,
-    );
+    console.log(`[PowerShellManager] Initialized.`);
   }
 
   public static getInstance(): PowerShellManager {
@@ -85,9 +80,8 @@ export class PowerShellManager {
     isError: boolean = false,
     options: { typeColor?: string; textColor?: string } = {},
   ) {
-    // Only emit if debug mode is active to save resources
-    // Also require context to be set to avoid crashes
-    if (this.isDebug && this.context) {
+    // Only emit if context is set
+    if (this.context) {
       if (typeof eventBus !== "undefined") {
         eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
           type,
@@ -391,8 +385,10 @@ try {
 
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
 
+    const isDev = this.context?.store.get("dev_mode") === true;
+
     const windowStyle = "Hidden";
-    const noExitFlag = this.isDebug ? "-NoExit" : "";
+    const noExitFlag = isDev ? "-NoExit" : "";
 
     let spawnArgs: string[];
     let commandToSpawn: string;
@@ -431,7 +427,7 @@ try {
     );
 
     const child = spawn(commandToSpawn, spawnArgs, {
-      windowsHide: !this.isDebug, // Hide if not debug
+      windowsHide: !isDev, // Hide if not debug
       stdio: "ignore",
     });
 
@@ -444,7 +440,7 @@ try {
       );
     });
 
-    if (this.isDebug) {
+    if (isDev) {
       child.on("exit", (code) => {
         console.log(
           `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,

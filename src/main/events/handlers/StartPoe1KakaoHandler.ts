@@ -58,7 +58,8 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     }
 
     // 1. Show Game Window (if configured)
-    if (process.env.VITE_SHOW_GAME_WINDOW === "true") {
+    const isDev = context.store.get("dev_mode");
+    if (isDev) {
       gameWindow.show();
     }
 

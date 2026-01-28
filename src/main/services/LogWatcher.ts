@@ -9,6 +9,7 @@ import {
   EventType,
   ProcessEvent,
   LogErrorDetectedEvent,
+  DebugLogEvent,
 } from "../events/types";
 import { getGameInstallPath } from "../utils/registry";
 
@@ -25,15 +26,13 @@ export class LogWatcher {
   private lastCheckedGameId: AppConfig["activeGame"] | null = null;
   private lastCheckedServiceId: AppConfig["serviceChannel"] | null = null;
   private currentPid: number | null = null;
-  private readonly isDebug: boolean;
 
   constructor(context: AppContext) {
     this.context = context;
-    this.isDebug = (process.env.VITE_SHOW_GAME_WINDOW || "").trim() === "true";
   }
 
   private emitLog(content: string, isError: boolean = false) {
-    if (this.isDebug && this.context) {
+    if (this.context) {
       eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
         type: "log_watcher",
         content,
