@@ -6,7 +6,12 @@ import axios from "axios";
 import { AppConfig, PatchProgress } from "../../shared/types";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
-import { AppContext, EventType, PatchProgressEvent } from "../events/types";
+import {
+  AppContext,
+  EventType,
+  PatchProgressEvent,
+  DebugLogEvent,
+} from "../events/types";
 
 interface ParsedLogInfo {
   webRoot: string | null;
@@ -314,6 +319,8 @@ export class PatchManager {
         completed,
       );
 
+      this.emitLog(`Downloading: ${file} (${completed + 1}/${total})`);
+
       try {
         // 1. Download to Temp
         await this.downloadFile(url, dest);
@@ -410,6 +417,12 @@ export class PatchManager {
       responseType: "stream",
       timeout: 30000,
       signal: this.abortController?.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Connection: "keep-alive",
+        "Accept-Encoding": "identity",
+      },
     });
 
     response.data.pipe(writer);
@@ -456,5 +469,16 @@ export class PatchManager {
       this.context,
       payload,
     );
+  }
+
+  private emitLog(content: string, isError: boolean = false) {
+    eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
+      type: "auto_patch",
+      content,
+      isError,
+      timestamp: Date.now(),
+      typeColor: "#dcdcaa",
+      textColor: isError ? "#f48771" : "#d4d4d4",
+    });
   }
 }
