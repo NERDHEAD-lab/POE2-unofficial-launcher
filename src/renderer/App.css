@@ -299,6 +299,18 @@ img {
   background-position: top center;
   background-size: 70% auto !important;
   filter: brightness(1); /* Restore brightness per user request */
+
+  /* Fade out bottom 30% using CSS Mask */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 45%,
+    rgba(0, 0, 0, 0) 75%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 45%,
+    rgba(0, 0, 0, 0) 75%
+  );
 }
 
 /* --- Footer & Credits (Ported from Plugin) --- */
