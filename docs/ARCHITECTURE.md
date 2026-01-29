@@ -166,6 +166,15 @@
   - **Dynamic Theme Integration**: 온보딩 모달 내에서도 현재 선택된 게임 프로젝트의 테마 색상을 실시간으로 반영하여 시각적 일관성을 유지함.
 - **결과**: 서비스 정책에 대한 투명성을 확보하고, 사용자가 앱의 주요 기능을 즉시 활용할 수 있도록 초기 진입 장벽을 낮춤.
 
+#### ADR-012: Uninstaller Cleanup & App-Delegated Logic
+
+- **상황**: 앱 제거 시 사용자의 시스템에 남은 UAC 우회 관련 작업 스케줄러 항목과 레지스트리 설정이 그대로 방치되어 시스템의 무결성을 해칠 수 있음. 또한, AppData 내의 설정 및 로그 데이터 삭제 여부를 사용자가 선택할 수 있어야 함.
+- **결정**:
+  - **App-Delegated Cleanup**: NSIS 언인스톨러에서 복잡한 레지스트리/작업 스케줄러 로직을 다시 구현하는 대신, 앱 자체에 `--uninstall` 플래그를 추가하고 기존의 `disableUACBypass()` 및 `app.setLoginItemSettings()`를 통한 자동 시작 정리 로직을 호출함.
+  - **Silent Mode Optimization**: 언인스톨러에서 호출 시 불필요한 팝업이 발생하지 않도록 `disableUACBypass` 함수에 `silent` 매개변수를 추가함.
+  - **NSIS Integration**: `installer.nsh`의 `un.customUnInstall` 매크로에서 앱을 해당 플래그로 실행하고, `MessageBox`를 통해 AppData 폴더(`%AppData%\POE2 Unofficial Launcher`)를 선택적으로 삭제하도록 구현함.
+- **결과**: 기존에 검증된 앱 로직을 활용함으로써 정리 작업의 안정성을 높였으며, 제거 후 시스템에 불필요한 잔재가 남지 않도록 보장함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.

@@ -246,7 +246,9 @@ try {
  * Disables the UAC Bypass.
  * Restores the original registry key if backup exists.
  */
-export async function disableUACBypass(): Promise<boolean> {
+export async function disableUACBypass(
+  silent: boolean = false,
+): Promise<boolean> {
   const workDir = getWorkDirectory();
   const backupFilePath = join(workDir, "original_command.txt");
   let restored = false;
@@ -307,25 +309,29 @@ ${originalCmd}
   if (!restored) {
     // Case 1: Backup missing or target exe lost -> Must reinstall
     console.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
-    await shell.openExternal(
-      "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
-    );
+    if (!silent) {
+      await shell.openExternal(
+        "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
+      );
 
-    await dialog.showMessageBox({
-      type: "info",
-      title: "Daum 게임 스타터 복구 필요",
-      message: "UAC 우회 기능을 원복하는 중 문제가 발생했습니다.",
-      detail:
-        "열린 페이지에서 스타터를 수동으로 다운로드하여 설치(복구)해 주시거나, 재설치를 진행해 주세요.",
-      buttons: ["확인"],
-    });
+      await dialog.showMessageBox({
+        type: "info",
+        title: "Daum 게임 스타터 복구 필요",
+        message: "UAC 우회 기능을 원복하는 중 문제가 발생했습니다.",
+        detail:
+          "열린 페이지에서 스타터를 수동으로 다운로드하여 설치(복구)해 주시거나, 재설치를 진행해 주세요.",
+        buttons: ["확인"],
+      });
+    }
   } else {
-    await dialog.showMessageBox({
-      type: "info",
-      title: "UAC 우회 비활성화 완료",
-      message: "UAC 우회 기능이 비활성화되고 원본 설정으로 복구되었습니다.",
-      buttons: ["확인"],
-    });
+    if (!silent) {
+      await dialog.showMessageBox({
+        type: "info",
+        title: "UAC 우회 비활성화 완료",
+        message: "UAC 우회 기능이 비활성화되고 원본 설정으로 복구되었습니다.",
+        buttons: ["확인"],
+      });
+    }
   }
 
   // Cleanup local files and scheduled task

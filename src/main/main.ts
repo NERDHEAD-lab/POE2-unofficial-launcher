@@ -1294,4 +1294,29 @@ app.on("activate", () => {
 // Set App User Model ID for Windows Taskbar Icon handling
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
-app.whenReady().then(createWindows);
+app.whenReady().then(async () => {
+  // [NEW] Handle Uninstall Cleanup Flag
+  if (process.argv.includes("--uninstall")) {
+    console.log("[Main] Uninstall flag detected. Running cleanup...");
+    try {
+      // 1. Disable Auto Launch (OS Registration Cleanup)
+      if (app.isPackaged) {
+        app.setLoginItemSettings({
+          openAtLogin: false,
+          path: app.getPath("exe"),
+        });
+        console.log("[Main] Auto Launch disabled successfully.");
+      }
+
+      // 2. Revert UAC Bypass
+      await disableUACBypass(true); // Run silently
+      console.log("[Main] UAC Bypass disabled successfully (Silent).");
+    } catch (e) {
+      console.error("[Main] Failed to perform cleanup during uninstall:", e);
+    }
+    app.quit();
+    return;
+  }
+
+  createWindows();
+});
