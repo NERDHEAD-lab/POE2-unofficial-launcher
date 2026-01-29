@@ -29,6 +29,7 @@ function getWorkDirectory(): string {
 
 /**
  * Checks if the bypass is currently applied.
+ * Returns true ONLY if registry is set AND proxy script exists.
  */
 export async function isUACBypassEnabled(): Promise<boolean> {
   const cmd = await getDaumGameStarterCommand();
@@ -36,9 +37,16 @@ export async function isUACBypassEnabled(): Promise<boolean> {
     console.log("[UAC] Bypass check: No protocol command found.");
     return false;
   }
-  const isEnabled = cmd.toLowerCase().includes("proxy.vbs");
+
+  const hasRegistryKey = cmd.toLowerCase().includes("proxy.vbs");
+  const workDir = getWorkDirectory();
+  const proxyPath = join(workDir, "proxy.vbs");
+  const fileExists = existsSync(proxyPath);
+
+  const isEnabled = hasRegistryKey && fileExists;
+
   console.log(
-    `[UAC] Bypass check: ${isEnabled ? "ENABLED" : "DISABLED"} (Current: ${cmd})`,
+    `[UAC] Bypass check: ${isEnabled ? "ENABLED" : "DISABLED"} (Reg: ${hasRegistryKey}, File: ${fileExists})`,
   );
   return isEnabled;
 }
@@ -53,13 +61,18 @@ export async function enableUACBypass(): Promise<boolean> {
     return false;
   }
 
-  if (currentCmd.toLowerCase().includes("proxy.vbs")) {
-    console.log("[UAC] UAC bypass is already enabled.");
+  const workDir = getWorkDirectory();
+  const proxyVbsPath = join(workDir, "proxy.vbs");
+
+  // Check if already fully enabled (Registry + File)
+  if (
+    currentCmd.toLowerCase().includes("proxy.vbs") &&
+    existsSync(proxyVbsPath)
+  ) {
+    console.log("[UAC] UAC bypass is already enabled and valid.");
     return true;
   }
 
-  const workDir = getWorkDirectory();
-  const proxyVbsPath = join(workDir, "proxy.vbs");
   const runnerVbsPath = join(workDir, "runner.vbs");
   const argsFilePath = join(workDir, "launch_args.txt");
   const debugLogPath = join(workDir, "uac_debug.log");
