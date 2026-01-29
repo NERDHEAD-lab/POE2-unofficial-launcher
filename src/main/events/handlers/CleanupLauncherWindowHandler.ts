@@ -25,7 +25,7 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
       if (win === context.mainWindow) continue;
 
       // 2. Handle Game Window (Reset & Hide)
-      if (win === context.gameWindow) {
+      if (context.gameWindow && win === context.gameWindow) {
         if (!win.isDestroyed()) {
           try {
             await win.loadURL("about:blank");
@@ -39,18 +39,28 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
 
       // 3. Close Any Other Windows (Popups, etc.)
       if (!win.isDestroyed()) {
-        // Skip Debug Console
+        // [Fix] Check by reference or custom title/hash
+        const isDebugWindow =
+          context.debugWindow && win === context.debugWindow;
+
+        if (isDebugWindow) {
+          console.log("[CleanupHandler] Skipping Debug Console cleanup.");
+          continue;
+        }
+
         const url = win.webContents.getURL();
         if (
           url.includes(DEBUG_APP_CONFIG.HASH) ||
           win.title === DEBUG_APP_CONFIG.TITLE
         ) {
-          console.log("[CleanupHandler] Skipping Debug Console cleanup.");
+          console.log(
+            "[CleanupHandler] Skipping Debug Console cleanup (matched by title/URL).",
+          );
           continue;
         }
 
         console.log(
-          `[CleanupHandler] Closing auxiliary window: ${win.title} (ID: ${win.id})`,
+          `[CleanupHandler] Closing auxiliary window: ${win.title} (ID: ${win.id}, URL: ${url})`,
         );
         win.close();
       }

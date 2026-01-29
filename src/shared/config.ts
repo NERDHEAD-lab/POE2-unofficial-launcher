@@ -36,6 +36,8 @@ export const CONFIG_KEYS = {
   SERVICE_CHANNEL: CONFIG_METADATA.SERVICE_CHANNEL.key,
   AUTO_GAME_START_AFTER_FIX: CONFIG_METADATA.AUTO_GAME_START_AFTER_FIX.key,
   THEME_CACHE: CONFIG_METADATA.THEME_CACHE.key,
+  DEV_MODE: "dev_mode",
+  DEBUG_CONSOLE: "debug_console",
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -45,6 +47,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   autoFixPatchError: false,
   autoGameStartAfterFix: false,
   backupPatchFiles: true,
+  dev_mode: false,
+  debug_console: false,
+  show_inactive_windows: false,
+  show_inactive_window_console: false,
 };
 
 export const DEBUG_APP_CONFIG = {

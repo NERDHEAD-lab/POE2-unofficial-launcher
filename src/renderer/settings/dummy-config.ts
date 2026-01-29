@@ -391,7 +391,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             defaultValue: false,
             icon: "terminal",
             dependsOn: "dev_mode",
-            requiresRestart: true,
             onInit: initDevSetting,
           },
           {
@@ -401,7 +400,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             defaultValue: false,
             icon: "visibility",
             dependsOn: "dev_mode",
-            requiresRestart: true,
             onInit: initDevSetting,
           },
           {
@@ -411,7 +409,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             defaultValue: false,
             icon: "javascript",
             dependsOn: "dev_mode",
-            requiresRestart: true,
             onInit: initDevSetting,
           },
         ],
