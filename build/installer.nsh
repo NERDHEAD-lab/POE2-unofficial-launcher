@@ -7,13 +7,10 @@
 !macroend
 
 !macro customUnInit
-  ; Check if the app is running and kill it
-  nsProcess::FindProcess "${PRODUCT_NAME}.exe" $R0
-  ${If} $R0 == 0
-    DetailPrint "${PRODUCT_NAME} is running. Killing process..."
-    nsProcess::KillProcess "${PRODUCT_NAME}.exe" $R0
-    Sleep 1000
-  ${EndIf}
+  ; Check if the app is running and kill it using taskkill (Plugin-free)
+  DetailPrint "Checking for running instance..."
+  ExecWait 'taskkill /F /IM "${PRODUCT_NAME}.exe" /T' $R0
+  Sleep 1000
 !macroend
 
 !macro customUnInstall
