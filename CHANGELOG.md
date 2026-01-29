@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.0...0.1.1) (2026-01-29)
+
+
+### Chores
+
+* release 0.1.1 ([73ff009](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/73ff0090cbd8c8edaca0d11a4bc752907b7add16))
+
 ## [0.1.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.0...0.1.0) (2026-01-29)
 
 
