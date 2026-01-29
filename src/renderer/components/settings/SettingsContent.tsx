@@ -56,21 +56,33 @@ const SettingItemRenderer: React.FC<{
   // Expanded State for TextItem
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // [Fix] Track if onInit has taken control to avoid store-override race conditions
+  const [authorityClaimed, setAuthorityClaimed] = useState(false);
+
   // Sync with prop updates (e.g. from global config change)
   const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
   if (initialValue !== prevInitialValue) {
-    setVal(initialValue);
     setPrevInitialValue(initialValue);
+    // Only override if onInit hasn't claimed authority yet.
+    // This prevents the store-load from crushing the real-time system status.
+    if (!authorityClaimed) {
+      setVal(initialValue);
+    }
   }
 
   // [Generic] onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
+      console.log(`[Settings] Running onInit for ${item.id}`);
       item
         .onInit({
           setValue: (newValue) => {
-            if (mounted) setVal(newValue);
+            if (mounted) {
+              console.log(`[Settings] onInit ${item.id} -> ${newValue}`);
+              setVal(newValue);
+              setAuthorityClaimed(true); // Claim authority: don't let further initialValue syncs overwrite this
+            }
           },
           setDescription: (newDesc) => {
             if (mounted) setDescription(newDesc);
