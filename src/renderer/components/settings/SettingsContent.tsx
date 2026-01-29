@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 
+import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
 import { NumberItem } from "./items/SettingNumber";
 import { RadioItem } from "./items/SettingRadio";
@@ -35,6 +36,8 @@ const SettingItemRenderer: React.FC<{
   onRestartRequired: () => void;
   onShowToast: (msg: string) => void;
   onValueChange: (id: string, value: SettingValue) => void; // [New] Real-time state local sync
+  onShowConfirm?: (props: ConfirmModalProps) => void;
+  onHideConfirm?: () => void;
 }> = ({
   item,
   initialValue,
@@ -42,6 +45,8 @@ const SettingItemRenderer: React.FC<{
   onRestartRequired,
   onShowToast,
   onValueChange,
+  onShowConfirm,
+  onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
   const [description, setDescription] = useState<string | undefined>(
@@ -126,9 +131,28 @@ const SettingItemRenderer: React.FC<{
     }
   };
 
-  const handleActionClick = () => {
-    // If it's a generic button, we trigger the onChangeListener as an action
-    if ("onChangeListener" in item && item.onChangeListener) {
+  const handleActionClick = (_actionId: string) => {
+    // console.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
+
+    // Priority 1: Generic listener (onClickListener)
+    if ("onClickListener" in item && item.onClickListener) {
+      item.onClickListener({
+        showToast: onShowToast,
+        showConfirm: (options) => {
+          onShowConfirm?.({
+            ...options,
+            isOpen: true,
+            onCancel: () => onHideConfirm?.(),
+            onConfirm: () => {
+              options.onConfirm();
+              onHideConfirm?.();
+            },
+          });
+        },
+      });
+    }
+    // Priority 2: Standard onChangeListener (for legacy support if needed)
+    else if ("onChangeListener" in item && item.onChangeListener) {
       // @ts-expect-error - listener signature is generic
       item.onChangeListener(true, { showToast: onShowToast });
     }
@@ -199,7 +223,7 @@ const SettingItemRenderer: React.FC<{
         return (
           <ButtonItem
             item={{ ...i, disabled: isDisabled }}
-            onClick={() => handleActionClick()}
+            onClick={(actionId) => handleActionClick(actionId)}
           />
         );
       }
@@ -330,6 +354,11 @@ export const SettingsContent: React.FC<Props> = ({
     }
   }, [category]);
 
+  // Confirmation Modal State
+  const [confirmProps, setConfirmProps] = useState<ConfirmModalProps | null>(
+    null,
+  );
+
   const handleUpdateConfig = (id: string, value: SettingValue) => {
     setConfig((prev) => ({ ...prev, [id]: value }));
   };
@@ -376,6 +405,8 @@ export const SettingsContent: React.FC<Props> = ({
                   onRestartRequired={handleRestartNotice}
                   onShowToast={onShowToast}
                   onValueChange={handleUpdateConfig}
+                  onShowConfirm={(props) => setConfirmProps(props)}
+                  onHideConfirm={() => setConfirmProps(null)}
                 />
               );
             })}
@@ -391,6 +422,8 @@ export const SettingsContent: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {confirmProps && <ConfirmModal {...confirmProps} />}
     </div>
   );
 };

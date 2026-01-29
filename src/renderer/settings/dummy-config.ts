@@ -208,10 +208,33 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             type: "button",
             label: "로그아웃",
             buttonText: "연동 해제",
-            actionId: "logout_kakao",
             variant: "danger",
             description: "저장된 카카오 계정 세션 정보를 삭제합니다.",
             icon: "logout",
+            onClickListener: async ({ showToast, showConfirm }) => {
+              if (!window.electronAPI) return;
+              showConfirm({
+                title: "로그아웃 확인",
+                message:
+                  "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                confirmText: "로그아웃",
+                variant: "danger",
+                onConfirm: async () => {
+                  try {
+                    showToast("[로그아웃] 요청 중...");
+                    const success = await window.electronAPI!.logoutSession();
+                    if (success) {
+                      showToast("[로그아웃] 완료되었습니다.");
+                    } else {
+                      showToast("[로그아웃] 실패했습니다.");
+                    }
+                  } catch (err) {
+                    console.error("[Settings] Logout error:", err);
+                    showToast("[로그아웃] 오류가 발생했습니다.");
+                  }
+                },
+              });
+            },
           },
         ],
       },
@@ -337,6 +360,9 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             dependsOn: "backupPatchFiles", // UI toggle dependency only
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE1"),
+            onClickListener: () => {
+              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE1");
+            },
           },
           {
             id: "restore_kakao_poe2",
@@ -348,6 +374,9 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE2"),
+            onClickListener: () => {
+              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE2");
+            },
           },
           {
             id: "restore_ggg_poe1",
@@ -358,6 +387,9 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "history",
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE1"),
+            onClickListener: () => {
+              window.electronAPI?.triggerManualPatchFix("GGG", "POE1");
+            },
           },
           {
             id: "restore_ggg_poe2",
@@ -368,6 +400,9 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "history",
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE2"),
+            onClickListener: () => {
+              window.electronAPI?.triggerManualPatchFix("GGG", "POE2");
+            },
           },
         ],
       },

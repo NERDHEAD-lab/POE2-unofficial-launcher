@@ -164,10 +164,25 @@ export interface SettingButton extends BaseSettingItem {
   type: "button";
   /** 버튼에 표시될 텍스트 */
   buttonText: string;
-  /** 버튼 클릭 시 처리될 액션 ID */
-  actionId: string;
+  /** 버튼 클릭 시 처리될 액션 ID (하위 호환성 위해 유지, 선택 사항) */
+  actionId?: string;
   /** 버튼 스타일 변형 (Primary, Danger 등) */
   variant?: "primary" | "danger" | "default";
+  /**
+   * 버튼 클릭 시 실행될 리스너 (옵션)
+   * @param context 토스트 메시지 출력 등의 유틸리티를 포함한 컨텍스트
+   */
+  onClickListener?: (context: {
+    showToast: (msg: string) => void;
+    showConfirm: (options: {
+      title: string;
+      message: string;
+      confirmText?: string;
+      cancelText?: string;
+      variant?: "primary" | "danger";
+      onConfirm: () => void;
+    }) => void;
+  }) => void;
 }
 
 /**
