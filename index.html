@@ -41,62 +41,79 @@
         const RAW_BASE =
             "https://raw.githubusercontent.com/NERDHEAD-lab/POE2-unofficial-launcher/master/";
 
+        // Centralized path normalization
+        function getCanonicalDocPath(href) {
+            if (/^https?:\/\//i.test(href)) return href;
+            
+            // Remove all leading ./ or / recursively
+            let path = href.replace(/^(\.\/|\/)+/, "");
+            
+            // Strip docs/ prefix if it's there
+            path = path.replace(/^docs\//, "");
+            
+            // Handle going up from docs (../README.md -> README.md)
+            if (path.startsWith("../")) {
+                path = path.replace(/^\.\.\//, "");
+            }
+            
+            return path;
+        }
+
         const renderer = {
             image({ href, title, text }) {
                 const params = new URLSearchParams(window.location.search);
                 const docsParam = params.get('docs');
-                const isRelative = !/^https?:\/\//i.test(href);
-                if (isRelative) {
-                    // Normalize path: handle ../ or ./
-                    let cleanHref = href.replace(/^\.\//, "");
-                    if (docsParam && !href.startsWith("../")) {
-                        href = RAW_BASE + "docs/" + cleanHref;
+                if (!/^https?:\/\//i.test(href)) {
+                    const clean = href.replace(/^(\.\/|\/)+/, "");
+                    if (docsParam) {
+                        if (clean.startsWith("../")) {
+                            href = RAW_BASE + clean.replace(/^\.\.\//, "");
+                        } else {
+                            href = RAW_BASE + "docs/" + clean.replace(/^docs\//, "");
+                        }
                     } else {
-                        href = RAW_BASE + cleanHref.replace(/^\.\.\//, "");
+                        href = RAW_BASE + clean;
                     }
                 }
                 return `<img src="${href}" alt="${text}"${title ? ` title="${title}"` : ""} style="max-width: 100%;">`;
             },
             link({ href, title, text }) {
-                const isRelative = !/^https?:\/\//i.test(href);
-                if (isRelative && href.toLowerCase().endsWith('.md')) {
+                if (!/^https?:\/\//i.test(href) && href.toLowerCase().endsWith('.md')) {
+                    const canonical = getCanonicalDocPath(href);
                     let newHref = window.location.pathname;
-                    if (href === '../README.md' || href === 'README.md') {
-                        // Keep root (README)
-                    } else {
-                        const cleanPath = href.replace(/^docs\//, "");
-                        newHref += "?docs=" + cleanPath;
+                    if (canonical !== 'README.md') {
+                        newHref += "?docs=" + canonical;
                     }
                     return `<a href="${newHref}"${title ? ` title="${title}"` : ""}>${text}</a>`;
                 }
-                // external link
                 return `<a href="${href}"${title ? ` title="${title}"` : ""}${/^https?:\/\//i.test(href) ? ' target="_blank"' : ""}>${text}</a>`;
             }
         };
 
         renderer.html = function ({ text }) {
-            // Handle relative images in raw HTML
+            const params = new URLSearchParams(window.location.search);
+            const docsParam = params.get('docs');
+
+            // Handle images
             text = text.replace(/<img [^>]*src=["']([^"']+)["'][^>]*>/gi, (match, src) => {
-                const isRelative = !/^https?:\/\//i.test(src);
-                if (isRelative) {
-                    const params = new URLSearchParams(window.location.search);
-                    const docsParam = params.get('docs');
-                    const newSrc = RAW_BASE + (docsParam ? "docs/" : "") + src.replace(/^\.\//, "");
-                    return match.replace(src, newSrc).replace(/style=["'][^"']*["']/, 'style="max-width: 100%;"');
+                if (!/^https?:\/\//i.test(src)) {
+                    const cleanPath = src.replace(/^(\.\/|\/)+/, "");
+                    let finalSrc;
+                    if (docsParam && !cleanPath.startsWith("../")) {
+                        finalSrc = RAW_BASE + "docs/" + cleanPath.replace(/^docs\//, "");
+                    } else {
+                        finalSrc = RAW_BASE + cleanPath.replace(/^\.\.\//, "");
+                    }
+                    return match.replace(src, finalSrc).replace(/style=["'][^"']*["']/, 'style="max-width: 100%;"');
                 }
                 return match;
             });
-            // Handle relative links in raw HTML (for language switchers)
+
+            // Handle links (Language switchers etc.)
             text = text.replace(/<a [^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
-                const isRelative = !/^https?:\/\//i.test(href);
-                if (isRelative && href.toLowerCase().endsWith('.md')) {
-                    let newHref = window.location.pathname;
-                    if (href === '../README.md' || href === 'README.md') {
-                        // root
-                    } else {
-                        const cleanPath = href.replace(/^docs\//, "");
-                        newHref += "?docs=" + cleanPath;
-                    }
+                if (!/^https?:\/\//i.test(href) && href.toLowerCase().endsWith('.md')) {
+                    const canonical = getCanonicalDocPath(href);
+                    let newHref = window.location.pathname + (canonical === 'README.md' ? "" : "?docs=" + canonical);
                     return match.replace(href, newHref);
                 }
                 return match;
@@ -111,41 +128,30 @@
             const docsParam = params.get('docs');
 
             let targetUrl;
-
             if (docsParam) {
-                targetUrl = RAW_BASE + "docs/" + docsParam.replace(/^\/+/, '');
+                const canonical = getCanonicalDocPath(docsParam);
+                targetUrl = RAW_BASE + "docs/" + canonical;
             } else {
                 targetUrl = RAW_BASE + "README.md";
             }
 
             try {
                 const response = await fetch(targetUrl);
-
-                if (!response.ok) {
-                    throw new Error(`Failed to load content: ${response.status} ${response.statusText}`);
-                }
+                if (!response.ok) throw new Error(`Status: ${response.status}`);
 
                 const text = await response.text();
-                document.getElementById("content").innerHTML = marked.parse(text, {
-                    breaks: true
-                });
-                // Scroll to top
+                document.getElementById("content").innerHTML = marked.parse(text, { breaks: true });
                 window.scrollTo(0, 0);
             } catch (error) {
-                console.error("Error loading markdown:", error);
-                document.getElementById("content").innerHTML =
-                    `<h1>Error Loading Page</h1>
-                     <p>Could not load: <code>${targetUrl}</code></p>
-                     <p>${error.message}</p>`;
+                console.error("Markdown Load Error:", error);
+                document.getElementById("content").innerHTML = `<h1>Error Loading Document</h1><p>URL: <code>${targetUrl}</code></p><p>${error.message}</p>`;
             }
         }
 
-        // SPA Style Link Interceptor (Smooth Transition)
         document.addEventListener('click', e => {
             const a = e.target.closest('a');
             if (a && a.getAttribute('href')) {
                 const href = a.getAttribute('href');
-                // Internal link (relative or starts with index.html)
                 if (href.startsWith('?') || href.startsWith(window.location.pathname + '?') || href === window.location.pathname) {
                     e.preventDefault();
                     window.history.pushState({}, '', href);
@@ -155,7 +161,6 @@
         });
 
         window.addEventListener('popstate', loadMarkdown);
-
         loadMarkdown();
     </script>
 </body>
