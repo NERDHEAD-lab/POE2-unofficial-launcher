@@ -1,19 +1,15 @@
-import { spawn } from "node:child_process";
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { app, shell, dialog } from "electron";
 
+import { PowerShellManager } from "./powershell";
+import {
+  DAUM_STARTER_PROTOCOL_KEY as PROTOCOL_KEY,
+  getDaumGameStarterCommand,
+} from "./registry";
+
 // Registry Keys
-const PROTOCOL_KEY = join(
-  "HKCR",
-  "daumgamestarter",
-  "shell",
-  "open",
-  "command",
-);
-const BACKUP_KEY_PATH = join("HKCU", "Software", "DaumGames", "POE2", "Backup");
-const BACKUP_VALUE_NAME = "OriginalStarterCommand";
 const TASK_NAME = "SkipDaumGameStarterUAC";
 
 /**
@@ -32,76 +28,26 @@ function getWorkDirectory(): string {
 }
 
 /**
- * Executes a PowerShell command with Admin privileges (RunAs).
- */
-async function runPowerShellAsAdmin(psCommand: string): Promise<boolean> {
-  const encodedCommand = Buffer.from(psCommand, "utf16le").toString("base64");
-  const wrapper = `Start-Process powershell -Verb RunAs -ArgumentList "-EncodedCommand ${encodedCommand}" -WindowStyle Hidden -Wait`;
-
-  return new Promise((resolve) => {
-    const child = spawn("powershell", ["-Command", wrapper], {
-      windowsHide: true,
-    });
-
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolve(true);
-      } else {
-        console.error(`[UAC] PowerShell failed with code: ${code}`);
-        resolve(false);
-      }
-    });
-
-    child.on("error", (err) => {
-      console.error(`[UAC] PowerShell execution error: ${err.message}`);
-      resolve(false);
-    });
-  });
-}
-
-/**
- * Reads the current command from the registry.
- */
-function getCurrentCommand(): Promise<string | null> {
-  return new Promise((resolve) => {
-    const child = spawn("reg", ["query", PROTOCOL_KEY, "/ve"], {
-      windowsHide: true,
-    });
-    let output = "";
-
-    child.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-
-    child.on("close", (code) => {
-      if (code !== 0) {
-        resolve(null);
-        return;
-      }
-      const match = output.match(/REG_SZ\s+(.*)/);
-      if (match && match[1]) {
-        resolve(match[1].trim());
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
-
-/**
  * Checks if the bypass is currently applied.
  */
 export async function isUACBypassEnabled(): Promise<boolean> {
-  const cmd = await getCurrentCommand();
-  if (!cmd) return false;
-  return cmd.toLowerCase().includes("proxy.vbs");
+  const cmd = await getDaumGameStarterCommand();
+  if (!cmd) {
+    console.log("[UAC] Bypass check: No protocol command found.");
+    return false;
+  }
+  const isEnabled = cmd.toLowerCase().includes("proxy.vbs");
+  console.log(
+    `[UAC] Bypass check: ${isEnabled ? "ENABLED" : "DISABLED"} (Current: ${cmd})`,
+  );
+  return isEnabled;
 }
 
 /**
  * Enables the UAC Bypass (Task Scheduler Method).
  */
 export async function enableUACBypass(): Promise<boolean> {
-  const currentCmd = await getCurrentCommand();
+  const currentCmd = await getDaumGameStarterCommand();
   if (!currentCmd) {
     console.error("[UAC] Could not read DaumGameStarter protocol command.");
     return false;
@@ -202,39 +148,51 @@ shell.Run "schtasks /run /tn ""${TASK_NAME}""", 0, False
     return false;
   }
 
-  // 3. Backup Registry
-  await new Promise((resolve) => {
-    const args = [
-      "add",
-      BACKUP_KEY_PATH,
-      "/v",
-      BACKUP_VALUE_NAME,
-      "/t",
-      "REG_SZ",
-      "/d",
-      currentCmd,
-      "/f",
-    ];
-    const child = spawn("reg", args, { windowsHide: true });
-    child.on("close", resolve);
-  });
-
-  // 4. Create Task & Update Protocol (Requires Elevation)
+  // 3. Create Task & Update Registry (Requires Elevation)
   const schCommand = `schtasks /create /tn "${TASK_NAME}" /tr "wscript.exe '${runnerVbsPath}'" /sc ONCE /st 00:00 /rl HIGHEST /f`;
+
   const newCmd = `wscript.exe "${proxyVbsPath}" "%1"`;
-  const regPsScript = `Set-Item -Path "Registry::${PROTOCOL_KEY}" -Value '${newCmd}'`;
+  // Using the standardized helper for registry update
+  const regUpdateCommand = `Set-Item -Path "${PROTOCOL_KEY}" -Value '${newCmd}' -Force`;
 
   console.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
-  const combinedScript = `${schCommand}\nif ($?) { ${regPsScript} } else { exit 1 }`;
-  const result = await runPowerShellAsAdmin(combinedScript);
+  const combinedScript = `
+$ErrorActionPreference = "SilentlyContinue"
+try {
+    Write-Host "Creating Scheduled Task..."
+    & ${schCommand}
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { 
+        # schtasks can return 1 for "already exists" which is fine if we use /f, but let's be safe
+        # actually /f handles it.
+    }
 
-  if (result) {
+    Write-Host "Updating Registry..."
+    ${regUpdateCommand}
+    
+    Write-Host "SUCCESS_MARKER"
+} catch {
+    Write-Error "Failed to apply UAC bypass: $_"
+    exit 1
+}
+  `.trim();
+
+  const result = await PowerShellManager.getInstance().execute(
+    combinedScript,
+    true,
+  );
+  const success = result.code === 0 && result.stdout.includes("SUCCESS_MARKER");
+
+  if (success) {
     console.log("[UAC] Successfully applied bypass.");
   } else {
-    console.error("[UAC] Failed to apply bypass.");
+    console.error(
+      "[UAC] Failed to apply bypass. Output:",
+      result.stdout,
+      result.stderr,
+    );
   }
 
-  return result;
+  return success;
 }
 
 /**
@@ -256,18 +214,15 @@ export async function disableUACBypass(): Promise<boolean> {
     buttons: ["확인"],
   });
 
-  // We consider this "success" as we guided the user to the fix
-  console.log("[UAC] Guided user to reinstall DaumGameStarter.");
+  console.log(
+    "[UAC] Guided user to reinstall DaumGameStarter for restoration.",
+  );
 
-  // Cleanup local files only (Task remains until overwrite, but files are gone)
-  // Actually, we can try to clean up the task if possible, but the main goal is to stop using our proxy.
-  // Reinstaling the starter will overwrite the registry key anyway.
-
+  // Cleanup local files and scheduled task
   const workDir = getWorkDirectory();
   try {
     const taskDeleteScript = `schtasks /delete /tn "${TASK_NAME}" /f`;
-    // Try to delete the task silently (best effort)
-    runPowerShellAsAdmin(taskDeleteScript).catch(() => {});
+    await PowerShellManager.getInstance().execute(taskDeleteScript, true);
 
     ["proxy.vbs", "runner.vbs", "launch_args.txt", "uac_debug.log"].forEach(
       (f) => {

@@ -93,17 +93,16 @@
 
   > **참고**: 구현 예제 및 상세 가이드는 [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)를 참고하세요.
 
-#### ADR-005: Unified PowerShell Management (Singleton & IPC)
+#### ADR-005: Unified PowerShell & Registry Management (Standardization)
 
-- **상황**: `registry.ts`와 `process.ts` 등 여러 곳에서 개별적으로 PowerShell 프로세스를 `spawn`/`execFile`하여 사용함. 특히 관리자 권한이 필요한 작업마다 매번 새로운 UAC 팝업이 발생하여 사용자 경험을 저해함.
+- **상황**: `uac.ts`, `registry.ts` 등 여러 곳에서 개별적으로 PowerShell 프로세스(`spawn`) 및 `reg.exe`를 직접 호출함. 이로 인해 시스템 작업 로깅이 파편화되고, 관리자 권한 작업 시 중복된 UAC 팝업이 발생하는 등 유지보수와 UX 측면에서 개선이 필요함.
 - **결정**:
-  - **PowerShellManager Singleton**: 모든 PowerShell 요청을 중앙에서 관리하는 싱글톤 클래스를 도입함.
-  - **Persistent Admin Session**: 관리자 권한이 최초 필요할 때만 `Start-Process ... -Verb RunAs`로 프로세스를 띄우고, **Named Pipe**를 통해 메인 프로세스와 지속적으로 통신함.
-  - **IPC Protocol**: JSON 기반의 요청/응답 프로토콜을 사용하여 명령 실행 결과를 안정적으로 비동기 처리함.
+  - **PowerShellManager 일원화**: 모든 PowerShell 및 외부 시스템 명령 실행을 `PowerShellManager` 싱글톤으로 통합하여 실행 이력을 디버그 콘솔에서 실시간으로 확인할 수 있게 함.
+  - **Registry Utility 표준화**: `registry.ts`를 통해 레지스트리 경로와 조작 로직을 중앙 집중화하고, PowerShell 표준 명령어(`Get-ItemProperty`, `Set-ItemProperty`)를 사용하여 시스템 안정성을 높임.
+  - **Persistent Session**: 관리자 권한이 필요한 경우 **Named Pipe** 기반의 지속 세션을 활용하여 UAC 팝업 발생을 최소화함.
 - **결과**:
-  - **UX 개선**: 앱 실행 중 UAC 승인이 최대 1회로 제한됨.
-  - **리소스 효율**: 불필요한 프로세스 생성/종료 오버헤드 감소.
-  - **유지보수**: PowerShell 실행 옵션 및 에러 처리가 한곳으로 통합됨.
+  - **가시성 확보**: 런처 내부에서 일어나는 모든 시스템 레벨 작업이 통합 로깅되어 디버깅이 용이해짐.
+  - **신뢰성**: 직접적인 프로세스 호출 대신 검증된 유틸리티를 사용하여 런타임 오류 가능성을 낮춤.
 
 #### ADR-006: Enhanced Debug Console (Raw Config Editor)
 

@@ -33,8 +33,21 @@ const REGISTRY_MAP: Record<
   },
 };
 
-const DAUM_STARTER_PROTOCOL_KEY =
-  "HKCR:\\daumgamestarter\\shell\\open\\command";
+export const DAUM_STARTER_PROTOCOL_KEY =
+  "Registry::HKEY_CLASSES_ROOT\\daumgamestarter\\shell\\open\\command";
+
+/**
+ * Standardize registry paths to PowerShell Registry:: provider format
+ */
+const standardizeRegPath = (path: string): string => {
+  if (path.startsWith("HKCU:\\"))
+    return path.replace("HKCU:\\", "Registry::HKEY_CURRENT_USER\\");
+  if (path.startsWith("HKLM:\\"))
+    return path.replace("HKLM:\\", "Registry::HKEY_LOCAL_MACHINE\\");
+  if (path.startsWith("HKCR:\\"))
+    return path.replace("HKCR:\\", "Registry::HKEY_CLASSES_ROOT\\");
+  return path;
+};
 
 /**
  * Normalize installation path by removing trailing slashes and ensuring consistent separators
@@ -70,7 +83,14 @@ export const readRegistryValue = async (
   key: string,
 ): Promise<string | null> => {
   try {
-    const psCommand = `(Get-ItemProperty -Path "${regPath}" -Name "${key}" -ErrorAction Stop)."${key}"`;
+    const finalPath = standardizeRegPath(regPath);
+    // Safer retrieval: GetValue() for the key object
+    const psCommand = `
+      if (Test-Path "${finalPath}") {
+        (Get-Item -Path "${finalPath}").GetValue("${key}")
+      }
+    `.trim();
+
     const { stdout, code } = await runPowerShell(psCommand);
 
     if (code === 0 && stdout && stdout.trim()) {
@@ -92,17 +112,13 @@ export const writeRegistryValue = async (
   useAdmin: boolean = false,
 ): Promise<boolean> => {
   try {
-    // Ensure parent path exists (for HKCU/HKLM)
-    // const parts = regPath.split("\\");
-    // const hive = parts[0]; // e.g., HKCU:
-    // const subPath = parts.slice(1).join("\\");
-
+    const finalPath = standardizeRegPath(regPath);
     const psCommand = `
-      if (-not (Test-Path "${regPath}")) {
-        New-Item -Path "${regPath}" -Force | Out-Null
+      if (-not (Test-Path "${finalPath}")) {
+        New-Item -Path "${finalPath}" -Force | Out-Null
       }
-      Set-ItemProperty -Path "${regPath}" -Name "${key}" -Value "${value}" -Type String -Force
-    `;
+      Set-ItemProperty -Path "${finalPath}" -Name "${key}" -Value "${value}" -Type String -Force
+    `.trim();
 
     const { code } = await runPowerShell(psCommand, useAdmin);
     return code === 0;
@@ -130,9 +146,13 @@ export const getGameInstallPath = async (
  * Default key (empty string name) in HKCR
  */
 export const getDaumGameStarterCommand = async (): Promise<string | null> => {
-  // For the (Default) value, we use PS notation : (Get-Item -Path "...")."(default)"
-  // Or Get-ItemPropertyValue
-  const psCommand = `(Get-Item -Path "${DAUM_STARTER_PROTOCOL_KEY}" -ErrorAction Stop)."(default)"`;
+  const finalPath = standardizeRegPath(DAUM_STARTER_PROTOCOL_KEY);
+  // Most robust way to get (Default) value across all hives
+  const psCommand = `
+    if (Test-Path "${finalPath}") {
+      (Get-Item -Path "${finalPath}").GetValue("")
+    }
+  `.trim();
   const { stdout, code } = await runPowerShell(psCommand);
   return code === 0 && stdout ? stdout.trim() : null;
 };
@@ -143,13 +163,37 @@ export const getDaumGameStarterCommand = async (): Promise<string | null> => {
 export const setDaumGameStarterCommand = async (
   command: string,
 ): Promise<boolean> => {
-  // Setting the (Default) value
-  const psCommand = `Set-Item -Path "Registry::${DAUM_STARTER_PROTOCOL_KEY}" -Value "${command.replace(
-    /"/g,
-    '`"',
-  )}" -Force`;
-  const { code } = await runPowerShell(psCommand, true);
-  return code === 0;
+  // Try to write to both HKCU and HKLM to ensure override or machine-wide update
+  const psCommand = `
+    $ErrorActionPreference = "Stop"
+    $paths = @(
+      "Registry::HKEY_CURRENT_USER\\Software\\Classes\\daumgamestarter\\shell\\open\\command",
+      "Registry::HKEY_LOCAL_MACHINE\\Software\\Classes\\daumgamestarter\\shell\\open\\command"
+    )
+    $success = $false
+    foreach ($p in $paths) {
+      if (Test-Path $p) {
+        try {
+          Set-Item -Path $p -Value "${command}" -Force
+          $success = $true
+        } catch {
+          # Might fail due to permissions, continue to next path
+        }
+      }
+    }
+    
+    if (-not $success) {
+      # Fallback: create in HKCU as a user-level override
+      $p = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\daumgamestarter\\shell\\open\\command"
+      New-Item -Path $p -Force | Out-Null
+      Set-Item -Path $p -Value "${command}" -Force
+      $success = $true
+    }
+    
+    Write-Host "RESULT:$success"
+  `.trim();
+  const { stdout, code } = await runPowerShell(psCommand, true);
+  return code === 0 && stdout.includes("RESULT:True");
 };
 
 /**
