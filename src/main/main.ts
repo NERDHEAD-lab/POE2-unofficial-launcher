@@ -1073,6 +1073,34 @@ eventBus.register({
   },
 });
 
+// Register Toggler for Auxiliary DevTools (Detach/Close dynamically)
+eventBus.register({
+  id: "DevToolsTicker",
+  targetEvent: EventType.CONFIG_CHANGE,
+  handle: async (event: ConfigChangeEvent) => {
+    const { key, newValue } = event.payload;
+    if (key === "show_inactive_window_console") {
+      const show = newValue === true;
+      const allWindows = BrowserWindow.getAllWindows();
+
+      allWindows.forEach((win) => {
+        // Skip Main Window & Debug Console (they have their own logic or are always allowed)
+        if (win === mainWindow || win === debugWindow) return;
+
+        if (show) {
+          if (!win.webContents.isDevToolsOpened()) {
+            win.webContents.openDevTools({ mode: "detach" });
+          }
+        } else {
+          if (win.webContents.isDevToolsOpened()) {
+            win.webContents.closeDevTools();
+          }
+        }
+      });
+    }
+  },
+});
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
