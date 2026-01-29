@@ -230,13 +230,13 @@ try {
   const success = result.code === 0 && result.stdout.includes("SUCCESS_MARKER");
 
   if (success) {
-    console.log("[UAC] Successfully applied bypass.");
+    console.log("[UAC] Successfully applied bypass settings.");
   } else {
     console.error(
-      "[UAC] Failed to apply bypass. Output:",
-      result.stdout,
-      result.stderr,
+      "[UAC] Failed to apply bypass settings. Registry might not have been updated.",
     );
+    console.error("[UAC] PowerShell Logout STDOUT:", result.stdout);
+    console.error("[UAC] PowerShell Logout STDERR:", result.stderr);
   }
 
   return success;
