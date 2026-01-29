@@ -190,30 +190,33 @@ export class PowerShellManager {
         resolve(res);
       });
 
-      if (session.socket) {
+      if (session.socket && !session.socket.destroyed) {
         // Send as single line JSON
         const payload = JSON.stringify(request) + "\n";
         session.socket.write(payload, (err) => {
           if (err) {
             clearTimeout(timeout);
-            session.pendingRequests.delete(id);
-            const msg = `Socket Write Error: ${err.message}`;
-            this.emitLog(
-              isAdmin ? "process_admin" : "process_normal",
-              msg,
-              true,
-              this.getLogColors(isAdmin, true),
-            );
-            resolve({
-              stdout: "",
-              stderr: msg,
-              code: 1,
-            });
+            if (session.pendingRequests.has(id)) {
+              session.pendingRequests.delete(id);
+              const msg = `Socket Write Error: ${err.message}`;
+              this.emitLog(
+                isAdmin ? "process_admin" : "process_normal",
+                msg,
+                true,
+                this.getLogColors(isAdmin, true),
+              );
+              resolve({
+                stdout: "",
+                stderr: msg,
+                code: 1,
+              });
+            }
           }
         });
       } else {
         clearTimeout(timeout);
-        const msg = "Socket disconnected";
+        session.pendingRequests.delete(id);
+        const msg = "Socket disconnected or process died before request";
         this.emitLog(
           isAdmin ? "process_admin" : "process_normal",
           msg,
@@ -440,13 +443,16 @@ try {
       );
     });
 
-    if (isDev) {
-      child.on("exit", (code) => {
-        console.log(
-          `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
-        );
-      });
-    }
+    child.on("exit", (code) => {
+      console.log(
+        `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
+      );
+      this.failAllPendingRequests(
+        session,
+        isAdmin,
+        `Process exited with code ${code}`,
+      );
+    });
   }
 
   public cleanup() {
@@ -463,8 +469,26 @@ try {
       session.server.close();
       session.server = null;
     }
-    session.pendingRequests.clear();
-    // Process is usually detached or managed by helper.
-    // If it's a persistent shell, closing the socket (pipe logic) usually terminates the script loop.
+    this.failAllPendingRequests(session, false, "Session cleanup");
+  }
+
+  private failAllPendingRequests(
+    session: SessionState,
+    isAdmin: boolean,
+    reason: string,
+  ) {
+    if (session.pendingRequests.size > 0) {
+      console.warn(
+        `[PowerShellManager] Failing ${session.pendingRequests.size} requests: ${reason}`,
+      );
+      session.pendingRequests.forEach((callback) => {
+        callback({
+          stdout: "",
+          stderr: `Command cancelled: ${reason}`,
+          code: 1,
+        });
+      });
+      session.pendingRequests.clear();
+    }
   }
 }

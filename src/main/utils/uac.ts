@@ -1,4 +1,10 @@
-import { writeFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
+import {
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  unlinkSync,
+  mkdirSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import { app, shell, dialog } from "electron";
@@ -76,10 +82,39 @@ export async function enableUACBypass(): Promise<boolean> {
   const runnerVbsPath = join(workDir, "runner.vbs");
   const argsFilePath = join(workDir, "launch_args.txt");
   const debugLogPath = join(workDir, "uac_debug.log");
+  const backupFilePath = join(workDir, "original_command.txt");
 
-  const daumStarterForScript = extractExePath(currentCmd);
+  let daumStarterForScript: string | null = null;
+  const isCurrentlyBypassed = currentCmd.toLowerCase().includes("proxy.vbs");
+
+  // [New] Backup and Restore Strategy
+  if (!isCurrentlyBypassed) {
+    // Current is original: Save it
+    try {
+      // Use standard UTF-8 for backup file
+      writeFileSync(backupFilePath, currentCmd, "utf8");
+      console.log("[UAC] Backed up original command to:", backupFilePath);
+    } catch (e) {
+      console.error("[UAC] Failed to write backup file:", e);
+    }
+    daumStarterForScript = extractExePath(currentCmd);
+  } else {
+    // Already bypassed: Try to read from backup
+    if (existsSync(backupFilePath)) {
+      try {
+        const backupCmd = readFileSync(backupFilePath, "utf8");
+        console.log("[UAC] Using backed up command for extraction.");
+        daumStarterForScript = extractExePath(backupCmd);
+      } catch (e) {
+        console.error("[UAC] Failed to read backup file:", e);
+      }
+    }
+  }
+
   if (!daumStarterForScript) {
-    console.error(`[UAC] Could not extract valid exe path: ${currentCmd}`);
+    console.error(
+      `[UAC] Could not extract valid exe path from current or backup: ${currentCmd}`,
+    );
     return false;
   }
 
@@ -116,7 +151,7 @@ logStream.Close
 `;
 
   try {
-    writeFileSync(runnerVbsPath, runnerScriptContent, { encoding: "utf16le" });
+    writeFileSync(runnerVbsPath, runnerScriptContent);
   } catch (e: unknown) {
     const error = e as Error;
     console.error(`[UAC] Failed to create runner script: ${error.message}`);
@@ -150,42 +185,41 @@ logStream.WriteText Now & " [Proxy] Triggering Task: ${TASK_NAME}" & vbCrLf
 logStream.SaveToFile "${debugLogPath.replaceAll("\\", "\\\\")}", 2
 logStream.Close
 
-shell.Run "schtasks /run /tn ""${TASK_NAME}""", 0, False
+shell.Run "schtasks /run /tn """ & "${TASK_NAME}" & """", 0, False
 `;
 
   try {
-    writeFileSync(proxyVbsPath, proxyScriptContent, { encoding: "utf16le" });
+    writeFileSync(proxyVbsPath, proxyScriptContent);
   } catch (e: unknown) {
     const error = e as Error;
     console.error(`[UAC] Failed to create proxy script: ${error.message}`);
     return false;
   }
 
-  // 3. Create Task & Update Registry (Requires Elevation)
-  const schCommand = `schtasks /create /tn "${TASK_NAME}" /tr "wscript.exe '${runnerVbsPath}'" /sc ONCE /st 00:00 /rl HIGHEST /f`;
-
-  const newCmd = `wscript.exe "${proxyVbsPath}" "%1"`;
-  // Using the standardized helper for registry update
-  const regUpdateCommand = `Set-Item -Path "${PROTOCOL_KEY}" -Value '${newCmd}' -Force`;
-
   console.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
+  // [Fix] Use simpler PowerShell command structure.
+  // Avoid complex arrays in literals to reduce quoting errors.
   const combinedScript = `
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 try {
-    Write-Host "Creating Scheduled Task..."
-    & ${schCommand}
-    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { 
-        # schtasks can return 1 for "already exists" which is fine if we use /f, but let's be safe
-        # actually /f handles it.
-    }
-
-    Write-Host "Updating Registry..."
-    ${regUpdateCommand}
+    Write-Output "Creating Task..."
+    $runnerPath = '${runnerVbsPath.replaceAll("'", "''")}'
+    $tr = "wscript.exe \`"$runnerPath\`""
     
-    Write-Host "SUCCESS_MARKER"
+    # [Fix] schtasks might emit a warning about past start time, which Stop preference treats as error.
+    # We run it with SilentlyContinue for the specific command or catch it.
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    & schtasks.exe /create /tn "${TASK_NAME}" /tr $tr /sc ONCE /st 00:00 /rl HIGHEST /f 2>&1
+    $ErrorActionPreference = $oldPreference
+
+    Write-Output "Updating Registry..."
+    $val = 'wscript.exe "${proxyVbsPath.replaceAll("'", "''")}" "%1"'
+    Set-Item -Path "${PROTOCOL_KEY}" -Value $val -Force
+    
+    Write-Output "SUCCESS_MARKER"
 } catch {
-    Write-Error "Failed to apply UAC bypass: $_"
-    exit 1
+    Write-Output "ERROR_OCCURRED: $($_.Exception.Message)"
 }
   `.trim();
 
@@ -210,39 +244,105 @@ try {
 
 /**
  * Disables the UAC Bypass.
- * Instead of restoring registry, it guides user to reinstall DaumGameStarter.
+ * Restores the original registry key if backup exists.
  */
 export async function disableUACBypass(): Promise<boolean> {
-  // Open the Daum Game Starter download/repair page
-  await shell.openExternal(
-    "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
-  );
+  const workDir = getWorkDirectory();
+  const backupFilePath = join(workDir, "original_command.txt");
+  let restored = false;
 
-  await dialog.showMessageBox({
-    type: "info",
-    title: "Daum 게임 스타터 복구 필요",
-    message: "Daum 게임 스타터 설치 페이지가 열렸습니다.",
-    detail:
-      "UAC 우회 기능을 해제하려면, 열린 페이지에서 스타터를 수동으로 다운로드하여 설치(복구)해주세요.",
-    buttons: ["확인"],
-  });
+  // 1. Try to restore from backup
+  if (existsSync(backupFilePath)) {
+    try {
+      const originalCmd = readFileSync(backupFilePath, "utf8").trim();
 
-  console.log(
-    "[UAC] Guided user to reinstall DaumGameStarter for restoration.",
-  );
+      // [New] Check if the executable in the backup actually exists
+      const originalExe = extractExePath(originalCmd);
+      if (originalExe && existsSync(originalExe)) {
+        console.log("[UAC] Valid backup found. Restoring original command...");
+
+        // [Fix] More robust PowerShell quoting for registry value restoration
+        // We use a PowerShell variable to handle the string safely
+        const regUpdateCommand = `
+          $val = @"
+${originalCmd}
+"@
+          Set-Item -Path "${PROTOCOL_KEY}" -Value $val -Force
+          Write-Output "RESTORE_SUCCESS_MARKER"
+        `.trim();
+
+        const result = await PowerShellManager.getInstance().execute(
+          regUpdateCommand,
+          true,
+        );
+
+        if (
+          result.code === 0 &&
+          result.stdout.includes("RESTORE_SUCCESS_MARKER")
+        ) {
+          console.log("[UAC] Successfully restored original registry key.");
+          restored = true;
+
+          // Delete backup file ONLY after successful restoration
+          try {
+            if (existsSync(backupFilePath)) unlinkSync(backupFilePath);
+          } catch (e) {
+            console.warn(
+              "[UAC] Failed to delete backup file after restore:",
+              e,
+            );
+          }
+        }
+      } else {
+        console.warn(
+          "[UAC] Backup exists but target executable is missing or invalid:",
+          originalExe,
+        );
+      }
+    } catch (e) {
+      console.error("[UAC] Failed to restore from backup:", e);
+    }
+  }
+
+  if (!restored) {
+    // Case 1: Backup missing or target exe lost -> Must reinstall
+    console.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
+    await shell.openExternal(
+      "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
+    );
+
+    await dialog.showMessageBox({
+      type: "info",
+      title: "Daum 게임 스타터 복구 필요",
+      message: "UAC 우회 기능을 원복하는 중 문제가 발생했습니다.",
+      detail:
+        "열린 페이지에서 스타터를 수동으로 다운로드하여 설치(복구)해 주시거나, 재설치를 진행해 주세요.",
+      buttons: ["확인"],
+    });
+  } else {
+    await dialog.showMessageBox({
+      type: "info",
+      title: "UAC 우회 비활성화 완료",
+      message: "UAC 우회 기능이 비활성화되고 원본 설정으로 복구되었습니다.",
+      buttons: ["확인"],
+    });
+  }
 
   // Cleanup local files and scheduled task
-  const workDir = getWorkDirectory();
   try {
     const taskDeleteScript = `schtasks /delete /tn "${TASK_NAME}" /f`;
     await PowerShellManager.getInstance().execute(taskDeleteScript, true);
 
-    ["proxy.vbs", "runner.vbs", "launch_args.txt", "uac_debug.log"].forEach(
-      (f) => {
-        const p = join(workDir, f);
-        if (existsSync(p)) unlinkSync(p);
-      },
-    );
+    [
+      "proxy.vbs",
+      "runner.vbs",
+      "launch_args.txt",
+      "uac_debug.log",
+      // original_command.txt is handled above only on success
+    ].forEach((f) => {
+      const p = join(workDir, f);
+      if (existsSync(p)) unlinkSync(p);
+    });
     console.log("[UAC] Cleanup complete.");
   } catch (e: unknown) {
     const error = e as Error;
@@ -269,9 +369,17 @@ function extractExePath(cmd: string): string | null {
   }
 
   if (exePath && exePath !== "%1" && exePath.toLowerCase().endsWith(".exe")) {
+    // [Fix] Never extract wscript.exe as the target game starter!
+    // This happens when the bypass is already active and we try to re-enable/read the registry.
+    if (exePath.toLowerCase().includes("wscript.exe")) {
+      return null;
+    }
     return exePath;
   }
 
   const exeMatch = cmd.match(/([A-Z]:\\[^"]+\.exe)/i);
-  return exeMatch ? exeMatch[1] : null;
+  if (exeMatch && !exeMatch[1].toLowerCase().includes("wscript.exe")) {
+    return exeMatch[1];
+  }
+  return null;
 }
