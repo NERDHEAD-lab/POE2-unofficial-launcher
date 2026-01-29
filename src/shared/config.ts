@@ -32,6 +32,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "General",
     description: "창 닫기 버튼을 눌렀을 때의 동작을 설정합니다.",
   },
+  QUIT_ON_GAME_START: {
+    key: "quitOnGameStart",
+    name: "Quit on Game Start",
+    category: "General",
+    description: "게임 실행 시 런처를 자동으로 닫습니다 (닫기 설정을 따름).",
+  },
   AUTO_GAME_START_AFTER_FIX: {
     key: "autoGameStartAfterFix",
     name: "Auto Start Game after Fix",
@@ -98,6 +104,7 @@ export const CONFIG_KEYS = {
   AUTO_LAUNCH: CONFIG_METADATA.AUTO_LAUNCH.key,
   START_MINIMIZED: CONFIG_METADATA.START_MINIMIZED.key,
   CLOSE_ACTION: CONFIG_METADATA.CLOSE_ACTION.key,
+  QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -114,6 +121,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   autoLaunch: false,
   startMinimized: false,
   closeAction: "minimize",
+  quitOnGameStart: false,
 };
 
 export const DEBUG_APP_CONFIG = {

@@ -87,6 +87,14 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             },
           },
           {
+            id: "quitOnGameStart",
+            type: "switch",
+            label: "게임 실행 시 런처 닫기",
+            description:
+              "게임 실행 시 런처를 자동으로 닫습니다. (닫기 설정을 따름)",
+            icon: "exit_to_app",
+          },
+          {
             id: "startMinimized",
             type: "switch",
             label: "트레이로 최소화하여 실행",

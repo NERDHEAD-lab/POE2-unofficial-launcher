@@ -31,6 +31,7 @@ export interface AppConfig {
   autoLaunch: boolean;
   startMinimized: boolean;
   closeAction: "minimize" | "close";
+  quitOnGameStart: boolean;
 }
 
 // Granular Status Codes for granular UI feedback

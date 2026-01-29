@@ -142,6 +142,21 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
     if (strategy?.onStart) {
       await strategy.onStart(event, context);
     }
+
+    // [New] Close/Minimize launcher on game start if configured
+    const { quitOnGameStart } = (await context.store.get(
+      "config",
+    )) as AppConfig;
+    if (
+      quitOnGameStart &&
+      context.mainWindow &&
+      !context.mainWindow.isDestroyed()
+    ) {
+      console.log(
+        "[GameProcess] quitOnGameStart is enabled. Closing main window.",
+      );
+      context.mainWindow.close();
+    }
   },
 };
 
