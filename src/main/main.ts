@@ -100,6 +100,23 @@ let activeSessionContext: SessionContext | null = null;
 // Reliable mapping of window IDs to their game context
 const windowContextMap = new Map<number, SessionContext>();
 
+// --- Single Instance Lock ---
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  console.log("[Main] Another instance is already running. Quitting...");
+  app.quit();
+} else {
+  app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
+    console.log("[Main] Second instance detected. Focusing existing window...");
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // Debug Constants
 const FORCE_DEBUG = process.env.VITE_SHOW_GAME_WINDOW === "true";
 const DEBUG_KEYS = [
