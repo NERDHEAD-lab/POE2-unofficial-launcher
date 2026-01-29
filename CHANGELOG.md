@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.3...0.1.4) (2026-01-29)
+
+
+### Chores
+
+* 업데이트 기능 테스트 ([7c72ae8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/7c72ae87d1713672e3b5e86329a6c05368466776))
+
 ## [0.1.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.2...0.1.3) (2026-01-29)
 
 
