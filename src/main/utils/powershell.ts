@@ -232,12 +232,16 @@ export class PowerShellManager {
     session: SessionState,
     isAdmin: boolean,
   ): Promise<void> {
-    if (session.socket && session.server) {
-      if (session.process && session.process.exitCode === null) {
-        return Promise.resolve();
-      }
-      this.cleanupSession(session);
+    // [Fix] Prioritize socket connection over process exit code.
+    // For Admin sessions, the spawner process (launcher) exits immediately after Start-Process.
+    // We must keep the session as long as the socket is connected.
+    if (session.socket && !session.socket.destroyed && session.server) {
+      return Promise.resolve();
     }
+
+    // If socket is gone but process is somehow still "alive" without connection,
+    // or if everything is gone, we cleanup and start new.
+    this.cleanupSession(session);
 
     return new Promise((resolve, reject) => {
       try {
