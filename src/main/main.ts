@@ -509,6 +509,16 @@ function createWindows() {
     },
   );
 
+  // --- FINAL SECURITY: Block Passkey API requests ---
+  // This prevents the Kakao login page from even attempting to start the Passkey auth sequence.
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ["https://accounts.kakao.com/api/v2/passkey/*"] },
+    (details, callback) => {
+      console.log(`[Security] Blocked Passkey API request: ${details.url}`);
+      callback({ cancel: true });
+    },
+  );
+
   // FIX: Prevent forced fullscreen/maximize on monitor driver reset
   mainWindow.on("maximize", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
