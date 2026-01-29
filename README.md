@@ -1,12 +1,26 @@
-# POE Unofficial Launcher (Unofficial)
+<p align="center">
+  <img src="src/renderer/assets/layout/frame-top-center.gif" width="100%" />
+</p>
 
-![release](https://img.shields.io/github/v/release/NERDHEAD-lab/POE2-unofficial-launcher?include_prereleases&style=flat-square)
-![license](https://img.shields.io/github/license/NERDHEAD-lab/POE2-unofficial-launcher?style=flat-square)
-![downloads](https://img.shields.io/github/downloads/NERDHEAD-lab/POE2-unofficial-launcher/total?style=flat-square)
+<h1 align="center">POE Unofficial Launcher</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/NERDHEAD-lab/POE2-unofficial-launcher?include_prereleases&style=flat-square" />
+  <img src="https://img.shields.io/github/license/NERDHEAD-lab/POE2-unofficial-launcher?style=flat-square" />
+  <img src="https://img.shields.io/github/downloads/NERDHEAD-lab/POE2-unofficial-launcher/total?style=flat-square" />
+</p>
+
+<p align="center">
+  <a href="README.md"><b>EN</b></a> | <a href="docs/README_KR.md"><b>KR</b></a>
+</p>
 
 > **Disclaimer**: This is an **unofficial** launcher for **Path of Exile** & **Path of Exile 2**. It is not affiliated with Grinding Gear Games or Kakao Games. Use at your own risk.
 
 An Electron-based custom launcher designed to automate the launch process for **Path of Exile** and **Path of Exile 2** (Korean Server). It provides a streamlined experience by handling login, Designated PC checks, and intro modals automatically across both game gateways.
+
+<p align="center">
+  <img src="docs/PoE%20Unofficial%20Launcher%20preview.gif" width="100%" />
+</p>
 
 ## Key Features
 
@@ -68,3 +82,7 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 ## Repository
 
 [https://github.com/NERDHEAD-lab/POE2-unofficial-launcher](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher)
+
+<p align="center">
+  <img src="src/renderer/assets/layout/banner-bottom.png" width="100%" />
+</p>

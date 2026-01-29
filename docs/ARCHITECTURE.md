@@ -130,6 +130,33 @@
 - **결과**:
   - **사용자 경험 성숙도**: 복잡한 설정 간의 관계를 시각적으로 명확히 전달하며, 적용 시점(재시작)을 명시하여 혼란을 방지함.
 
+#### ADR-008: Robust UAC Bypass via Proxy VBS & Task Scheduler
+
+- **상황**: 게임 실행 파일을 직접 호출 시 관리자 권한 요청(UAC)이 매번 발생하여 자동화 흐름이 끊김. 이를 해결하기 위해 시스템 레지스트리를 수정하여 런처가 제어권을 가져와야 함.
+- **결정**:
+  - **Task Scheduler 활용**: `schtasks`를 이용해 관리자 권한으로 실행되는 작업을 등록하고, 일반 사용자 권한에서 이 작업을 호출하는 방식으로 UAC를 우회함.
+  - **Proxy VBS & Runner 구조**:
+    - `proxy.vbs`: 레지스트리 프로토콜 핸들러에 등록되어 `schtasks /run`을 호출하는 트리거 역할.
+    - `runner.vbs`: 실제 관리자 권한으로 실행되어 원본 게임 실행 파일을 실행하고 결과를 로그로 남기는 역할.
+  - **PowerShell 인자 최적화**: 경로 내 공백 및 인용 부호 문제를 해결하기 위해 PowerShell의 배열 인자 처리 방식(`$schArgs = @(...)`)과 이중 따옴표(`""`) 이스케이프 관례를 적용함.
+- **결과**: 사용자는 최초 한 번의 UAC 승인만으로 이후 모든 게임 실행 과정에서 추가 팝업 없이 자동 로그인 및 실행 기능을 누릴 수 있음.
+
+#### ADR-009: Single Instance Lock & Active Window Focus
+
+- **상황**: 사용자가 런처를 여러 번 실행할 경우 중복 프로세스가 생성되어 시스템 리소스를 낭비하고 설정 파일 충돌을 일으킬 수 있음.
+- **결정**:
+  - **Single Instance Lock**: 일렉트론의 `app.requestSingleInstanceLock()`을 사용하여 앱 시작 시 락을 체크하고, 획득 실패 시 즉시 종료함.
+  - **Second Instance Handling**: 두 번째 실행 시도가 감지되면 기존 인스턴스로 이벤트를 전달하고, 기존 창이 트레이에 있거나 최소화된 경우 복구(`restore`) 및 포커스(`focus`) 처리함.
+- **결과**: 앱의 유일성을 보장하고, 사용자가 앱을 다시 찾기 위해 트레이 아이콘을 뒤지는 수고를 덜어줌.
+
+#### ADR-010: Persistent PowerShell Session & Socket Monitoring
+
+- **상황**: 관리자 권한 작업마다 매번 새로운 PowerShell 프로세스를 띄우면 UAC 프롬프트가 반복되고 실행 지연이 발생함.
+- **결정**:
+  - **Persistent Session**: `PowerShellManager`를 통해 한 번 승인된 관리자 권한 PowerShell 세션을 백그라운드에서 유지함.
+  - **Socket-based Liveness**: 관리자 세션을 띄운 "런처" 프로세스가 실행 직후 종료되더라도, 실제 세션과 연결된 **IPC 소켓이 살아있다면 세션을 유지**하도록 `ensureSession` 로직을 개선함.
+- **결과**: 앱 실행 중 단 한 번의 UAC 승인으로 모든 관리자 권한 작업을 지연 없이 즉시 수행할 수 있게 됨.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
@@ -143,11 +170,12 @@
 
 이 프로젝트의 주요 기능 및 가이드는 다음 문서와 연결되어 있습니다.
 
-| 기능 영역 (Area)     | 관련 문서 (Document)                                                                                         | 비고 (Note)                             |
-| :------------------- | :----------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| **설정 구성**        | [Settings Config](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/settings-config.ts) | 실제 노출 항목 정의 및 상호작용 로직    |
-| **설정 사용 가이드** | [SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)                                                                     | 각 설정 타입별 코드 예제 및 가이드      |
-| **설정 인터페이스**  | [Settings Logic](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/types.ts)            | `SettingItem` 등 핵심 타입 정의         |
-| **이벤트 시스템**    | [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)                                                             | ADR-004 관련 상세 가이드                |
-| **빌드 및 릴리즈**   | [README.md](../README.md)                                                                                    | 설치 및 빌드 환경 변수 설명             |
-| **UAC 우회**         | [uac.ts](../src/main/utils/uac.ts)                                                                           | 시스템 레지스트리 및 작업 스케줄러 로직 |
+| 기능 영역 (Area)        | 관련 문서 (Document)                                                                                         | 비고 (Note)                             |
+| :---------------------- | :----------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| **설정 구성**           | [Settings Config](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/settings-config.ts) | 실제 노출 항목 정의 및 상호작용 로직    |
+| **설정 사용 가이드**    | [SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)                                                                     | 각 설정 타입별 코드 예제 및 가이드      |
+| **설정 인터페이스**     | [Settings Logic](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/types.ts)            | `SettingItem` 등 핵심 타입 정의         |
+| **이벤트 시스템**       | [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)                                                             | ADR-004 관련 상세 가이드                |
+| **빌드 및 릴리즈 (EN)** | [README.md](../README.md)                                                                                    | 설치 및 빌드 환경 변수 설명             |
+| **빌드 및 릴리즈 (KR)** | [README_KR.md](./README_KR.md)                                                                               | 설치 및 빌드 (한국어 버전)              |
+| **UAC 우회**            | [uac.ts](../src/main/utils/uac.ts)                                                                           | 시스템 레지스트리 및 작업 스케줄러 로직 |
