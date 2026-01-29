@@ -537,6 +537,9 @@ handlers.forEach((handler) => {
   eventBus.register(handler as EventHandler<AppEvent>);
 });
 
+// Track app quitting state to bypass "hide-on-close" behavior
+let isQuitting = false;
+
 // Global Context
 let appContext: AppContext;
 
@@ -573,6 +576,20 @@ function createWindows() {
         console.log("[Main] Starting hidden (minimized to tray).");
       }
     }
+  });
+
+  // Handle Close Action
+  mainWindow.on("close", (e) => {
+    if (!isQuitting) {
+      const config = getConfig() as AppConfig;
+      if (config.closeAction === "minimize") {
+        e.preventDefault();
+        mainWindow?.hide();
+        console.log("[Main] Window hidden due to 'minimize' closeAction.");
+        return;
+      }
+    }
+    console.log("[Main] Window closing (quitting).");
   });
 
   // Initialize Tray
@@ -1191,6 +1208,10 @@ eventBus.register({
       });
     }
   },
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
 });
 
 app.on("window-all-closed", () => {

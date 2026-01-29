@@ -30,6 +30,7 @@ export interface AppConfig {
   backupPatchFiles: boolean;
   autoLaunch: boolean;
   startMinimized: boolean;
+  closeAction: "minimize" | "close";
 }
 
 // Granular Status Codes for granular UI feedback

@@ -26,6 +26,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "General",
     description: "자동 실행 시 트레이로 최소화하여 시작합니다.",
   },
+  CLOSE_ACTION: {
+    key: "closeAction",
+    name: "Close Action",
+    category: "General",
+    description: "창 닫기 버튼을 눌렀을 때의 동작을 설정합니다.",
+  },
   AUTO_GAME_START_AFTER_FIX: {
     key: "autoGameStartAfterFix",
     name: "Auto Start Game after Fix",
@@ -104,6 +110,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   show_inactive_window_console: false,
   autoLaunch: false,
   startMinimized: false,
+  closeAction: "minimize",
 };
 
 export const DEBUG_APP_CONFIG = {

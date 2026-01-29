@@ -70,8 +70,8 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     icon: "settings",
     sections: [
       {
-        id: "gen_startup",
-        title: "시작 설정",
+        id: "gen_launcher",
+        title: "런쳐 설정",
         items: [
           {
             id: "autoLaunch",
@@ -95,16 +95,10 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "autoLaunch",
             icon: "visibility_off",
           },
-        ],
-      },
-      {
-        id: "gen_action",
-        items: [
           {
-            id: "close_action",
+            id: "closeAction",
             type: "radio",
             label: "닫기 설정",
-            defaultValue: "minimize",
             options: [
               { label: "트레이로 최소화", value: "minimize" },
               { label: "게임 런처 닫기", value: "close" },
