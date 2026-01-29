@@ -4,14 +4,21 @@ import imgUacTooltip from "../assets/settings/uac-tooltip.png";
 
 const initBackupButton = async (
   {
-    setValue,
+    setValue: _setValue,
     setDescription,
-  }: { setValue: (v: boolean) => void; setDescription: (d: string) => void },
+    setDisabled: _setDisabled,
+    setVisible,
+  }: {
+    setValue: (v: SettingValue) => void;
+    setDescription: (d: string) => void;
+    setDisabled: (v: boolean) => void;
+    setVisible: (v: boolean) => void;
+  },
   service: "Kakao Games" | "GGG",
   game: "POE1" | "POE2",
 ) => {
   if (!window.electronAPI?.checkBackupAvailability) {
-    setValue(false);
+    setVisible(false);
     return;
   }
 
@@ -21,11 +28,11 @@ const initBackupButton = async (
   );
 
   if (!result) {
-    setValue(false);
+    setVisible(false);
     return;
   }
 
-  setValue(true);
+  setVisible(true);
 
   if (typeof result === "object" && "timestamp" in result) {
     const meta = result as BackupMetadata;
@@ -42,10 +49,13 @@ const initBackupButton = async (
 const initDevSetting = async ({
   setValue,
   setDisabled,
+  setDescription: _setDescription,
+  setVisible: _setVisible,
 }: {
   setValue: (v: SettingValue) => void;
   setDescription: (d: string) => void;
   setDisabled: (v: boolean) => void;
+  setVisible: (v: boolean) => void;
 }) => {
   if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
     setValue(true);

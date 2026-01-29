@@ -362,7 +362,13 @@
   cursor: not-allowed;
 }
 
+.setting-item.is-hidden {
+  display: none !important;
+}
+
 /* --- Radio Group Visual (for Select) --- */
+/* Now handled by generic stacked logic below */
+
 .select-control-group {
   display: flex;
   flex-direction: column;

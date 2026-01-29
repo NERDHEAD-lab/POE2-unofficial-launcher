@@ -44,6 +44,7 @@ export interface BaseSettingItem {
     setValue: (value: SettingValue) => void;
     setDescription: (description: string) => void;
     setDisabled: (disabled: boolean) => void;
+    setVisible: (visible: boolean) => void;
   }) => Promise<void>;
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;

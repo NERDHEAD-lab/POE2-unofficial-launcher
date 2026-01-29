@@ -31,14 +31,24 @@ interface Props {
 const SettingItemRenderer: React.FC<{
   item: SettingItem;
   initialValue: SettingValue | undefined;
+  config: Record<string, SettingValue>; // [New] Pass config for dependsOn check
   onRestartRequired: () => void;
   onShowToast: (msg: string) => void;
-}> = ({ item, initialValue, onRestartRequired, onShowToast }) => {
+  onValueChange: (id: string, value: SettingValue) => void; // [New] Real-time state local sync
+}> = ({
+  item,
+  initialValue,
+  config,
+  onRestartRequired,
+  onShowToast,
+  onValueChange,
+}) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
   const [description, setDescription] = useState<string | undefined>(
     item.description,
   );
   const [disabled, setDisabled] = useState<boolean>(!!item.disabled);
+  const [isVisible, setIsVisible] = useState<boolean>(true);
 
   // Tooltip State
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
@@ -68,6 +78,9 @@ const SettingItemRenderer: React.FC<{
           setDisabled: (newDisabled) => {
             if (mounted) setDisabled(newDisabled);
           },
+          setVisible: (newVisible) => {
+            if (mounted) setIsVisible(newVisible);
+          },
         })
         .catch((err) => {
           console.error(`[Settings] Failed to init setting ${item.id}:`, err);
@@ -78,8 +91,12 @@ const SettingItemRenderer: React.FC<{
     };
   }, [item]);
 
+  const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
+  const isFinalVisible = isVisible && isDependentVisible;
+
   const handleChange = async (newValue: SettingValue) => {
     setVal(newValue); // Optimistic update
+    onValueChange(item.id, newValue); // [New] Sync locally immediately for dependsOn items
 
     // Persist to Store
     if (window.electronAPI) {
@@ -196,7 +213,9 @@ const SettingItemRenderer: React.FC<{
     <div
       className={`setting-item type-${item.type} ${
         isExpanded ? "is-expanded" : ""
-      } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""}`}
+      } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""} ${
+        !isFinalVisible ? "is-hidden" : ""
+      }`}
       onClick={() => {
         if (isExpandable) setIsExpanded(!isExpanded);
       }}
@@ -299,6 +318,10 @@ export const SettingsContent: React.FC<Props> = ({
     }
   }, [category]);
 
+  const handleUpdateConfig = (id: string, value: SettingValue) => {
+    setConfig((prev) => ({ ...prev, [id]: value }));
+  };
+
   const handleRestartNotice = () => {
     setRestartRequired(true);
     onRestartRequired();
@@ -320,19 +343,8 @@ export const SettingsContent: React.FC<Props> = ({
             )}
 
             {section.items.map((item) => {
-              // Priority Dependency Check
-              if (item.dependsOn) {
-                const parentVal = config[item.dependsOn];
-                // [Refactor] No more hardcoded FORCE_DEBUG check here.
-                // If a setting is forced enabled in dev:test, it should be handled via onInit in dummy-config.
-                if (parentVal !== true) return null;
-              }
-
-              // Visibility check for buttons (if configured to hide when value is false)
-              // This can be used for availability checks (restore buttons)
-              if (item.type === "button" && config[item.id] === false) {
-                return null;
-              }
+              // Priority Dependency Check - Now handled in SettingItemRenderer for better reactivity
+              // and to maintain component state even when hidden.
 
               // Resolve value for prop (falls back to default if not in config yet)
               const defaultVal =
@@ -347,9 +359,11 @@ export const SettingsContent: React.FC<Props> = ({
                 <SettingItemRenderer
                   key={item.id}
                   item={item}
+                  config={config}
                   initialValue={currentValue}
                   onRestartRequired={handleRestartNotice}
                   onShowToast={onShowToast}
+                  onValueChange={handleUpdateConfig}
                 />
               );
             })}
