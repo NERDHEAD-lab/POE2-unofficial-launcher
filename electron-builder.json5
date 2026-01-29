@@ -19,5 +19,6 @@
     provider: "github",
     owner: "NERDHEAD-lab",
     repo: "POE2-unofficial-launcher",
+    releaseType: "release",
   },
 }
