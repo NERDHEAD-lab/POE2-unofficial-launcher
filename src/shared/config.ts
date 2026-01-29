@@ -14,6 +14,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "게임을 실행할 서비스 플랫폼 (Kakao Games 또는 GGG)을 설정합니다.",
   },
+  AUTO_LAUNCH: {
+    key: "autoLaunch",
+    name: "Auto Launch",
+    category: "General",
+    description: "컴퓨터 시작 시 앱을 자동으로 실행합니다.",
+  },
   AUTO_GAME_START_AFTER_FIX: {
     key: "autoGameStartAfterFix",
     name: "Auto Start Game after Fix",
@@ -90,6 +96,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   debug_console: false,
   show_inactive_windows: false,
   show_inactive_window_console: false,
+  autoLaunch: false,
 };
 
 export const DEBUG_APP_CONFIG = {

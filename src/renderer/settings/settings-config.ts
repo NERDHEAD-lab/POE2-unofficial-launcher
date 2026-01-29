@@ -74,11 +74,10 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "시작 설정",
         items: [
           {
-            id: "run_startup",
+            id: "autoLaunch",
             type: "switch",
             label: "컴퓨터 시작 시 자동 실행",
             description: "컴퓨터 시작 시 게임 런처를 자동으로 실행합니다.",
-            defaultValue: false,
             icon: "power_settings_new",
 
             onChangeListener: (val, { showToast }) => {

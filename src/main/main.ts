@@ -9,6 +9,7 @@ import JSZip from "jszip";
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
+import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
 import {
   LogSessionHandler,
   LogWebRootHandler,
@@ -482,6 +483,7 @@ const handlers = [
   LogErrorHandler,
   AutoPatchProcessStopHandler,
   PatchProgressHandler, // Added
+  AutoLaunchHandler, // Added
 ];
 
 // --- Patch IPC ---
@@ -627,6 +629,27 @@ function createWindows() {
     );
   };
   initInstallCheck();
+
+  // Sync Auto Launch Status
+  if (!app.isPackaged) {
+    console.log(
+      "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
+    );
+  } else if (initialConfig.autoLaunch) {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      path: app.getPath("exe"),
+    });
+  } else {
+    // Ensure it's disabled if config says so (handle external changes)
+    const loginSettings = app.getLoginItemSettings();
+    if (loginSettings.openAtLogin) {
+      app.setLoginItemSettings({
+        openAtLogin: false,
+        path: app.getPath("exe"),
+      });
+    }
+  }
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
