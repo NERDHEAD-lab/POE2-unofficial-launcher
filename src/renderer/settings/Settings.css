@@ -366,6 +366,14 @@
   display: none !important;
 }
 
+/* Dependent Item Styling */
+.setting-item.is-dependent {
+  margin-left: 24px;
+  position: relative;
+  border-left: 2px solid #444;
+  background: #202020; /* Slightly darker to signify nested */
+}
+
 /* --- Radio Group Visual (for Select) --- */
 /* Now handled by generic stacked logic below */
 

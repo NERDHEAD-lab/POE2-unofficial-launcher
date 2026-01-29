@@ -86,6 +86,15 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               );
             },
           },
+          {
+            id: "startMinimized",
+            type: "switch",
+            label: "트레이로 최소화하여 실행",
+            description:
+              "자동 실행 시 창을 띄우지 않고 트레이 아이콘으로 시작합니다.",
+            dependsOn: "autoLaunch",
+            icon: "visibility_off",
+          },
         ],
       },
       {

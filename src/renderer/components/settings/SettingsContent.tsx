@@ -256,7 +256,7 @@ const SettingItemRenderer: React.FC<{
         isExpanded ? "is-expanded" : ""
       } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""} ${
         !isFinalVisible ? "is-hidden" : ""
-      }`}
+      } ${item.dependsOn ? "is-dependent" : ""}`}
       onClick={() => {
         if (isExpandable) setIsExpanded(!isExpanded);
       }}

@@ -29,6 +29,7 @@ export interface AppConfig {
   autoGameStartAfterFix: boolean;
   backupPatchFiles: boolean;
   autoLaunch: boolean;
+  startMinimized: boolean;
 }
 
 // Granular Status Codes for granular UI feedback

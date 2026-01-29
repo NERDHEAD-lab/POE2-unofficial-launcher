@@ -9,6 +9,7 @@ import JSZip from "jszip";
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
+import { isUserFacingPage } from "../shared/visibility";
 import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
 import {
   LogSessionHandler,
@@ -47,6 +48,7 @@ import {
   UIUpdateDownloadEvent,
   UIUpdateInstallEvent,
 } from "./events/types";
+import { trayManager } from "./managers/TrayManager"; // Added
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
@@ -64,7 +66,6 @@ import {
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
-import { isUserFacingPage } from "../shared/visibility";
 
 // --- Global State for Interruption Handling ---
 let currentSystemStatus: RunStatus = "idle";
@@ -564,9 +565,18 @@ function createWindows() {
   // Reveal window when ready-to-show
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
+      // Check for --hidden arg (Start Minimized)
+      const startHidden = process.argv.includes("--hidden");
+      if (!startHidden) {
+        mainWindow.show();
+      } else {
+        console.log("[Main] Starting hidden (minimized to tray).");
+      }
     }
   });
+
+  // Initialize Tray
+  trayManager.init(mainWindow);
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
   // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
@@ -636,9 +646,11 @@ function createWindows() {
       "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
     );
   } else if (initialConfig.autoLaunch) {
+    const shouldStartMinimized = initialConfig.startMinimized === true;
     app.setLoginItemSettings({
       openAtLogin: true,
       path: app.getPath("exe"),
+      args: shouldStartMinimized ? ["--hidden"] : [],
     });
   } else {
     // Ensure it's disabled if config says so (handle external changes)

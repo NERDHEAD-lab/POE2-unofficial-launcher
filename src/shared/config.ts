@@ -20,6 +20,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "General",
     description: "컴퓨터 시작 시 앱을 자동으로 실행합니다.",
   },
+  START_MINIMIZED: {
+    key: "startMinimized",
+    name: "Start Minimized",
+    category: "General",
+    description: "자동 실행 시 트레이로 최소화하여 시작합니다.",
+  },
   AUTO_GAME_START_AFTER_FIX: {
     key: "autoGameStartAfterFix",
     name: "Auto Start Game after Fix",
@@ -97,6 +103,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   show_inactive_windows: false,
   show_inactive_window_console: false,
   autoLaunch: false,
+  startMinimized: false,
 };
 
 export const DEBUG_APP_CONFIG = {
