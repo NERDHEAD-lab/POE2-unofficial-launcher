@@ -359,10 +359,36 @@ export const SettingsContent: React.FC<Props> = ({
     }
   }, [category]);
 
-  // Confirmation Modal State
   const [confirmProps, setConfirmProps] = useState<ConfirmModalProps | null>(
     null,
   );
+
+  // [New] Dependency-aware sorting logic for SettingItems
+  const sortSettingItemsByDependency = (items: SettingItem[]) => {
+    const sorted: SettingItem[] = [];
+    const visited = new Set<string>();
+
+    const visit = (item: SettingItem) => {
+      if (visited.has(item.id)) return;
+      visited.add(item.id);
+      sorted.push(item);
+
+      // Find and recursively visit children
+      const children = items.filter((m) => m.dependsOn === item.id);
+      children.forEach(visit);
+    };
+
+    // 1. Process items without dependencies (roots)
+    const roots = items.filter((m) => !m.dependsOn);
+    roots.forEach(visit);
+
+    // 2. Process any remaining items (security catch-all)
+    items.forEach((item) => {
+      if (!visited.has(item.id)) visit(item);
+    });
+
+    return sorted;
+  };
 
   const handleUpdateConfig = (id: string, value: SettingValue) => {
     setConfig((prev) => ({ ...prev, [id]: value }));
@@ -388,33 +414,35 @@ export const SettingsContent: React.FC<Props> = ({
               <div className="section-title">{section.title}</div>
             )}
 
-            {section.items.map((item) => {
-              // Priority Dependency Check - Now handled in SettingItemRenderer for better reactivity
-              // and to maintain component state even when hidden.
+            {sortSettingItemsByDependency(section.items as SettingItem[]).map(
+              (item) => {
+                // Priority Dependency Check - Now handled in SettingItemRenderer for better reactivity
+                // and to maintain component state even when hidden.
 
-              // Resolve value for prop (falls back to default if not in config yet)
-              const defaultVal =
-                "defaultValue" in item
-                  ? item.defaultValue
-                  : "value" in item
-                    ? item.value
-                    : undefined;
-              const currentValue = config[item.id] ?? defaultVal;
+                // Resolve value for prop (falls back to default if not in config yet)
+                const defaultVal =
+                  "defaultValue" in item
+                    ? item.defaultValue
+                    : "value" in item
+                      ? item.value
+                      : undefined;
+                const currentValue = config[item.id] ?? defaultVal;
 
-              return (
-                <SettingItemRenderer
-                  key={item.id}
-                  item={item}
-                  config={config}
-                  initialValue={currentValue}
-                  onRestartRequired={handleRestartNotice}
-                  onShowToast={onShowToast}
-                  onValueChange={handleUpdateConfig}
-                  onShowConfirm={(props) => setConfirmProps(props)}
-                  onHideConfirm={() => setConfirmProps(null)}
-                />
-              );
-            })}
+                return (
+                  <SettingItemRenderer
+                    key={item.id}
+                    item={item}
+                    config={config}
+                    initialValue={currentValue}
+                    onRestartRequired={handleRestartNotice}
+                    onShowToast={onShowToast}
+                    onValueChange={handleUpdateConfig}
+                    onShowConfirm={(props) => setConfirmProps(props)}
+                    onHideConfirm={() => setConfirmProps(null)}
+                  />
+                );
+              },
+            )}
           </div>
         ))}
       </div>
