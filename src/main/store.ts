@@ -14,7 +14,7 @@ const store = new Store<AppConfig>({
  */
 export function setupStoreObservers(context: AppContext) {
   Object.values(CONFIG_KEYS).forEach((key) => {
-    store.onDidChange(key as string as keyof AppConfig, (newValue) => {
+    store.onDidChange(key as any, (newValue) => {
       // Broadcast to all active windows in the context
       const windows = [
         context.mainWindow,

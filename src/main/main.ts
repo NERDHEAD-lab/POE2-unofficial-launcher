@@ -592,6 +592,43 @@ function createWindows() {
     console.log("[Main] Window closing (quitting).");
   });
 
+  // Visibility Synchronization
+  const syncSubWindowsVisibility = (visible: boolean) => {
+    const isDebugMode = getEffectiveConfig("dev_mode") === true;
+    const showDebugConsole = getEffectiveConfig("debug_console") === true;
+    const showInactiveWindows =
+      getEffectiveConfig("show_inactive_windows") === true;
+
+    // 1. Manage Debug Window
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      if (visible && isDebugMode && showDebugConsole) {
+        debugWindow.show();
+      } else {
+        debugWindow.hide();
+      }
+    }
+
+    // 2. Manage other subordinate windows (Popups, Inactive Game Windows)
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (win === mainWindow || win === debugWindow) return;
+      if (win.isDestroyed()) return;
+
+      if (visible) {
+        // Restore based on policy
+        const url = win.webContents.getURL();
+        const isUserFacing = isUserFacingPage(url);
+        const shouldShow = (isDebugMode && showInactiveWindows) || isUserFacing;
+        if (shouldShow) win.show();
+      } else {
+        // Always hide when main window is hidden (Minimize to tray)
+        win.hide();
+      }
+    });
+  };
+
+  mainWindow.on("show", () => syncSubWindowsVisibility(true));
+  mainWindow.on("hide", () => syncSubWindowsVisibility(false));
+
   // Initialize Tray
   trayManager.init(mainWindow);
 
