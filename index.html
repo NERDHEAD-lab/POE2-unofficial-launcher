@@ -47,27 +47,61 @@
                 const docsParam = params.get('docs');
                 const isRelative = !/^https?:\/\//i.test(href);
                 if (isRelative) {
-                    if (docsParam) {
-                        href = RAW_BASE + "docs/" + href.replace(/^\.\//, "");
+                    // Normalize path: handle ../ or ./
+                    let cleanHref = href.replace(/^\.\//, "");
+                    if (docsParam && !href.startsWith("../")) {
+                        href = RAW_BASE + "docs/" + cleanHref;
                     } else {
-                        href = RAW_BASE + href.replace(/^\.\//, "");
+                        href = RAW_BASE + cleanHref.replace(/^\.\.\//, "");
                     }
                 }
-                const out = `<img src="${href}" alt="${text}"${title ? ` title="${title}"` : ""} style="max-width: 100%;">`;
-                return out;
+                return `<img src="${href}" alt="${text}"${title ? ` title="${title}"` : ""} style="max-width: 100%;">`;
+            },
+            link({ href, title, text }) {
+                const isRelative = !/^https?:\/\//i.test(href);
+                if (isRelative && href.toLowerCase().endsWith('.md')) {
+                    let newHref = window.location.pathname;
+                    if (href === '../README.md' || href === 'README.md') {
+                        // Keep root (README)
+                    } else {
+                        const cleanPath = href.replace(/^docs\//, "");
+                        newHref += "?docs=" + cleanPath;
+                    }
+                    return `<a href="${newHref}"${title ? ` title="${title}"` : ""}>${text}</a>`;
+                }
+                // external link
+                return `<a href="${href}"${title ? ` title="${title}"` : ""}${/^https?:\/\//i.test(href) ? ' target="_blank"' : ""}>${text}</a>`;
             }
         };
 
-        const originalImage = renderer.image;
         renderer.html = function ({ text }) {
-            return text.replace(/<img [^>]*src=["']([^"']+)["'][^>]*>/gi, (match, src) => {
+            // Handle relative images in raw HTML
+            text = text.replace(/<img [^>]*src=["']([^"']+)["'][^>]*>/gi, (match, src) => {
                 const isRelative = !/^https?:\/\//i.test(src);
                 if (isRelative) {
-                    const newSrc = RAW_BASE + src.replace(/^\.\//, "");
+                    const params = new URLSearchParams(window.location.search);
+                    const docsParam = params.get('docs');
+                    const newSrc = RAW_BASE + (docsParam ? "docs/" : "") + src.replace(/^\.\//, "");
                     return match.replace(src, newSrc).replace(/style=["'][^"']*["']/, 'style="max-width: 100%;"');
                 }
                 return match;
             });
+            // Handle relative links in raw HTML (for language switchers)
+            text = text.replace(/<a [^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
+                const isRelative = !/^https?:\/\//i.test(href);
+                if (isRelative && href.toLowerCase().endsWith('.md')) {
+                    let newHref = window.location.pathname;
+                    if (href === '../README.md' || href === 'README.md') {
+                        // root
+                    } else {
+                        const cleanPath = href.replace(/^docs\//, "");
+                        newHref += "?docs=" + cleanPath;
+                    }
+                    return match.replace(href, newHref);
+                }
+                return match;
+            });
+            return text;
         };
 
         marked.use({ renderer });
@@ -95,6 +129,8 @@
                 document.getElementById("content").innerHTML = marked.parse(text, {
                     breaks: true
                 });
+                // Scroll to top
+                window.scrollTo(0, 0);
             } catch (error) {
                 console.error("Error loading markdown:", error);
                 document.getElementById("content").innerHTML =
@@ -103,6 +139,22 @@
                      <p>${error.message}</p>`;
             }
         }
+
+        // SPA Style Link Interceptor (Smooth Transition)
+        document.addEventListener('click', e => {
+            const a = e.target.closest('a');
+            if (a && a.getAttribute('href')) {
+                const href = a.getAttribute('href');
+                // Internal link (relative or starts with index.html)
+                if (href.startsWith('?') || href.startsWith(window.location.pathname + '?') || href === window.location.pathname) {
+                    e.preventDefault();
+                    window.history.pushState({}, '', href);
+                    loadMarkdown();
+                }
+            }
+        });
+
+        window.addEventListener('popstate', loadMarkdown);
 
         loadMarkdown();
     </script>
