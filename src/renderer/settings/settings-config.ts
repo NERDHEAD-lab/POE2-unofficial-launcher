@@ -406,8 +406,12 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "text",
             label: "오픈소스 라이선스",
             value:
-              "MIT License - Copyright (c) 2026 NERDHEAD.\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files...",
+              "GNU Affero General Public License v3.0 (AGPL-3.0)\n본 프로그램은 모든 사용자에게 소스 코드 열람, 수정 및 배포의 자유를 보장하는 강력한 카피레프트(Copyleft) 라이선스를 따릅니다. 수정된 버전을 배포하거나 활용할 경우, 동일한 조건으로 소스 코드를 공개해야 합니다.",
             isExpandable: true,
+            externalLink: {
+              label: "전체 라이선스 보기 (Full License)",
+              url: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/master/LICENSE",
+            },
             icon: "description",
           },
         ],

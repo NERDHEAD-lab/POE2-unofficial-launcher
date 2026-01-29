@@ -170,6 +170,11 @@ export interface SettingText extends BaseSettingItem {
   value: string;
   /** 내용이 길 경우 확장 가능하게 표시할지 여부 */
   isExpandable?: boolean;
+  /** 외부 링크 정보 (옵션) */
+  externalLink?: {
+    label: string;
+    url: string;
+  };
 }
 
 /**
