@@ -59,6 +59,13 @@ import {
 } from "./utils/uac";
 import { isUserFacingPage } from "../shared/visibility";
 
+// --- Global State for Interruption Handling ---
+let currentSystemStatus: RunStatus = "idle";
+let currentActiveContext: {
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+} | null = null;
+
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -361,7 +368,7 @@ const handleWindowOpen = ({ url }: { url: string }) => {
   const shouldShowAtInit = isDebugEnv || showInactive;
 
   // Always Allow creation + Always Inject Preload (for automation)
-  return {
+  const result = {
     action: "allow",
     overrideBrowserWindowOptions: {
       width: 800,
@@ -375,6 +382,8 @@ const handleWindowOpen = ({ url }: { url: string }) => {
       },
     },
   } as const;
+
+  return result;
 };
 
 // 2. Initialize Shared Context
@@ -402,6 +411,7 @@ const context: AppContext = {
 
       // Handle closing
       gameWindow.on("closed", () => {
+        resetGameStatusIfInterrupted(gameWindow!);
         gameWindow = null;
         context.gameWindow = null;
       });
@@ -409,6 +419,39 @@ const context: AppContext = {
     return gameWindow!;
   },
 };
+
+/**
+ * [NEW] Resets the game status back to 'idle' if a critical window is closed
+ * while the system is still in an intermediate automation state.
+ */
+function resetGameStatusIfInterrupted(win: BrowserWindow) {
+  // Only interrupt if we are in a middle-state that requires a window/session
+  const interruptibleStates: RunStatus[] = [
+    "preparing",
+    "processing",
+    "authenticating",
+  ];
+
+  if (interruptibleStates.includes(currentSystemStatus)) {
+    console.log(
+      `[Main] Critical window closed during ${currentSystemStatus}. Resetting to idle.`,
+    );
+
+    // Default to POE2/Kakao if context is missing for some reason
+    const gameId = currentActiveContext?.gameId || "POE2";
+    const serviceId = currentActiveContext?.serviceId || "Kakao Games";
+
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      appContext,
+      {
+        gameId,
+        serviceId,
+        status: "idle",
+      },
+    );
+  }
+}
 
 // 3. Register Global Store Observers
 setupStoreObservers(context);
@@ -1021,6 +1064,7 @@ app.on("browser-window-created", (_, window) => {
 
   // Cleanup mapping when window is destroyed
   window.on("closed", () => {
+    resetGameStatusIfInterrupted(window);
     windowContextMap.delete(wcId);
   });
 });
@@ -1031,6 +1075,9 @@ eventBus.register({
   targetEvent: EventType.GAME_STATUS_CHANGE,
   handle: async (event: GameStatusChangeEvent) => {
     const { status, gameId, serviceId } = event.payload;
+    // Sync with global tracker for interruption handling
+    currentSystemStatus = status;
+
     // If we are prepared to launch or already launching, update active context
     if (
       status === "preparing" ||
@@ -1038,6 +1085,7 @@ eventBus.register({
       status === "authenticating"
     ) {
       activeSessionContext = { gameId, serviceId };
+      currentActiveContext = { gameId, serviceId };
     }
   },
 });
