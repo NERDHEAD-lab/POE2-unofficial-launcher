@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.6...0.1.7) (2026-01-29)
+
+
+### Bug Fixes
+
+* 빌드 오류 수정 ([6423e9c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/6423e9ccca39a271f9890def1c6dc9330c5f8af3))
+
 ## [0.1.6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.5...0.1.6) (2026-01-29)
 
 
