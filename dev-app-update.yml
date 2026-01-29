@@ -1,0 +1,4 @@
+provider: github
+owner: NERDHEAD-lab
+repo: POE2-unofficial-launcher
+updaterCacheDirName: poe2-unofficial-launcher-updater

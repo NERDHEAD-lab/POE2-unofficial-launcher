@@ -197,7 +197,7 @@ function App() {
 
   const handleUpdateClick = () => {
     // Open external link to releases or trigger auto-update
-    window.electronAPI.openExternal(SUPPORT_URLS.GITHUB_REPO + "/releases"); //TODO FIX
+    window.electronAPI.downloadUpdate();
     setIsUpdateModalOpen(false);
   };
 

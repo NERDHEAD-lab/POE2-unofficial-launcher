@@ -128,6 +128,8 @@ export interface ElectronAPI {
   onNewsUpdated: (callback: () => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>; // Manually trigger check
+  downloadUpdate: () => void; // Trigger download
+  installUpdate: () => void; // Trigger install & restart
   onUpdateStatusChange: (
     callback: (status: UpdateStatus) => void,
   ) => () => void;
@@ -149,7 +151,7 @@ export type UpdateStatus =
   | { state: "not-available" }
   | { state: "error"; message?: string }
   | { state: "downloading"; progress: number }
-  | { state: "downloaded" };
+  | { state: "downloaded"; version: string };
 
 export interface NewsItem {
   id: string; // Thread ID or unique hash

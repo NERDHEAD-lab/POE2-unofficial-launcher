@@ -1,5 +1,5 @@
+import { AppConfig } from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
-import { AppConfig } from "../../shared/types";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
@@ -142,8 +142,9 @@ export async function triggerPendingManualPatches(context: AppContext) {
           webRoot,
           backupWebRoot,
         })
-        .catch((err) => {
-          emitLog(context, `[AutoPatch] Patch execution failed: ${err}`, true);
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          emitLog(context, `[AutoPatch] Patch execution failed: ${msg}`, true);
         });
     } else {
       emitLog(

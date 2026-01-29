@@ -11,6 +11,8 @@ import {
 export enum EventType {
   UI_GAME_START_CLICK = "UI:GAME_START_CLICK",
   UI_UPDATE_CHECK = "UI:UPDATE_CHECK",
+  UI_UPDATE_DOWNLOAD = "UI:UPDATE_DOWNLOAD",
+  UI_UPDATE_INSTALL = "UI:UPDATE_INSTALL",
   CONFIG_CHANGE = "CONFIG:CHANGE",
   PROCESS_START = "PROCESS:START",
   PROCESS_STOP = "PROCESS:STOP",
@@ -115,6 +117,18 @@ export interface UIUpdateCheckEvent {
   timestamp?: number;
 }
 
+export interface UIUpdateDownloadEvent {
+  type: EventType.UI_UPDATE_DOWNLOAD;
+  payload?: void;
+  timestamp?: number;
+}
+
+export interface UIUpdateInstallEvent {
+  type: EventType.UI_UPDATE_INSTALL;
+  payload?: void;
+  timestamp?: number;
+}
+
 // 4. Message Event (Legacy - to be phased out or kept for generic msgs)
 export interface MessageEvent {
   type: EventType.MESSAGE_GAME_PROGRESS_INFO;
@@ -174,6 +188,8 @@ export type AppEvent =
   | ProcessEvent
   | UIEvent
   | UIUpdateCheckEvent
+  | UIUpdateDownloadEvent
+  | UIUpdateInstallEvent
   | MessageEvent
   | GameStatusChangeEvent
   | DebugLogEvent

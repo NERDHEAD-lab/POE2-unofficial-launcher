@@ -12,7 +12,7 @@ export const ButtonItem: React.FC<Props> = ({ item, onClick }) => {
     <div className="setting-control">
       <button
         className={`setting-btn ${item.variant || "default"}`}
-        onClick={() => onClick(item.actionId)}
+        onClick={() => onClick(item.actionId || "")}
         disabled={item.disabled}
       >
         {item.buttonText}

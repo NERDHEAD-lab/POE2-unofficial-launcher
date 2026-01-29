@@ -30,7 +30,11 @@ import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
-import { UpdateHandler } from "./events/handlers/UpdateHandler";
+import {
+  UpdateCheckHandler,
+  UpdateDownloadHandler,
+  UpdateInstallHandler,
+} from "./events/handlers/UpdateHandler";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -39,6 +43,8 @@ import {
   EventHandler,
   AppEvent,
   UIUpdateCheckEvent,
+  UIUpdateDownloadEvent,
+  UIUpdateInstallEvent,
 } from "./events/types";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
@@ -468,7 +474,9 @@ const handlers = [
   GameProcessStopHandler,
   GameInstallCheckHandler,
   SystemWakeUpHandler,
-  UpdateHandler,
+  UpdateCheckHandler,
+  UpdateDownloadHandler,
+  UpdateInstallHandler,
   LogSessionHandler,
   LogWebRootHandler,
   LogErrorHandler,
@@ -496,6 +504,26 @@ ipcMain.on("ui:update-check", () => {
   if (appContext) {
     eventBus.emit<UIUpdateCheckEvent>(
       EventType.UI_UPDATE_CHECK,
+      appContext,
+      undefined,
+    );
+  }
+});
+
+ipcMain.on("ui:update-download", () => {
+  if (appContext) {
+    eventBus.emit<UIUpdateDownloadEvent>(
+      EventType.UI_UPDATE_DOWNLOAD,
+      appContext,
+      undefined,
+    );
+  }
+});
+
+ipcMain.on("ui:update-install", () => {
+  if (appContext) {
+    eventBus.emit<UIUpdateInstallEvent>(
+      EventType.UI_UPDATE_INSTALL,
       appContext,
       undefined,
     );
