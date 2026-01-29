@@ -94,3 +94,36 @@
     opacity: 1;
   }
 }
+
+.update-progress-container {
+  width: 100%;
+  background: #333;
+  border-radius: 10px;
+  height: 8px;
+  margin: 20px 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.update-progress-bar {
+  height: 100%;
+  background: var(--theme-accent, #af944f);
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--theme-accent, #af944f);
+}
+
+.update-progress-text {
+  color: var(--theme-accent, #af944f);
+  font-size: 12px;
+  font-weight: bold;
+  margin-top: -10px;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.btn-update-primary.disabled {
+  background: #555;
+  color: #888;
+  cursor: not-allowed;
+  transform: none;
+}

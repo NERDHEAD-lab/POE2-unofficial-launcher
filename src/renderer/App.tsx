@@ -15,6 +15,7 @@ import {
   RunStatus,
   NewsItem,
   PatchProgress,
+  UpdateStatus,
 } from "../shared/types";
 import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
 import { PatchFixModal } from "./components/modals/PatchFixModal";
@@ -80,10 +81,9 @@ function App() {
 
   // [NEW] Update State
   // [NEW] Update State (Using object for richer metadata)
-  const [updateState, setUpdateState] = useState<{
-    state: "idle" | "checking" | "available" | "downloaded";
-    version?: string;
-  }>({ state: "idle" });
+  const [updateState, setUpdateState] = useState<UpdateStatus>({
+    state: "idle",
+  });
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
@@ -184,12 +184,10 @@ function App() {
       // Listen for update status
       const unsubscribe = window.electronAPI.onUpdateStatusChange((status) => {
         console.log("[App] Update status:", status);
-        if (status.state === "available") {
-          setUpdateState({ state: "available", version: status.version });
-          // Only auto-open if NOT a silent background check
-          if (!status.isSilent) {
-            setIsUpdateModalOpen(true);
-          }
+        setUpdateState(status);
+
+        if (status.state === "available" && !status.isSilent) {
+          setIsUpdateModalOpen(true);
         }
       });
 
@@ -201,9 +199,12 @@ function App() {
   }, []);
 
   const handleUpdateClick = () => {
-    // Open external link to releases or trigger auto-update
     window.electronAPI.downloadUpdate();
-    setIsUpdateModalOpen(false);
+    // Modal stays open to show progress
+  };
+
+  const handleInstallClick = () => {
+    window.electronAPI.installUpdate();
   };
 
   const handleUpdateDismiss = () => {
@@ -546,8 +547,17 @@ function App() {
 
       <UpdateModal
         isOpen={isUpdateModalOpen}
-        version={updateState.version || ""}
+        version={
+          (updateState.state === "available" ||
+            updateState.state === "downloaded" ||
+            updateState.state === "downloading") &&
+          "version" in updateState
+            ? updateState.version || ""
+            : ""
+        }
+        status={updateState}
         onUpdate={handleUpdateClick}
+        onInstall={handleInstallClick}
         onClose={handleUpdateDismiss}
       />
 
