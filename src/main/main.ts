@@ -42,6 +42,7 @@ import {
 } from "./events/types";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
+import { PatchManager } from "./services/PatchManager";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
@@ -50,6 +51,7 @@ import {
   default as store,
 } from "./store";
 import { PowerShellManager } from "./utils/powershell";
+import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
   isUACBypassEnabled,
   enableUACBypass,
@@ -538,7 +540,7 @@ function createWindows() {
 
   // Perform initial installation check
   const initialConfig = getConfig() as AppConfig;
-  import("./utils/registry").then(async ({ isGameInstalled }) => {
+  const initInstallCheck = async () => {
     const installed = await isGameInstalled(
       initialConfig.serviceChannel,
       initialConfig.activeGame,
@@ -552,7 +554,8 @@ function createWindows() {
         status: installed ? "idle" : "uninstalled",
       },
     );
-  });
+  };
+  initInstallCheck();
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
@@ -783,8 +786,6 @@ ipcMain.on(
     serviceIdOverride?: AppConfig["serviceChannel"],
     gameIdOverride?: AppConfig["activeGame"],
   ) => {
-    const { PatchManager } = await import("./services/PatchManager");
-
     // Cancel previous instance if running?
     if (activeManualPatchManager) {
       try {
@@ -799,9 +800,7 @@ ipcMain.on(
     const serviceId =
       serviceIdOverride || appContext.store.get("serviceChannel");
     const activeGame = gameIdOverride || appContext.store.get("activeGame");
-    const installPath = await import("./utils/registry").then((m) =>
-      m.getGameInstallPath(serviceId, activeGame),
-    );
+    const installPath = await getGameInstallPath(serviceId, activeGame);
 
     console.log(
       `[Main] Triggering Manual Patch Fix for ${serviceId} / ${activeGame}`,
@@ -836,7 +835,6 @@ ipcMain.handle(
     gameId: AppConfig["activeGame"],
   ) => {
     try {
-      const { getGameInstallPath } = await import("./utils/registry");
       const installPath = await getGameInstallPath(serviceId, gameId);
 
       if (!installPath) return false;
