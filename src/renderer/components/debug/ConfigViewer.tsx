@@ -3,6 +3,7 @@ import React from "react";
 import { CONFIG_METADATA } from "../../../shared/config";
 import {
   AppConfig,
+  CONFIG_CATEGORIES,
   ConfigCategory,
   ConfigDefinition,
 } from "../../../shared/types";
@@ -220,7 +221,7 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
     );
   };
 
-  const categories: ConfigCategory[] = ["General", "Game", "Appearance"];
+  const categories = CONFIG_CATEGORIES;
   const metadataItems = Object.values(CONFIG_METADATA) as ConfigDefinition[];
   const knownKeys = new Set(metadataItems.map((m) => m.key));
   const allConfigKeys = Object.keys(currentConfig);
@@ -235,7 +236,7 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
         backgroundColor: "#1e1e1e",
       }}
     >
-      {categories.map((cat) => {
+      {categories.map((cat: ConfigCategory) => {
         const items = metadataItems.filter((m) => m.category === cat);
         if (items.length === 0) return null;
         return (

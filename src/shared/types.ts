@@ -1,9 +1,12 @@
-export type ConfigCategory =
-  | "General"
-  | "Game"
-  | "Appearance"
-  | "Patch"
-  | "Debug";
+export const CONFIG_CATEGORIES = [
+  "General",
+  "Game",
+  "Appearance",
+  "Patch",
+  "Debug",
+] as const;
+
+export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
 
 export interface ConfigDefinition {
   key: string;
@@ -25,6 +28,7 @@ export interface AppConfig {
   autoFixPatchError: boolean;
   autoGameStartAfterFix: boolean;
   backupPatchFiles: boolean;
+  autoLaunch: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
