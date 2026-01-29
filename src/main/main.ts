@@ -762,6 +762,17 @@ function createWindows() {
   mainWindow.on("focus", () => {
     console.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
+
+    // [Fix] Automatically restore window size if it was stretched by OS/Resolution changes
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const [width, height] = mainWindow.getSize();
+      if (width !== 1440 || height !== 960) {
+        console.log(
+          `[Main] Resolution divergence detected (${width}x${height}). Restoring to 1440x960.`,
+        );
+        mainWindow.setSize(1440, 960);
+      }
+    }
   });
 
   // 2. Game Window (Lazy Init - Do NOT create here)
