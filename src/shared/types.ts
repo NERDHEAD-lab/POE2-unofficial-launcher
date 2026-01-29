@@ -154,12 +154,12 @@ export interface ElectronAPI {
 
 export type UpdateStatus =
   | { state: "idle" }
-  | { state: "checking" }
-  | { state: "available"; version: string }
-  | { state: "not-available" }
-  | { state: "error"; message?: string }
-  | { state: "downloading"; progress: number }
-  | { state: "downloaded"; version: string };
+  | { state: "checking"; isSilent?: boolean }
+  | { state: "available"; version: string; isSilent?: boolean }
+  | { state: "not-available"; isSilent?: boolean }
+  | { state: "error"; message?: string; isSilent?: boolean }
+  | { state: "downloading"; progress: number; isSilent?: boolean }
+  | { state: "downloaded"; version: string; isSilent?: boolean };
 
 export interface NewsItem {
   id: string; // Thread ID or unique hash

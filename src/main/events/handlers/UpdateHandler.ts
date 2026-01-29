@@ -17,49 +17,78 @@ autoUpdater.autoInstallOnAppQuit = true;
 
 // Prevent duplicate listeners
 let isListenerAttached = false;
+let currentCheckIsSilent = false;
+
+const sendStatus = (context: AppContext, status: UpdateStatus) => {
+  const win = context.mainWindow;
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("update-status-change", {
+      ...status,
+      isSilent: currentCheckIsSilent,
+    });
+  }
+};
 
 const attachUpdateListeners = (context: AppContext) => {
   if (isListenerAttached) return;
 
-  const sendStatus = (status: UpdateStatus) => {
-    const win = context.mainWindow;
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("update-status-change", status);
-    }
-  };
-
   autoUpdater.on("checking-for-update", () => {
     console.log("[UpdateHandler] Checking for updates...");
-    sendStatus({ state: "checking" });
+    sendStatus(context, { state: "checking" });
   });
 
   autoUpdater.on("update-available", (info) => {
-    console.log(`[UpdateHandler] Update available: ${info.version}`);
-    sendStatus({ state: "available", version: info.version });
+    console.log(
+      `[UpdateHandler] Update available: ${info.version} (Silent: ${currentCheckIsSilent})`,
+    );
+    sendStatus(context, { state: "available", version: info.version });
   });
 
   autoUpdater.on("update-not-available", () => {
     console.log("[UpdateHandler] Update not available.");
-    sendStatus({ state: "idle" }); // or 'not-available' if UI supports it
+    sendStatus(context, { state: "idle" });
   });
 
   autoUpdater.on("error", (err) => {
     console.error("[UpdateHandler] Update error:", err);
-    sendStatus({ state: "idle" }); // Reset to idle on error
+    sendStatus(context, { state: "idle" });
   });
 
-  autoUpdater.on("download-progress", (_progressObj) => {
-    // console.log(`[UpdateHandler] Progress: ${progressObj.percent}%`);
-    // UI doesn't currently support progress bar, but we can send checking/downloading state
-    // sendStatus({ state: "downloading" ... });
+  autoUpdater.on("download-progress", (progressObj) => {
+    sendStatus(context, {
+      state: "downloading",
+      progress: progressObj.percent,
+    });
   });
 
   autoUpdater.on("update-downloaded", (info) => {
     console.log(`[UpdateHandler] Update downloaded: ${info.version}`);
-    sendStatus({ state: "downloaded", version: info.version });
+    sendStatus(context, { state: "downloaded", version: info.version });
   });
 
   isListenerAttached = true;
+};
+
+/**
+ * [NEW] Starts a periodic update check in the background.
+ * Periodic checks are always 'silent' (don't show popup).
+ */
+export const startUpdateCheckInterval = (context: AppContext) => {
+  const ONE_HOUR = 1000 * 60 * 60;
+  const UPDATE_INTERVAL = ONE_HOUR * 4; // Check every 4 hours
+
+  console.log("[UpdateHandler] Initializing background update scheduler.");
+
+  setInterval(async () => {
+    console.log("[UpdateHandler] Background update check triggered.");
+    currentCheckIsSilent = true; // Background checks are silent
+    attachUpdateListeners(context);
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (e) {
+      console.error("[UpdateHandler] Background check failed:", e);
+    }
+  }, UPDATE_INTERVAL);
 };
 
 /**
@@ -72,13 +101,8 @@ export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
   condition: () => true,
 
   handle: async (_event, context: AppContext) => {
+    currentCheckIsSilent = false; // Manual/Startup trigger is NOT silent
     attachUpdateListeners(context);
-
-    // Skip check if dev environment (unless configured otherwise)
-    // if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
-    //   console.log("[UpdateHandler] Skipping update check in Dev mode.");
-    //   return;
-    // }
 
     try {
       await autoUpdater.checkForUpdates();
@@ -99,6 +123,7 @@ export const UpdateDownloadHandler: EventHandler<UIUpdateDownloadEvent> = {
 
   handle: async (_event, context: AppContext) => {
     console.log("[UpdateHandler] Requesting download...");
+    currentCheckIsSilent = false; // Downloading is usually explicit
     attachUpdateListeners(context);
     await autoUpdater.downloadUpdate();
   },

@@ -36,6 +36,7 @@ import {
   UpdateCheckHandler,
   UpdateDownloadHandler,
   UpdateInstallHandler,
+  startUpdateCheckInterval,
 } from "./events/handlers/UpdateHandler";
 import {
   AppContext,
@@ -737,6 +738,9 @@ function createWindows() {
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
   eventBus.setContext(appContext);
+
+  // [NEW] Start Background Update Scheduler
+  startUpdateCheckInterval(appContext);
 
   // Initialize and Start Process Watcher
   const processWatcher = new ProcessWatcher(appContext);

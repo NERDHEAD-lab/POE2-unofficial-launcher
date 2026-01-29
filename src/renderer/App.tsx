@@ -186,7 +186,10 @@ function App() {
         console.log("[App] Update status:", status);
         if (status.state === "available") {
           setUpdateState({ state: "available", version: status.version });
-          setIsUpdateModalOpen(true); // Auto-open modal on detection
+          // Only auto-open if NOT a silent background check
+          if (!status.isSilent) {
+            setIsUpdateModalOpen(true);
+          }
         }
       });
 
