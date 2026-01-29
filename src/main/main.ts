@@ -1319,6 +1319,7 @@ app.whenReady().then(async () => {
       console.error("[Main] Failed to perform cleanup during uninstall:", e);
     }
     app.quit();
+    app.exit(0); // [Fix] Ensure immediate exit to prevent file locking
     return;
   }
 
