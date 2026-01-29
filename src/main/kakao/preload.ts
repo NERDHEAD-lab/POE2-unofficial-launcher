@@ -18,6 +18,31 @@ interface PageHandler {
   execute: () => Promise<void> | void;
 }
 
+interface VisibilityRule {
+  name: string;
+  /** Condition to identify user-facing windows (No debug border) */
+  match: (url: URL) => boolean;
+}
+
+// --- Visibility Policies (Debug Border Exceptions) ---
+
+/**
+ * List of rules defining pages that are naturally visible to the user
+ * (i.e., windows that show even when "Show Inactive Windows" is OFF).
+ */
+const VISIBILITY_RULES: VisibilityRule[] = [
+  {
+    name: "KakaoAccountLogin",
+    match: (url) =>
+      url.hostname === "accounts.kakao.com" &&
+      !url.pathname.includes("/login/simple"),
+  },
+];
+
+function isUserFacingPage(url: URL): boolean {
+  return VISIBILITY_RULES.some((rule) => rule.match(url));
+}
+
 // --- DOM Selectors ---
 
 const SELECTORS = {
@@ -468,7 +493,15 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
 
 window.addEventListener("DOMContentLoaded", () => {
   console.log("[Game Window] DOMContentLoaded");
-  document.body.style.border = "2px solid #ff00ff"; // Visual Debug (Purple)
+
+  const currentUrl = new URL(window.location.href);
+
+  // If the page is NOT a standard user-facing page (according to main.ts policy),
+  // show a debug border to indicate it's a "background/automated" window.
+  if (!isUserFacingPage(currentUrl)) {
+    document.body.style.border = "2px solid #ff00ff"; // Visual Debug (Purple)
+  }
+
   dispatchPageLogic();
 });
 
