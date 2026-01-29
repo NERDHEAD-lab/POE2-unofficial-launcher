@@ -37,15 +37,20 @@ const attachUpdateListeners = (context: AppContext) => {
     sendStatus(context, { state: "checking" });
   });
 
+  let lastVersionInfo = "";
+
   autoUpdater.on("update-available", (info) => {
+    lastVersionInfo = info.version; // Store version for progress updates
     console.log(
-      `[UpdateHandler] Update available: ${info.version} (Silent: ${currentCheckIsSilent})`,
+      `[UpdateHandler] Update available: ${info.version} (Current: ${app.getVersion()}, Silent: ${currentCheckIsSilent})`,
     );
     sendStatus(context, { state: "available", version: info.version });
   });
 
-  autoUpdater.on("update-not-available", () => {
-    console.log("[UpdateHandler] Update not available.");
+  autoUpdater.on("update-not-available", (info) => {
+    console.log(
+      `[UpdateHandler] Update not available. (Current: ${app.getVersion()}, Latest: ${info.version})`,
+    );
     sendStatus(context, { state: "idle" });
   });
 
@@ -58,6 +63,7 @@ const attachUpdateListeners = (context: AppContext) => {
     sendStatus(context, {
       state: "downloading",
       progress: progressObj.percent,
+      version: lastVersionInfo, // [Fix] Include version during download
     });
   });
 
@@ -147,6 +153,6 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
       );
       return;
     }
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true); // [Fix] Enforce Silent Install (isSilent: true)
   },
 };

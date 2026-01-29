@@ -158,7 +158,12 @@ export type UpdateStatus =
   | { state: "available"; version: string; isSilent?: boolean }
   | { state: "not-available"; isSilent?: boolean }
   | { state: "error"; message?: string; isSilent?: boolean }
-  | { state: "downloading"; progress: number; isSilent?: boolean }
+  | {
+      state: "downloading";
+      progress: number;
+      version?: string;
+      isSilent?: boolean;
+    }
   | { state: "downloaded"; version: string; isSilent?: boolean };
 
 export interface NewsItem {
