@@ -15,4 +15,9 @@
     icon: "build/icon.ico",
     target: "nsis",
   },
+  publish: {
+    provider: "github",
+    owner: "NERDHEAD-lab",
+    repo: "POE2-unofficial-launcher",
+  },
 }
