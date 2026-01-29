@@ -40,7 +40,7 @@ export const FORUM_URLS: Record<AppConfig["serviceChannel"], string> = {
 // 4. Support & External Links
 export const SUPPORT_URLS = {
   DONATION:
-    "https://nerdhead-lab.github.io/POE2-quick-launch-for-kakao?docs=SUPPORT.md",
-  ISSUES: "https://github.com/NERDHEAD-lab/POE2-quick-launch-for-kakao/issues",
+    "https://nerdhead-lab.github.io/POE2-unofficial-launcher?docs=SUPPORT.md",
+  ISSUES: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues",
   GITHUB_REPO: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher",
 };

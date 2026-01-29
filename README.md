@@ -83,6 +83,10 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 
 [https://github.com/NERDHEAD-lab/POE2-unofficial-launcher](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher)
 
+## Support
+
+If you find this project helpful, please consider supporting the developer. [More Info](./docs/SUPPORT.md)
+
 <p align="center">
   <img src="src/renderer/assets/layout/banner-bottom.png" width="100%" />
 </p>

@@ -36,6 +36,10 @@ const SupportLinks: React.FC = () => {
         style={linkStyle}
         onMouseEnter={hoverStyle}
         onMouseLeave={leaveStyle}
+        onClick={(e) => {
+          e.preventDefault();
+          window.electronAPI.openExternal(SUPPORT_URLS.DONATION);
+        }}
       >
         <span
           className="material-symbols-outlined"
@@ -52,6 +56,10 @@ const SupportLinks: React.FC = () => {
         style={linkStyle}
         onMouseEnter={hoverStyle}
         onMouseLeave={leaveStyle}
+        onClick={(e) => {
+          e.preventDefault();
+          window.electronAPI.openExternal(SUPPORT_URLS.ISSUES);
+        }}
       >
         <span
           className="material-symbols-outlined"

@@ -83,6 +83,10 @@ npm run build
 
 [https://github.com/NERDHEAD-lab/POE2-unofficial-launcher](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher)
 
+## 후원하기
+
+이 프로젝트가 도움이 되었다면 개발자를 후원해주세요! [상세 정보](./SUPPORT_KR.md)
+
 <p align="center">
   <img src="../src/renderer/assets/layout/banner-bottom.png" width="100%" />
 </p>

@@ -179,3 +179,4 @@
 | **빌드 및 릴리즈 (EN)** | [README.md](../README.md)                                                                                    | 설치 및 빌드 환경 변수 설명             |
 | **빌드 및 릴리즈 (KR)** | [README_KR.md](./README_KR.md)                                                                               | 설치 및 빌드 (한국어 버전)              |
 | **UAC 우회**            | [uac.ts](../src/main/utils/uac.ts)                                                                           | 시스템 레지스트리 및 작업 스케줄러 로직 |
+| **후원하기 (EN/KR)**    | [SUPPORT.md](./SUPPORT.md) / [SUPPORT_KR.md](./SUPPORT_KR.md)                                                | 개발자 후원 방법 및 커뮤니티 안내       |
