@@ -1,0 +1,357 @@
+.onboarding-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20000;
+  backdrop-filter: blur(8px);
+  animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-modal-content {
+  background: #161616;
+  width: 500px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  border: 1px solid #333;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Header */
+.onboarding-header {
+  padding: 24px 28px;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid #222;
+}
+
+.onboarding-header .icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(223, 207, 153, 0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.onboarding-header .icon span {
+  font-size: 32px;
+  color: var(--theme-accent, #dfcf99);
+}
+
+.header-text h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--theme-text, #eee);
+  letter-spacing: -0.5px;
+}
+
+.step-indicator {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* Body */
+.onboarding-body {
+  padding: 28px;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-content {
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Step 1 Styles */
+.notice-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--theme-accent, #dfcf99);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notice-section p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #bbb;
+}
+
+.sub-text {
+  font-size: 12px !important;
+  color: #777 !important;
+  margin-top: 4px !important;
+}
+
+.notice-section.highlight {
+  background: rgba(250, 82, 82, 0.05);
+  border: 1px dashed rgba(250, 82, 82, 0.3);
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+
+.notice-section.highlight h3 {
+  color: #fa5252;
+}
+
+.notice-section.highlight p {
+  color: #eee;
+}
+
+/* Step 2 Styles (UAC) */
+.uac-explanation p {
+  margin: 0;
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.uac-card {
+  background: #222;
+  border: 1px solid #333;
+  padding: 16px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.uac-card:hover {
+  background: #282828;
+  border-color: #444;
+}
+
+.uac-card.active {
+  border-color: var(--theme-accent, #dfcf99);
+  background: rgba(223, 207, 153, 0.05);
+}
+
+.uac-card-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.uac-card-info span {
+  font-size: 24px;
+  color: var(--theme-accent, #dfcf99);
+}
+
+.uac-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #eee;
+}
+
+.uac-card-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.uac-toggle {
+  width: 40px;
+  height: 20px;
+  background: #444;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.3s;
+}
+
+.uac-toggle.is-active {
+  background: var(--theme-accent, #dfcf99);
+}
+
+.toggle-knob {
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.uac-toggle.is-active .toggle-knob {
+  transform: translateX(20px);
+}
+
+.uac-preview-container {
+  margin-top: 16px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #222;
+  height: 140px;
+}
+
+.uac-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.6;
+}
+
+/* Step 3 Styles (Final) */
+.final-step {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.welcome-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.material-symbols-outlined.large {
+  font-size: 64px;
+  color: var(--theme-accent, #dfcf99);
+  margin-bottom: 8px;
+  animation: pulse 2s infinite;
+}
+
+.welcome-box h3 {
+  font-size: 20px;
+  margin: 0;
+  color: var(--theme-text, #eee);
+}
+
+.welcome-box p {
+  font-size: 14px;
+  color: #999;
+}
+
+.automation-guide-box {
+  margin-top: 40px;
+  background: rgba(223, 207, 153, 0.05);
+  padding: 16px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 400px;
+  border: 1px solid rgba(223, 207, 153, 0.1);
+}
+
+.automation-guide-box span {
+  font-size: 28px;
+  color: var(--theme-accent, #dfcf99);
+  flex-shrink: 0;
+}
+
+.automation-guide-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #aaa;
+  text-align: left;
+  line-height: 1.5;
+}
+
+/* Footer */
+.onboarding-footer {
+  padding: 20px 28px;
+  background: #121212;
+  border-top: 1px solid #222;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.onboarding-footer button {
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-prev {
+  background: #252525;
+  color: #999;
+}
+
+.btn-prev:hover {
+  background: #333;
+  color: #eee;
+}
+
+.btn-next {
+  background: var(--theme-accent, #dfcf99);
+  color: #000;
+  min-width: 120px;
+}
+
+.btn-next:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* Animations */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+}

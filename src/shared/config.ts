@@ -89,6 +89,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "Debug",
     description: "숨겨진 윈도우의 개발자 도구(콘솔)를 표시할지 설정합니다.",
   },
+  SHOW_ONBOARDING: {
+    key: "showOnboarding",
+    name: "Show Onboarding",
+    category: "General",
+    description: "앱 최초 실행 시 온보딩 위저드를 표시할지 여부를 설정합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -105,6 +111,7 @@ export const CONFIG_KEYS = {
   START_MINIMIZED: CONFIG_METADATA.START_MINIMIZED.key,
   CLOSE_ACTION: CONFIG_METADATA.CLOSE_ACTION.key,
   QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
+  SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -122,6 +129,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   startMinimized: false,
   closeAction: "minimize",
   quitOnGameStart: false,
+  showOnboarding: true,
 };
 
 export const DEBUG_APP_CONFIG = {

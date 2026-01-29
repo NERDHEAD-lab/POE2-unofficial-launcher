@@ -16,14 +16,15 @@ import {
   NewsItem,
   PatchProgress,
 } from "../shared/types";
-import { PatchFixModal } from "./components/modals/PatchFixModal"; // [NEW]
+import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
+import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
-import UpdateModal from "./components/UpdateModal"; // [NEW]
+import UpdateModal from "./components/UpdateModal";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
 // Status Message Configuration Interface
@@ -57,6 +58,7 @@ function App() {
   const [themeCache, setThemeCache] = useState<
     Partial<AppConfig["themeCache"]>
   >({});
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
   // Settings Modal State
@@ -311,6 +313,11 @@ function App() {
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
           );
 
+        // [NEW] Load Onboarding State
+        if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
+          setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
+        }
+
         setIsConfigLoaded(true);
 
         const initialBg =
@@ -519,11 +526,21 @@ function App() {
     );
   };
 
+  const handleOnboardingFinish = () => {
+    setShowOnboarding(false);
+    window.electronAPI?.setConfig(CONFIG_KEYS.SHOW_ONBOARDING, false);
+  };
+
   return (
     <div
       id="app-container"
       className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
     >
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onFinish={handleOnboardingFinish}
+      />
+
       <UpdateModal
         isOpen={isUpdateModalOpen}
         version={updateState.version || ""}
