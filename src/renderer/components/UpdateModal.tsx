@@ -28,7 +28,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
 
         <div className="update-actions">
           <button className="btn-update-primary" onClick={onUpdate}>
-            🚀 지금 업데이트
+            지금 업데이트
           </button>
           <button className="btn-update-secondary" onClick={onClose}>
             나중에 하기

@@ -1,4 +1,4 @@
-import { SettingsCategory } from "./types";
+import { SettingsCategory, SettingValue } from "./types";
 import { BackupMetadata } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
 
@@ -36,6 +36,20 @@ const initBackupButton = async (
     if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
 
     setDescription(desc);
+  }
+};
+
+const initDevSetting = async ({
+  setValue,
+  setDisabled,
+}: {
+  setValue: (v: SettingValue) => void;
+  setDescription: (d: string) => void;
+  setDisabled: (v: boolean) => void;
+}) => {
+  if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
+    setValue(true);
+    setDisabled(true);
   }
 };
 
@@ -358,6 +372,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             defaultValue: false,
             icon: "bug_report",
             requiresRestart: true,
+            onInit: initDevSetting,
           },
           {
             id: "debug_console",
@@ -367,6 +382,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "terminal",
             dependsOn: "dev_mode",
             requiresRestart: true,
+            onInit: initDevSetting,
           },
           {
             id: "show_inactive_windows",
@@ -376,6 +392,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "visibility",
             dependsOn: "dev_mode",
             requiresRestart: true,
+            onInit: initDevSetting,
           },
           {
             id: "show_inactive_window_console",
@@ -385,6 +402,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "javascript",
             dependsOn: "dev_mode",
             requiresRestart: true,
+            onInit: initDevSetting,
           },
         ],
       },

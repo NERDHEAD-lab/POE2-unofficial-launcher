@@ -11,6 +11,12 @@ import {
   SettingsCategory,
   SettingItem,
   SettingValue,
+  SettingSwitch,
+  SettingRadio,
+  SettingSelect,
+  SettingNumber,
+  SettingSlider,
+  SettingButton,
 } from "../../settings/types";
 import "../../settings/Settings.css";
 
@@ -27,20 +33,12 @@ const SettingItemRenderer: React.FC<{
   initialValue: SettingValue | undefined;
   onRestartRequired: () => void;
   onShowToast: (msg: string) => void;
-  forceDebug: boolean;
-  debugIds: string[];
-}> = ({
-  item,
-  initialValue,
-  onRestartRequired,
-  onShowToast,
-  forceDebug,
-  debugIds,
-}) => {
+}> = ({ item, initialValue, onRestartRequired, onShowToast }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
   const [description, setDescription] = useState<string | undefined>(
     item.description,
   );
+  const [disabled, setDisabled] = useState<boolean>(!!item.disabled);
 
   // Tooltip State
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
@@ -49,7 +47,6 @@ const SettingItemRenderer: React.FC<{
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Sync with prop updates (e.g. from global config change)
-  // [Fix] Avoid cascading render warning by checking value difference
   const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
   if (initialValue !== prevInitialValue) {
     setVal(initialValue);
@@ -67,6 +64,9 @@ const SettingItemRenderer: React.FC<{
           },
           setDescription: (newDesc) => {
             if (mounted) setDescription(newDesc);
+          },
+          setDisabled: (newDisabled) => {
+            if (mounted) setDisabled(newDisabled);
           },
         })
         .catch((err) => {
@@ -105,9 +105,8 @@ const SettingItemRenderer: React.FC<{
     }
   };
 
-  const isForced = forceDebug && debugIds.includes(item.id);
-  const isDisabled = item.disabled || isForced;
-  const currentVal = isForced ? true : val;
+  const currentVal = val;
+  const isDisabled = disabled;
 
   // Render Control based on type
   const renderControl = () => {
@@ -116,48 +115,65 @@ const SettingItemRenderer: React.FC<{
     const numVal = Number(currentVal ?? 0);
 
     switch (item.type) {
-      case "switch":
+      case "switch": {
+        const i = item as SettingSwitch;
         return (
           <SwitchItem
-            item={{ ...item, disabled: isDisabled }}
+            item={{ ...i, disabled: isDisabled }}
             value={boolVal}
             onChange={(_, v) => handleChange(v)}
           />
         );
-      case "radio":
+      }
+      case "radio": {
+        const i = item as SettingRadio;
         return (
           <RadioItem
-            item={item}
+            item={{ ...i, disabled: isDisabled }}
             value={stringVal}
             onChange={(_, v) => handleChange(v)}
           />
         );
-      case "select":
+      }
+      case "select": {
+        const i = item as SettingSelect;
         return (
           <SelectItem
-            item={item}
+            item={{ ...i, disabled: isDisabled }}
             value={stringVal}
             onChange={(_, v) => handleChange(v)}
           />
         );
-      case "number":
+      }
+      case "number": {
+        const i = item as SettingNumber;
         return (
           <NumberItem
-            item={item}
+            item={{ ...i, disabled: isDisabled }}
             value={numVal}
             onChange={(_, v) => handleChange(v)}
           />
         );
-      case "slider":
+      }
+      case "slider": {
+        const i = item as SettingSlider;
         return (
           <SliderItem
-            item={item}
+            item={{ ...i, disabled: isDisabled }}
             value={numVal}
             onChange={(_, v) => handleChange(v)}
           />
         );
-      case "button":
-        return <ButtonItem item={item} onClick={() => handleActionClick()} />;
+      }
+      case "button": {
+        const i = item as SettingButton;
+        return (
+          <ButtonItem
+            item={{ ...i, disabled: isDisabled }}
+            onClick={() => handleActionClick()}
+          />
+        );
+      }
       case "text":
         return (
           <TextItem
@@ -180,7 +196,7 @@ const SettingItemRenderer: React.FC<{
     <div
       className={`setting-item type-${item.type} ${
         isExpanded ? "is-expanded" : ""
-      } ${isExpandable ? "is-clickable" : ""}`}
+      } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""}`}
       onClick={() => {
         if (isExpandable) setIsExpanded(!isExpanded);
       }}
@@ -254,14 +270,6 @@ export const SettingsContent: React.FC<Props> = ({
   onShowToast,
   onRestartRequired,
 }) => {
-  const FORCE_DEBUG = import.meta.env.VITE_SHOW_GAME_WINDOW === "true";
-  const DEBUG_SETTING_IDS = [
-    "dev_mode",
-    "debug_console",
-    "show_inactive_windows",
-    "show_inactive_window_console",
-  ];
-
   // Global Config Sync State
   const [config, setConfig] = useState<Record<string, SettingValue>>({});
   const [restartRequired, setRestartRequired] = useState(false);
@@ -315,10 +323,9 @@ export const SettingsContent: React.FC<Props> = ({
               // Priority Dependency Check
               if (item.dependsOn) {
                 const parentVal = config[item.dependsOn];
-                const isForcedParent =
-                  FORCE_DEBUG && DEBUG_SETTING_IDS.includes(item.dependsOn);
-                // Hide if parent is not enabled (considering force-debug)
-                if (!isForcedParent && parentVal !== true) return null;
+                // [Refactor] No more hardcoded FORCE_DEBUG check here.
+                // If a setting is forced enabled in dev:test, it should be handled via onInit in dummy-config.
+                if (parentVal !== true) return null;
               }
 
               // Visibility check for buttons (if configured to hide when value is false)
@@ -343,8 +350,6 @@ export const SettingsContent: React.FC<Props> = ({
                   initialValue={currentValue}
                   onRestartRequired={handleRestartNotice}
                   onShowToast={onShowToast}
-                  forceDebug={FORCE_DEBUG}
-                  debugIds={DEBUG_SETTING_IDS}
                 />
               );
             })}
