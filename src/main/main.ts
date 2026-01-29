@@ -424,7 +424,7 @@ const context: AppContext = {
  * [NEW] Resets the game status back to 'idle' if a critical window is closed
  * while the system is still in an intermediate automation state.
  */
-function resetGameStatusIfInterrupted(win: BrowserWindow) {
+function resetGameStatusIfInterrupted(_win: BrowserWindow) {
   // Only interrupt if we are in a middle-state that requires a window/session
   const interruptibleStates: RunStatus[] = [
     "preparing",

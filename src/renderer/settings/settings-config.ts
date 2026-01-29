@@ -63,7 +63,7 @@ const initDevSetting = async ({
   }
 };
 
-export const DUMMY_SETTINGS: SettingsCategory[] = [
+export const SETTINGS_CONFIG: SettingsCategory[] = [
   {
     id: "general",
     label: "일반",
@@ -74,7 +74,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "시작 설정",
         items: [
           {
-            // [DUMMY]
             id: "run_startup",
             type: "switch",
             label: "컴퓨터 시작 시 자동 실행",
@@ -94,7 +93,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         id: "gen_action",
         items: [
           {
-            // [DUMMY]
             id: "close_action",
             type: "radio",
             label: "닫기 설정",
@@ -119,14 +117,14 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         title: "언어 설정",
         items: [
           {
-            // [DUMMY]
             id: "language",
             type: "select",
             label: "런처 언어",
+            description: "런처 언어를 변경합니다. (추후 지원 예정)",
             defaultValue: "ko",
             options: [
               { label: "한국어 (Korean)", value: "ko" },
-              { label: "English", value: "en" },
+              // { label: "English", value: "en" },
             ],
             icon: "translate",
             onChangeListener: (val, { showToast }) => {
@@ -139,7 +137,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
       },
     ],
   },
-  {
+  /* {
     id: "display",
     label: "화면",
     icon: "display_settings",
@@ -147,40 +145,10 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
       {
         id: "disp_theme",
         title: "테마 및 모양",
-        items: [
-          {
-            // [DUMMY]
-            id: "ui_scale",
-            type: "slider",
-            label: "UI 크기 조절",
-            min: 80,
-            max: 120,
-            step: 5,
-            defaultValue: 100,
-            valueFormat: (v) => `${v}%`,
-            icon: "zoom_in",
-            onChangeListener: (val, { showToast }) => {
-              showToast(`[UI 크기 조절] 크기: ${val}%`);
-            },
-          },
-          {
-            // [DUMMY]
-            id: "bg_dim",
-            type: "number",
-            label: "배경 밝기 조절",
-            defaultValue: 50,
-            min: 0,
-            max: 100,
-            suffix: "%",
-            icon: "brightness_medium",
-            onChangeListener: (val, { showToast }) => {
-              showToast(`[배경 밝기 조절] 밝기: ${val}%`);
-            },
-          },
-        ],
+        items: [],
       },
     ],
-  },
+  }, */
   {
     id: "account",
     label: "계정",
@@ -190,19 +158,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
         id: "acc_kakao",
         title: "Kakao 계정 연동",
         items: [
-          {
-            // [DUMMY]
-            id: "kakao_auto_login",
-            type: "switch",
-            label: "자동 로그인 사용",
-            defaultValue: true,
-            icon: "login",
-            onChangeListener: (val, { showToast }) => {
-              showToast(
-                `[자동 로그인 사용] ${val ? "ON (활성화)" : "OFF (비활성화)"}`,
-              );
-            },
-          },
           {
             id: "btn_logout",
             type: "button",
@@ -240,44 +195,16 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
       },
     ],
   },
-  {
+  /* {
     id: "notification",
     label: "알림",
     icon: "notifications_active",
-    sections: [
-      {
-        id: "noti_general",
-        items: [
-          {
-            // [DUMMY]
-            id: "noti_patch",
-            type: "switch",
-            label: "업데이트 알림 받기",
-            defaultValue: true,
-            icon: "system_update",
-            onChangeListener: (val, { showToast }) => {
-              showToast(`[업데이트 알림] ${val ? "수신 (ON)" : "거부 (OFF)"}`);
-            },
-          },
-          {
-            // [DUMMY]
-            id: "noti_server",
-            type: "switch",
-            label: "서버 점검 알림",
-            defaultValue: true,
-            icon: "dns",
-            onChangeListener: (val, { showToast }) => {
-              showToast(`[서버 점검 알림] ${val ? "수신 (ON)" : "거부 (OFF)"}`);
-            },
-          },
-        ],
-      },
-    ],
-  },
+    sections: [],
+  }, */
   {
-    id: "advanced",
-    label: "고급 기능",
-    icon: "terminal",
+    id: "automation",
+    label: "자동화",
+    icon: "smart_toy",
     sections: [
       {
         id: "adv_process",
@@ -288,7 +215,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             type: "switch",
             label: "DaumGameStarter UAC 우회",
             description:
-              "게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
+              "카카오게임즈에서 게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
             defaultValue: false,
             icon: "verified_user",
             infoImage: imgUacTooltip,
@@ -327,7 +254,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             label: "패치 오류 자동 수정 (Auto Fix)",
             description:
               "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
-            defaultValue: false,
             icon: "autorenew",
           },
           {
@@ -336,7 +262,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             label: "패치 복구 후 게임 자동 시작",
             description:
               "패치 오류 자동 수정이 완료되면, 해당 서비스를 통해 게임을 자동으로 실행합니다.",
-            defaultValue: false,
             icon: "play_circle",
             dependsOn: "autoFixPatchError",
           },
@@ -346,10 +271,8 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             label: "패치 파일 백업 (Backup)",
             description:
               "패치 파일 교체 시 원본 파일을 안전한 곳(.patch_backups)에 보관합니다.",
-            defaultValue: true,
             icon: "save",
           },
-          // Restore Buttons (Conditional based on logic, but here statically defined for now)
           {
             id: "restore_kakao_poe1",
             type: "button",
@@ -357,7 +280,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             buttonText: "복구 실행",
             actionId: "restore_backup_kakao_poe1",
             icon: "history",
-            dependsOn: "backupPatchFiles", // UI toggle dependency only
+            dependsOn: "backupPatchFiles",
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE1"),
             onClickListener: () => {
@@ -406,6 +329,13 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
           },
         ],
       },
+    ],
+  },
+  {
+    id: "advanced",
+    label: "고급 기능",
+    icon: "terminal",
+    sections: [
       {
         id: "adv_debug",
         title: "디버깅",
@@ -414,7 +344,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "dev_mode",
             type: "switch",
             label: "개발자 모드 활성화",
-            defaultValue: false,
             icon: "bug_report",
             requiresRestart: true,
             onInit: initDevSetting,
@@ -423,7 +352,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "debug_console",
             type: "switch",
             label: "디버그 콘솔 표시",
-            defaultValue: false,
             icon: "terminal",
             dependsOn: "dev_mode",
             onInit: initDevSetting,
@@ -432,7 +360,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "show_inactive_windows",
             type: "switch",
             label: "비활성 윈도우 표시",
-            defaultValue: false,
             icon: "visibility",
             dependsOn: "dev_mode",
             onInit: initDevSetting,
@@ -441,7 +368,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             id: "show_inactive_window_console",
             type: "switch",
             label: "비활성 윈도우 콘솔 표시",
-            defaultValue: false,
             icon: "javascript",
             dependsOn: "dev_mode",
             onInit: initDevSetting,
@@ -466,7 +392,6 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             icon: "tag",
           },
           {
-            // [DUMMY]
             id: "license_open",
             type: "text",
             label: "오픈소스 라이선스",

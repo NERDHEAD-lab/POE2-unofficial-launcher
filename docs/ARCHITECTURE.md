@@ -130,14 +130,24 @@
 - **결과**:
   - **사용자 경험 성숙도**: 복잡한 설정 간의 관계를 시각적으로 명확히 전달하며, 적용 시점(재시작)을 명시하여 혼란을 방지함.
 
-## 5. Documentation Map
+## 5. Settings System
+
+런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
+
+- **설정 구성**: [settings-config.ts](../src/renderer/settings/settings-config.ts)에서 실제 노출될 아이템들을 정의합니다.
+  - **카테고리 구조**: `General`, `Account`, `Automation`, `Advanced`, `About`
+- **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 [shared/config.ts](../src/shared/config.ts)의 기본값과 설정 UI의 정합성을 검증합니다.
+- **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
+
+## 6. Documentation Map
 
 이 프로젝트의 주요 기능 및 가이드는 다음 문서와 연결되어 있습니다.
 
-| 기능 영역 (Area)   | 관련 문서 (Document)                                                                               | 비고 (Note)                              |
-| :----------------- | :------------------------------------------------------------------------------------------------- | :--------------------------------------- |
-| **설정 시스템**    | [Settings Guide](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/types.ts)  | `dependsOn`, `onInit` 등 인터페이스 정의 |
-| **이벤트 시스템**  | [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)                                                   | ADR-004 관련 상세 가이드                 |
-| **빌드 및 릴리즈** | [README.md](../README.md)                                                                          | 설치 및 빌드 환경 변수 설명              |
-| **개발자 모드**    | [Walkthrough](../../.gemini/antigravity/brain/1d4cd62b-eadf-4401-ad03-4f7212fb6e98/walkthrough.md) | 최신 구현 내역 (영속성 로직 포함)        |
-| **UAC 우회**       | [uac.ts](../src/main/utils/uac.ts)                                                                 | 시스템 레지스트리 및 작업 스케줄러 로직  |
+| 기능 영역 (Area)     | 관련 문서 (Document)                                                                                         | 비고 (Note)                             |
+| :------------------- | :----------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| **설정 구성**        | [Settings Config](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/settings-config.ts) | 실제 노출 항목 정의 및 상호작용 로직    |
+| **설정 사용 가이드** | [SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)                                                                     | 각 설정 타입별 코드 예제 및 가이드      |
+| **설정 인터페이스**  | [Settings Logic](file:///d:/project_poe2/POE2-unofficial-launcher/src/renderer/settings/types.ts)            | `SettingItem` 등 핵심 타입 정의         |
+| **이벤트 시스템**    | [EVENT_SYSTEM_GUIDE.md](./EVENT_SYSTEM_GUIDE.md)                                                             | ADR-004 관련 상세 가이드                |
+| **빌드 및 릴리즈**   | [README.md](../README.md)                                                                                    | 설치 및 빌드 환경 변수 설명             |
+| **UAC 우회**         | [uac.ts](../src/main/utils/uac.ts)                                                                           | 시스템 레지스트리 및 작업 스케줄러 로직 |

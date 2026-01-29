@@ -57,8 +57,11 @@ export interface BaseSettingItem {
  */
 export interface SettingSwitch extends BaseSettingItem {
   type: "switch";
-  /** 저장된 값이 없을 때 사용할 기본값 */
-  defaultValue: boolean;
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: boolean;
   /**
    * 값이 변경되었을 때 실행될 리스너 (옵션)
    * @param value 변경된 값
@@ -75,8 +78,11 @@ export interface SettingSwitch extends BaseSettingItem {
  */
 export interface SettingRadio extends BaseSettingItem {
   type: "radio";
-  /** 저장된 값이 없을 때 사용할 기본값 */
-  defaultValue: string;
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: string;
   /** 선택 가능한 옵션 리스트 */
   options: { label: string; value: string }[];
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
@@ -91,8 +97,11 @@ export interface SettingRadio extends BaseSettingItem {
  */
 export interface SettingSelect extends BaseSettingItem {
   type: "select";
-  /** 저장된 값이 없을 때 사용할 기본값 */
-  defaultValue: string;
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: string;
   /** 선택 가능한 옵션 리스트 */
   options: { label: string; value: string }[];
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
@@ -107,8 +116,11 @@ export interface SettingSelect extends BaseSettingItem {
  */
 export interface SettingNumber extends BaseSettingItem {
   type: "number";
-  /** 저장된 값이 없을 때 사용할 기본값 */
-  defaultValue: number;
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: number;
   /** 입력 가능한 최소값 */
   min?: number;
   /** 입력 가능한 최대값 */
@@ -129,8 +141,11 @@ export interface SettingNumber extends BaseSettingItem {
  */
 export interface SettingSlider extends BaseSettingItem {
   type: "slider";
-  /** 저장된 값이 없을 때 사용할 기본값 */
-  defaultValue: number;
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: number;
   /** 최소값 */
   min: number;
   /** 최대값 */

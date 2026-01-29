@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import "../../settings/Settings.css";
 import SettingsContent from "./SettingsContent";
 import SettingsSidebar from "./SettingsSidebar";
-import { DUMMY_SETTINGS } from "../../settings/dummy-config";
+import { SETTINGS_CONFIG } from "../../settings/settings-config";
 import { Toast } from "../ui/Toast";
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 }
 
 const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const [activeCatId, setActiveCatId] = useState(DUMMY_SETTINGS[0].id);
+  const [activeCatId, setActiveCatId] = useState(SETTINGS_CONFIG[0].id);
   const [isVisible, setIsVisible] = useState(false);
   const [isRestartNeeded, setIsRestartNeeded] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
@@ -49,7 +49,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   if (!isVisible && !isOpen) return null;
 
   const activeCategory =
-    DUMMY_SETTINGS.find((c) => c.id === activeCatId) || DUMMY_SETTINGS[0];
+    SETTINGS_CONFIG.find((c) => c.id === activeCatId) || SETTINGS_CONFIG[0];
 
   // Prevent click propagation from modal to overlay
   const handleModalClick = (e: React.MouseEvent) => {
@@ -90,7 +90,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
         {/* Left Sidebar */}
         <SettingsSidebar
-          categories={DUMMY_SETTINGS}
+          categories={SETTINGS_CONFIG}
           activeCategoryId={activeCatId}
           onSelectCategory={setActiveCatId}
         />

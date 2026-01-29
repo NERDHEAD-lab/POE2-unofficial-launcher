@@ -1,4 +1,9 @@
-export type ConfigCategory = "General" | "Game" | "Appearance";
+export type ConfigCategory =
+  | "General"
+  | "Game"
+  | "Appearance"
+  | "Patch"
+  | "Debug";
 
 export interface ConfigDefinition {
   key: string;

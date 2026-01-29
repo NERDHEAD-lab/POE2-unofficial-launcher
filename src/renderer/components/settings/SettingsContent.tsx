@@ -116,7 +116,12 @@ const SettingItemRenderer: React.FC<{
     onValueChange(item.id, newValue); // [New] Sync locally immediately for dependsOn items
 
     // Persist to Store
-    if (window.electronAPI) {
+    // [Updated Logic] Only persist if the item is NOT transient (i.e., NO defaultValue).
+    // If defaultValue exists, it means it's a UI-only setting or managed elsewhere.
+    const isStoreBacked =
+      !("defaultValue" in item) || item.defaultValue === undefined;
+
+    if (isStoreBacked && window.electronAPI) {
       await window.electronAPI.setConfig(item.id, newValue);
     }
 

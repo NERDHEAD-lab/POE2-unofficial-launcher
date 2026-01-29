@@ -28,16 +28,55 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "각 게임별로 추출된 배경화면 테마 색상 및 최적화를 위한 이미지 해시 데이터를 저장합니다.",
   },
+  AUTO_FIX_PATCH_ERROR: {
+    key: "autoFixPatchError",
+    name: "Auto Fix Patch Error",
+    category: "Patch",
+    description: "패치 오류 감지 시 자동으로 복구를 시도할지 설정합니다.",
+  },
+  BACKUP_PATCH_FILES: {
+    key: "backupPatchFiles",
+    name: "Backup Patch Files",
+    category: "Patch",
+    description: "패치 파일 수정 전 원본 파일을 백업할지 설정합니다.",
+  },
+  DEV_MODE: {
+    key: "dev_mode",
+    name: "Developer Mode",
+    category: "Debug",
+    description: "개발자 모드 활성화 여부를 설정합니다.",
+  },
+  DEBUG_CONSOLE: {
+    key: "debug_console",
+    name: "Debug Console",
+    category: "Debug",
+    description: "디버그 콘솔 표시 여부를 설정합니다 (개발자 모드 필요).",
+  },
+  SHOW_INACTIVE_WINDOWS: {
+    key: "show_inactive_windows",
+    name: "Show Inactive Windows",
+    category: "Debug",
+    description:
+      "숨겨진 윈도우(백그라운드 작업 등)를 화면에 표시할지 설정합니다.",
+  },
+  SHOW_INACTIVE_WINDOW_CONSOLE: {
+    key: "show_inactive_window_console",
+    name: "Show Inactive Window Console",
+    category: "Debug",
+    description: "숨겨진 윈도우의 개발자 도구(콘솔)를 표시할지 설정합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
 export const CONFIG_KEYS = {
   ACTIVE_GAME: CONFIG_METADATA.ACTIVE_GAME.key,
   SERVICE_CHANNEL: CONFIG_METADATA.SERVICE_CHANNEL.key,
+  AUTO_FIX_PATCH_ERROR: CONFIG_METADATA.AUTO_FIX_PATCH_ERROR.key,
   AUTO_GAME_START_AFTER_FIX: CONFIG_METADATA.AUTO_GAME_START_AFTER_FIX.key,
+  BACKUP_PATCH_FILES: CONFIG_METADATA.BACKUP_PATCH_FILES.key,
   THEME_CACHE: CONFIG_METADATA.THEME_CACHE.key,
-  DEV_MODE: "dev_mode",
-  DEBUG_CONSOLE: "debug_console",
+  DEV_MODE: CONFIG_METADATA.DEV_MODE.key,
+  DEBUG_CONSOLE: CONFIG_METADATA.DEBUG_CONSOLE.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
