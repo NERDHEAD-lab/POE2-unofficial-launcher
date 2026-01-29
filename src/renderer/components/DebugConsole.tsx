@@ -140,6 +140,15 @@ const DebugConsole: React.FC = () => {
     if (window.electronAPI) {
       window.electronAPI.getConfig().then((config) => {
         setCurrentConfig(config as AppConfig);
+
+        // [Splash] Fade out and remove launcher splash screen from index.html (shared with App.tsx)
+        setTimeout(() => {
+          const splash = document.getElementById("launcher-splash");
+          if (splash) {
+            splash.classList.add("fade-out");
+            setTimeout(() => splash.remove(), 1000);
+          }
+        }, 500);
       });
 
       const removeConfigListener = window.electronAPI.onConfigChange(

@@ -5,8 +5,98 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POE2 Unofficial Launcher</title>
+    <style>
+      /* Splash Screen Styles */
+      #launcher-splash {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #000000;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        transition:
+          opacity 0.5s ease-out,
+          visibility 0.5s;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      #launcher-splash.fade-out {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .splash-logo {
+        font-family: "Fontin", "Noto Sans KR", sans-serif;
+        font-size: 32px;
+        color: #dfcf99; /* theme-accent */
+        text-transform: uppercase;
+        letter-spacing: 4px;
+        text-shadow: 0 0 20px rgba(223, 207, 153, 0.4);
+        margin-bottom: 24px;
+        animation: splash-pulse 2s infinite ease-in-out;
+      }
+
+      .splash-loader {
+        width: 120px;
+        height: 2px;
+        background: rgba(223, 207, 153, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .splash-loader::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, #dfcf99, transparent);
+        animation: splash-loading 1.5s infinite linear;
+      }
+
+      @keyframes splash-pulse {
+        0%,
+        100% {
+          opacity: 0.8;
+          transform: scale(0.98);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes splash-loading {
+        0% {
+          left: -100%;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+
+      .splash-footer {
+        position: absolute;
+        bottom: 40px;
+        font-size: 12px;
+        color: #444;
+        letter-spacing: 1px;
+      }
+    </style>
   </head>
   <body>
+    <div id="launcher-splash">
+      <div class="splash-logo">POE2 Unofficial Launcher</div>
+      <div class="splash-loader"></div>
+      <div class="splash-footer">PREPARING ASSETS...</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/renderer/main.tsx"></script>
   </body>

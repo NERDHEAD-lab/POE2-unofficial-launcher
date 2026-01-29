@@ -319,6 +319,16 @@ function App() {
             ? bgPoe2
             : bgPoe;
         setBgImage(initialBg);
+
+        // [Splash] Fade out and remove launcher splash screen from index.html
+        setTimeout(() => {
+          const splash = document.getElementById("launcher-splash");
+          if (splash) {
+            splash.classList.add("fade-out");
+            // Remove from DOM after transition
+            setTimeout(() => splash.remove(), 1000);
+          }
+        }, 500); // Small buffer for initial layout build
       });
 
       // 2. Listen for Changes (Reactive Observer)

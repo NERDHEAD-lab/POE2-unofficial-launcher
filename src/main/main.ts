@@ -471,9 +471,18 @@ function createWindows() {
     frame: false, // Disable OS Frame
     titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
     icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
+    show: false, // Start hidden to prevent white flash
+    backgroundColor: "#000000", // Match app theme
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // Reveal window when ready-to-show
+  mainWindow.once("ready-to-show", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+    }
   });
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
