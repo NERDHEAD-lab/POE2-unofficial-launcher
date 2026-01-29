@@ -57,11 +57,8 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
       return;
     }
 
-    // 1. Show Game Window (if configured)
-    const isDev = context.store.get("dev_mode");
-    if (isDev) {
-      gameWindow.show();
-    }
+    // 1. Show Game Window logic removed in favor of checkAndShow in main.ts
+    // This prevents flashing of hidden pages before login.
 
     // 2. Load Target URL
     const targetUrl = BASE_URLS["Kakao Games"].POE1;

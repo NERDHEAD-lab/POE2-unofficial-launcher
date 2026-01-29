@@ -1,6 +1,7 @@
 import { ipcRenderer } from "electron";
 
 import { AppConfig } from "../../shared/types";
+import { isUserFacingPage } from "../../shared/visibility";
 
 // --- Interfaces ---
 
@@ -16,31 +17,6 @@ interface PageHandler {
   match: (url: URL) => boolean;
   /** Main logic execution */
   execute: () => Promise<void> | void;
-}
-
-interface VisibilityRule {
-  name: string;
-  /** Condition to identify user-facing windows (No debug border) */
-  match: (url: URL) => boolean;
-}
-
-// --- Visibility Policies (Debug Border Exceptions) ---
-
-/**
- * List of rules defining pages that are naturally visible to the user
- * (i.e., windows that show even when "Show Inactive Windows" is OFF).
- */
-const VISIBILITY_RULES: VisibilityRule[] = [
-  {
-    name: "KakaoAccountLogin",
-    match: (url) =>
-      url.hostname === "accounts.kakao.com" &&
-      !url.pathname.includes("/login/simple"),
-  },
-];
-
-function isUserFacingPage(url: URL): boolean {
-  return VISIBILITY_RULES.some((rule) => rule.match(url));
 }
 
 // --- DOM Selectors ---

@@ -57,6 +57,7 @@ import {
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
+import { isUserFacingPage } from "../shared/visibility";
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
@@ -354,12 +355,10 @@ const handleWindowOpen = ({ url }: { url: string }) => {
 
   const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
   const showInactive = getEffectiveConfig("show_inactive_windows") === true;
-  const isKakaoLogin = url.includes("accounts.kakao.com");
-  const isSimpleLogin = url.includes("/login/simple");
 
-  // Logic: Show ONLY if (Debug Env) OR (Show Inactive Setting) OR (Kakao Login AND NOT Simple Login)
-  const shouldShow =
-    isDebugEnv || showInactive || (isKakaoLogin && !isSimpleLogin);
+  // 창이 갑자기 나타나는 '플래시' 현상을 방지하기 위해 기본적으로 숨김(show: false) 처리.
+  // 실제 노출 여부는 이후 did-navigate 핸들러(checkAndShow)에서 결정함.
+  const shouldShowAtInit = isDebugEnv || showInactive;
 
   // Always Allow creation + Always Inject Preload (for automation)
   return {
@@ -368,7 +367,7 @@ const handleWindowOpen = ({ url }: { url: string }) => {
       width: 800,
       height: 600,
       autoHideMenuBar: true,
-      show: shouldShow, // Visibility Control
+      show: shouldShowAtInit, // Visibility Control (Default Hidden unless Debug)
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: false,
@@ -390,6 +389,7 @@ const context: AppContext = {
         width: 1280,
         height: 720,
         title: "POE2 Launcher (Game Window)",
+        show: false, // 기본 숨김 처리 (플래시 방지)
         webPreferences: {
           preload: path.join(__dirname, "kakao/preload.js"),
           nodeIntegration: false,
@@ -971,46 +971,19 @@ app.on("browser-window-created", (_, window) => {
     const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
     const showInactive = getEffectiveConfig("show_inactive_windows") === true;
 
-    // 1. Debug Mode or Show Inactive: Allow everything
-    if (isDebugEnv || showInactive) return;
+    // 1. Determine if window should be shown (Central Policy)
+    const isUserFacing = isUserFacingPage(url);
+    const shouldShow = isDebugEnv || showInactive || isUserFacing;
 
-    // 2. Production Mode: Strict Filtering
-    const isGameWindow = context.gameWindow && window === context.gameWindow;
-    const isKakaoLogin = url.includes("accounts.kakao.com");
-    const isSimpleLogin = url.includes("/login/simple");
-
-    // Case A: Game Window (Background Worker)
-    if (isGameWindow) {
-      if (isKakaoLogin && !isSimpleLogin) {
-        // Show only on real login page
-        if (!window.isVisible()) {
-          console.log(`[Main] GameWindow Login Page Detected. Showing: ${url}`);
-          window.show();
-        }
-      } else {
-        // Hide otherwise
-        if (window.isVisible()) {
-          console.log(`[Main] Hiding prohibited/background window: ${url}`);
-          window.hide();
-        }
+    if (shouldShow) {
+      if (!window.isVisible()) {
+        console.log(`[Main] Showing window: ${url}`);
+        window.show();
       }
     } else {
-      // Logic: Show ONLY if (Kakao Login AND NOT Simple Login) OR Debug
-      const isSimpleLogin = url.includes("/login/simple");
-      const isKakaoLogin = url.includes("accounts.kakao.com");
-      const shouldShow =
-        isDebugEnv || showInactive || (isKakaoLogin && !isSimpleLogin);
-
-      if (shouldShow) {
-        if (!window.isVisible()) {
-          console.log(`[Main] Showing window: ${url}`);
-          window.show();
-        }
-      } else {
-        if (window.isVisible()) {
-          console.log(`[Main] Hiding window: ${url}`);
-          window.hide();
-        }
+      if (window.isVisible()) {
+        console.log(`[Main] Hiding prohibited/background window: ${url}`);
+        window.hide();
       }
     }
   };
