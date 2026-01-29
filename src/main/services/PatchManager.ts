@@ -246,8 +246,14 @@ export class PatchManager {
 
     if (!fs.existsSync(tempDir))
       await fs.promises.mkdir(tempDir, { recursive: true });
-    if (isBackupEnabled && !fs.existsSync(backupDir))
+
+    if (isBackupEnabled) {
+      if (fs.existsSync(backupDir)) {
+        this.emitLog(`[Backup] Cleaning up previous backups...`);
+        await fs.promises.rm(backupDir, { recursive: true, force: true });
+      }
       await fs.promises.mkdir(backupDir, { recursive: true });
+    }
 
     // Parallel Download Logic
     const CONCURRENCY_LIMIT = 2; // Fixed as requested
@@ -256,6 +262,20 @@ export class PatchManager {
 
     // Initial emit
     this.emitCurrentState("downloading");
+
+    // [NEW] Metadata Collection
+    const backedUpFiles: string[] = [];
+
+    // Extract version from Web Root (e.g. .../patch/4.4.0.5.2/)
+    let currentVersion = "unknown";
+    try {
+      const versionMatch = webRoot.match(/\/patch\/([\d.]+)\/?/);
+      if (versionMatch && versionMatch[1]) {
+        currentVersion = versionMatch[1];
+      }
+    } catch {
+      // Ignore extraction error
+    }
 
     const processFile = async (file: string) => {
       if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");
@@ -275,7 +295,9 @@ export class PatchManager {
           const backupSubDir = path.dirname(backupDest);
           if (!fs.existsSync(backupSubDir))
             await fs.promises.mkdir(backupSubDir, { recursive: true });
+
           await fs.promises.copyFile(finalDest, backupDest);
+          backedUpFiles.push(file); // Track collected file
         }
 
         const finalSubDir = path.dirname(finalDest);
@@ -335,6 +357,32 @@ export class PatchManager {
     }
 
     await Promise.all(activePromises);
+
+    // [NEW] Write Backup Metadata
+    if (isBackupEnabled && backedUpFiles.length > 0) {
+      try {
+        const metadataPath = path.join(backupDir, "backup-info.json");
+        this.emitLog(
+          `[Backup] Writing metadata... (Version: ${currentVersion}, Files: ${backedUpFiles.length})`,
+        );
+
+        const metadata = {
+          timestamp: new Date().toISOString(),
+          version: currentVersion,
+          files: backedUpFiles,
+        };
+        await fs.promises.writeFile(
+          metadataPath,
+          JSON.stringify(metadata, null, 2),
+          "utf-8",
+        );
+        this.emitLog(`[Backup] Metadata saved successfully.`);
+      } catch (err) {
+        console.error("Failed to write backup metadata:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        this.emitLog(`[Backup] Failed to save metadata: ${msg}`, true);
+      }
+    }
 
     // Cleanup
     try {

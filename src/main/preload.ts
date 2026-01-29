@@ -5,6 +5,7 @@ import {
   AppConfig,
   NewsCategory,
   UpdateStatus,
+  PatchProgress,
 } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 
@@ -93,11 +94,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("UI:SHOW_PATCH_MODAL", handler);
     return () => ipcRenderer.off("UI:SHOW_PATCH_MODAL", handler);
   },
-  onPatchProgress: (callback: (progress: any) => void) => {
-    const handler = (
-      _event: IpcRendererEvent,
-      progress: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ) => callback(progress);
+  onPatchProgress: (callback: (progress: PatchProgress) => void) => {
+    const handler = (_event: IpcRendererEvent, progress: PatchProgress) =>
+      callback(progress);
     ipcRenderer.on("patch:progress", handler);
     return () => ipcRenderer.off("patch:progress", handler);
   },

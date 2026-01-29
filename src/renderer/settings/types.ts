@@ -38,9 +38,12 @@ export interface BaseSettingItem {
   /**
    * 설정창이 열릴 때 실행될 동적 초기화 로직 (옵션)
    * 저장된 값보다 우선순위가 높으며, 시스템 상태를 실시간으로 반영할 때 사용합니다.
-   * @returns 현재 시스템의 실제 상태값
+   * @param context 값과 설명을 동적으로 변경할 수 있는 함수들을 제공합니다.
    */
-  onInit?: () => Promise<SettingValue | undefined>;
+  onInit?: (context: {
+    setValue: (value: SettingValue) => void;
+    setDescription: (description: string) => void;
+  }) => Promise<void>;
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;
 }

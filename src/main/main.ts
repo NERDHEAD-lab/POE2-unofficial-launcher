@@ -807,7 +807,22 @@ ipcMain.handle(
         if (!stats.isDirectory()) return false;
 
         const files = await fs.readdir(backupDir);
-        return files.length > 0;
+        if (files.length === 0) return false;
+
+        // [NEW] Try to read metadata
+        const metadataPath = path.join(backupDir, "backup-info.json");
+        try {
+          const content = await fs.readFile(metadataPath, "utf-8");
+          const metadata = JSON.parse(content);
+          return metadata; // Return BackupMetadata object
+        } catch {
+          // Legacy: No metadata file, but files exist. Return pseudo-metadata
+          return {
+            timestamp: stats.mtime.toISOString(),
+            files,
+            version: "legacy",
+          };
+        }
       } catch {
         return false;
       }

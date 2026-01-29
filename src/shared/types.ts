@@ -48,6 +48,13 @@ export interface FileProgress {
   error?: string;
 }
 
+export interface BackupMetadata {
+  timestamp: string; // ISO Date String
+  pid?: number;
+  files: string[];
+  version?: string;
+}
+
 export interface PatchProgress {
   status: "waiting" | "downloading" | "done" | "error";
   total: number;
@@ -98,7 +105,7 @@ export interface ElectronAPI {
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ) => Promise<boolean>; // New
+  ) => Promise<boolean | BackupMetadata>; // New
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
   getNews: (
     game: AppConfig["activeGame"],

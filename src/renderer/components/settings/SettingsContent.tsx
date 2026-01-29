@@ -21,209 +21,150 @@ interface Props {
   onRestartRequired: () => void;
 }
 
-const SettingsContent: React.FC<Props> = ({
-  category,
-  onClose,
-  onShowToast,
+// [GENERIC] Individual Item Renderer to manage its own initialization and dynamic state
+const SettingItemRenderer: React.FC<{
+  item: SettingItem;
+  initialValue: SettingValue | undefined;
+  onRestartRequired: () => void;
+  onShowToast: (msg: string) => void;
+  forceDebug: boolean;
+  debugIds: string[];
+}> = ({
+  item,
+  initialValue,
   onRestartRequired,
+  onShowToast,
+  forceDebug,
+  debugIds,
 }) => {
-  // Constants for environment variable priority
-  const FORCE_DEBUG = import.meta.env.VITE_SHOW_GAME_WINDOW === "true";
-  const DEBUG_SETTING_IDS = [
-    "dev_mode",
-    "debug_console",
-    "show_inactive_windows",
-    "show_inactive_window_console",
-  ];
+  const [val, setVal] = useState<SettingValue | undefined>(initialValue);
+  const [description, setDescription] = useState<string | undefined>(
+    item.description,
+  );
+
   // Tooltip State
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  // Expanded State for TextItem
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // UI State for expandable items
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  // Sync with prop updates (e.g. from global config change)
+  // [Fix] Avoid cascading render warning by checking value difference
+  const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
+  if (initialValue !== prevInitialValue) {
+    setVal(initialValue);
+    setPrevInitialValue(initialValue);
+  }
 
-  // Local state for demonstration. In real app, this would sync with Electron Store.
-  const [values, setValues] = useState<Record<string, SettingValue>>({});
-  // Track if restart is required due to changes in this session
-  const [restartRequired, setRestartRequired] = useState(false);
-
-  // [NEW] Initialize settings based on item definitions
+  // [Generic] onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
-    const initValues = async () => {
-      if (!window.electronAPI) return;
-
-      const newValues: Record<string, SettingValue> = {};
-
-      for (const section of category.sections) {
-        for (const item of section.items) {
-          try {
-            if (item.onInit) {
-              const val = await item.onInit();
-              if (val !== undefined) newValues[item.id] = val;
-            } else {
-              const saved = await window.electronAPI.getConfig(item.id);
-              if (saved !== undefined)
-                newValues[item.id] = saved as SettingValue;
-            }
-          } catch (error) {
-            console.error(`[Settings] Failed to init ${item.id}:`, error);
-          }
-        }
-      }
-
-      setValues((prev) => ({ ...prev, ...newValues }));
+    let mounted = true;
+    if (item.onInit) {
+      item
+        .onInit({
+          setValue: (newValue) => {
+            if (mounted) setVal(newValue);
+          },
+          setDescription: (newDesc) => {
+            if (mounted) setDescription(newDesc);
+          },
+        })
+        .catch((err) => {
+          console.error(`[Settings] Failed to init setting ${item.id}:`, err);
+        });
+    }
+    return () => {
+      mounted = false;
     };
+  }, [item]);
 
-    initValues();
-  }, [category]);
+  const handleChange = async (newValue: SettingValue) => {
+    setVal(newValue); // Optimistic update
 
-  const handleAction = async (actionId: string) => {
-    console.log(`[Settings] Action Triggered: ${actionId}`);
-
-    if (actionId === "logout_kakao") {
-      if (window.electronAPI) {
-        onShowToast("[로그아웃] 카카오 계정 연동을 해제 중입니다...");
-        const success = await window.electronAPI.logoutSession();
-        if (success) {
-          onShowToast("[로그아웃] 성공적으로 연동 해제되었습니다.");
-        } else {
-          onShowToast("[로그아웃] 연동 해제에 실패했습니다.");
-        }
-      }
-      return;
-    }
-
-    if (actionId.startsWith("restore_backup_")) {
-      if (window.electronAPI && window.electronAPI.triggerManualPatchFix) {
-        const parts = actionId.replace("restore_backup_", "").split("_");
-        // e.g. kakao_poe1 -> service=Kakao Games, game=POE1
-        // e.g. ggg_poe2 -> service=GGG, game=POE2
-        let service: "Kakao Games" | "GGG" = "Kakao Games";
-        let game: "POE1" | "POE2" = "POE1";
-
-        if (parts.includes("ggg")) service = "GGG";
-        if (parts.includes("poe2")) game = "POE2";
-
-        onShowToast(`[복구] ${service} / ${game} 패치 복구를 시작합니다...`);
-
-        // TODO: Update IPC to support arguments or use context switching?
-        // For now, let's assume we can pass these as arguments if I update the signature.
-        // Current signature: triggerManualPatchFix() -> void.
-        // I will update it in next step. For now, calling it with args (TS might complain, casting to any).
-        (
-          window.electronAPI.triggerManualPatchFix as (
-            serviceId: "Kakao Games" | "GGG",
-            gameId: "POE1" | "POE2",
-          ) => void
-        )(service, game);
-      } else {
-        onShowToast("기능을 사용할 수 없습니다 (Electron API 미연동)");
-      }
-      return;
-    }
-
-    onShowToast(`[버튼 클릭] 액션: ${actionId}`);
-  };
-
-  const handleChange = (id: string, newValue: SettingValue) => {
-    console.log(`[Settings] Change ${id}:`, newValue);
-    setValues((prev) => ({ ...prev, [id]: newValue }));
-  };
-
-  // Wrapper to capture Item context for feedback
-  const handleItemChange = (item: SettingItem, val: SettingValue) => {
-    handleChange(item.id, val);
-
-    // [New] Persist to Electron Store
+    // Persist to Store
     if (window.electronAPI) {
-      window.electronAPI.setConfig(item.id, val);
+      await window.electronAPI.setConfig(item.id, newValue);
     }
 
     if (item.requiresRestart) {
-      setRestartRequired(true);
       onRestartRequired();
     }
 
-    // Generic Listener Execution
-    // Pass 'showToast' as a utility to the listener
+    // Call listener
     if ("onChangeListener" in item && item.onChangeListener) {
-      if (item.type === "switch" && typeof val === "boolean") {
-        item.onChangeListener(val, { showToast: onShowToast });
-      } else if (
-        (item.type === "radio" || item.type === "select") &&
-        typeof val === "string"
-      ) {
-        item.onChangeListener(val, { showToast: onShowToast });
-      } else if (
-        (item.type === "number" || item.type === "slider") &&
-        typeof val === "number"
-      ) {
-        item.onChangeListener(val, { showToast: onShowToast });
-      }
+      // @ts-expect-error - listener signature is generic
+      item.onChangeListener(newValue, { showToast: onShowToast });
     }
   };
 
-  const renderItemControl = (item: SettingItem) => {
-    const isForced = FORCE_DEBUG && DEBUG_SETTING_IDS.includes(item.id);
+  const handleActionClick = () => {
+    // If it's a generic button, we trigger the onChangeListener as an action
+    if ("onChangeListener" in item && item.onChangeListener) {
+      // @ts-expect-error - listener signature is generic
+      item.onChangeListener(true, { showToast: onShowToast });
+    }
+  };
 
-    // Initial value resolved with priority: Env (if forced) > Values (Store) > Default
-    const defaultVal =
-      "defaultValue" in item
-        ? item.defaultValue
-        : "value" in item
-          ? item.value
-          : undefined;
+  const isForced = forceDebug && debugIds.includes(item.id);
+  const isDisabled = item.disabled || isForced;
+  const currentVal = isForced ? true : val;
 
-    const val = isForced ? true : (values[item.id] ?? defaultVal);
-    const isDisabled = item.disabled || isForced;
-
-    const onChange = (id: string, v: SettingValue) => {
-      // Prevent changing if forced by environment variable
-      if (isForced) return;
-      handleItemChange(item, v);
-    };
+  // Render Control based on type
+  const renderControl = () => {
+    const boolVal = !!currentVal;
+    const stringVal = String(currentVal ?? "");
+    const numVal = Number(currentVal ?? 0);
 
     switch (item.type) {
       case "switch":
         return (
           <SwitchItem
             item={{ ...item, disabled: isDisabled }}
-            value={val as boolean}
-            onChange={onChange}
+            value={boolVal}
+            onChange={(_, v) => handleChange(v)}
           />
         );
       case "radio":
         return (
-          <RadioItem item={item} value={val as string} onChange={onChange} />
+          <RadioItem
+            item={item}
+            value={stringVal}
+            onChange={(_, v) => handleChange(v)}
+          />
         );
       case "select":
         return (
-          <SelectItem item={item} value={val as string} onChange={onChange} />
+          <SelectItem
+            item={item}
+            value={stringVal}
+            onChange={(_, v) => handleChange(v)}
+          />
         );
       case "number":
         return (
-          <NumberItem item={item} value={val as number} onChange={onChange} />
+          <NumberItem
+            item={item}
+            value={numVal}
+            onChange={(_, v) => handleChange(v)}
+          />
         );
       case "slider":
         return (
-          <SliderItem item={item} value={val as number} onChange={onChange} />
+          <SliderItem
+            item={item}
+            value={numVal}
+            onChange={(_, v) => handleChange(v)}
+          />
         );
       case "button":
-        return <ButtonItem item={item} onClick={handleAction} />;
+        return <ButtonItem item={item} onClick={() => handleActionClick()} />;
       case "text":
         return (
           <TextItem
             item={item}
-            value={val as string}
-            isExpanded={expandedItems.has(item.id)}
-            onToggleExpand={(expanded) => {
-              setExpandedItems((prev) => {
-                const next = new Set(prev);
-                if (expanded) next.add(item.id);
-                else next.delete(item.id);
-                return next;
-              });
-            }}
+            value={stringVal}
+            isExpanded={isExpanded}
+            onToggleExpand={setIsExpanded}
           />
         );
       default:
@@ -231,18 +172,138 @@ const SettingsContent: React.FC<Props> = ({
     }
   };
 
+  const isText = item.type === "text";
+  const getSVal = (v: SettingValue | undefined) => String(v ?? "");
+  const isExpandable = isText && getSVal(currentVal).length > 50;
+
+  return (
+    <div
+      className={`setting-item type-${item.type} ${
+        isExpanded ? "is-expanded" : ""
+      } ${isExpandable ? "is-clickable" : ""}`}
+      onClick={() => {
+        if (isExpandable) setIsExpanded(!isExpanded);
+      }}
+      style={{ cursor: isExpandable ? "pointer" : "default" }}
+    >
+      <div className="setting-header-group">
+        {item.icon && (
+          <div className="setting-icon">
+            <span className="material-symbols-outlined">{item.icon}</span>
+          </div>
+        )}
+        <div className="setting-info">
+          <div className="setting-label">
+            <div className="label-wrapper">
+              {item.label}
+              {item.infoImage && (
+                <div
+                  className="info-icon-trigger"
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setTooltipPos({ x: rect.right + 10, y: rect.top });
+                    setHoveredInfo(item.id);
+                  }}
+                  onMouseLeave={() => setHoveredInfo(null)}
+                >
+                  <span className="material-symbols-outlined">info</span>
+                  {hoveredInfo === item.id && (
+                    <div
+                      className="image-tooltip-popup"
+                      style={{
+                        position: "fixed",
+                        left: tooltipPos.x,
+                        top: tooltipPos.y,
+                        zIndex: 9999,
+                      }}
+                    >
+                      <img src={item.infoImage} alt="Setup Guide" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {item.type === "number" &&
+              item.min !== undefined &&
+              item.max !== undefined && (
+                <span className="limit-label">
+                  ({item.min} ~ {item.max})
+                </span>
+              )}
+          </div>
+
+          {/* Dynamic Description Rendering */}
+          {description && (
+            <div
+              className="setting-description"
+              style={{ whiteSpace: "pre-wrap" }}
+            >
+              {description}
+            </div>
+          )}
+        </div>
+      </div>
+      {renderControl()}
+    </div>
+  );
+};
+
+export const SettingsContent: React.FC<Props> = ({
+  category,
+  onClose,
+  onShowToast,
+  onRestartRequired,
+}) => {
+  const FORCE_DEBUG = import.meta.env.VITE_SHOW_GAME_WINDOW === "true";
+  const DEBUG_SETTING_IDS = [
+    "dev_mode",
+    "debug_console",
+    "show_inactive_windows",
+    "show_inactive_window_console",
+  ];
+
+  // Global Config Sync State
+  const [config, setConfig] = useState<Record<string, SettingValue>>({});
+  const [restartRequired, setRestartRequired] = useState(false);
+
+  // Load Config and Sync with Main Process
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (!window.electronAPI) return;
+      const newValues: Record<string, SettingValue> = {};
+
+      for (const section of category.sections) {
+        for (const item of section.items) {
+          const saved = await window.electronAPI.getConfig(item.id);
+          if (saved !== undefined) newValues[item.id] = saved as SettingValue;
+        }
+      }
+      setConfig((prev) => ({ ...prev, ...newValues }));
+    };
+
+    loadConfig();
+
+    if (window.electronAPI) {
+      const removeListener = window.electronAPI.onConfigChange((key, value) => {
+        setConfig((prev) => ({ ...prev, [key]: value as SettingValue }));
+      });
+      return () => removeListener();
+    }
+  }, [category]);
+
+  const handleRestartNotice = () => {
+    setRestartRequired(true);
+    onRestartRequired();
+  };
+
   return (
     <div className="settings-content" style={{ position: "relative" }}>
-      {/* Toast Notification Removed (Handled by Parent) */}
-
-      {/* Header / Actions Bar */}
       <div className="content-actions-bar">
         <button className="settings-close-btn-inline" onClick={onClose}>
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
 
-      {/* Body */}
       <div className="content-body">
         {category.sections.map((section) => (
           <div key={section.id} className="settings-section">
@@ -251,108 +312,40 @@ const SettingsContent: React.FC<Props> = ({
             )}
 
             {section.items.map((item) => {
-              // Dependency Logic: Hide if parent setting is false
+              // Priority Dependency Check
               if (item.dependsOn) {
-                const parentValue = values[item.dependsOn];
+                const parentVal = config[item.dependsOn];
                 const isForcedParent =
                   FORCE_DEBUG && DEBUG_SETTING_IDS.includes(item.dependsOn);
-                // Parent value is considered true if forced or if explicitly true in values
-                const resolvedParentValue =
-                  isForcedParent || parentValue === true;
-
-                if (!resolvedParentValue) return null;
+                // Hide if parent is not enabled (considering force-debug)
+                if (!isForcedParent && parentVal !== true) return null;
               }
 
-              // [New] Visibility Logic for Buttons (based on onInit result)
-              if (item.type === "button" && values[item.id] === false) {
+              // Visibility check for buttons (if configured to hide when value is false)
+              // This can be used for availability checks (restore buttons)
+              if (item.type === "button" && config[item.id] === false) {
                 return null;
               }
 
-              const isText = item.type === "text";
-              const isExpanded = expandedItems.has(item.id);
-              const isExpandable = isText && (item.value as string).length > 50;
+              // Resolve value for prop (falls back to default if not in config yet)
+              const defaultVal =
+                "defaultValue" in item
+                  ? item.defaultValue
+                  : "value" in item
+                    ? item.value
+                    : undefined;
+              const currentValue = config[item.id] ?? defaultVal;
 
               return (
-                <div
+                <SettingItemRenderer
                   key={item.id}
-                  className={`setting-item type-${item.type} ${
-                    isExpanded ? "is-expanded" : ""
-                  } ${isExpandable ? "is-clickable" : ""}`}
-                  onClick={() => {
-                    if (isExpandable) {
-                      setExpandedItems((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(item.id)) next.delete(item.id);
-                        else next.add(item.id);
-                        return next;
-                      });
-                    }
-                  }}
-                  style={{ cursor: isExpandable ? "pointer" : "default" }}
-                >
-                  <div className="setting-header-group">
-                    {item.icon && (
-                      <div className="setting-icon">
-                        <span className="material-symbols-outlined">
-                          {item.icon}
-                        </span>
-                      </div>
-                    )}
-                    <div className="setting-info">
-                      <div className="setting-label">
-                        <div className="label-wrapper">
-                          {item.label}
-                          {item.infoImage && (
-                            <div
-                              className="info-icon-trigger"
-                              onMouseEnter={(e) => {
-                                const rect =
-                                  e.currentTarget.getBoundingClientRect();
-                                setTooltipPos({
-                                  x: rect.right + 10,
-                                  y: rect.top,
-                                });
-                                setHoveredInfo(item.id);
-                              }}
-                              onMouseLeave={() => setHoveredInfo(null)}
-                            >
-                              <span className="material-symbols-outlined">
-                                info
-                              </span>
-
-                              {hoveredInfo === item.id && (
-                                <div
-                                  className="image-tooltip-popup"
-                                  style={{
-                                    position: "fixed",
-                                    left: tooltipPos.x,
-                                    top: tooltipPos.y,
-                                  }}
-                                >
-                                  <img src={item.infoImage} alt="Setup Guide" />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {/* Min/Max Display for Number Inputs */}
-                        {item.type === "number" &&
-                          item.min !== undefined &&
-                          item.max !== undefined && (
-                            <span className="limit-label">
-                              ({item.min} ~ {item.max})
-                            </span>
-                          )}
-                      </div>
-                      {item.description && (
-                        <div className="setting-description">
-                          {item.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {renderItemControl(item)}
-                </div>
+                  item={item}
+                  initialValue={currentValue}
+                  onRestartRequired={handleRestartNotice}
+                  onShowToast={onShowToast}
+                  forceDebug={FORCE_DEBUG}
+                  debugIds={DEBUG_SETTING_IDS}
+                />
               );
             })}
           </div>

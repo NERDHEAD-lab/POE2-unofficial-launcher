@@ -1,5 +1,43 @@
 import { SettingsCategory } from "./types";
+import { BackupMetadata } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
+
+const initBackupButton = async (
+  {
+    setValue,
+    setDescription,
+  }: { setValue: (v: boolean) => void; setDescription: (d: string) => void },
+  service: "Kakao Games" | "GGG",
+  game: "POE1" | "POE2",
+) => {
+  if (!window.electronAPI?.checkBackupAvailability) {
+    setValue(false);
+    return;
+  }
+
+  const result = await window.electronAPI.checkBackupAvailability(
+    service,
+    game,
+  );
+
+  if (!result) {
+    setValue(false);
+    return;
+  }
+
+  setValue(true);
+
+  if (typeof result === "object" && "timestamp" in result) {
+    const meta = result as BackupMetadata;
+    const dateStr = new Date(meta.timestamp).toLocaleString();
+    let desc = "기존에 백업된 데이터로 게임을 복구합니다.";
+    if (meta.version) desc += `\n- 버전: ${meta.version}`;
+    desc += `\n- 백업 일시: ${dateStr}`;
+    if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
+
+    setDescription(desc);
+  }
+};
 
 export const DUMMY_SETTINGS: SettingsCategory[] = [
   {
@@ -207,11 +245,13 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             defaultValue: false,
             icon: "verified_user",
             infoImage: imgUacTooltip,
-            onInit: async () => {
+            onInit: async ({ setValue }) => {
               if (window.electronAPI) {
-                return await window.electronAPI.isUACBypassEnabled();
+                const result = await window.electronAPI.isUACBypassEnabled();
+                setValue(result);
+              } else {
+                setValue(false);
               }
-              return false;
             },
             onChangeListener: async (val, { showToast }) => {
               if (window.electronAPI) {
@@ -271,18 +311,8 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             actionId: "restore_backup_kakao_poe1",
             icon: "history",
             dependsOn: "backupPatchFiles", // UI toggle dependency only
-            onInit: async () => {
-              if (
-                window.electronAPI &&
-                window.electronAPI.checkBackupAvailability
-              ) {
-                return await window.electronAPI.checkBackupAvailability(
-                  "Kakao Games",
-                  "POE1",
-                );
-              }
-              return false; // Default hidden
-            },
+            onInit: (context) =>
+              initBackupButton(context, "Kakao Games", "POE1"),
           },
           {
             id: "restore_kakao_poe2",
@@ -292,18 +322,8 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             actionId: "restore_backup_kakao_poe2",
             icon: "history",
             dependsOn: "backupPatchFiles",
-            onInit: async () => {
-              if (
-                window.electronAPI &&
-                window.electronAPI.checkBackupAvailability
-              ) {
-                return await window.electronAPI.checkBackupAvailability(
-                  "Kakao Games",
-                  "POE2",
-                );
-              }
-              return false;
-            },
+            onInit: (context) =>
+              initBackupButton(context, "Kakao Games", "POE2"),
           },
           {
             id: "restore_ggg_poe1",
@@ -313,18 +333,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             actionId: "restore_backup_ggg_poe1",
             icon: "history",
             dependsOn: "backupPatchFiles",
-            onInit: async () => {
-              if (
-                window.electronAPI &&
-                window.electronAPI.checkBackupAvailability
-              ) {
-                return await window.electronAPI.checkBackupAvailability(
-                  "GGG",
-                  "POE1",
-                );
-              }
-              return false;
-            },
+            onInit: (context) => initBackupButton(context, "GGG", "POE1"),
           },
           {
             id: "restore_ggg_poe2",
@@ -334,18 +343,7 @@ export const DUMMY_SETTINGS: SettingsCategory[] = [
             actionId: "restore_backup_ggg_poe2",
             icon: "history",
             dependsOn: "backupPatchFiles",
-            onInit: async () => {
-              if (
-                window.electronAPI &&
-                window.electronAPI.checkBackupAvailability
-              ) {
-                return await window.electronAPI.checkBackupAvailability(
-                  "GGG",
-                  "POE2",
-                );
-              }
-              return false;
-            },
+            onInit: (context) => initBackupButton(context, "GGG", "POE2"),
           },
         ],
       },
