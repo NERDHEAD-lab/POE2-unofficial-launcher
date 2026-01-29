@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.5...0.1.6) (2026-01-29)
+
+
+### Bug Fixes
+
+* 런처가 실행 중 일 때 삭제가 정상적으로 진행되지 않는 문제 개선 ([cbc3b8d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/cbc3b8d42a7aa20edbbde889a633cab576f530fe))
+* 설치 시 바탕화면과 시작에 바로가기 추가를 질의하지 않는 문제 수정 ([a19e0a4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a19e0a4846d011c2adab975e67dbc2c6e3d7c480))
+
 ## [0.1.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.4...0.1.5) (2026-01-29)
 
 
