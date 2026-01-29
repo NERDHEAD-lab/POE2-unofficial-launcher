@@ -9,6 +9,9 @@
     oneClick: false,
     perMachine: false,
     allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: "POE2 Unofficial Launcher",
     include: "build/installer.nsh",
   },
   win: {
