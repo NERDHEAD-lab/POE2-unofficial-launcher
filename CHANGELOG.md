@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.4...0.1.5) (2026-01-29)
+
+
+### Bug Fixes
+
+* 업데이트가 원활하게 진행되지 않는 문제 수정 - 2 ([c9cd19c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c9cd19c9472a69afad4f94f8188869677bde6b01))
+
 ## [0.1.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.3...0.1.4) (2026-01-29)
 
 
