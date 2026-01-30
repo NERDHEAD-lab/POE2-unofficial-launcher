@@ -60,7 +60,7 @@
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.53.0",
     "vite": "^5.0.0",
-    "vite-plugin-electron": "^0.28.2",
+    "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.5",
     "vitest": "^4.0.17"
   },
