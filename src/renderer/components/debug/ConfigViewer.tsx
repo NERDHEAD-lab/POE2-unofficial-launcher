@@ -214,7 +214,7 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
               border: isOrphaned ? "1px solid #ff9b0055" : "1px solid #333",
             }}
           >
-            {JSON.stringify(value || "null", null, 2)}
+            {JSON.stringify(value ?? null, null, 2)}
           </pre>
         )}
       </div>
