@@ -21,5 +21,5 @@ Please include a summary of the change and which issue is fixed. Please also inc
 
 ## Contributor License Agreement (CLA)
 
-- [ ] I certify that I have read and accepted the [Contributor License Agreement](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/main/docs/CLA.md).
+- [ ] I certify that I have read and accepted the [Contributor License Agreement](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/master/docs/CLA.md).
 - [ ] I certify that the contributions I am submitting are my own original work.
