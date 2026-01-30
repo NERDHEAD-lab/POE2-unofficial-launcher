@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.2.0...0.3.0) (2026-01-30)
+
+
+### Features
+
+* 온보딩 절차 추가 - 2 ([c1c6d51](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c1c6d518534140c9e9aa2b2d7f9d08986a43decb))
+
+
+### Bug Fixes
+
+* 디버그 콘솔에서 false 값이 null로 표기되는 문제 수정 ([97fe244](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/97fe24426a338cad5adae51966d64ebc1003ac53))
+* 삭제절차에서 추가한 UAC 복구가 비정상적으로 동작하는 문제 수정 ([5a5c875](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5a5c87513a3c028935a4e07b35c818e588210ae6))
+
 ## [0.2.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.7...0.2.0) (2026-01-30)
 
 
