@@ -36,13 +36,14 @@ interface StatusMessageConfig {
 
 // Status Message Mapping (Configuration)
 const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
-  idle: { message: "게임이 종료되었습니다.", timeout: 3000 },
+  idle: { message: "", timeout: 0 }, // [Updated] Clean idle state
   uninstalled: { message: "설치된 게임을 찾을 수 없습니다.", timeout: -1 }, // Sticky
   preparing: { message: "실행 절차 준비 중...", timeout: 3000 },
   processing: { message: "실행 절차 진행 중...", timeout: 3000 },
   authenticating: { message: "지정 PC 확인 중...", timeout: 3000 },
   ready: { message: "게임 실행 준비 완료! 잠시 후 실행됩니다.", timeout: 3000 },
   running: { message: "게임 실행 중", timeout: -1 }, // Sticky
+  stopping: { message: "게임이 종료되었습니다.", timeout: 0 }, // [New] Shown during transition
   error: { message: "실행 오류 발생", timeout: 3000 },
 };
 

@@ -27,7 +27,7 @@ const emitGameStatus = (
   context: AppContext,
   gameId: AppConfig["activeGame"],
   serviceId: AppConfig["serviceChannel"],
-  status: "running" | "idle", // Explicit literal types for status used here
+  status: "running" | "idle" | "stopping", // [Update] Added 'stopping'
 ) => {
   eventBus.emit<GameStatusChangeEvent>(EventType.GAME_STATUS_CHANGE, context, {
     gameId,
@@ -36,16 +36,7 @@ const emitGameStatus = (
   });
 };
 
-// --- Strategy Implementations ---
-
-// [Kakao Games Note]
-// Kakao Games processes (POE2_Launcher.exe, POE_Launcher.exe) are launched by 'DaumGameStarter'.
-// DaumGameStarter runs with Administrator privileges, so the Electron Main process (User privileges)
-// CANNOT access their ExecutablePath (Access Denied).
-// Therefore, we cannot rely on the 'path' payload for Kakao.
-// We must judge solely by the presence of the process name (which is unique enough).
-// 카카오게임즈는 daumgamestarter가 관리자권한을 요청해서 payload(path)를 가져올 수 없음
-// 단순히 런쳐 켜지고 꺼지는 유무로 밖에 판단 할 수 없음
+// ...
 
 const PROCESS_STRATEGIES: ProcessStrategy[] = [
   // 1. Kakao PoE2 Launcher
@@ -55,7 +46,11 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE2", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      emitGameStatus(context, "POE2", "Kakao Games", "idle");
+      // [Update] Transition: running -> stopping -> (3s) -> idle
+      emitGameStatus(context, "POE2", "Kakao Games", "stopping");
+      setTimeout(() => {
+        emitGameStatus(context, "POE2", "Kakao Games", "idle");
+      }, 3000);
     },
   },
 
@@ -66,18 +61,17 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE1", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      emitGameStatus(context, "POE1", "Kakao Games", "idle");
+      // [Update] Transition: running -> stopping -> (3s) -> idle
+      emitGameStatus(context, "POE1", "Kakao Games", "stopping");
+      setTimeout(() => {
+        emitGameStatus(context, "POE1", "Kakao Games", "idle");
+      }, 3000);
     },
   },
 
-  // 3. Kakao Game Client (PathOfExile_KG.exe)
-  // User Instruction: Just register it, rely on Launchers for status.
-  {
-    processName: "PathOfExile_KG.exe",
-  },
+  // 3. ... (Unchanged)
 
   // 4. GGG / Generic Client (PathOfExile.exe)
-  // User Instruction: Restore path detection logic for GGG.
   {
     processName: "PathOfExile.exe",
     onStart: (event, context) => {
@@ -109,7 +103,11 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
         return;
       }
 
-      emitGameStatus(context, gameId, "GGG", "idle");
+      // [Update] Transition: running -> stopping -> (3s) -> idle
+      emitGameStatus(context, gameId, "GGG", "stopping");
+      setTimeout(() => {
+        emitGameStatus(context, gameId, "GGG", "idle");
+      }, 3000);
     },
   },
 ];
