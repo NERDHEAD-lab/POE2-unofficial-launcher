@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.1...0.3.2) (2026-01-30)
+
+
+### Bug Fixes
+
+* 개발자 모드가 아닌경우 관리자 권한이 필요한 powershell 명령어가 동작하지 않는 문제 수정 ([834242c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/834242c9f13637f21f2eb2bf478cf55451b37c7e))
+
 ## [0.3.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.0...0.3.1) (2026-01-30)
 
 
