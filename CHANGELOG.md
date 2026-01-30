@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.7...0.2.0) (2026-01-30)
+
+
+### Features
+
+* 온보딩 절차 추가 ([0767804](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0767804056b19d2f8dd77655214778873f8d6c7a))
+
+
+### Bug Fixes
+
+* 삭제 절차에서 설정 복구 및 설정파일을 지우지 않는 문제 수정 ([d4ab37d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/d4ab37d282005f11b921fbff2cb22d55b55fee8c))
+* 제거 절차 강화 ([027de71](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/027de71de6d7893e90ab4898602f9dce672cb876))
+
 ## [0.1.7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.1.6...0.1.7) (2026-01-29)
 
 
