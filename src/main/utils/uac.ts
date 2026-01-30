@@ -204,20 +204,49 @@ $ErrorActionPreference = "Stop"
 try {
     Write-Output "Creating Task..."
     $runnerPath = '${runnerVbsPath.replaceAll("'", "''")}'
-    $tr = "wscript.exe \`"$runnerPath\`""
+    $trArg = 'wscript.exe \\"{0}\\"' -f $runnerPath
     
-    # [Fix] schtasks might emit a warning about past start time, which Stop preference treats as error.
-    # We run it with SilentlyContinue for the specific command or catch it.
-    $oldPreference = $ErrorActionPreference
-    $ErrorActionPreference = "SilentlyContinue"
-    & schtasks.exe /create /tn "${TASK_NAME}" /tr $tr /sc ONCE /st 00:00 /rl HIGHEST /f 2>&1
-    $ErrorActionPreference = $oldPreference
+    # [Fix] Relax error preference for schtasks because it emits a warning for past time (/ST 00:00)
+    # which 'Stop' treats as a fatal exception.
+    $oldPref = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $out = & schtasks.exe /create /tn "${TASK_NAME}" /tr $trArg /sc ONCE /st 00:00 /rl HIGHEST /f 2>&1
+    $ErrorActionPreference = $oldPref
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Output "Updating Registry..."
+        
+        # [Fix] Target HKCU explicitly. HKCR is a merged view and writing to it is unreliable.
+        $hkcuPath = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\daumgamestarter\\shell\\open\\command"
+        $proxyPath = '${proxyVbsPath.replaceAll("'", "''")}'
+        $val = 'wscript.exe "{0}" "%1"' -f $proxyPath
+        
+        Write-Output "Target Key: $hkcuPath"
+        Write-Output "Target Val: $val"
 
-    Write-Output "Updating Registry..."
-    $val = 'wscript.exe "${proxyVbsPath.replaceAll("'", "''")}" "%1"'
-    Set-Item -Path "${PROTOCOL_KEY}" -Value $val -Force
-    
-    Write-Output "SUCCESS_MARKER"
+        # Ensure path exists
+        if (-not (Test-Path $hkcuPath)) {
+            New-Item -Path $hkcuPath -Force | Out-Null
+        }
+
+        try {
+            Set-Item -Path $hkcuPath -Value $val -Force -ErrorAction Stop
+            
+            # Verify
+            $verifyVal = (Get-Item -Path $hkcuPath).GetValue("")
+            Write-Output "Verification: $verifyVal"
+            
+            if ($verifyVal -eq $val) {
+                Write-Output "SUCCESS_MARKER"
+            } else {
+                Write-Output "ERROR_REGISTRY_MISMATCH"
+            }
+        } catch {
+            Write-Output "ERROR_REGISTRY_WRITE: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Output "ERROR_SCHTASKS: $out"
+    }
 } catch {
     Write-Output "ERROR_OCCURRED: $($_.Exception.Message)"
 }
