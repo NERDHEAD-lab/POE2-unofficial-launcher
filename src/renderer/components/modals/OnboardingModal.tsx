@@ -12,9 +12,25 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
   const [step, setStep] = useState(1);
   const [uacBypass, setUacBypass] = useState(false);
 
+  // [New] Patch & Automation States
+  const [autoFix, setAutoFix] = useState(false);
+  const [autoStart, setAutoStart] = useState(false);
+  const [backup, setBackup] = useState(true);
+
   useEffect(() => {
     if (isOpen && window.electronAPI) {
       window.electronAPI.isUACBypassEnabled().then(setUacBypass);
+
+      // Load initial config
+      window.electronAPI
+        .getConfig("autoFixPatchError")
+        .then((v) => setAutoFix(!!v));
+      window.electronAPI
+        .getConfig("autoGameStartAfterFix")
+        .then((v) => setAutoStart(!!v));
+      window.electronAPI
+        .getConfig("backupPatchFiles")
+        .then((v) => setBackup(!!v));
     }
   }, [isOpen]);
 
@@ -32,8 +48,23 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
     if (result) setUacBypass(nextVal);
   };
 
+  const handleToggleConfig = async (
+    key: string,
+    currentVal: boolean,
+    setter: (v: boolean) => void,
+  ) => {
+    if (!window.electronAPI) return;
+    const nextVal = !currentVal;
+    await window.electronAPI.setConfig(key, nextVal);
+    setter(nextVal);
+  };
+
   const handleFinish = () => {
     onFinish();
+    // [Review] Force save onboarding shown state just in case
+    if (window.electronAPI) {
+      window.electronAPI.setConfig("showOnboarding", false);
+    }
   };
 
   return (
@@ -46,7 +77,9 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                 ? "info"
                 : step === 2
                   ? "verified_user"
-                  : "rocket_launch"}
+                  : step === 3
+                    ? "build_circle"
+                    : "rocket_launch"}
             </span>
           </div>
           <div className="header-text">
@@ -55,9 +88,11 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                 ? "런처 시작 안내 및 고지"
                 : step === 2
                   ? "DaumGameStarter 권한 설정"
-                  : "설정 완료"}
+                  : step === 3
+                    ? "패치 복구 설정"
+                    : "설정 완료"}
             </h2>
-            <div className="step-indicator">단계 {step} / 3</div>
+            <div className="step-indicator">단계 {step} / 4</div>
           </div>
         </div>
 
@@ -147,6 +182,101 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
           )}
 
           {step === 3 && (
+            <div className="step-content">
+              <div className="uac-explanation">
+                <p>
+                  게임 실행에 문제가 생겼을 때(패치 오류 등), 런처가
+                  <strong>자동으로 복구</strong>하도록 설정하시겠습니까?
+                </p>
+              </div>
+
+              {/* 1. Auto Fix Patch Error */}
+              <div
+                className={`uac-card ${autoFix ? "active" : ""}`}
+                onClick={() =>
+                  handleToggleConfig("autoFixPatchError", autoFix, setAutoFix)
+                }
+              >
+                <div className="uac-card-info">
+                  <span className="material-symbols-outlined">autorenew</span>
+                  <div className="uac-card-text">
+                    <div className="uac-card-title">
+                      패치 오류 자동 수정 (Auto Fix)
+                    </div>
+                    <div className="uac-card-desc">
+                      게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시
+                      복구를 진행합니다.
+                    </div>
+                  </div>
+                </div>
+                <div className={`uac-toggle ${autoFix ? "is-active" : ""}`}>
+                  <div className="toggle-knob"></div>
+                </div>
+              </div>
+
+              {/* 2. Auto Start Game (Depends on Auto Fix) */}
+              <div
+                className={`uac-card ${autoFix && autoStart ? "active" : ""} ${!autoFix ? "disabled" : ""}`}
+                style={{
+                  opacity: autoFix ? 1 : 0.5,
+                  pointerEvents: autoFix ? "auto" : "none",
+                  marginLeft: "20px",
+                  marginTop: "10px",
+                }}
+                onClick={() =>
+                  autoFix &&
+                  handleToggleConfig(
+                    "autoGameStartAfterFix",
+                    autoStart,
+                    setAutoStart,
+                  )
+                }
+              >
+                <div className="uac-card-info">
+                  <span className="material-symbols-outlined">play_circle</span>
+                  <div className="uac-card-text">
+                    <div className="uac-card-title">
+                      패치 복구 후 게임 자동 시작
+                    </div>
+                    <div className="uac-card-desc">
+                      패치 오류 자동 수정이 완료되면, 해당 서비스를 통해 게임을
+                      자동으로 실행합니다.
+                    </div>
+                  </div>
+                </div>
+                <div className={`uac-toggle ${autoStart ? "is-active" : ""}`}>
+                  <div className="toggle-knob"></div>
+                </div>
+              </div>
+
+              {/* 3. Backup Patch Files */}
+              <div
+                className={`uac-card ${backup ? "active" : ""}`}
+                style={{ marginTop: "20px" }}
+                onClick={() =>
+                  handleToggleConfig("backupPatchFiles", backup, setBackup)
+                }
+              >
+                <div className="uac-card-info">
+                  <span className="material-symbols-outlined">save</span>
+                  <div className="uac-card-text">
+                    <div className="uac-card-title">
+                      패치 파일 백업 (Backup)
+                    </div>
+                    <div className="uac-card-desc">
+                      패치 파일 교체 시 원본 파일을 안전한 곳(.patch_backups)에
+                      보관합니다.
+                    </div>
+                  </div>
+                </div>
+                <div className={`uac-toggle ${backup ? "is-active" : ""}`}>
+                  <div className="toggle-knob"></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="step-content final-step">
               <div className="welcome-box">
                 <span className="material-symbols-outlined large">
@@ -181,9 +311,9 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
           )}
           <button
             className="btn-next"
-            onClick={step === 3 ? handleFinish : handleNext}
+            onClick={step === 4 ? handleFinish : handleNext}
           >
-            {step === 3 ? "시작하기" : "다음 단계"}
+            {step === 4 ? "시작하기" : "다음 단계"}
           </button>
         </div>
       </div>
