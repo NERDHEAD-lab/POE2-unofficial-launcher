@@ -410,10 +410,6 @@ ${originalCmd}
 
 /**
  * Extracts executable path from command string.
- * ... (No change)
-
-/**
- * Extracts executable path from command string.
  */
 function extractExePath(cmd: string): string | null {
   let exePath = "";

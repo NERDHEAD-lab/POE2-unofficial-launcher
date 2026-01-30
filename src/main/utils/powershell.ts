@@ -403,22 +403,8 @@ try {
     if (isAdmin) {
       // Admin: Use Start-Process with Verb RunAs
       commandToSpawn = "powershell";
-
-      // [Fix] Dynamically build arguments to avoid empty strings which cause parsing error (Exit Code 1)
-      // When dev_mode is off, noExitFlag is empty. Passing "" in -ArgumentList breaks Start-Process.
-      const args = [
-        noExitFlag,
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-EncodedCommand",
-        encodedCommand,
-      ].filter((arg) => arg !== "");
-
-      const formattedArgs = args.map((arg) => `"${arg}"`).join(", ");
-      const startProcessArgs = `-Verb RunAs -WindowStyle ${windowStyle} -ArgumentList ${formattedArgs}`;
-
+      // Construct the full argument list for Start-Process
+      const startProcessArgs = `-Verb RunAs -WindowStyle ${windowStyle} -ArgumentList "${noExitFlag}", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", "${encodedCommand}"`;
       spawnArgs = [
         "-NoProfile",
         "-Command",
@@ -465,17 +451,6 @@ try {
       console.log(
         `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
       );
-
-      // [Fix] Admin Spawner exits immediately after Start-Process.
-      // We should only fail if code is non-zero (indicating Start-Process failed).
-      // If code is 0, we stay silent and wait for the actual worker process to connect via socket.
-      if (isAdmin && code === 0) {
-        console.log(
-          "[PowerShellManager] Admin spawner finished successfully. Waiting for elevated worker...",
-        );
-        return;
-      }
-
       this.failAllPendingRequests(
         session,
         isAdmin,
