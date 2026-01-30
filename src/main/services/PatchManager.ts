@@ -48,7 +48,16 @@ export class PatchManager {
     installPath: string,
     serviceId: AppConfig["serviceChannel"],
     overrides?: { webRoot?: string; backupWebRoot?: string },
-  ): Promise<void> {
+  ): Promise<boolean> {
+    // [Fix] Prevent re-entrancy / double-execution
+    if (this.isPatching) {
+      this.emitLog(
+        "[PatchManager] Patch ALREADY in progress. Ignoring duplicate request.",
+        true,
+      );
+      return false;
+    }
+
     try {
       this.isPatching = true;
       this.shouldStop = false;
@@ -122,10 +131,12 @@ export class PatchManager {
       );
 
       this.emitGlobalStatus("done", "패치 복구 완료", 100);
+      return true;
     } catch (e: unknown) {
       console.error("[PatchManager] Error:", e);
       const msg = e instanceof Error ? e.message : String(e);
       this.emitGlobalStatus("error", msg || "알 수 없는 오류", 0, msg);
+      return false;
     } finally {
       this.isPatching = false;
       this.shouldStop = false;

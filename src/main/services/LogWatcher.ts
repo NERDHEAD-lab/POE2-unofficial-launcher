@@ -26,6 +26,7 @@ export class LogWatcher {
   private lastCheckedGameId: AppConfig["activeGame"] | null = null;
   private lastCheckedServiceId: AppConfig["serviceChannel"] | null = null;
   private currentPid: number | null = null;
+  private lastReportedErrorCount: number = 0;
 
   constructor(context: AppContext) {
     this.context = context;
@@ -129,6 +130,7 @@ export class LogWatcher {
       this.lastSize = offset;
 
       this.errorCount = 0;
+      this.lastReportedErrorCount = 0;
       this.isMonitoring = true;
 
       this.watchTimer = setInterval(() => this.checkLog(), 1000);
@@ -222,6 +224,7 @@ export class LogWatcher {
           // Check for Session Marker
           if (line.includes(config.logStartMarker)) {
             this.errorCount = 0;
+            this.lastReportedErrorCount = 0;
             if (this.currentPid) {
               this.emitLog(`Session Marker Found (PID: ${this.currentPid})`);
               eventBus.emit(EventType.LOG_SESSION_START, this.context, {
@@ -277,9 +280,15 @@ export class LogWatcher {
           }
         }
 
-        if (this.errorCount >= ERROR_THRESHOLD) {
+        // [Improved] Emit only on change to avoid EventBus spam,
+        // but keep tracking higher counts.
+        if (
+          this.errorCount >= ERROR_THRESHOLD &&
+          this.errorCount !== this.lastReportedErrorCount
+        ) {
+          this.lastReportedErrorCount = this.errorCount;
           this.emitLog(
-            "ERROR THRESHOLD REACHED! Flagging for repair (waiting for exit)...",
+            `Error count updated: ${this.errorCount} (Threshold: ${ERROR_THRESHOLD})`,
             true,
           );
 

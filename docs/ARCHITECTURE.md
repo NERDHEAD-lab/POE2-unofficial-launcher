@@ -175,6 +175,21 @@
   - **NSIS Integration**: `installer.nsh`의 `un.customUnInstall` 매크로에서 앱을 해당 플래그로 실행하고, `MessageBox`를 통해 AppData 폴더(`%AppData%\POE2 Unofficial Launcher`)를 선택적으로 삭제하도록 구현함.
 - **결과**: 기존에 검증된 앱 로직을 활용함으로써 정리 작업의 안정성을 높였으며, 제거 후 시스템에 불필요한 잔재가 남지 않도록 보장함.
 
+#### ADR-013: Service Channel Architecture (Kakao vs GGG)
+
+- **상황**: Kakao Games(Korea)와 GGG(Global) 서비스 채널의 실행 방식과 권한 레벨이 상이하여, 단일한 프로세스 감시 및 로그 분석 로직으로는 오작동(이중 감시, 미감지 등)이 발생함.
+- **결정**:
+  - **Kakao Games (Admin Privileged)**:
+    - 런처(`POE2_Launcher`)가 관리자 권한으로 실행되어 클라이언트(`PathOfExile_KG.exe`)를 호출함.
+    - 일반 권한의 런처에서는 클라이언트의 경로(Path)를 직접 확인할 수 없으므로, **런처 프로세스 유무** 및 **활성 게임 컨텍스트(`activeGame`)**를 기준으로 식별함.
+    - 클라이언트 종료 시 감시를 즉시 중단함.
+  - **GGG (User Privileged)**:
+    - 런처 없이 클라이언트(`PathOfExile.exe`)가 직접 실행됨.
+    - **파일 경로(Folder Name)**를 통해 POE1과 POE2를 명확히 구분하여 로그 감시를 수행함.
+  - **Robust Monitoring**:
+    - 패치 오류 등으로 프로세스가 **시작 직후 종료(Immediate Crash)**되는 경우를 대비하여, `PROCESS_STOP` 이벤트 수신 시 **마지막 로그 체크(`checkLog`)**를 강제 수행하도록 개선함.
+- **결과**: 서비스 채널별 특성에 맞춘 최적화된 감시 전략을 통해 로그 누락 및 오작동을 방지함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
