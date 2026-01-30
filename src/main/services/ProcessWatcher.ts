@@ -41,6 +41,25 @@ export class ProcessWatcher {
     }
   }
 
+  /**
+   * Check if a process with the given name is currently running.
+   * @param name Process name (e.g., "PathOfExile.exe")
+   * @param criteria Optional callback to filter by process info (e.g., checking path)
+   */
+  public isProcessRunning(
+    name: string,
+    criteria?: (info: { pid: number; path: string }) => boolean,
+  ): boolean {
+    for (const [pid, info] of this.activePids.entries()) {
+      if (info.name.toLowerCase() === name.toLowerCase()) {
+        if (!criteria || criteria({ pid, path: info.path })) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   // --- Suspension Logic ---
 
   public scheduleSuspension() {

@@ -66,11 +66,23 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Refactor: Use globalGameState instead of simple text string
-  const [globalGameStatus, setGlobalGameStatus] = useState<GameStatusState>({
-    gameId: "POE1", // Default, effectively ignored until status !== idle
-    serviceId: "Kakao Games",
-    status: "idle",
-  });
+  // [Refactor] Multi-Context Game Status Map
+  // Key: `${gameId}_${serviceId}`
+  const [gameStatusMap, setGameStatusMap] = useState<
+    Record<string, GameStatusState>
+  >({});
+
+  // Computed: Current Active Status based on selection
+  const activeGameStatus = useMemo(() => {
+    const key = `${activeGame}_${serviceChannel}`;
+    return (
+      gameStatusMap[key] || {
+        gameId: activeGame,
+        serviceId: serviceChannel,
+        status: "idle",
+      }
+    );
+  }, [gameStatusMap, activeGame, serviceChannel]);
 
   // Active Status Message State
   const [activeMessage, setActiveMessage] = useState<string>("");
@@ -213,7 +225,7 @@ function App() {
 
   // Effect: Handle Generic Status Message & Timers
   useEffect(() => {
-    const status = globalGameStatus.status;
+    const status = activeGameStatus.status;
     const prevStatus = prevStatusRef.current;
 
     // Ignore initial mount idle state (don't show "Game Exited" on boot)
@@ -237,8 +249,8 @@ function App() {
     let messageText = config.message;
 
     // Special Case: Error Code Overrides
-    if (status === "error" && globalGameStatus.errorCode) {
-      messageText = `오류: ${globalGameStatus.errorCode}`;
+    if (status === "error" && activeGameStatus.errorCode) {
+      messageText = `오류: ${activeGameStatus.errorCode}`;
     }
 
     // Set Message (Async to avoid synchronous setState warning)
@@ -253,32 +265,32 @@ function App() {
       }, config.timeout);
       return () => clearTimeout(timer);
     }
-  }, [globalGameStatus.status, globalGameStatus.errorCode]);
+  }, [activeGameStatus.status, activeGameStatus.errorCode]);
 
   // Compute Active Status Message (Context Aware)
   const activeStatusMessage = useMemo(() => {
     // Only show status if it matches the currently selected Game & Service context
     if (
-      globalGameStatus.gameId === activeGame &&
-      globalGameStatus.serviceId === serviceChannel
+      activeGameStatus.gameId === activeGame &&
+      activeGameStatus.serviceId === serviceChannel
     ) {
       return activeMessage;
     }
-  }, [globalGameStatus, activeGame, serviceChannel, activeMessage]);
+  }, [activeGameStatus, activeGame, serviceChannel, activeMessage]);
 
   // Compute Button Disabled State
   const isButtonDisabled = useMemo(() => {
     // Context mismatch check
     if (
-      globalGameStatus.gameId !== activeGame ||
-      globalGameStatus.serviceId !== serviceChannel
+      activeGameStatus.gameId !== activeGame ||
+      activeGameStatus.serviceId !== serviceChannel
     ) {
       return false; // Actually, if context mismatch, we might want to allow "Starting" new context?
       // But adhering to original logic:
       return false;
     }
 
-    const s = globalGameStatus.status;
+    const s = activeGameStatus.status;
 
     // ACTIVE: "Install" button should be ENABLED (not disabled)
     // allowing user to click and go to download page.
@@ -297,7 +309,7 @@ function App() {
 
     // Idle / Error -> Enabled
     return false;
-  }, [globalGameStatus, activeGame, serviceChannel]);
+  }, [activeGameStatus, activeGame, serviceChannel]);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -366,7 +378,10 @@ function App() {
       // 3. Game Status Updates (New Architecture)
       if (window.electronAPI.onGameStatusUpdate) {
         window.electronAPI.onGameStatusUpdate((statusState) => {
-          setGlobalGameStatus(statusState);
+          setGameStatusMap((prev) => ({
+            ...prev,
+            [`${statusState.gameId}_${statusState.serviceId}`]: statusState,
+          }));
         });
       }
     }
@@ -492,7 +507,7 @@ function App() {
       return;
     }
 
-    if (globalGameStatus.status === "uninstalled") {
+    if (activeGameStatus.status === "uninstalled") {
       // Open Download Page using centralized URL constants
       const downloadUrl = DOWNLOAD_URLS[serviceChannel][activeGame];
       if (downloadUrl) {
@@ -653,7 +668,7 @@ function App() {
               <GameStartButton
                 onClick={handleGameStart}
                 label={
-                  globalGameStatus.status === "uninstalled"
+                  activeGameStatus.status === "uninstalled"
                     ? "설치하기"
                     : "게임 시작"
                 }

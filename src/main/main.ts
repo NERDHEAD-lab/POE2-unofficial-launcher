@@ -693,24 +693,43 @@ function createWindows() {
   appContext = context;
   appContext.mainWindow = mainWindow;
 
-  // Perform initial installation check
-  const initialConfig = getConfig() as AppConfig;
-  const initInstallCheck = async () => {
-    const installed = await isGameInstalled(
-      initialConfig.serviceChannel,
-      initialConfig.activeGame,
-    );
-    eventBus.emit<GameStatusChangeEvent>(
-      EventType.GAME_STATUS_CHANGE,
-      appContext,
-      {
-        gameId: initialConfig.activeGame,
-        serviceId: initialConfig.serviceChannel,
-        status: installed ? "idle" : "uninstalled",
-      },
-    );
+  // Perform initial installation check for ALL contexts
+  const initialConfig = getConfig() as AppConfig; // [Restore] Needed for downstream usage (Auto Launch)
+  const checkAllGameStatuses = async () => {
+    const combinations = [
+      { game: "POE1", service: "Kakao Games" },
+      { game: "POE2", service: "Kakao Games" },
+      { game: "POE1", service: "GGG" },
+      { game: "POE2", service: "GGG" },
+    ] as const;
+
+    console.log("[Main] Checking initial status for all game contexts...");
+
+    for (const combo of combinations) {
+      const installed = await isGameInstalled(
+        combo.service as AppConfig["serviceChannel"],
+        combo.game as AppConfig["activeGame"],
+      );
+
+      // Note: We only check 'installed' or 'uninstalled/idle' here.
+      // If a game is actually RUNNING, the 'GameProcessStartHandler' or 'ProcessWatcher' logic
+      // might need to be robust enough to detect pre-existing processes on startup.
+      // Currently, ProcessWatcher scans for processes and emits PROCESS_START.
+      // Tricky part: ProcessWatcher emits PROCESS_START, which triggers GameProcessStartHandler.
+      // So assuming ProcessWatcher starts AFTER this or concurrently, the "running" state will eventually override this "idle" state.
+
+      eventBus.emit<GameStatusChangeEvent>(
+        EventType.GAME_STATUS_CHANGE,
+        appContext,
+        {
+          gameId: combo.game as AppConfig["activeGame"],
+          serviceId: combo.service as AppConfig["serviceChannel"],
+          status: installed ? "idle" : "uninstalled",
+        },
+      );
+    }
   };
-  initInstallCheck();
+  checkAllGameStatuses();
 
   // Sync Auto Launch Status
   if (!app.isPackaged) {
