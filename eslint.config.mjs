@@ -64,6 +64,21 @@ export default [
         },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[property.name='store'][object.name=/^(context|appContext)$/]",
+          message:
+            "Direct access to context.store is restricted. Use context.getConfig() instead to respect dev:test overrides.",
+        },
+        {
+          selector:
+            "MemberExpression[property.name='store'][object.property.name='context'][object.object.type='ThisExpression']",
+          message:
+            "Direct access to this.context.store is restricted. Use this.context.getConfig() instead.",
+        },
+      ],
     },
   },
   {

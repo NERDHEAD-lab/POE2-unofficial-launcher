@@ -50,10 +50,10 @@ export class LogWatcher {
       const { name, pid } = event.payload;
       this.emitLog(`[Event:PROCESS_START] Received for ${name} (PID: ${pid})`);
 
-      const serviceId = this.context.store.get(
+      const serviceId = this.context.getConfig(
         "serviceChannel",
       ) as AppConfig["serviceChannel"];
-      const activeGame = this.context.store.get(
+      const activeGame = this.context.getConfig(
         "activeGame",
       ) as AppConfig["activeGame"];
 
@@ -66,7 +66,7 @@ export class LogWatcher {
     });
 
     eventBus.on(EventType.PROCESS_STOP, (event: ProcessEvent) => {
-      const serviceId = this.context.store.get(
+      const serviceId = this.context.getConfig(
         "serviceChannel",
       ) as AppConfig["serviceChannel"];
 

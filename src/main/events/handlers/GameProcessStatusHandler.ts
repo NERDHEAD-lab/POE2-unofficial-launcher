@@ -143,7 +143,7 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
 
     // [New] Close/Minimize launcher on game start if configured
     // [Fix] Retrieve 'quitOnGameStart' directly as it is a root-level config key
-    const quitOnGameStart = context.store.get("quitOnGameStart");
+    const quitOnGameStart = context.getConfig("quitOnGameStart") === true;
     if (
       quitOnGameStart &&
       context.mainWindow &&

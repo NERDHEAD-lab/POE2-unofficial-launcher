@@ -14,7 +14,6 @@ app.setPath(
   path.join(app.getPath("appData"), "POE2 Unofficial Launcher"),
 );
 
-// Initialize Electron Store
 const store = new Store<AppConfig>({
   defaults: DEFAULT_CONFIG,
 });
@@ -24,7 +23,7 @@ const store = new Store<AppConfig>({
  */
 export function setupStoreObservers(context: AppContext) {
   Object.values(CONFIG_KEYS).forEach((key) => {
-    store.onDidChange(key as any, (newValue) => {
+    store.onDidChange(key as keyof AppConfig, (newValue) => {
       // Broadcast to all active windows in the context
       const windows = [
         context.mainWindow,

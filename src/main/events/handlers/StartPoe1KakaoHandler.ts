@@ -1,3 +1,4 @@
+import { AppConfig } from "../../../shared/types";
 import { BASE_URLS } from "../../../shared/urls";
 import { eventBus } from "../EventBus";
 import {
@@ -14,7 +15,7 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
   targetEvent: EventType.UI_GAME_START_CLICK,
 
   condition: (_event, context: AppContext) => {
-    const config = context.store.store;
+    const config = context.getConfig() as AppConfig;
     // Check if Active Game is POE1 AND Service Channel is Kakao Games
     const isPoe1 = config.activeGame === "POE1";
     const isKakao = config.serviceChannel === "Kakao Games";

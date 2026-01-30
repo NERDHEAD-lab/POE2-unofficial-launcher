@@ -392,7 +392,7 @@ try {
 
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
 
-    const isDev = this.context?.store.get("dev_mode") === true;
+    const isDev = this.context?.getConfig("dev_mode") === true;
 
     const windowStyle = "Hidden";
     const noExitFlag = isDev ? "-NoExit" : "";

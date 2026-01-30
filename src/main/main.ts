@@ -427,6 +427,7 @@ const context: AppContext = {
   mainWindow: null,
   gameWindow: null,
   debugWindow: null,
+
   store,
   ensureGameWindow: () => {
     if (!gameWindow || gameWindow.isDestroyed()) {
@@ -1020,8 +1021,10 @@ ipcMain.on(
     activeManualPatchManager = new PatchManager(appContext);
 
     const serviceId =
-      serviceIdOverride || appContext.store.get("serviceChannel");
-    const activeGame = gameIdOverride || appContext.store.get("activeGame");
+      serviceIdOverride ||
+      (appContext.getConfig("serviceChannel") as AppConfig["serviceChannel"]);
+    const activeGame = (gameIdOverride ||
+      appContext.getConfig("activeGame")) as AppConfig["activeGame"];
     const installPath = await getGameInstallPath(serviceId, activeGame);
 
     console.log(

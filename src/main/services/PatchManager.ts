@@ -253,7 +253,7 @@ export class PatchManager {
     const tempDir = path.join(installPath, ".patch_temp");
     const backupDir = path.join(installPath, ".patch_backups");
     const isBackupEnabled =
-      this.context.store.get("backupPatchFiles") !== false;
+      this.context.getConfig("backupPatchFiles") !== false;
 
     if (!fs.existsSync(tempDir))
       await fs.promises.mkdir(tempDir, { recursive: true });
