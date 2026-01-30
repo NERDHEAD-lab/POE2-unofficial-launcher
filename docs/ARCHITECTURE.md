@@ -166,14 +166,14 @@
   - **Dynamic Theme Integration**: 온보딩 모달 내에서도 현재 선택된 게임 프로젝트의 테마 색상을 실시간으로 반영하여 시각적 일관성을 유지함.
 - **결과**: 서비스 정책에 대한 투명성을 확보하고, 사용자가 앱의 주요 기능을 즉시 활용할 수 있도록 초기 진입 장벽을 낮춤.
 
-#### ADR-012: Uninstaller Cleanup & App-Delegated Logic
+#### ADR-012: Uninstaller Cleanup & Standalone Script Strategy
 
-- **상황**: 앱 제거 시 사용자의 시스템에 남은 UAC 우회 관련 작업 스케줄러 항목과 레지스트리 설정이 그대로 방치되어 시스템의 무결성을 해칠 수 있음. 또한, AppData 내의 설정 및 로그 데이터 삭제 여부를 사용자가 선택할 수 있어야 함.
+- **상황**: 앱 제거 시 사용자의 시스템에 남은 UAC 우회 관련 작업 스케줄러 항목과 레지스트리 설정이 그대로 방치되어 시스템의 무결성을 해칠 수 있음. 기존의 앱 실행(`--uninstall`) 방식은 파일 잠금(Lock) 문제 및 프로세스 종료 타이밍 이슈로 인해 불안정함.
 - **결정**:
-  - **App-Delegated Cleanup**: NSIS 언인스톨러에서 복잡한 레지스트리/작업 스케줄러 로직을 다시 구현하는 대신, 앱 자체에 `--uninstall` 플래그를 추가하고 기존의 `disableUACBypass()` 및 `app.setLoginItemSettings()`를 통한 자동 시작 정리 로직을 호출함.
-  - **Silent Mode Optimization**: 언인스톨러에서 호출 시 불필요한 팝업이 발생하지 않도록 `disableUACBypass` 함수에 `silent` 매개변수를 추가함.
-  - **NSIS Integration**: `installer.nsh`의 `un.customUnInstall` 매크로에서 앱을 해당 플래그로 실행하고, `MessageBox`를 통해 AppData 폴더(`%AppData%\POE2 Unofficial Launcher`)를 선택적으로 삭제하도록 구현함.
-- **결과**: 기존에 검증된 앱 로직을 활용함으로써 정리 작업의 안정성을 높였으며, 제거 후 시스템에 불필요한 잔재가 남지 않도록 보장함.
+  - **Standalone Batch Script**: UAC 우회 설정(`enableUACBypass`) 시, 나중에 정리를 수행할 수 있는 독립적인 배치 파일(`uninstall_uac.bat`)을 미리 생성해둠.
+  - **Uninstaller Integration**: NSIS 언인스톨러(`installer.nsh`)는 앱을 실행하지 않고, 이 배치 파일을 직접 호출하여 정리 작업을 수행함.
+  - **No Dependencies**: 앱 런타임에 의존하지 않고 OS 기본 명령어(`schtasks`, `powershell`)만 사용하는 스크립트로 동작하여 제거 과정의 안정성을 보장함.
+- **결과**: 앱 파일이 완전히 제거되기 전에 시스템 설정을 깔끔하게 원복(Revert)하며, 제거 중 발생할 수 있는 프로세스 충돌 문제를 원천 차단함.
 
 #### ADR-013: Service Channel Architecture (Kakao vs GGG)
 
