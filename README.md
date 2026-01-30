@@ -16,7 +16,7 @@
 
 > **Disclaimer**: This is an **unofficial** launcher for **Path of Exile** & **Path of Exile 2**. It is not affiliated with Grinding Gear Games or Kakao Games. Use at your own risk.
 
-An Electron-based custom launcher designed to automate the launch process for **Path of Exile** and **Path of Exile 2** (Korean Server). It provides a streamlined experience by handling login, Designated PC checks, and intro modals automatically across both game gateways.
+An Electron-based unofficial launcher designed to automate the launch process for **Path of Exile** and **Path of Exile 2**. It supports both Kawao Games and Grinding Gear Games (GGG) platforms, providing a streamlined experience by automatically handling login, Designated PC checks, and intro modals.
 
 <p align="center">
   <img src="docs/PoE%20Unofficial%20Launcher%20preview.gif" width="100%" />
@@ -24,11 +24,13 @@ An Electron-based custom launcher designed to automate the launch process for **
 
 ## Key Features
 
-- **Automated Game Launch**: Automatically handles the entire launch sequence.
+- **Automated Game Launch**: Automatically handles the entire launch sequence for **Path of Exile 1 & 2** (Kakao Games / GGG).
 - **Popup Automation**: Checks and confirms "Designated PC" (지정 PC), "Login Required", and "Intro" modals without user intervention.
+- **DaumGameStarter UAC Bypass**: Launches the game immediately without User Account Control (UAC) prompts (based on Windows Scheduler).
+- **Patch Error Auto-fix**: Automatically detects and recovers from persistent patch errors such as 'Transferred a partial file'.
 - **Dual Window Architecture**:
   - **Main Window**: Clean UI for launcher status and control.
-  - **Background Game Window**: Handles the actual Daum Game Starter web process invisibly (or visibly in debug mode).
+  - **Background Processing**: Handles the actual Daum Game Starter web process in an inactive window, invisible to the user.
 - **Secure Handling**: Does not store password data; relies on session cookies and existing browser login states where possible.
 
 ## Installation
