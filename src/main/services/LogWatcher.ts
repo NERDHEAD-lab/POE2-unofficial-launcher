@@ -138,8 +138,13 @@ export class LogWatcher {
     }
   }
 
-  public stopMonitoring() {
+  public async stopMonitoring() {
     if (!this.isMonitoring) return;
+
+    // [Fix] Perform one final check to catch last-second errors/logs
+    // before the process exit is fully processed.
+    this.emitLog("Stopping monitor... Performing final log check.");
+    await this.checkLog();
 
     if (this.watchTimer) {
       clearInterval(this.watchTimer);
