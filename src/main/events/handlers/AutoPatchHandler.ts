@@ -40,6 +40,7 @@ interface SessionState {
   backupWebRoot?: string;
   errorCount: number;
   startTime: number;
+  alerted: boolean;
 }
 
 class AutoPatchStateManager {
@@ -67,6 +68,7 @@ class AutoPatchStateManager {
       gameId,
       errorCount: 0,
       startTime: Date.now(),
+      alerted: false,
     });
   }
 
@@ -207,7 +209,10 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
       `[AutoPatch] Error count updated for PID ${pid}: ${errorCount}`,
     );
 
-    if (errorCount >= 10) {
+    const session = stateManager.getSession(pid);
+
+    if (errorCount >= 10 && session && !session.alerted) {
+      session.alerted = true;
       emitLog(
         context,
         `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
@@ -251,17 +256,21 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
 
             const manager = stateManager.getPatchManager(context);
 
-            await manager.startSelfDiagnosis(installPath, serviceId, {
-              webRoot,
-              backupWebRoot,
-            });
+            const success = await manager.startSelfDiagnosis(
+              installPath,
+              serviceId,
+              {
+                webRoot,
+                backupWebRoot,
+              },
+            );
 
             // [NEW] Auto Game Start Logic
             const autoStartGame = context.store.get(
               "autoGameStartAfterFix",
               false,
             );
-            if (autoStartGame) {
+            if (success && autoStartGame) {
               emitLog(
                 context,
                 `[AutoPatch] Auto-Start enabled. Triggering Game Start for ${gameId} (${serviceId})...`,

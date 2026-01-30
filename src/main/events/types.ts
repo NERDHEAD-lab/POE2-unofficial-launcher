@@ -215,6 +215,10 @@ export interface AppContext {
     scheduleSuspension: () => void;
     cancelSuspension: () => void;
     wakeUp: (reason: string) => void;
+    isProcessRunning: (
+      name: string,
+      criteria?: (info: { pid: number; path: string }) => boolean,
+    ) => boolean;
   };
   ensureGameWindow: () => BrowserWindow;
 }

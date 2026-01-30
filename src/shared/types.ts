@@ -44,6 +44,7 @@ export type RunStatus =
   | "authenticating" // "지정 PC 확인"
   | "ready" // "게임실행 준비가 완료되었습니다!"
   | "running" // "게임 실행 중"
+  | "stopping" // "게임 종료 중..." (3초 대기)
   | "error";
 
 export interface GameStatusState {
