@@ -147,6 +147,43 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                 </p>
               </div>
 
+              {!uacBypass && (
+                <div
+                  className="notice-section highlight"
+                  style={{
+                    marginTop: "12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                  onClick={() =>
+                    window.electronAPI?.openExternal(
+                      "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
+                    )
+                  }
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "18px", color: "#fa5252" }}
+                  >
+                    warning
+                  </span>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "12px",
+                      color: "#eee",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    }}
+                  >
+                    활성화가 되지 않을 경우, 여기를 클릭하여 DaumGameStarter를
+                    재설치하고 다시 시도해 주세요.
+                  </p>
+                </div>
+              )}
+
               <div
                 className={`uac-card ${uacBypass ? "active" : ""}`}
                 onClick={handleToggleUAC}
