@@ -26,7 +26,6 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@types/dompurify": "^3.0.5",
     "axios": "^1.13.4",
     "dompurify": "^3.3.1",
     "electron-store": "^11.0.2",
@@ -39,7 +38,6 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/chrome": "^0.1.33",
-    "@types/jszip": "^3.4.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
