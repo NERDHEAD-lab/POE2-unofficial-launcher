@@ -231,6 +231,9 @@ try {
 
   if (success) {
     console.log("[UAC] Successfully applied bypass settings.");
+    // [New] Create standalone cleanup script for Uninstaller
+    const originalCmd = readFileSync(backupFilePath, "utf8").trim();
+    createCleanupScript(originalCmd);
   } else {
     console.error(
       "[UAC] Failed to apply bypass settings. Registry might not have been updated.",
@@ -240,6 +243,52 @@ try {
   }
 
   return success;
+}
+
+/**
+ * Creates a standalone batch file to cleanup UAC settings.
+ * This is called by the NSIS uninstaller.
+ */
+function createCleanupScript(originalCmd: string): void {
+  const workDir = getWorkDirectory();
+  const batPath = join(workDir, "uninstall_uac.bat");
+
+  // Escape special characters for Batch/PowerShell
+  // We strictly need to restore the registry value.
+  const escapedCmd = originalCmd
+    .replaceAll('"', '\\"')
+    .replace(/\r?\n/g, "") // Single line
+    .replace(/%/g, "%%"); // [Fix] Escape % to %% for Batch file execution
+
+  const batContent = `
+@echo off
+chcp 65001 >nul
+
+:: Check for permissions
+net session >nul 2>&1
+if %errorLevel% == 0 (
+    goto :run
+)
+
+:: Re-launch as admin with Wait
+echo Requesting admin privileges...
+powershell -Command "Start-Process -FilePath '%comspec%' -ArgumentList '/c', '\\"%~f0\\"' -Verb RunAs -Wait"
+exit /b
+
+:run
+:: 1. Delete Schedule Task
+schtasks /delete /tn "${TASK_NAME}" /f >nul 2>&1
+
+:: 2. Restore Registry (via PowerShell for safety)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd}'; Set-Item -Path '${PROTOCOL_KEY}' -Value $val -Force" >nul 2>&1
+  `.trim();
+
+  try {
+    writeFileSync(batPath, batContent, { encoding: "utf8" });
+    console.log("[UAC] Created cleanup script at:", batPath);
+  } catch (e) {
+    console.error("[UAC] Failed to create cleanup script:", e);
+  }
 }
 
 /**
@@ -344,6 +393,7 @@ ${originalCmd}
       "runner.vbs",
       "launch_args.txt",
       "uac_debug.log",
+      "uninstall_uac.bat", // [New] Clean up the helper script too
       // original_command.txt is handled above only on success
     ].forEach((f) => {
       const p = join(workDir, f);
@@ -357,6 +407,10 @@ ${originalCmd}
 
   return true;
 }
+
+/**
+ * Extracts executable path from command string.
+ * ... (No change)
 
 /**
  * Extracts executable path from command string.

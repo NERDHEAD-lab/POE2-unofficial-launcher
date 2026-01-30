@@ -1,8 +1,18 @@
+import path from "node:path";
+
+import { app } from "electron";
 import Store from "electron-store";
 
 import { DEFAULT_CONFIG, CONFIG_KEYS } from "../shared/config";
 import { AppConfig } from "../shared/types";
 import { AppContext } from "./events/types";
+
+// [Fix] Force User Data path to match electron-builder 'productName' (with spaces)
+// This must be set BEFORE creating the Store instance to ensure config.json maps to correct folder.
+app.setPath(
+  "userData",
+  path.join(app.getPath("appData"), "POE2 Unofficial Launcher"),
+);
 
 // Initialize Electron Store
 const store = new Store<AppConfig>({
