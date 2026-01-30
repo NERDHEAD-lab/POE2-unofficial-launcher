@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.2...0.4.0) (2026-01-30)
+
+
+### Features
+
+* 패치 오류 감지 기능 보강 ([c3e7ef5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c3e7ef59dc60c926b04412ae3b0234e605f26a83))
+* 패치 오류 감지 기능 보강 - 2 ([5baad21](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5baad2120a53f156e4d91a0c5e66c60619767cf0))
+
+
+### Bug Fixes
+
+* idle 상태의 다른 게임이나 서비스로 변경할 경우 "게임이 종료되었습니다" 가 표기되는 문제 수정 ([13dc4f2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/13dc4f26224a2e939fe51bdfaf48c508ff610a09))
+* 게임 실행 시 런처 종료가 정상적으로 동작하지 않던 문제 수정 ([c0e0703](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c0e070363d4f37593c762b0f4dd6bf20f2cc5dfd))
+* 게임 실행 후 런쳐의 다른 게임이나 서비스를 전환하면 실행 상태 표시가 잘못되는 문제 수정 ([92273de](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/92273deb8af9e5fe4dfb6b8b298b7f9e18e9be03))
+
 ## [0.3.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.1...0.3.2) (2026-01-30)
 
 
