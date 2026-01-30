@@ -102,7 +102,7 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   };
 
   // --- FSM Physics Loop ---
-  const loopRef = useRef<(time: number) => void>();
+  const loopRef = useRef<(time: number) => void>(undefined);
 
   const updatePhysics = useCallback(
     (_time: number) => {
