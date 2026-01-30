@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.0...0.3.1) (2026-01-30)
+
+
+### Bug Fixes
+
+* powershell 관련 기존 변경사항 롤백 ([e572020](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e57202089f8e5bdeaa8803a04e76b8b4e2c43187))
+* 설정이 위치한 경로에 공백이 들어가는 경우 uac 우회가 적용되지 않는 문제 수정 ([33c164d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/33c164de517663dff49f10acef8d195137244bc5))
+
 ## [0.3.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.2.0...0.3.0) (2026-01-30)
 
 
