@@ -26,6 +26,7 @@ import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
+import { logger } from "./utils/logger";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
 // Status Message Configuration Interface
@@ -196,7 +197,7 @@ function App() {
     if (window.electronAPI) {
       // Listen for update status
       const unsubscribe = window.electronAPI.onUpdateStatusChange((status) => {
-        console.log("[App] Update status:", status);
+        logger.log("[App] Update status:", status);
         setUpdateState(status);
 
         if (status.state === "available" && !status.isSilent) {
@@ -461,7 +462,7 @@ function App() {
         };
         window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
       } catch (err) {
-        console.error("[Theme] Revalidation failed:", err);
+        logger.error("[Theme] Revalidation failed:", err);
       }
     };
 
@@ -504,7 +505,7 @@ function App() {
 
   const handleGameStart = () => {
     if (!window.electronAPI) {
-      console.warn("Electron API not available");
+      logger.warn("Electron API not available");
       return;
     }
 
@@ -514,7 +515,7 @@ function App() {
       if (downloadUrl) {
         window.electronAPI.openExternal(downloadUrl);
       } else {
-        console.error(
+        logger.error(
           `[App] No download URL found for ${activeGame} / ${serviceChannel}`,
         );
       }
@@ -522,7 +523,7 @@ function App() {
     }
 
     window.electronAPI.triggerGameStart();
-    console.log(`Game Start Triggered via IPC (${activeGame})`);
+    logger.log(`Game Start Triggered via IPC (${activeGame})`);
   };
 
   // Developer Notices State

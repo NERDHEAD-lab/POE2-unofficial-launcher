@@ -151,7 +151,6 @@ function getEffectiveConfig(key?: string): unknown {
 
   // 2. Force Debug Mode via Env Var
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
-    // console.log(`[Main] getEffectiveConfig(${key}) -> true (Forced by Env)`);
     return true;
   }
 
@@ -159,13 +158,11 @@ function getEffectiveConfig(key?: string): unknown {
   if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
     const isDevMode = getEffectiveConfig("dev_mode") === true;
     if (!isDevMode) {
-      // console.log(`[Main] getEffectiveConfig(${key}) -> false (Dependency dev_mode is OFF)`);
       return false;
     }
   }
 
   const value = getConfig(key);
-  // console.log(`[Main] getEffectiveConfig(${key}) -> ${value} (From Store)`);
   return value;
 }
 

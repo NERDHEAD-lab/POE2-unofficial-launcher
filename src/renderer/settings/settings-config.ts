@@ -1,6 +1,7 @@
 import { SettingsCategory, SettingValue, DescriptionVariant } from "./types";
 import { BackupMetadata } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
+import { logger } from "../utils/logger";
 
 // Helper for Process Watch Mode Description (Warnings Only)
 const updateProcessWatchModeDescription = async (
@@ -316,7 +317,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                       showToast("[로그아웃] 실패했습니다.");
                     }
                   } catch (err) {
-                    console.error("[Settings] Logout error:", err);
+                    logger.error("[Settings] Logout error:", err);
                     showToast("[로그아웃] 오류가 발생했습니다.");
                   }
                 },

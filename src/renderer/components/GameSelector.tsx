@@ -5,6 +5,7 @@ import "./GameSelector.css";
 import logoOiia from "../assets/oiia-cat.webp";
 import logoPoe from "../assets/poe1/logo.png";
 import logoPoe2 from "../assets/poe2/logo.png";
+import { logger } from "../utils/logger";
 
 interface GameSelectorProps {
   activeGame: "POE1" | "POE2";
@@ -19,13 +20,8 @@ type InteractionState =
   | "ANIMATING";
 
 // --- Helper: State Logger ---
-const logStateChange = (
-  oldState: InteractionState,
-  newState: InteractionState,
-) => {
-  if (oldState !== newState) {
-    console.log(`[FSM] ${oldState} -> ${newState}`);
-  }
+const logStateChange = (oldState: string, newState: string) => {
+  logger.log(`[FSM] ${oldState} -> ${newState}`);
 };
 
 // --- Physics Configuration (Tuning) ---
