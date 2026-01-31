@@ -222,26 +222,14 @@ const DebugConsole: React.FC = () => {
 
       let removeLogListener: (() => void) | undefined;
       if (window.electronAPI.onDebugLog) {
-        // 1. 리스너 먼저 등록 (이후 발생하는 로그 유실 방지)
-        removeLogListener = window.electronAPI.onDebugLog((log: LogEntry) => {
-          setLogState((prev) => {
-            const updatedAll = mergeLog(prev.all, log);
-            const typeList = prev.byType[log.type] || [];
-            const updatedTypeList = mergeLog(typeList, log);
-            return {
-              all: updatedAll,
-              byType: { ...prev.byType, [log.type]: updatedTypeList },
-            };
-          });
-        });
-
-        // 2. 초기 히스토리 가져오기
+        // 1. 초기 히스토리 먼저 가져오기 (초기 상태 설정)
         window.electronAPI.getDebugHistory().then((history) => {
           if (history && history.length > 0) {
-            setLogState((prev) => {
-              let updatedAll = [...prev.all];
-              const updatedByType = { ...prev.byType };
+            setLogState(() => {
+              let updatedAll: LogEntry[] = [];
+              const updatedByType: { [key: string]: LogEntry[] } = {};
 
+              // 히스토리는 과거 순이므로 루프를 돌며 mergeLog 호출
               history.forEach((log) => {
                 updatedAll = mergeLog(updatedAll, log as LogEntry);
                 const typeList = updatedByType[log.type] || [];
@@ -253,6 +241,37 @@ const DebugConsole: React.FC = () => {
                 byType: updatedByType,
               };
             });
+          }
+
+          // 2. 히스토리 로딩 완료 후 실시간 리스너 등록 (경합 방지)
+          // 참고: 메인 프로세스에서 히스토리 조회 시점과 리스너 등록 시점 사이에 로그가 발생할 수 있으므로
+          // 리스너 콜백 내에서도 중복 체크를 수행합니다.
+          if (window.electronAPI.onDebugLog) {
+            removeLogListener = window.electronAPI.onDebugLog(
+              (log: LogEntry) => {
+                setLogState((prev) => {
+                  // 완전 중복 체크: 동일 타임스탬프와 내용(해시)을 가진 로그가 이미 존재하는지 확인
+                  const isExactDuplicate = prev.all.some(
+                    (p) =>
+                      p.timestamp === log.timestamp &&
+                      (p.contentHash || mergeLog([], p)[0]?.contentHash) ===
+                        (log.contentHash || mergeLog([], log)[0]?.contentHash),
+                  );
+
+                  if (isExactDuplicate) {
+                    return prev;
+                  }
+
+                  const updatedAll = mergeLog(prev.all, log);
+                  const typeList = prev.byType[log.type] || [];
+                  const updatedTypeList = mergeLog(typeList, log);
+                  return {
+                    all: updatedAll,
+                    byType: { ...prev.byType, [log.type]: updatedTypeList },
+                  };
+                });
+              },
+            );
           }
         });
       }
