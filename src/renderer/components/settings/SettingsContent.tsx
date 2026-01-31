@@ -51,6 +51,8 @@ const SettingItemRenderer: React.FC<{
   onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
+  // [New] Dynamic Label State
+  const [label, setLabel] = useState<string>(item.label);
 
   // [Refactor] Description Blocks State
   // [Refactor] Description Blocks State
@@ -66,6 +68,7 @@ const SettingItemRenderer: React.FC<{
   const isFirstRender = useRef(true);
 
   // Initialize description blocks from item.description (string)
+
   useEffect(() => {
     // Skip the first run as lazy init handled it
     if (isFirstRender.current) {
@@ -143,6 +146,9 @@ const SettingItemRenderer: React.FC<{
           setVisible: (newVisible) => {
             if (mounted) setIsVisible(newVisible);
           },
+          setLabel: (newLabel) => {
+            if (mounted) setLabel(newLabel);
+          },
         })
         .catch((err) => {
           console.error(`[Settings] Failed to init setting ${item.id}:`, err);
@@ -181,6 +187,7 @@ const SettingItemRenderer: React.FC<{
         showToast: onShowToast,
         addDescription: addDescription,
         clearDescription: clearDescription,
+        setLabel: setLabel,
       });
     }
   };
@@ -324,7 +331,7 @@ const SettingItemRenderer: React.FC<{
         <div className="setting-info">
           <div className="setting-label">
             <div className="label-wrapper">
-              {item.label}
+              {label}
               {item.infoImage && (
                 <div
                   className="info-icon-trigger"

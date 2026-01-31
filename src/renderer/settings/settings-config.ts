@@ -153,75 +153,38 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     ],
   },
   {
-    id: "optimization",
-    label: "최적화",
+    id: "performance",
+    label: "성능",
     icon: "speed",
     sections: [
       {
-        id: "opt_process",
-        title: "프로세스 감시",
+        id: "perf_process",
+        title: "프로세스 관리",
         items: [
           {
-            id: "processWatcherEnabled",
+            id: "processWatchMode", // Match config name (but manual sync via defaultValue)
             type: "switch",
-            label: "게임 프로세스 감지 최적화",
-            description:
-              "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)",
-            icon: "memory",
-            onInit: async ({ setValue, addDescription }) => {
-              const val = await window.electronAPI?.getConfig(
-                "processWatcherEnabled",
-              );
-              setValue(!!val);
+            label: "백그라운드 감지 모드",
+            description: "",
+            defaultValue: false, // Prevents auto-sync to store
+            icon: "monitor_heart",
+            onInit: async ({ setValue, addDescription, setLabel }) => {
+              // Manual Sync: Read from actual config
+              // Config is string: "resource-saving" | "always-on"
+              // Switch is boolean: false (off) | true (on)
+              const mode =
+                await window.electronAPI?.getConfig("processWatchMode");
+              const isAlwaysOn = mode === "always-on";
+              setValue(isAlwaysOn);
 
-              // Update description based on state
-              const autoLaunch =
-                await window.electronAPI?.getConfig("autoLaunch");
-              const closeAction =
-                await window.electronAPI?.getConfig("closeAction");
+              if (isAlwaysOn) {
+                setLabel("백그라운드 감지 (항상 켜짐)");
+                addDescription(
+                  "런처가 최소화되거나 백그라운드에 있어도 게임 실행을 즉시 감지합니다.",
+                  "default",
+                );
 
-              if (val === false) {
-                // Clear default description first (optional, but good for clean state)
-                // clearDescription();
-                // Actually, let's keep the default description from static config
-                // and just append the warning.
-
-                const warnings: string[] = [];
-                if (!autoLaunch)
-                  warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
-                if (closeAction === "close")
-                  warnings.push(
-                    "- 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
-                  );
-
-                if (warnings.length > 0) {
-                  addDescription(
-                    "\n[주의]\n" +
-                      warnings.join("\n") +
-                      "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
-                    "error",
-                  );
-                } else {
-                  addDescription("항상 감시 모드가 활성화되었습니다.", "info");
-                }
-              }
-            },
-            onChangeListener: async (
-              val,
-              { addDescription, clearDescription, showToast },
-            ) => {
-              showToast(
-                `[최적화] ${val ? "활성화 (리소스 절약)" : "비활성화 (항상 감지)"}`,
-              );
-
-              // Reset to default state
-              clearDescription();
-              addDescription(
-                "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)",
-                "default",
-              );
-
-              if (!val) {
+                // Check for warnings when Enabled
                 const autoLaunch =
                   await window.electronAPI?.getConfig("autoLaunch");
                 const closeAction =
@@ -242,9 +205,73 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                       "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
                     "error",
                   );
-                } else {
-                  addDescription("항상 감시 모드가 활성화되었습니다.", "info");
                 }
+              } else {
+                setLabel("백그라운드 감지 (절약 모드)");
+                addDescription(
+                  "런처가 활성화되었을 때만 게임 실행을 확인합니다.",
+                  "default",
+                );
+                addDescription(
+                  "현재 리소스 절약 모드로 동작 중입니다.",
+                  "info",
+                );
+              }
+            },
+            onChangeListener: async (
+              val,
+              { addDescription, clearDescription, showToast, setLabel },
+            ) => {
+              const isEnabled = !!val;
+              const newMode = isEnabled ? "always-on" : "resource-saving";
+
+              // Manual Sync: Write to actual config
+              await window.electronAPI?.setConfig("processWatchMode", newMode);
+
+              showToast(
+                `[백그라운드 감지] ${isEnabled ? "ON (항상 감지)" : "OFF (리소스 절약)"}`,
+              );
+
+              clearDescription();
+              if (isEnabled) {
+                setLabel("백그라운드 감지 (항상 켜짐)");
+                addDescription(
+                  "런처가 최소화되거나 백그라운드에 있어도 게임 실행을 즉시 감지합니다.",
+                  "default",
+                );
+
+                // Check for warnings
+                const autoLaunch =
+                  await window.electronAPI?.getConfig("autoLaunch");
+                const closeAction =
+                  await window.electronAPI?.getConfig("closeAction");
+
+                const warnings: string[] = [];
+                if (!autoLaunch)
+                  warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
+                if (closeAction === "close")
+                  warnings.push(
+                    "- 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
+                  );
+
+                if (warnings.length > 0) {
+                  addDescription(
+                    "\n[주의]\n" +
+                      warnings.join("\n") +
+                      "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
+                    "error",
+                  );
+                }
+              } else {
+                setLabel("백그라운드 감지 (절약 모드)");
+                addDescription(
+                  "런처가 활성화되었을 때만 게임 실행을 확인합니다.",
+                  "default",
+                );
+                addDescription(
+                  "현재 리소스 절약 모드로 동작 중입니다.",
+                  "info",
+                );
               }
             },
           },

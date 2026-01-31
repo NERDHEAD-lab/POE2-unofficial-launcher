@@ -4,7 +4,7 @@ export const CONFIG_CATEGORIES = [
   "Appearance",
   "Patch",
   "Debug",
-  "Optimization",
+  "Performance",
 ] as const;
 
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
@@ -34,7 +34,12 @@ export interface AppConfig {
   closeAction: "minimize" | "close";
   quitOnGameStart: boolean;
   showOnboarding: boolean;
-  processWatcherEnabled: boolean;
+  /**
+   * - "resource-saving": Optimization Mode (Background Scan OFF)
+   * - "always-on": High Performance Mode (Background Scan ON)
+   * Default: "resource-saving"
+   */
+  processWatchMode: "resource-saving" | "always-on";
 }
 
 // Granular Status Codes for granular UI feedback
