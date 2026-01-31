@@ -27,10 +27,10 @@ const updateProcessWatchModeDescription = async (
 
     if (warnings.length > 0) {
       addDescription(
-        "\n[주의]\n" +
+        "[주의]\n" +
           warnings.join("\n") +
           "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
-        "error",
+        "warning",
       );
     }
   }

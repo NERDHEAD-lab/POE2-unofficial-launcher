@@ -385,14 +385,19 @@ const SettingItemRenderer: React.FC<{
                   className={`setting-description-block variant-${block.variant}`}
                   style={{ whiteSpace: "pre-wrap" }}
                 >
-                  {block.variant === "error" && (
+                  {block.variant === "info" && (
                     <span className="description-icon material-symbols-outlined">
-                      error
+                      info
                     </span>
                   )}
                   {block.variant === "warning" && (
                     <span className="description-icon material-symbols-outlined">
                       warning
+                    </span>
+                  )}
+                  {block.variant === "error" && (
+                    <span className="description-icon material-symbols-outlined">
+                      report
                     </span>
                   )}
                   <span>{block.text}</span>

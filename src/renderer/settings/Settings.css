@@ -880,7 +880,7 @@
 }
 
 .setting-description-block.variant-info {
-  color: var(--primary-color);
+  color: #42a5f5; /* Blue 400 */
 }
 
 .setting-description-block.variant-warning {
@@ -898,6 +898,10 @@
 }
 
 /* Specific variant icons color match */
+.setting-description-block.variant-info .description-icon {
+  color: #42a5f5;
+}
+
 .setting-description-block.variant-warning .description-icon {
   color: #ffca28;
 }
