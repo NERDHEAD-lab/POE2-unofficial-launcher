@@ -66,7 +66,12 @@ import {
   setupStoreObservers,
   default as store,
 } from "./store";
-import { setupMainLogger, logger, getLogHistory } from "./utils/logger";
+import {
+  setupMainLogger,
+  logger,
+  getLogHistory,
+  printBanner,
+} from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
@@ -722,6 +727,7 @@ function createWindows() {
     eventBus.emit(event.type, appContext, event.payload);
   });
 
+  printBanner();
   logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
