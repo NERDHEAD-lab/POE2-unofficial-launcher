@@ -27,6 +27,7 @@
 
 :root {
   --theme-text: #c8c8c8;
+  --text-secondary: #888888;
   --theme-accent: #dfcf99;
   --theme-footer-bg: #0e0e0e;
 }

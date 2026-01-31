@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
@@ -18,6 +18,8 @@ import {
   SettingNumber,
   SettingSlider,
   SettingButton,
+  DescriptionBlock,
+  DescriptionVariant,
 } from "../../settings/types";
 import "../../settings/Settings.css";
 
@@ -49,9 +51,36 @@ const SettingItemRenderer: React.FC<{
   onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
-  const [description, setDescription] = useState<string | undefined>(
-    item.description,
-  );
+
+  // [Refactor] Description Blocks State
+  // [Refactor] Description Blocks State
+  // Initialize description blocks from prop lazily to avoid effect on mount
+  const [descriptionBlocks, setDescriptionBlocks] = useState<
+    DescriptionBlock[]
+  >(() => {
+    return item.description
+      ? [{ text: item.description, variant: "default" }]
+      : [];
+  });
+
+  const isFirstRender = useRef(true);
+
+  // Initialize description blocks from item.description (string)
+  useEffect(() => {
+    // Skip the first run as lazy init handled it
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (item.description) {
+      // eslint-disable-next-line
+      setDescriptionBlocks([{ text: item.description, variant: "default" }]);
+    } else {
+      setDescriptionBlocks([]);
+    }
+  }, [item.description]); // Reset when prop changes
+
   const [disabled, setDisabled] = useState<boolean>(!!item.disabled);
   const [isVisible, setIsVisible] = useState<boolean>(true);
 
@@ -75,6 +104,18 @@ const SettingItemRenderer: React.FC<{
     }
   }
 
+  // Helper to add description
+  const addDescription = useCallback(
+    (text: string, variant: DescriptionVariant = "default") => {
+      setDescriptionBlocks((prev) => [...prev, { text, variant }]);
+    },
+    [],
+  );
+
+  const clearDescription = useCallback(() => {
+    setDescriptionBlocks([]);
+  }, []);
+
   // [Generic] onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
@@ -90,8 +131,11 @@ const SettingItemRenderer: React.FC<{
               onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
             }
           },
-          setDescription: (newDesc) => {
-            if (mounted) setDescription(newDesc);
+          addDescription: (text, variant) => {
+            if (mounted) addDescription(text, variant);
+          },
+          clearDescription: () => {
+            if (mounted) clearDescription();
           },
           setDisabled: (newDisabled) => {
             if (mounted) setDisabled(newDisabled);
@@ -107,7 +151,7 @@ const SettingItemRenderer: React.FC<{
     return () => {
       mounted = false;
     };
-  }, [item, onValueChange]);
+  }, [item, onValueChange, addDescription, clearDescription]);
 
   const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
   const isFinalVisible = isVisible && isDependentVisible;
@@ -135,7 +179,8 @@ const SettingItemRenderer: React.FC<{
       // @ts-expect-error - listener signature is generic
       item.onChangeListener(newValue, {
         showToast: onShowToast,
-        setDescription: setDescription,
+        addDescription: addDescription,
+        clearDescription: clearDescription,
       });
     }
   };
@@ -163,7 +208,11 @@ const SettingItemRenderer: React.FC<{
     // Priority 2: Standard onChangeListener (for legacy support if needed)
     else if ("onChangeListener" in item && item.onChangeListener) {
       // @ts-expect-error - listener signature is generic
-      item.onChangeListener(true, { showToast: onShowToast });
+      item.onChangeListener(true, {
+        showToast: onShowToast,
+        addDescription,
+        clearDescription,
+      });
     }
   };
 
@@ -312,13 +361,28 @@ const SettingItemRenderer: React.FC<{
               )}
           </div>
 
-          {/* Dynamic Description Rendering */}
-          {description && (
-            <div
-              className="setting-description"
-              style={{ whiteSpace: "pre-wrap" }}
-            >
-              {description}
+          {/* Dynamic Description Rendering (Semantic Blocks) */}
+          {descriptionBlocks.length > 0 && (
+            <div className="setting-description-container">
+              {descriptionBlocks.map((block, index) => (
+                <div
+                  key={index}
+                  className={`setting-description-block variant-${block.variant}`}
+                  style={{ whiteSpace: "pre-wrap" }}
+                >
+                  {block.variant === "error" && (
+                    <span className="description-icon material-symbols-outlined">
+                      error
+                    </span>
+                  )}
+                  {block.variant === "warning" && (
+                    <span className="description-icon material-symbols-outlined">
+                      warning
+                    </span>
+                  )}
+                  <span>{block.text}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>

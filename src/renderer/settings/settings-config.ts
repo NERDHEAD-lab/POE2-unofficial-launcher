@@ -1,16 +1,18 @@
-import { SettingsCategory, SettingValue } from "./types";
+import { SettingsCategory, SettingValue, DescriptionVariant } from "./types";
 import { BackupMetadata } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
 
 const initBackupButton = async (
   {
     setValue: _setValue,
-    setDescription,
+    addDescription,
+    clearDescription,
     setDisabled: _setDisabled,
     setVisible,
   }: {
     setValue: (v: SettingValue) => void;
-    setDescription: (d: string) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    clearDescription: () => void;
     setDisabled: (v: boolean) => void;
     setVisible: (v: boolean) => void;
   },
@@ -42,18 +44,21 @@ const initBackupButton = async (
     desc += `\n- 백업 일시: ${dateStr}`;
     if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
 
-    setDescription(desc);
+    clearDescription();
+    addDescription(desc);
   }
 };
 
 const initDevSetting = async ({
   setValue,
   setDisabled,
-  setDescription: _setDescription,
+  addDescription: _addDescription,
+  clearDescription: _clearDescription,
   setVisible: _setVisible,
 }: {
   setValue: (v: SettingValue) => void;
-  setDescription: (d: string) => void;
+  addDescription: (text: string, variant?: DescriptionVariant) => void;
+  clearDescription: () => void;
   setDisabled: (v: boolean) => void;
   setVisible: (v: boolean) => void;
 }) => {
@@ -163,7 +168,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             description:
               "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)",
             icon: "memory",
-            onInit: async ({ setValue, setDescription }) => {
+            onInit: async ({ setValue, addDescription }) => {
               const val = await window.electronAPI?.getConfig(
                 "processWatcherEnabled",
               );
@@ -176,8 +181,11 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 await window.electronAPI?.getConfig("closeAction");
 
               if (val === false) {
-                let desc =
-                  "런처가 백그라운드에서도 항상 게임 실행을 감시합니다.\n\n[주의]\n";
+                // Clear default description first (optional, but good for clean state)
+                // clearDescription();
+                // Actually, let's keep the default description from static config
+                // and just append the warning.
+
                 const warnings: string[] = [];
                 if (!autoLaunch)
                   warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
@@ -187,22 +195,31 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                   );
 
                 if (warnings.length > 0) {
-                  desc +=
-                    warnings.join("\n") +
-                    "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.";
+                  addDescription(
+                    "\n[주의]\n" +
+                      warnings.join("\n") +
+                      "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
+                    "error",
+                  );
                 } else {
-                  desc += "항상 감시 모드가 활성화되었습니다.";
+                  addDescription("항상 감시 모드가 활성화되었습니다.", "info");
                 }
-                setDescription(desc);
               }
             },
-            onChangeListener: async (val, { setDescription, showToast }) => {
+            onChangeListener: async (
+              val,
+              { addDescription, clearDescription, showToast },
+            ) => {
               showToast(
                 `[최적화] ${val ? "활성화 (리소스 절약)" : "비활성화 (항상 감지)"}`,
               );
 
-              let desc =
-                "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)";
+              // Reset to default state
+              clearDescription();
+              addDescription(
+                "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)",
+                "default",
+              );
 
               if (!val) {
                 const autoLaunch =
@@ -210,8 +227,6 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 const closeAction =
                   await window.electronAPI?.getConfig("closeAction");
 
-                desc =
-                  "런처가 백그라운드에서도 항상 게임 실행을 감시합니다.\n\n[주의]\n";
                 const warnings: string[] = [];
                 if (!autoLaunch)
                   warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
@@ -221,14 +236,16 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                   );
 
                 if (warnings.length > 0) {
-                  desc +=
-                    warnings.join("\n") +
-                    "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.";
+                  addDescription(
+                    "\n[주의]\n" +
+                      warnings.join("\n") +
+                      "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
+                    "error",
+                  );
                 } else {
-                  desc += "항상 감시 모드가 활성화되었습니다.";
+                  addDescription("항상 감시 모드가 활성화되었습니다.", "info");
                 }
               }
-              setDescription(desc);
             },
           },
         ],

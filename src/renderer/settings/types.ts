@@ -15,6 +15,16 @@ export type SettingItemType =
  */
 export type SettingValue = string | number | boolean;
 
+// --- Structure Definitions (New Semantic Blocks) ---
+
+export type DescriptionVariant = "default" | "info" | "warning" | "error";
+
+export interface DescriptionBlock {
+  id?: string;
+  text: string;
+  variant: DescriptionVariant;
+}
+
 /**
  * 모든 설정 항목의 공통 속성을 정의하는 베이스 인터페이스입니다.
  */
@@ -42,7 +52,8 @@ export interface BaseSettingItem {
    */
   onInit?: (context: {
     setValue: (value: SettingValue) => void;
-    setDescription: (description: string) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    clearDescription: () => void;
     setDisabled: (disabled: boolean) => void;
     setVisible: (visible: boolean) => void;
   }) => Promise<void>;
@@ -71,7 +82,8 @@ export interface SettingSwitch extends BaseSettingItem {
     value: boolean,
     context: {
       showToast: (msg: string) => void;
-      setDescription: (desc: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
     },
   ) => void;
 }
@@ -93,7 +105,8 @@ export interface SettingRadio extends BaseSettingItem {
     value: string,
     context: {
       showToast: (msg: string) => void;
-      setDescription: (desc: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
     },
   ) => void;
 }
@@ -115,7 +128,8 @@ export interface SettingSelect extends BaseSettingItem {
     value: string,
     context: {
       showToast: (msg: string) => void;
-      setDescription: (desc: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
     },
   ) => void;
 }
@@ -143,7 +157,8 @@ export interface SettingNumber extends BaseSettingItem {
     value: number,
     context: {
       showToast: (msg: string) => void;
-      setDescription: (desc: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
     },
   ) => void;
 }
@@ -171,7 +186,8 @@ export interface SettingSlider extends BaseSettingItem {
     value: number,
     context: {
       showToast: (msg: string) => void;
-      setDescription: (desc: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
     },
   ) => void;
 }
