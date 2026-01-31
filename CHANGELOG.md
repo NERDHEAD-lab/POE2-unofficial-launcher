@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.4.0...0.5.0) (2026-01-31)
+
+
+### Features
+
+* 설정 접근 표준화 ([bfdb167](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bfdb1679f7272357f1678f5fd7542d29e10ef6ab))
+
+
+### Bug Fixes
+
+* 디버그 콘솔 및 개발환경에서 설정이 의도대로 로드되지 않는 문제 개선 ([da760c4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/da760c42498486dc2e5ae9dd29ad527824f4985c))
+* 패치 오류를 감지 못하는 문제 수정 ([4fa4b34](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4fa4b34db4740ddb6fb3bcde4f225d933a6c47b6))
+
 ## [0.4.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.3.2...0.4.0) (2026-01-30)
 
 
