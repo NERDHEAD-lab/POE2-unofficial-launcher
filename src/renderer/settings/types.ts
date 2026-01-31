@@ -56,6 +56,7 @@ export interface BaseSettingItem {
     clearDescription: () => void;
     setDisabled: (disabled: boolean) => void;
     setVisible: (visible: boolean) => void;
+    setLabel: (label: string) => void;
   }) => Promise<void>;
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;
@@ -84,6 +85,7 @@ export interface SettingSwitch extends BaseSettingItem {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
+      setLabel: (label: string) => void;
     },
   ) => void;
 }
@@ -107,6 +109,7 @@ export interface SettingRadio extends BaseSettingItem {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
+      setLabel: (label: string) => void;
     },
   ) => void;
 }
@@ -130,6 +133,7 @@ export interface SettingSelect extends BaseSettingItem {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
+      setLabel: (label: string) => void;
     },
   ) => void;
 }
@@ -159,6 +163,7 @@ export interface SettingNumber extends BaseSettingItem {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
+      setLabel: (label: string) => void;
     },
   ) => void;
 }
@@ -188,6 +193,7 @@ export interface SettingSlider extends BaseSettingItem {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
+      setLabel: (label: string) => void;
     },
   ) => void;
 }

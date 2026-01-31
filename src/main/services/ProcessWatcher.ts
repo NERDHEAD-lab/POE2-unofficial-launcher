@@ -63,7 +63,9 @@ export class ProcessWatcher {
   // --- Suspension Logic ---
 
   private isOptimizationEnabled(): boolean {
-    return this.context.getConfig("processWatcherEnabled") !== false;
+    // Optimization is enabled (resource saving) when NOT in "always-on" mode.
+    // Default is "resource-saving", so this returns true unless explicitly set to "always-on".
+    return this.context.getConfig("processWatchMode") !== "always-on";
   }
 
   public scheduleSuspension() {
