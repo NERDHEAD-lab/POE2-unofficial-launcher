@@ -4,6 +4,17 @@ import { AppContext, DebugLogEvent, EventType } from "../events/types";
 let globalContext: AppContext | null = null;
 let logEmitter: ((event: DebugLogEvent) => void) | null = null;
 
+// 초기 로그 소실 방지를 위한 버퍼
+const MAX_LOG_HISTORY = 200;
+const logHistory: DebugLogEvent["payload"][] = [];
+
+/**
+ * 전역 로그 히스토리를 반환합니다.
+ */
+export function getLogHistory() {
+  return [...logHistory];
+}
+
 /**
  * 메인 프로세스에서 Logger가 AppContext와 로그 전송 콜백을 참조할 수 있도록 설정합니다.
  */
@@ -27,19 +38,27 @@ export class Logger extends LoggerBase {
   }
 
   protected emit(content: string, isError: boolean, textColor?: string): void {
+    const payload: DebugLogEvent["payload"] = {
+      type: this.type,
+      content: content,
+      isError: isError,
+      timestamp: Date.now(),
+      typeColor: this.typeColor,
+      textColor: textColor || (isError ? "#FF5555" : this.textColor),
+      priority: this.priority,
+    };
+
+    // 히스토리 버퍼에 추가 (최신 N개 유지)
+    logHistory.push(payload);
+    if (logHistory.length > MAX_LOG_HISTORY) {
+      logHistory.shift();
+    }
+
     if (!globalContext || !logEmitter) return;
 
     logEmitter({
       type: EventType.DEBUG_LOG,
-      payload: {
-        type: this.type,
-        content: content,
-        isError: isError,
-        timestamp: Date.now(),
-        typeColor: this.typeColor,
-        textColor: textColor || (isError ? "#FF5555" : this.textColor),
-        priority: this.priority,
-      },
+      payload,
     });
   }
 }

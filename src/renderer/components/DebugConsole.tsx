@@ -201,6 +201,7 @@ const DebugConsole: React.FC = () => {
 
       let removeLogListener: (() => void) | undefined;
       if (window.electronAPI.onDebugLog) {
+        // 1. 리스너 먼저 등록 (이후 발생하는 로그 유실 방지)
         removeLogListener = window.electronAPI.onDebugLog((log: LogEntry) => {
           setLogState((prev) => {
             const updatedAll = mergeLog(prev.all, log);
@@ -211,6 +212,27 @@ const DebugConsole: React.FC = () => {
               byType: { ...prev.byType, [log.type]: updatedTypeList },
             };
           });
+        });
+
+        // 2. 초기 히스토리 가져오기
+        window.electronAPI.getDebugHistory().then((history) => {
+          if (history && history.length > 0) {
+            setLogState((prev) => {
+              let updatedAll = [...prev.all];
+              const updatedByType = { ...prev.byType };
+
+              history.forEach((log) => {
+                updatedAll = mergeLog(updatedAll, log as LogEntry);
+                const typeList = updatedByType[log.type] || [];
+                updatedByType[log.type] = mergeLog(typeList, log as LogEntry);
+              });
+
+              return {
+                all: updatedAll,
+                byType: updatedByType,
+              };
+            });
+          }
         });
       }
 
