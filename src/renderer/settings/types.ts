@@ -128,7 +128,7 @@ export interface SettingRadio extends BaseSettingItem {
    */
   defaultValue?: string;
   /** 선택 가능한 옵션 리스트 */
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; description?: string }[];
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
   onChangeListener?: (
     value: string,
