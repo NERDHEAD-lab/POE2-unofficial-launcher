@@ -717,7 +717,9 @@ function createWindows() {
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
-  setupMainLogger(appContext);
+  setupMainLogger(appContext, (event) => {
+    eventBus.emit(event.type, appContext, event.payload);
+  });
 
   logger.log("[Main] Main Logger initialized.");
 
@@ -761,7 +763,7 @@ function createWindows() {
 
   // Sync Auto Launch Status
   if (!app.isPackaged) {
-    console.log(
+    logger.log(
       "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
     );
   } else if (initialConfig.autoLaunch) {

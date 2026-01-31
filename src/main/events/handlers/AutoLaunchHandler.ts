@@ -2,40 +2,66 @@ import { app } from "electron";
 
 import { AppConfig } from "../../../shared/types";
 import { getConfig } from "../../store";
-import { AppContext, EventHandler } from "../types";
-import { ConfigChangeEvent, EventType } from "../types";
+import { logger } from "../../utils/logger";
+import {
+  AppContext,
+  ConfigChangeEvent,
+  EventHandler,
+  EventType,
+} from "../types";
 
+/**
+ * Handler to synchronize auto-launch settings with OS.
+ * Triggers when 'autoLaunch' or 'startMinimized' config changes.
+ */
 export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
   id: "AutoLaunchHandler",
   targetEvent: EventType.CONFIG_CHANGE,
 
-  condition: (event) =>
-    event.payload.key === "autoLaunch" ||
-    event.payload.key === "startMinimized",
+  condition: (event) => {
+    const key = event.payload.key;
+    return key === "autoLaunch" || key === "startMinimized";
+  },
 
   handle: async (_event, _context: AppContext) => {
-    // Current State Resolution
-    // key가 무엇이든 최신 config 기반으로 재설정
     const currentConfig = getConfig() as AppConfig;
     const shouldAutoLaunch = currentConfig.autoLaunch === true;
     const shouldStartMinimized = currentConfig.startMinimized === true;
 
-    console.log(
+    logger.log(
       `[AutoLaunch] Syncing settings: OpenAtLogin=${shouldAutoLaunch}, Minimized=${shouldStartMinimized}`,
     );
 
     if (!app.isPackaged) {
-      console.log(
+      logger.log(
         `[AutoLaunch] Dev mode detected. Skipping OS registration. (HIDDEN_ARG=${shouldStartMinimized ? '"--hidden"' : "NONE"})`,
       );
       return;
     }
 
-    app.setLoginItemSettings({
-      openAtLogin: shouldAutoLaunch,
-      openAsHidden: false, // Legacy macOS option (we use args instead for cross-platform control)
-      path: app.getPath("exe"),
-      args: shouldStartMinimized ? ["--hidden"] : [],
-    });
+    try {
+      // Electron's setLoginItemSettings handles Windows Registry (Run key)
+      app.setLoginItemSettings({
+        openAtLogin: shouldAutoLaunch,
+        path: app.getPath("exe"),
+        args: shouldStartMinimized ? ["--hidden"] : [],
+      });
+    } catch (e) {
+      logger.error("[AutoLaunch] Failed to sync login settings:", e);
+    }
   },
+};
+
+/**
+ * Helper to force sync on startup
+ */
+export const syncAutoLaunchOnStartup = () => {
+  const currentConfig = getConfig() as AppConfig;
+  if (!app.isPackaged) return;
+
+  app.setLoginItemSettings({
+    openAtLogin: currentConfig.autoLaunch === true,
+    path: app.getPath("exe"),
+    args: currentConfig.startMinimized === true ? ["--hidden"] : [],
+  });
 };

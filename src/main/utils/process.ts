@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { PowerShellManager } from "./powershell";
 
 /**
@@ -23,7 +24,7 @@ export const getProcessPaths = async (
     );
 
     if (stderr) {
-      console.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
+      logger.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
     }
 
     if (!stdout || !stdout.trim()) {
@@ -35,10 +36,7 @@ export const getProcessPaths = async (
     try {
       result = JSON.parse(stdout);
     } catch (e) {
-      console.error(
-        `[getProcessPaths] JSON Parse Error for ${processName}:`,
-        e,
-      );
+      logger.error(`[getProcessPaths] JSON Parse Error for ${processName}:`, e);
       return [];
     }
 
@@ -82,7 +80,7 @@ export const getProcessPaths = async (
     // Deduplicate
     return [...new Set(paths)];
   } catch (e) {
-    console.error(`[getProcessPaths] Error executing for ${processName}:`, e);
+    logger.error(`[getProcessPaths] Error executing for ${processName}:`, e);
     return [];
   }
 };

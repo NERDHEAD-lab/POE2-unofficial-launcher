@@ -1,5 +1,6 @@
 import { AppConfig } from "../../../shared/types";
 import { BASE_URLS } from "../../../shared/urls";
+import { logger } from "../../utils/logger";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
@@ -21,7 +22,7 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     const isKakao = config.serviceChannel === "Kakao Games";
 
     // Debug log to trace condition failures if any
-    console.log(
+    logger.log(
       `[StartPoe2KakaoHandler] Checking Condition: POE2=${isPoe2}, Kakao=${isKakao}`,
     );
 
@@ -34,7 +35,7 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     const gameWindow = context.ensureGameWindow();
 
     // 0. Notify User
-    console.log(
+    logger.log(
       `[StartPoe2KakaoHandler] Condition Met! Starting POE2 Kakao Process...`,
     );
 
@@ -49,12 +50,12 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     );
 
     if (!gameWindow) {
-      console.error("[StartPoe2KakaoHandler] Failed to create Game Window!");
+      logger.error("[StartPoe2KakaoHandler] Failed to create Game Window!");
       return;
     }
 
     if (gameWindow.isDestroyed()) {
-      console.error("[StartPoe2KakaoHandler] Game Window is destroyed!");
+      logger.error("[StartPoe2KakaoHandler] Game Window is destroyed!");
       return;
     }
 
@@ -63,7 +64,7 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
 
     // 2. Load Target URL
     const targetUrl = `${BASE_URLS["Kakao Games"].POE2}/main`;
-    console.log(`[StartPoe2KakaoHandler] Loading URL: ${targetUrl}`);
+    logger.log(`[StartPoe2KakaoHandler] Loading URL: ${targetUrl}`);
 
     try {
       await gameWindow.loadURL(targetUrl);
@@ -73,11 +74,11 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
       // ERR_ABORTED (-3) is EXPECTED when Electron hands off a custom protocol (daumgamestarter://) to the OS.
       // This means the external app launch was triggered successfully.
       if (e.message && (e.message.includes("ERR_ABORTED") || e.code === -3)) {
-        console.log(
+        logger.log(
           `[StartPoe2KakaoHandler] Navigation aborted (-3) as expected for custom protocol launch. Success.`,
         );
       } else {
-        console.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
+        logger.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
         eventBus.emit<GameStatusChangeEvent>(
           EventType.GAME_STATUS_CHANGE,
           context,
@@ -93,7 +94,7 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     }
 
     // 3. Send Execute Command to Renderer (Content Script)
-    console.log(
+    logger.log(
       '[StartPoe2KakaoHandler] URL Loaded. Sending "execute-game-start"...',
     );
     eventBus.emit<GameStatusChangeEvent>(

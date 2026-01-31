@@ -1,4 +1,5 @@
-import { AppConfig } from "../../../shared/types";
+import { AppConfig, RunStatus } from "../../../shared/types";
+import { logger } from "../../utils/logger";
 import { isGameInstalled } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
@@ -6,76 +7,45 @@ import {
   EventHandler,
   EventType,
   GameStatusChangeEvent,
-  ConfigChangeEvent,
+  UIGameInstallCheckEvent,
 } from "../types";
 
 /**
- * Handler to check game installation status when configuration changes
+ * Handler: Check if the game is installed and its current status.
  */
-export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
+export const GameInstallCheckHandler: EventHandler<UIGameInstallCheckEvent> = {
   id: "GameInstallCheckHandler",
-  targetEvent: EventType.CONFIG_CHANGE,
+  targetEvent: EventType.UI_GAME_INSTALL_CHECK,
 
-  condition: (event) => {
-    return (
-      event.payload.key === "activeGame" ||
-      event.payload.key === "serviceChannel"
-    );
-  },
+  condition: () => true,
 
   handle: async (_event, context: AppContext) => {
     const config = context.getConfig() as AppConfig;
     const { activeGame, serviceChannel } = config;
 
-    console.log(
+    logger.log(
       `[GameInstallCheckHandler] Checking installation for ${activeGame} (${serviceChannel})...`,
     );
 
+    // 1. Check Registry/Path installation
     const installed = await isGameInstalled(serviceChannel, activeGame);
 
-    // If uninstalled, set status to 'uninstalled'
-    // If installed, we usually set to 'idle' but ProcessWatcher might already have it as 'running'
-    // For now, let's just emit 'uninstalled' or 'idle'.
-    // The ProcessWatcher will eventually overwrite with 'running' if it's actually running.
+    // 2. [New] If installed, check if it's currently RUNNING
+    let isRunning = false;
+    if (installed) {
+      const targetProcessName =
+        serviceChannel === "Kakao Games"
+          ? "PathOfExile_KG.exe"
+          : "PathOfExile.exe";
 
-    // [Fix] Check if the game is already RUNNING before resetting to 'idle'
-    // This prevents status flickering or resetting when switching tabs while game is open.
-    // [Refactor] Use explicit process mapping for accurate status detection
-    // This prevents POE1 activity from falsely reporting POE2 as running (and vice versa).
-    // Previously, we relied on generic 'GameServiceProfiles' which mapped both to 'PathOfExile_KG.exe', causing cross-talk.
-
-    let targetProcessName = "";
-    let criteria:
-      | ((info: { pid: number; path: string }) => boolean)
-      | undefined;
-
-    if (serviceChannel === "Kakao Games") {
-      // Use specific Launcher names for Kakao to distinguish games
-      targetProcessName =
-        activeGame === "POE2" ? "POE2_Launcher.exe" : "POE_Launcher.exe";
-    } else {
-      // GGG uses the same process name but different paths
-      targetProcessName = "PathOfExile.exe";
-      criteria = (info) => {
-        const lowerPath = info.path.toLowerCase();
-        if (activeGame === "POE2") {
-          return lowerPath.includes("path of exile 2");
-        } else {
-          // POE1: Must include "path of exile" but NOT "path of exile 2"
-          return (
-            lowerPath.includes("path of exile") &&
-            !lowerPath.includes("path of exile 2")
-          );
-        }
-      };
+      // We might want to verify the path as well, but for now name is enough
+      if (context.processWatcher) {
+        isRunning = context.processWatcher.isProcessRunning(targetProcessName);
+      }
     }
 
-    const isRunning =
-      targetProcessName &&
-      context.processWatcher?.isProcessRunning(targetProcessName, criteria);
-
     if (isRunning) {
-      console.log(
+      logger.log(
         `[GameInstallCheckHandler] Game ${activeGame} (${serviceChannel}) is currently RUNNING. Emitting 'running' status.`,
       );
       eventBus.emit<GameStatusChangeEvent>(
@@ -87,17 +57,16 @@ export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
           status: "running",
         },
       );
-      return;
+    } else {
+      eventBus.emit<GameStatusChangeEvent>(
+        EventType.GAME_STATUS_CHANGE,
+        context,
+        {
+          gameId: activeGame,
+          serviceId: serviceChannel,
+          status: (installed ? "idle" : "uninstalled") as RunStatus,
+        },
+      );
     }
-
-    eventBus.emit<GameStatusChangeEvent>(
-      EventType.GAME_STATUS_CHANGE,
-      context,
-      {
-        gameId: activeGame,
-        serviceId: serviceChannel,
-        status: installed ? "idle" : "uninstalled",
-      },
-    );
   },
 };

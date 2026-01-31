@@ -1,5 +1,6 @@
 import { AppConfig } from "../../../shared/types";
 import { BASE_URLS } from "../../../shared/urls";
+import { logger } from "../../utils/logger";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
@@ -21,7 +22,7 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     const isKakao = config.serviceChannel === "Kakao Games";
 
     // Debug log to trace condition failures if any
-    console.log(
+    logger.log(
       `[StartPoe1KakaoHandler] Checking Condition: POE1=${isPoe1}, Kakao=${isKakao}`,
     );
 
@@ -34,7 +35,7 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     const gameWindow = context.ensureGameWindow();
 
     // 0. Notify User (Preparing)
-    console.log(
+    logger.log(
       `[StartPoe1KakaoHandler] Condition Met! Starting POE1 Kakao Process...`,
     );
 
@@ -49,12 +50,12 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     );
 
     if (!gameWindow) {
-      console.error("[StartPoe1KakaoHandler] Failed to create Game Window!");
+      logger.error("[StartPoe1KakaoHandler] Failed to create Game Window!");
       return;
     }
 
     if (gameWindow.isDestroyed()) {
-      console.error("[StartPoe1KakaoHandler] Game Window is destroyed!");
+      logger.error("[StartPoe1KakaoHandler] Game Window is destroyed!");
       return;
     }
 
@@ -63,12 +64,12 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
 
     // 2. Load Target URL
     const targetUrl = BASE_URLS["Kakao Games"].POE1;
-    console.log(`[StartPoe1KakaoHandler] Loading URL: ${targetUrl}`);
+    logger.log(`[StartPoe1KakaoHandler] Loading URL: ${targetUrl}`);
 
     try {
       await gameWindow.loadURL(targetUrl);
     } catch (e) {
-      console.error(`[StartPoe1KakaoHandler] Failed to load URL: ${e}`);
+      logger.error(`[StartPoe1KakaoHandler] Failed to load URL: ${e}`);
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         context,
@@ -83,7 +84,7 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     }
 
     // 3. Send Execute Command to Renderer (Content Script)
-    console.log(
+    logger.log(
       '[StartPoe1KakaoHandler] URL Loaded. Sending "execute-game-start"...',
     );
 
