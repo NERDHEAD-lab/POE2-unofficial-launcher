@@ -18,7 +18,11 @@ const ERROR_THRESHOLD = 10;
 
 export class LogWatcher {
   private context: AppContext;
-  private logger = new Logger({ type: "LOG_WATCHER", typeColor: "#4fc1ff" });
+  private logger = new Logger({
+    type: "LOG_WATCHER",
+    typeColor: "#4fc1ff",
+    priority: 5,
+  });
   private watchTimer: NodeJS.Timeout | null = null;
   private currentLogPath: string | null = null;
   private lastSize: number = 0;

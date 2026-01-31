@@ -11,6 +11,7 @@ export class ProcessWatcher {
   private logger = new Logger({
     type: "PROCESS_WATCHER",
     typeColor: "#4ec9b0",
+    priority: 4,
   });
   private timer: NodeJS.Timeout | null = null;
   /**

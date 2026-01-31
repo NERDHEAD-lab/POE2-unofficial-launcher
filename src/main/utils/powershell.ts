@@ -38,10 +38,12 @@ export class PowerShellManager {
   private adminLogger = new Logger({
     type: "process_admin",
     typeColor: "#c586c0",
+    priority: 3,
   });
   private normalLogger = new Logger({
     type: "process_normal",
     typeColor: "#4ec9b0",
+    priority: 2,
   });
 
   // Separate states for Admin and Normal sessions

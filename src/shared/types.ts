@@ -95,6 +95,7 @@ export interface DebugLogPayload {
   timestamp: number;
   typeColor?: string; // Hex color for the [TYPE] label
   textColor?: string; // Hex color for the content text
+  priority?: number;
 }
 
 export interface ElectronAPI {

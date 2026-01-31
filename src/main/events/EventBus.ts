@@ -8,7 +8,11 @@ class EventBus {
     this.context = context;
   }
 
-  private logger = new Logger({ type: "EVENT_BUS", typeColor: "#dcdcaa" });
+  private logger = new Logger({
+    type: "EVENT_BUS",
+    typeColor: "#dcdcaa",
+    priority: 1,
+  });
 
   // Store handlers as generic handlers
   private handlers: Map<EventType, EventHandler<AppEvent>[]> = new Map();

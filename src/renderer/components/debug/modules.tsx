@@ -10,8 +10,9 @@ export const LogModule: DebugModule<LogViewerProps> = {
   position: "left",
   getTabs: ({ logState }) => {
     const types = Object.keys(logState.byType).sort((a, b) => {
-      if (a === "GENERAL") return -1;
-      if (b === "GENERAL") return 1;
+      const pA = logState.byType[a][0]?.priority ?? 9999;
+      const pB = logState.byType[b][0]?.priority ?? 9999;
+      if (pA !== pB) return pA - pB;
       return a.localeCompare(b);
     });
 
@@ -29,8 +30,9 @@ export const LogModule: DebugModule<LogViewerProps> = {
   ),
   getExportSources: ({ logState }) => {
     const types = Object.keys(logState.byType).sort((a, b) => {
-      if (a === "GENERAL") return -1;
-      if (b === "GENERAL") return 1;
+      const pA = logState.byType[a][0]?.priority ?? 9999;
+      const pB = logState.byType[b][0]?.priority ?? 9999;
+      if (pA !== pB) return pA - pB;
       return a.localeCompare(b);
     });
 

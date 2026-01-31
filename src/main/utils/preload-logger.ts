@@ -25,6 +25,7 @@ export class PreloadLogger extends LoggerBase {
         timestamp: Date.now(),
         typeColor: this.typeColor,
         textColor: textColor || (isError ? "#FF5555" : this.textColor),
+        priority: this.priority,
       });
     } catch {
       // Fail silently if IPC is not available (shouldn't happen in preload)
