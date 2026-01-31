@@ -21,7 +21,12 @@ export const RadioItem: React.FC<Props> = ({ item, value, onChange }) => {
             onChange={() => onChange(item.id, option.value)}
             disabled={item.disabled}
           />
-          <span className="radio-label">{option.label}</span>
+          <div className="radio-content">
+            <span className="radio-label">{option.label}</span>
+            {option.description && (
+              <span className="radio-description">{option.description}</span>
+            )}
+          </div>
         </label>
       ))}
     </div>

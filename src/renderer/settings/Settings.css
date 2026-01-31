@@ -634,6 +634,11 @@
   align-items: flex-start;
 }
 
+.setting-item.type-radio .setting-control {
+  width: 100%;
+  padding-left: 12px; /* Indent options for hierarchy */
+}
+
 .setting-item.type-radio .setting-header-group {
   width: 100%;
   display: flex;
@@ -641,6 +646,12 @@
   border-bottom: 1px solid #333;
   padding-bottom: 10px;
   margin-bottom: 10px;
+}
+
+.setting-item.type-radio.no-description .setting-header-group {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 8px; /* Simply separate from options */
 }
 
 .setting-item.type-radio .setting-icon {
@@ -912,4 +923,34 @@
 .confirm-btn.primary:hover {
   filter: brightness(1.1);
   box-shadow: 0 0 10px rgba(223, 207, 153, 0.3);
+}
+
+/* Radio Button Descriptions */
+.radio-option {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0px;
+  cursor: pointer;
+}
+
+.radio-option:last-child {
+  margin-bottom: 0;
+}
+
+.radio-content {
+  display: flex;
+  flex-direction: column;
+  margin-left: 8px;
+}
+
+.radio-label {
+  font-weight: 500;
+  color: #eee;
+}
+
+.radio-description {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-top: 4px;
+  line-height: 1.4;
 }
