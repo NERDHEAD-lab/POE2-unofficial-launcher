@@ -27,6 +27,48 @@ const DebugConsole: React.FC = () => {
 
   const [showExportModal, setShowExportModal] = useState(false);
 
+  // --- Drag-to-scroll for Tabs ---
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [isTabDragging, setIsTabDragging] = useState(false);
+  const [hasMoved, setHasMoved] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragScrollLeftRef = useRef(0);
+
+  const handleTabMouseDown = (e: React.MouseEvent) => {
+    if (!tabsRef.current) return;
+    setIsTabDragging(true);
+    setHasMoved(false);
+    dragStartXRef.current = e.pageX;
+    dragScrollLeftRef.current = tabsRef.current.scrollLeft;
+  };
+
+  useEffect(() => {
+    if (isTabDragging) {
+      const handleMouseMoveGlobal = (e: MouseEvent) => {
+        if (!tabsRef.current) return;
+        const x = e.pageX;
+        const walk = (x - dragStartXRef.current) * 1.5;
+
+        if (Math.abs(x - dragStartXRef.current) > 5) {
+          setHasMoved(true);
+        }
+
+        tabsRef.current.scrollLeft = dragScrollLeftRef.current - walk;
+      };
+
+      const handleMouseUpGlobal = () => {
+        setIsTabDragging(false);
+      };
+
+      window.addEventListener("mousemove", handleMouseMoveGlobal);
+      window.addEventListener("mouseup", handleMouseUpGlobal);
+      return () => {
+        window.removeEventListener("mousemove", handleMouseMoveGlobal);
+        window.removeEventListener("mouseup", handleMouseUpGlobal);
+      };
+    }
+  }, [isTabDragging]);
+
   // --- Configuration Helpers ---
   const startEditing = (key: string, val: unknown) => {
     setEditingKey(key);
@@ -217,6 +259,38 @@ const DebugConsole: React.FC = () => {
             50% { opacity: 0.4; }
             100% { opacity: 1; }
           }
+          
+          /* Hide Scrollbar for Tabs Area */
+          .tabs-scroll-area::-webkit-scrollbar {
+            display: none;
+          }
+          .tabs-scroll-area {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+          }
+          
+          /* Custom Slim Scrollbar for Debug Console */
+          *::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+          }
+          *::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          *::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            transition: background 0.2s ease;
+          }
+          *::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+          }
+          
+          /* Firefox Support */
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+          }
         `}
       </style>
       <div
@@ -280,19 +354,32 @@ const DebugConsole: React.FC = () => {
         {activeModule?.renderPanel(filter, getModuleProps(filter))}
       </div>
 
-      {/* Footer Tabs & Settings */}
+      {/* Footer Container */}
       <div
         style={{
           borderTop: "1px solid #333",
           backgroundColor: "#252526",
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "nowrap",
-          overflowX: "auto",
+          alignItems: "center",
+          height: "35px",
+          overflow: "hidden",
         }}
       >
-        {/* Left Aligned Modules (Logs etc) */}
-        <div style={{ display: "flex", overflowX: "auto" }}>
+        {/* Left: Scrollable Tabs Area */}
+        <div
+          ref={tabsRef}
+          onMouseDown={handleTabMouseDown}
+          className="tabs-scroll-area"
+          style={{
+            flex: 1,
+            display: "flex",
+            overflowX: "auto",
+            cursor: isTabDragging ? "grabbing" : "pointer",
+            userSelect: "none",
+            height: "100%",
+          }}
+        >
           {modules
             .filter((m) => m.position === "left")
             .sort((a, b) => a.order - b.order)
@@ -304,13 +391,16 @@ const DebugConsole: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setFilter(tab.id)}
+                  onClick={() => {
+                    if (!hasMoved) setFilter(tab.id);
+                  }}
                   style={{
                     background: isActive ? "#3e3e42" : "transparent",
                     color: isActive ? "#fff" : tab.color || "#ccc",
                     border: "none",
-                    padding: "8px 16px",
-                    cursor: "pointer",
+                    padding: "0 16px",
+                    height: "100%",
+                    cursor: isTabDragging ? "grabbing" : "pointer",
                     fontSize: "12px",
                     fontFamily: "inherit",
                     borderRight: "1px solid #333",
@@ -327,8 +417,17 @@ const DebugConsole: React.FC = () => {
             })}
         </div>
 
-        {/* Right Aligned Modules (Config etc) */}
-        <div style={{ display: "flex" }}>
+        {/* Right: Pinned Config Button Area */}
+        <div
+          style={{
+            display: "flex",
+            height: "100%",
+            flexShrink: 0,
+            borderLeft: "1px solid #333",
+            backgroundColor: "#252526", // Ensure it's opaque during scroll
+            zIndex: 11,
+          }}
+        >
           {modules
             .filter((m) => m.position === "right")
             .sort((a, b) => a.order - b.order)
@@ -340,17 +439,19 @@ const DebugConsole: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setFilter(tab.id)}
+                  onClick={() => {
+                    if (!hasMoved) setFilter(tab.id);
+                  }}
                   style={{
                     background: isActive ? tabColor : "#333",
                     color: "#fff",
                     border: "none",
-                    padding: "8px 20px",
+                    padding: "0 20px",
+                    height: "100%",
                     cursor: "pointer",
                     fontSize: "12px",
                     fontWeight: "bold",
                     fontFamily: "inherit",
-                    borderLeft: "1px solid #444",
                     borderTop: isActive
                       ? "2px solid #fff"
                       : "2px solid transparent",
