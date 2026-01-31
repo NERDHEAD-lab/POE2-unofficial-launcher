@@ -95,6 +95,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "General",
     description: "앱 최초 실행 시 온보딩 위저드를 표시할지 여부를 설정합니다.",
   },
+  PROCESS_WATCHER_ENABLED: {
+    key: "processWatcherEnabled",
+    name: "Game Process Optimization",
+    category: "Optimization",
+    description:
+      "런처가 백그라운드 상태일 때 프로세스 감지를 일시 중지하여 리소스를 절약합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -112,6 +119,7 @@ export const CONFIG_KEYS = {
   CLOSE_ACTION: CONFIG_METADATA.CLOSE_ACTION.key,
   QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
   SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
+  PROCESS_WATCHER_ENABLED: CONFIG_METADATA.PROCESS_WATCHER_ENABLED.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -130,6 +138,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   closeAction: "minimize",
   quitOnGameStart: false,
   showOnboarding: true,
+  processWatcherEnabled: true,
 };
 
 export const DEBUG_APP_CONFIG = {

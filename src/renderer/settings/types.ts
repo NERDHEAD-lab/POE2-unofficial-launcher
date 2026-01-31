@@ -69,7 +69,10 @@ export interface SettingSwitch extends BaseSettingItem {
    */
   onChangeListener?: (
     value: boolean,
-    context: { showToast: (msg: string) => void },
+    context: {
+      showToast: (msg: string) => void;
+      setDescription: (desc: string) => void;
+    },
   ) => void;
 }
 
@@ -88,7 +91,10 @@ export interface SettingRadio extends BaseSettingItem {
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
   onChangeListener?: (
     value: string,
-    context: { showToast: (msg: string) => void },
+    context: {
+      showToast: (msg: string) => void;
+      setDescription: (desc: string) => void;
+    },
   ) => void;
 }
 
@@ -107,7 +113,10 @@ export interface SettingSelect extends BaseSettingItem {
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
   onChangeListener?: (
     value: string,
-    context: { showToast: (msg: string) => void },
+    context: {
+      showToast: (msg: string) => void;
+      setDescription: (desc: string) => void;
+    },
   ) => void;
 }
 
@@ -132,7 +141,10 @@ export interface SettingNumber extends BaseSettingItem {
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
   onChangeListener?: (
     value: number,
-    context: { showToast: (msg: string) => void },
+    context: {
+      showToast: (msg: string) => void;
+      setDescription: (desc: string) => void;
+    },
   ) => void;
 }
 
@@ -157,7 +169,10 @@ export interface SettingSlider extends BaseSettingItem {
   /** 값이 변경되었을 때 실행될 리스너 (옵션) */
   onChangeListener?: (
     value: number,
-    context: { showToast: (msg: string) => void },
+    context: {
+      showToast: (msg: string) => void;
+      setDescription: (desc: string) => void;
+    },
   ) => void;
 }
 

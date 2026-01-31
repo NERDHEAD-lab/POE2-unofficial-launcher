@@ -4,6 +4,7 @@ export const CONFIG_CATEGORIES = [
   "Appearance",
   "Patch",
   "Debug",
+  "Optimization",
 ] as const;
 
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
@@ -33,6 +34,7 @@ export interface AppConfig {
   closeAction: "minimize" | "close";
   quitOnGameStart: boolean;
   showOnboarding: boolean;
+  processWatcherEnabled: boolean;
 }
 
 // Granular Status Codes for granular UI feedback

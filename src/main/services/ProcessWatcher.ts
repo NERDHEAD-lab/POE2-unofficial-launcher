@@ -62,7 +62,16 @@ export class ProcessWatcher {
 
   // --- Suspension Logic ---
 
+  private isOptimizationEnabled(): boolean {
+    return this.context.getConfig("processWatcherEnabled") !== false;
+  }
+
   public scheduleSuspension() {
+    // If optimization is disabled, we never suspend the watcher.
+    if (!this.isOptimizationEnabled()) {
+      return;
+    }
+
     // Start 1-minute timer to suspend watcher
     if (this.suspendTimer) clearTimeout(this.suspendTimer);
     this.suspendTimer = setTimeout(() => {
@@ -96,6 +105,11 @@ export class ProcessWatcher {
 
     // 2. Restart/Resume Watcher
     this.startWatching();
+
+    // If optimization is disabled, keep running indefinitely.
+    if (!this.isOptimizationEnabled()) {
+      return;
+    }
 
     // 3. Reset Timer if app is still inactive
     const isMainFocused = this.context.mainWindow?.isFocused();
