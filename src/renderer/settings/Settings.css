@@ -229,25 +229,29 @@
   color: #aaa;
 }
 
-/* --- Layout Variant: SWITCH (Boolean) --- */
-/* User Request: Checkbox Right (Fixed) */
-.setting-item.type-switch {
+/* --- Layout Variant: SWITCH & CHECK --- */
+/* User Request: Checkbox/Switch Right (Fixed) */
+.setting-item.type-switch,
+.setting-item.type-check {
   justify-content: space-between; /* Push Control to far right */
 }
 
-.setting-item.type-switch .setting-control {
+.setting-item.type-switch .setting-control,
+.setting-item.type-check .setting-control {
   order: 2; /* Ensure it stays on the right */
   margin-left: 16px;
   margin-right: 0;
   min-width: auto;
 }
 
-.setting-item.type-switch .setting-info {
+.setting-item.type-switch .setting-info,
+.setting-item.type-check .setting-info {
   order: 1;
   padding-right: 0;
 }
 
-.setting-item.type-switch .setting-icon {
+.setting-item.type-switch .setting-icon,
+.setting-item.type-check .setting-icon {
   order: 0;
 }
 
@@ -328,7 +332,7 @@
   align-items: center;
 }
 
-/* --- Checkbox Visual (for Switch) --- */
+/* --- Checkbox Visual (for Check Type) --- */
 .checkbox-wrapper {
   display: flex;
   align-items: center;
@@ -358,6 +362,53 @@
   border-color: var(--theme-accent, #dfcf99);
 }
 .checkbox-input:disabled + .checkbox-visual {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Toggle Switch Visual (New Switch Type) --- */
+.toggle-switch-wrapper {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  width: 44px;
+  height: 24px;
+}
+.toggle-switch-input {
+  display: none;
+}
+.toggle-switch-track {
+  width: 100%;
+  height: 100%;
+  background: #333;
+  border-radius: 12px;
+  border: 2px solid #555;
+  transition: all 0.3s;
+  position: relative;
+}
+.toggle-switch-thumb {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: #aaa;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.toggle-switch-input:checked + .toggle-switch-track {
+  background: rgba(223, 207, 153, 0.2);
+  border-color: var(--theme-accent, #dfcf99);
+}
+.toggle-switch-input:checked + .toggle-switch-track .toggle-switch-thumb {
+  left: 22px;
+  background: var(--theme-accent, #dfcf99);
+}
+.toggle-switch-input:disabled + .toggle-switch-track {
   opacity: 0.5;
   cursor: not-allowed;
 }

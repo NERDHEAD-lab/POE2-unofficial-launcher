@@ -80,7 +80,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "autoLaunch",
-            type: "switch",
+            type: "check",
             label: "컴퓨터 시작 시 자동 실행",
             description: "컴퓨터 시작 시 게임 런처를 자동으로 실행합니다.",
             icon: "power_settings_new",
@@ -93,7 +93,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "quitOnGameStart",
-            type: "switch",
+            type: "check",
             label: "게임 실행 시 런처 닫기",
             description:
               "게임 실행 시 런처를 자동으로 닫습니다. (닫기 설정을 따름)",
@@ -101,7 +101,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "startMinimized",
-            type: "switch",
+            type: "check",
             label: "트레이로 최소화하여 실행",
             description:
               "자동 실행 시 창을 띄우지 않고 트레이 아이콘으로 시작합니다.",
@@ -354,7 +354,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "uac_bypass",
-            type: "switch",
+            type: "check",
             label: "DaumGameStarter UAC 우회",
             description:
               "카카오게임즈에서 게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
@@ -392,7 +392,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "autoFixPatchError",
-            type: "switch",
+            type: "check",
             label: "패치 오류 자동 수정 (Auto Fix)",
             description:
               "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
@@ -400,7 +400,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "autoGameStartAfterFix",
-            type: "switch",
+            type: "check",
             label: "패치 복구 후 게임 자동 시작",
             description:
               "패치 오류 자동 수정이 완료되면, 해당 서비스를 통해 게임을 자동으로 실행합니다.",
@@ -409,7 +409,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "backupPatchFiles",
-            type: "switch",
+            type: "check",
             label: "패치 파일 백업 (Backup)",
             description:
               "패치 파일 교체 시 원본 파일을 안전한 곳(.patch_backups)에 보관합니다.",
@@ -484,7 +484,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "dev_mode",
-            type: "switch",
+            type: "check",
             label: "개발자 모드 활성화",
             icon: "bug_report",
             requiresRestart: true,
@@ -492,7 +492,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "debug_console",
-            type: "switch",
+            type: "check",
             label: "디버그 콘솔 표시",
             icon: "terminal",
             dependsOn: "dev_mode",
@@ -500,7 +500,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "show_inactive_windows",
-            type: "switch",
+            type: "check",
             label: "비활성 윈도우 표시",
             icon: "visibility",
             dependsOn: "dev_mode",
@@ -508,7 +508,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "show_inactive_window_console",
-            type: "switch",
+            type: "check",
             label: "비활성 윈도우 콘솔 표시",
             icon: "javascript",
             dependsOn: "dev_mode",

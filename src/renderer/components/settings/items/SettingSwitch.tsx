@@ -11,16 +11,16 @@ interface Props {
 export const SwitchItem: React.FC<Props> = ({ item, value, onChange }) => {
   return (
     <div className="setting-control switch-control">
-      <label className="checkbox-wrapper">
+      <label className="toggle-switch-wrapper">
         <input
           type="checkbox"
-          className="checkbox-input"
+          className="toggle-switch-input"
           checked={value}
           onChange={(e) => onChange(item.id, e.target.checked)}
           disabled={item.disabled}
         />
-        <span className="checkbox-visual">
-          {value && <span className="material-symbols-outlined">check</span>}
+        <span className="toggle-switch-track">
+          <span className="toggle-switch-thumb" />
         </span>
       </label>
     </div>

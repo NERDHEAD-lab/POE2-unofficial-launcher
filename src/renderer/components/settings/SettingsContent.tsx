@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
+import { CheckItem } from "./items/SettingCheck";
 import { NumberItem } from "./items/SettingNumber";
 import { RadioItem } from "./items/SettingRadio";
 import { SelectItem } from "./items/SettingSelect";
@@ -12,7 +13,6 @@ import {
   SettingsCategory,
   SettingItem,
   SettingValue,
-  SettingSwitch,
   SettingRadio,
   SettingSelect,
   SettingNumber,
@@ -210,6 +210,7 @@ const SettingItemRenderer: React.FC<{
             },
           });
         },
+        setValue: (newValue) => handleChange(newValue),
       });
     }
     // Priority 2: Standard onChangeListener (for legacy support if needed)
@@ -228,21 +229,26 @@ const SettingItemRenderer: React.FC<{
 
   // Render Control based on type
   const renderControl = () => {
-    const boolVal = !!currentVal;
     const stringVal = String(currentVal ?? "");
     const numVal = Number(currentVal ?? 0);
 
     switch (item.type) {
-      case "switch": {
-        const i = item as SettingSwitch;
+      case "check":
         return (
-          <SwitchItem
-            item={{ ...i, disabled: isDisabled }}
-            value={boolVal}
-            onChange={(_, v) => handleChange(v)}
+          <CheckItem
+            item={item}
+            value={!!val}
+            onChange={(id, v) => handleChange(v)}
           />
         );
-      }
+      case "switch":
+        return (
+          <SwitchItem
+            item={item}
+            value={!!val}
+            onChange={(id, v) => handleChange(v)}
+          />
+        );
       case "radio": {
         const i = item as SettingRadio;
         return (
