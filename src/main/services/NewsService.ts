@@ -16,6 +16,7 @@ import {
   NewsServiceState,
   AppConfig,
 } from "../../shared/types";
+import { Logger } from "../utils/logger";
 
 export class NewsService {
   private store: Store<NewsServiceState>;
@@ -25,6 +26,7 @@ export class NewsService {
     game: AppConfig["activeGame"];
     service: AppConfig["serviceChannel"];
   } | null = null;
+  private logger = new Logger({ type: "NEWS_SERVICE", typeColor: "#ce9178" });
 
   constructor() {
     this.store = new Store<NewsServiceState>({
@@ -45,8 +47,7 @@ export class NewsService {
 
   private async refreshAll() {
     if (!this.lastConfig) return;
-
-    console.log("[NewsService] Background refresh started...");
+    this.logger.log("Background refresh started...");
     await Promise.all([
       this.fetchNewsList(
         this.lastConfig.game,
@@ -83,7 +84,7 @@ export class NewsService {
         if (i === retries - 1) throw new Error(`HTTP ${response.status}`);
       } catch (error) {
         if (i === retries - 1) throw error;
-        console.warn(`[NewsService] Retry ${i + 1}/${retries} for ${url}`);
+        this.logger.warn(`Retry ${i + 1}/${retries} for ${url}`);
         await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
       }
     }
@@ -173,10 +174,7 @@ export class NewsService {
 
       return items;
     } catch (error) {
-      console.error(
-        `[NewsService] Failed to fetch news list for ${key}:`,
-        error,
-      );
+      this.logger.error(`Failed to fetch news list for ${key}:`, error);
       return this.getCacheItems(key);
     }
   }
@@ -220,7 +218,7 @@ export class NewsService {
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
     } catch (error) {
-      console.error("[NewsService] Failed to fetch dev notices:", error);
+      this.logger.error("Failed to fetch dev notices:", error);
       return [];
     }
   }
@@ -275,10 +273,7 @@ export class NewsService {
 
       return cleanHtml;
     } catch (error) {
-      console.error(
-        `[NewsService] Failed to fetch news content for ${id}:`,
-        error,
-      );
+      this.logger.error(`Failed to fetch news content for ${id}:`, error);
       return (
         this.store.get("contents")[id]?.content ||
         "오프라인 상태이거나 내용을 불러오는 데 실패했습니다."

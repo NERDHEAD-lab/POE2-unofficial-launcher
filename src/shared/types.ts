@@ -142,6 +142,7 @@ export interface ElectronAPI {
   markNewsAsRead: (id: string) => Promise<void>;
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
+  sendDebugLog: (log: DebugLogPayload) => void;
   openExternal: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download

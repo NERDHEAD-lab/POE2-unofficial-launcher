@@ -16,8 +16,11 @@ export const getProcessPaths = async (
 
     // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
     // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
-    const { stdout, stderr } =
-      await PowerShellManager.getInstance().execute(psCommand);
+    const { stdout, stderr } = await PowerShellManager.getInstance().execute(
+      psCommand,
+      false,
+      true,
+    );
 
     if (stderr) {
       console.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
@@ -54,7 +57,11 @@ export const getProcessPaths = async (
         try {
           const fallbackCmd = `Get-Process -Name "${nameInternal}" | Select-Object -ExpandProperty Path | Select-Object -Unique`;
           const { stdout: fallbackOut } =
-            await PowerShellManager.getInstance().execute(fallbackCmd);
+            await PowerShellManager.getInstance().execute(
+              fallbackCmd,
+              false,
+              true,
+            );
 
           if (fallbackOut && fallbackOut.trim()) {
             const fallbackPaths = fallbackOut
@@ -99,7 +106,11 @@ export const getProcessesInfo = async (
     const filter = processNames.map((name) => `Name = '${name}'`).join(" or ");
     const psCommand = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId, Name, ExecutablePath | ConvertTo-Json -Compress`;
 
-    const { stdout } = await PowerShellManager.getInstance().execute(psCommand);
+    const { stdout } = await PowerShellManager.getInstance().execute(
+      psCommand,
+      false,
+      true,
+    );
 
     if (!stdout || !stdout.trim()) {
       return [];

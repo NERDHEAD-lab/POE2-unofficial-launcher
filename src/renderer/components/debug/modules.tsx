@@ -8,18 +8,32 @@ export const LogModule: DebugModule<LogViewerProps> = {
   id: "log-module",
   order: 1,
   position: "left",
-  getTabs: ({ logState }) => [
-    { id: "ALL", label: "ALL", color: "#969696" },
-    ...Object.keys(logState.byType).map((type) => ({
-      id: type,
-      label: type.toUpperCase(),
-      color: logState.byType[type][0]?.typeColor || "#ce9178",
-    })),
-  ],
+  getTabs: ({ logState }) => {
+    const types = Object.keys(logState.byType).sort((a, b) => {
+      if (a === "GENERAL") return -1;
+      if (b === "GENERAL") return 1;
+      return a.localeCompare(b);
+    });
+
+    return [
+      { id: "ALL", label: "ALL", color: "#969696" },
+      ...types.map((type) => ({
+        id: type,
+        label: type.toUpperCase(),
+        color: logState.byType[type][0]?.typeColor || "#ce9178",
+      })),
+    ];
+  },
   renderPanel: (activeTabId, props) => (
     <LogViewer {...props} filter={activeTabId} />
   ),
   getExportSources: ({ logState }) => {
+    const types = Object.keys(logState.byType).sort((a, b) => {
+      if (a === "GENERAL") return -1;
+      if (b === "GENERAL") return 1;
+      return a.localeCompare(b);
+    });
+
     const sources = [
       {
         id: "log-all",
@@ -38,7 +52,7 @@ export const LogModule: DebugModule<LogViewerProps> = {
           },
         ],
       },
-      ...Object.keys(logState.byType).map((type) => ({
+      ...types.map((type) => ({
         id: `log-${type}`,
         label: `📝 ${type.toUpperCase()} LOGS`,
         getFiles: () => [

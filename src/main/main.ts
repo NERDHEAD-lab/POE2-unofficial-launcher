@@ -8,7 +8,12 @@ import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
-import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
+import {
+  AppConfig,
+  RunStatus,
+  NewsCategory,
+  DebugLogPayload,
+} from "../shared/types";
 import { isUserFacingPage } from "../shared/visibility";
 import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
 import {
@@ -48,6 +53,7 @@ import {
   UIUpdateCheckEvent,
   UIUpdateDownloadEvent,
   UIUpdateInstallEvent,
+  DebugLogEvent,
 } from "./events/types";
 import { trayManager } from "./managers/TrayManager"; // Added
 import { LogWatcher } from "./services/LogWatcher";
@@ -60,6 +66,7 @@ import {
   setupStoreObservers,
   default as store,
 } from "./store";
+import { setupMainLogger, logger } from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
@@ -105,11 +112,11 @@ const windowContextMap = new Map<number, SessionContext>();
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  console.log("[Main] Another instance is already running. Quitting...");
+  logger.log("[Main] Another instance is already running. Quitting...");
   app.quit();
 } else {
   app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
-    console.log("[Main] Second instance detected. Focusing existing window...");
+    logger.log("[Main] Second instance detected. Focusing existing window...");
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
@@ -186,6 +193,12 @@ ipcMain.handle("config:get", (_event, key?: string) => {
   return getEffectiveConfig(key);
 });
 
+ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
+  if (appContext) {
+    eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, appContext, log);
+  }
+});
+
 ipcMain.on("app:relaunch", () => {
   app.relaunch();
   app.exit(0);
@@ -198,7 +211,7 @@ ipcMain.handle("session:logout", async () => {
 
     // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
     if (gameWindow && !gameWindow.isDestroyed()) {
-      console.log("[Main] Closing GameWindow for logout...");
+      logger.log("[Main] Closing GameWindow for logout...");
       gameWindow.close();
       gameWindow = null;
       context.gameWindow = null;
@@ -214,10 +227,10 @@ ipcMain.handle("session:logout", async () => {
         "serviceworkers",
       ],
     });
-    console.log("[Main] Session storage cleared (Logout).");
+    logger.log("[Main] Session storage cleared (Logout).");
     return true;
   } catch (error) {
-    console.error("[Main] Failed to clear session storage:", error);
+    logger.error("[Main] Failed to clear session storage:", error);
     return false;
   }
 });
@@ -289,7 +302,7 @@ ipcMain.handle(
         return true;
       }
     } catch (error) {
-      console.error("[Main] Failed to save report:", error);
+      logger.error("[Main] Failed to save report:", error);
       return false;
     }
   },
@@ -341,7 +354,7 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
     const fileBuffer = await fs.readFile(targetPath);
     return crypto.createHash("md5").update(fileBuffer).digest("hex");
   } catch (error) {
-    console.error(`[Hash] Failed to get hash for ${filePath}:`, error);
+    logger.error(`[Hash] Failed to get hash for ${filePath}:`, error);
     return "";
   }
 });
@@ -394,7 +407,7 @@ ipcMain.handle("uac:disable", () => disableUACBypass());
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
-  console.log(`[Main] Window Open Request: ${url}`);
+  logger.log(`[Main] Window Open Request: ${url}`);
 
   const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
   const showInactive = getEffectiveConfig("show_inactive_windows") === true;
@@ -471,7 +484,7 @@ function resetGameStatusIfInterrupted(_win: BrowserWindow) {
   ];
 
   if (interruptibleStates.includes(currentSystemStatus)) {
-    console.log(
+    logger.log(
       `[Main] Critical window closed during ${currentSystemStatus}. Resetting to idle.`,
     );
 
@@ -520,14 +533,14 @@ const handlers = [
 // --- Patch IPC ---
 ipcMain.on("patch:start-manual", () => {
   if (appContext) {
-    console.log("[Main] Triggering Manual Patch via IPC");
+    logger.log("[Main] Triggering Manual Patch via IPC");
     triggerPendingManualPatches(appContext);
   }
 });
 
 ipcMain.on("patch:cancel", () => {
   if (appContext) {
-    console.log("[Main] Cancelling Patch via IPC");
+    logger.log("[Main] Cancelling Patch via IPC");
     cancelPendingPatches(appContext);
   }
 });
@@ -603,7 +616,7 @@ function createWindows() {
       if (!startHidden) {
         mainWindow.show();
       } else {
-        console.log("[Main] Starting hidden (minimized to tray).");
+        logger.log("[Main] Starting hidden (minimized to tray).");
       }
     }
   });
@@ -615,11 +628,11 @@ function createWindows() {
       if (config.closeAction === "minimize") {
         e.preventDefault();
         mainWindow?.hide();
-        console.log("[Main] Window hidden due to 'minimize' closeAction.");
+        logger.log("[Main] Window hidden due to 'minimize' closeAction.");
         return;
       }
     }
-    console.log("[Main] Window closing (quitting).");
+    logger.log("[Main] Window closing (quitting).");
   });
 
   // Visibility Synchronization
@@ -669,7 +682,7 @@ function createWindows() {
       const isBlocked = BLOCKED_PERMISSIONS.includes(permission);
 
       if (isBlocked) {
-        console.log(`[Security] Blocked permission request: ${permission}`);
+        logger.log(`[Security] Blocked permission request: ${permission}`);
         return callback(false); // DENY
       }
 
@@ -683,7 +696,7 @@ function createWindows() {
   session.defaultSession.webRequest.onBeforeRequest(
     { urls: ["https://accounts.kakao.com/api/v2/passkey/*"] },
     (details, callback) => {
-      console.log(`[Security] Blocked Passkey API request: ${details.url}`);
+      logger.log(`[Security] Blocked Passkey API request: ${details.url}`);
       callback({ cancel: true });
     },
   );
@@ -704,6 +717,9 @@ function createWindows() {
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
+  setupMainLogger(appContext);
+
+  logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
   const initialConfig = getConfig() as AppConfig; // [Restore] Needed for downstream usage (Auto Launch)
@@ -715,7 +731,7 @@ function createWindows() {
       { game: "POE2", service: "GGG" },
     ] as const;
 
-    console.log("[Main] Checking initial status for all game contexts...");
+    logger.log("[Main] Checking initial status for all game contexts...");
 
     for (const combo of combinations) {
       const installed = await isGameInstalled(
@@ -790,19 +806,19 @@ function createWindows() {
 
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
-    console.log("[Main] Window blurred (Focus Lost).");
+    logger.log("[Main] Window blurred (Focus Lost).");
     processWatcher.scheduleSuspension();
   });
 
   mainWindow.on("focus", () => {
-    console.log("[Main] Window focused.");
+    logger.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
 
     // [Fix] Automatically restore window size if it was stretched by OS/Resolution changes
     if (mainWindow && !mainWindow.isDestroyed()) {
       const [width, height] = mainWindow.getSize();
       if (width !== 1440 || height !== 960) {
-        console.log(
+        logger.log(
           `[Main] Resolution divergence detected (${width}x${height}). Restoring to 1440x960.`,
         );
         mainWindow.setSize(1440, 960);
@@ -838,14 +854,14 @@ let isInitInProgress = false; // Guard against recursive/redundant calls during 
  */
 function initDebugWindow(triggerSource: string = "Dynamic") {
   if (!mainWindow || mainWindow.isDestroyed()) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] initDebugWindow skipped: mainWindow is missing/destroyed`,
     );
     return;
   }
 
   if (isInitInProgress) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] initDebugWindow skipped: Initialization already in progress`,
     );
     return;
@@ -855,7 +871,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
   const isDebugConsole = getEffectiveConfig("debug_console") === true;
   const shouldShow = isDevMode && isDebugConsole;
 
-  console.log(`[Main][${triggerSource}] Debug Window State Check:`, {
+  logger.log(`[Main][${triggerSource}] Debug Window State Check:`, {
     isDevMode,
     isDebugConsole,
     shouldShow,
@@ -871,7 +887,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       const targetX = mainBounds.x + mainBounds.width;
       const targetY = mainBounds.y;
 
-      console.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
+      logger.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
         targetX,
         targetY,
       });
@@ -963,7 +979,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       });
 
       debugWindow.on("closed", () => {
-        console.log("[Main] Debug Window Closed event fired.");
+        logger.log("[Main] Debug Window Closed event fired.");
         debugWindow = null;
         context.debugWindow = null;
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -971,14 +987,14 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         }
       });
 
-      console.log("[Main] Debug Console Creation Finalized.");
+      logger.log("[Main] Debug Console Creation Finalized.");
     } finally {
       isInitInProgress = false;
     }
   }
   // 2. If we should NOT show but window exists -> Close
   else if (!shouldShow && debugWindow && !debugWindow.isDestroyed()) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] Closing Debug Window (Disabled in settings or dependency failed)`,
     );
     debugWindow.close();
@@ -989,11 +1005,11 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
 
 // IPC Handlers
 ipcMain.on("trigger-game-start", () => {
-  console.log('[Main] IPC "trigger-game-start" Received from Renderer');
+  logger.log('[Main] IPC "trigger-game-start" Received from Renderer');
   if (appContext) {
     eventBus.emit(EventType.UI_GAME_START_CLICK, appContext, undefined);
   } else {
-    console.error("[Main] AppContext not initialized!");
+    logger.error("[Main] AppContext not initialized!");
   }
 });
 
@@ -1027,7 +1043,7 @@ ipcMain.on(
       appContext.getConfig("activeGame")) as AppConfig["activeGame"];
     const installPath = await getGameInstallPath(serviceId, activeGame);
 
-    console.log(
+    logger.log(
       `[Main] Triggering Manual Patch Fix for ${serviceId} / ${activeGame}`,
     );
 
@@ -1047,7 +1063,7 @@ ipcMain.on(
           // activeManualPatchManager = null;
         });
     } else {
-      console.error("Install path not found for manual patch fix.");
+      logger.error("Install path not found for manual patch fix.");
     }
   },
 );
@@ -1090,18 +1106,18 @@ ipcMain.handle(
         return false;
       }
     } catch (error) {
-      console.error("[Main] Failed to check backup availability:", error);
+      logger.error("[Main] Failed to check backup availability:", error);
       return false;
     }
   },
 );
 
 ipcMain.on("patch:cancel", () => {
-  console.log("[Main] Patch Cancel requested.");
+  logger.log("[Main] Patch Cancel requested.");
   if (activeManualPatchManager) {
     activeManualPatchManager.cancelPatch();
   } else {
-    console.log("[Main] No active manual patch manager to cancel.");
+    logger.log("[Main] No active manual patch manager to cancel.");
   }
 });
 
@@ -1159,7 +1175,7 @@ ipcMain.on(
         !activeSessionContext &&
         (!gameId || !serviceId)
       ) {
-        console.error(
+        logger.error(
           `[Main] IPC "game-status-update" received from unknown window (${senderId}) with no active session context!`,
         );
       }
@@ -1202,12 +1218,12 @@ app.on("browser-window-created", (_, window) => {
 
     if (shouldShow) {
       if (!window.isVisible()) {
-        console.log(`[Main] Showing window: ${url}`);
+        logger.log(`[Main] Showing window: ${url}`);
         window.show();
       }
     } else {
       if (window.isVisible()) {
-        console.log(`[Main] Hiding prohibited/background window: ${url}`);
+        logger.log(`[Main] Hiding prohibited/background window: ${url}`);
         window.hide();
       }
     }
@@ -1234,7 +1250,7 @@ app.on("browser-window-created", (_, window) => {
   if (isDebugEnv || showConsole) {
     if (!window.isDestroyed()) {
       window.webContents.openDevTools({ mode: "detach" });
-      console.log("[Main] DevTools opened for new window");
+      logger.log("[Main] DevTools opened for new window");
       window.setMenuBarVisibility(false);
     }
   }
