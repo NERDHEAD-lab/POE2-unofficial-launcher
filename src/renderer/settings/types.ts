@@ -2,7 +2,8 @@
  * 설정 항목의 UI 타입을 정의합니다.
  */
 export type SettingItemType =
-  | "switch" // 체크박스/스위치 형태
+  | "check" // 체크박스 형태 (구 switch)
+  | "switch" // 토글 스위치 형태
   | "radio" // 라디오 버튼 리스트 형태
   | "select" // 드롭다운 선택창 형태
   | "number" // 숫자 입력 형태
@@ -65,7 +66,33 @@ export interface BaseSettingItem {
 // --- Specific Item Types ---
 
 /**
- * On/Off 스위치 형태의 설정 항목입니다.
+ * [Refactored] Checkbox 형태의 설정 항목입니다. (구 SettingSwitch)
+ */
+export interface SettingCheck extends BaseSettingItem {
+  type: "check";
+  /**
+   * 이 값이 존재하면 Electron Store를 사용하지 않고, UI 상태로만 관리됩니다.
+   * (없으면 Electron Store의 값을 사용하며, shared/config.ts에 정의되어 있어야 함)
+   */
+  defaultValue?: boolean;
+  /**
+   * 값이 변경되었을 때 실행될 리스너 (옵션)
+   * @param value 변경된 값
+   * @param context 토스트 메시지 출력 등의 유틸리티를 포함한 컨텍스트
+   */
+  onChangeListener?: (
+    value: boolean,
+    context: {
+      showToast: (msg: string) => void;
+      addDescription: (text: string, variant?: DescriptionVariant) => void;
+      clearDescription: () => void;
+      setLabel: (label: string) => void;
+    },
+  ) => void;
+}
+
+/**
+ * [New] 실제 Toggle Switch 형태의 설정 항목입니다.
  */
 export interface SettingSwitch extends BaseSettingItem {
   type: "switch";
@@ -199,35 +226,37 @@ export interface SettingSlider extends BaseSettingItem {
 }
 
 /**
- * 정보를 제공하거나 긴 텍스트(라이선스 등)를 보여주는 형태의 항목입니다.
+ * 텍스트 정보를 표시하는 형태의 설정 항목입니다. (읽기 전용 또는 단순 링크/복사 기능)
  */
 export interface SettingText extends BaseSettingItem {
   type: "text";
-  /** 표시될 텍스트 내용 */
+  /** 표시될 텍스트 값 */
   value: string;
-  /** 내용이 길 경우 확장 가능하게 표시할지 여부 */
-  isExpandable?: boolean;
-  /** 외부 링크 정보 (옵션) */
+  /** 클릭 시 값이 클립보드에 복사되는지 여부 */
+  copyable?: boolean;
+  /** 외부 링크 정보 (존재 시 클릭하면 브라우저 열기) */
   externalLink?: {
     label: string;
     url: string;
   };
+  /** 텍스트가 길 경우 펼치기/접기 기능을 사용할지 여부 */
+  isExpandable?: boolean;
 }
 
 /**
- * 클릭 시 특정 액션을 수행하는 버튼 형태의 항목입니다.
+ * 버튼 형태의 설정 항목입니다. (특정 액션 수행)
  */
 export interface SettingButton extends BaseSettingItem {
   type: "button";
   /** 버튼에 표시될 텍스트 */
   buttonText: string;
-  /** 버튼 클릭 시 처리될 액션 ID (하위 호환성 위해 유지, 선택 사항) */
+  /** 버튼 스타일 변형 (default, primary, danger 등) */
+  variant?: "default" | "primary" | "danger";
+  /** 클릭 시 실행될 액션 ID (이벤트 핸들러 등에서 구분용) */
   actionId?: string;
-  /** 버튼 스타일 변형 (Primary, Danger 등) */
-  variant?: "primary" | "danger" | "default";
   /**
-   * 버튼 클릭 시 실행될 리스너 (옵션)
-   * @param context 토스트 메시지 출력 등의 유틸리티를 포함한 컨텍스트
+   * 클릭 시 실행될 리스너 (옵션)
+   * @param context 각종 유틸리티 및 값 제어 함수
    */
   onClickListener?: (context: {
     showToast: (msg: string) => void;
@@ -239,6 +268,7 @@ export interface SettingButton extends BaseSettingItem {
       variant?: "primary" | "danger";
       onConfirm: () => void;
     }) => void;
+    setValue: (value: SettingValue) => void; // 필요하다면 다른 아이템 제어 가능하도록 확장 고려
   }) => void;
 }
 
@@ -246,6 +276,7 @@ export interface SettingButton extends BaseSettingItem {
  * 모든 설정 항목 타입을 포함하는 유니온 타입입니다.
  */
 export type SettingItem =
+  | SettingCheck
   | SettingSwitch
   | SettingRadio
   | SettingSelect
