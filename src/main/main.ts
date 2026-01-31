@@ -131,16 +131,26 @@ const DEBUG_KEYS = [
  * Get configuration value considering environment variable priority.
  * This does not persist the forced value to the store.
  */
-function getEffectiveConfig(key: string): unknown {
-  // 1. Force Debug Mode via Env Var
+function getEffectiveConfig(key?: string): unknown {
+  // 1. Full Config Object
+  if (!key) {
+    const raw = getConfig() as Record<string, unknown>;
+    const effective = { ...raw };
+    DEBUG_KEYS.forEach((k) => {
+      effective[k] = getEffectiveConfig(k);
+    });
+    return effective;
+  }
+
+  // 2. Force Debug Mode via Env Var
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
     // console.log(`[Main] getEffectiveConfig(${key}) -> true (Forced by Env)`);
     return true;
   }
 
-  // 2. Resolve Dependency: If dev_mode is disabled, force dependent keys to false
+  // 3. Resolve Dependency: If dev_mode is disabled, force dependent keys to false
   if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
-    const isDevMode = getConfig("dev_mode") === true;
+    const isDevMode = getEffectiveConfig("dev_mode") === true;
     if (!isDevMode) {
       // console.log(`[Main] getEffectiveConfig(${key}) -> false (Dependency dev_mode is OFF)`);
       return false;
@@ -173,7 +183,7 @@ const BLOCKED_PERMISSIONS = [
 
 // IPC Handlers for Configuration
 ipcMain.handle("config:get", (_event, key?: string) => {
-  return getConfig(key);
+  return getEffectiveConfig(key);
 });
 
 ipcMain.on("app:relaunch", () => {
@@ -417,6 +427,7 @@ const context: AppContext = {
   mainWindow: null,
   gameWindow: null,
   debugWindow: null,
+
   store,
   ensureGameWindow: () => {
     if (!gameWindow || gameWindow.isDestroyed()) {
@@ -444,6 +455,7 @@ const context: AppContext = {
     }
     return gameWindow!;
   },
+  getConfig: (key?: string) => getEffectiveConfig(key),
 };
 
 /**
@@ -1009,8 +1021,10 @@ ipcMain.on(
     activeManualPatchManager = new PatchManager(appContext);
 
     const serviceId =
-      serviceIdOverride || appContext.store.get("serviceChannel");
-    const activeGame = gameIdOverride || appContext.store.get("activeGame");
+      serviceIdOverride ||
+      (appContext.getConfig("serviceChannel") as AppConfig["serviceChannel"]);
+    const activeGame = (gameIdOverride ||
+      appContext.getConfig("activeGame")) as AppConfig["activeGame"];
     const installPath = await getGameInstallPath(serviceId, activeGame);
 
     console.log(

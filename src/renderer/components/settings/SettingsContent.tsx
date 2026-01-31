@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
@@ -86,7 +86,8 @@ const SettingItemRenderer: React.FC<{
             if (mounted) {
               console.log(`[Settings] onInit ${item.id} -> ${newValue}`);
               setVal(newValue);
-              setAuthorityClaimed(true); // Claim authority: don't let further initialValue syncs overwrite this
+              setAuthorityClaimed(true);
+              onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
             }
           },
           setDescription: (newDesc) => {
@@ -106,7 +107,7 @@ const SettingItemRenderer: React.FC<{
     return () => {
       mounted = false;
     };
-  }, [item]);
+  }, [item, onValueChange]);
 
   const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
   const isFinalVisible = isVisible && isDependentVisible;
@@ -390,9 +391,9 @@ export const SettingsContent: React.FC<Props> = ({
     return sorted;
   };
 
-  const handleUpdateConfig = (id: string, value: SettingValue) => {
+  const handleUpdateConfig = useCallback((id: string, value: SettingValue) => {
     setConfig((prev) => ({ ...prev, [id]: value }));
-  };
+  }, []);
 
   const handleRestartNotice = () => {
     setRestartRequired(true);

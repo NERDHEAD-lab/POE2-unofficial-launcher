@@ -243,7 +243,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
           true,
         );
 
-        const autoFix = context.store.get("autoFixPatchError", false);
+        const autoFix = context.getConfig("autoFixPatchError") === true;
         const { serviceId, gameId, webRoot, backupWebRoot } = session;
 
         if (autoFix) {
@@ -266,10 +266,8 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             );
 
             // [NEW] Auto Game Start Logic
-            const autoStartGame = context.store.get(
-              "autoGameStartAfterFix",
-              false,
-            );
+            const autoStartGame =
+              context.getConfig("autoGameStartAfterFix") === true;
             if (success && autoStartGame) {
               emitLog(
                 context,

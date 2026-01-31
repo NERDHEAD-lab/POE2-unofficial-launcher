@@ -24,7 +24,7 @@ export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
   },
 
   handle: async (_event, context: AppContext) => {
-    const config = context.store.store as AppConfig;
+    const config = context.getConfig() as AppConfig;
     const { activeGame, serviceChannel } = config;
 
     console.log(

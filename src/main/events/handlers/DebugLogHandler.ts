@@ -8,8 +8,8 @@ export const DebugLogHandler: EventHandler<DebugLogEvent> = {
   handle: async (event: DebugLogEvent, context: AppContext) => {
     // [Check] Master Switch: Dev Mode & Debug Console
     // Although main process controls window creation, checking here ensures we don't spam IPC if disabled dynamically.
-    const isDev = context.store.get("dev_mode");
-    const isDebug = context.store.get("debug_console");
+    const isDev = context.getConfig("dev_mode");
+    const isDebug = context.getConfig("debug_console");
 
     if (!isDev || !isDebug) return;
 

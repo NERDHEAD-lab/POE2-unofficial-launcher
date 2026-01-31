@@ -38,11 +38,18 @@ const emitGameStatus = (
 
 // ...
 
+// --- State for Inference ---
+let lastDetectedKakaoLauncher: "POE1" | "POE2" | null = null;
+
 const PROCESS_STRATEGIES: ProcessStrategy[] = [
   // 1. Kakao PoE2 Launcher
   {
     processName: "POE2_Launcher.exe",
     onStart: (event, context) => {
+      console.log(
+        "[GameProcess] Detected POE2 Launcher. Setting inference context to POE2.",
+      );
+      lastDetectedKakaoLauncher = "POE2";
       emitGameStatus(context, "POE2", "Kakao Games", "running");
     },
     onStop: (event, context) => {
@@ -58,6 +65,10 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
   {
     processName: "POE_Launcher.exe",
     onStart: (event, context) => {
+      console.log(
+        "[GameProcess] Detected POE1 Launcher. Setting inference context to POE1.",
+      );
+      lastDetectedKakaoLauncher = "POE1";
       emitGameStatus(context, "POE1", "Kakao Games", "running");
     },
     onStop: (event, context) => {
@@ -69,7 +80,29 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
     },
   },
 
-  // 3. ... (Unchanged)
+  // 3. Kakao Generic Client (PathOfExile_KG.exe)
+  {
+    processName: "PathOfExile_KG.exe",
+    onStart: (event, context) => {
+      // [Context Inference] Use the last seen launcher to determine Game ID
+      // because obtaining path requires Admin rights which we might not have.
+      const inferredGameId = lastDetectedKakaoLauncher || "POE2"; // Default to POE2 if unknown (Safest bet for now)
+
+      console.log(
+        `[GameProcess] Detected PathOfExile_KG.exe. Inferred Game: ${inferredGameId} (Last Launcher: ${lastDetectedKakaoLauncher})`,
+      );
+
+      emitGameStatus(context, inferredGameId, "Kakao Games", "running");
+    },
+    onStop: (event, context) => {
+      const inferredGameId = lastDetectedKakaoLauncher || "POE2";
+
+      emitGameStatus(context, inferredGameId, "Kakao Games", "stopping");
+      setTimeout(() => {
+        emitGameStatus(context, inferredGameId, "Kakao Games", "idle");
+      }, 3000);
+    },
+  },
 
   // 4. GGG / Generic Client (PathOfExile.exe)
   {
@@ -143,7 +176,7 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
 
     // [New] Close/Minimize launcher on game start if configured
     // [Fix] Retrieve 'quitOnGameStart' directly as it is a root-level config key
-    const quitOnGameStart = context.store.get("quitOnGameStart");
+    const quitOnGameStart = context.getConfig("quitOnGameStart") === true;
     if (
       quitOnGameStart &&
       context.mainWindow &&

@@ -221,6 +221,7 @@ export interface AppContext {
     ) => boolean;
   };
   ensureGameWindow: () => BrowserWindow;
+  getConfig: (key?: string) => unknown;
 }
 
 // Generic Handler Interface
