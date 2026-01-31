@@ -199,6 +199,18 @@
   - **Smart Warning**: 설정을 끌 때, '부팅 시 자동 실행' 및 '트레이 최소화'가 설정되어 있지 않다면 감지 효과가 제한적일 수 있음을 경고 메시지로 안내함.
 - **결과**: 리소스 사용량(CPU/Polling)은 소폭 증가하지만, 런처의 실행 상태와 무관하게(런처가 켜져만 있다면) 게임 실행 및 오류를 놓치지 않고 포착할 수 있음.
 
+#### ADR-015: Standardized Logging System (Main, Preload, Renderer)
+
+- **상황**: 프로젝트 전반(`Main`, `Preload`, `Renderer`)에서 `console.log`, `console.warn`, `console.error`를 직접 사용함으로 인해 로그 형식이 파편화되고, 런처 내부의 '디버그 콘솔' 탭에서 로그를 통합적으로 모니터링하기 어려움. 특히 프리로드 환경의 로그는 브라우저 도구를 열지 않으면 확인이 불가능함.
+- **결정**:
+  - **Unified Logger System**: 모든 레이어에서 `LoggerBase`를 확장한 커스텀 로거(`Logger`, `PreloadLogger`, `RendererLogger`)를 사용하도록 강제함.
+  - **Implicit Console Ban**: 코드 내에서 원시 `console.*` 호출을 엄격히 지양함. 모든 로그는 반드시 관련 로거 인스턴스를 통해 생성해야 함.
+  - **Process-Specific Categorization**: 로그 타입을 나누어(`MAIN`, `PRELOAD`, `DEVTOOLS`, `RENDERER` 등) 디버그 콘솔에서 프로세스별 필터링이 가능하도록 설계함.
+  - **Inter-process Streaming**: IPC(`debug-log:send`)를 통해 프리로드 및 렌더러의 로그를 메인 프로세스로 집약하여 하나의 타임라인으로 시각화함.
+- **결과**:
+  - **통합 가시성**: 개발자 도구를 열지 않고도 런처 UI 내에서 모든 시스템 흐름과 자동화 과정을 실시간으로 모니터링할 수 있음.
+  - **디버깅 편의성**: 로그 발생 시점의 정확한 타임스탬프와 프로세스 문맥을 보존하여 복합적인 오류 원인을 빠르게 식별함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
