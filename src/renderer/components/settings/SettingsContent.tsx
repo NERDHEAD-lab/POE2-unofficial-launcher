@@ -133,7 +133,10 @@ const SettingItemRenderer: React.FC<{
     // Call listener
     if ("onChangeListener" in item && item.onChangeListener) {
       // @ts-expect-error - listener signature is generic
-      item.onChangeListener(newValue, { showToast: onShowToast });
+      item.onChangeListener(newValue, {
+        showToast: onShowToast,
+        setDescription: setDescription,
+      });
     }
   };
 

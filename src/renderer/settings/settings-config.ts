@@ -147,6 +147,94 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
       },
     ],
   },
+  {
+    id: "optimization",
+    label: "최적화",
+    icon: "speed",
+    sections: [
+      {
+        id: "opt_process",
+        title: "프로세스 감시",
+        items: [
+          {
+            id: "processWatcherEnabled",
+            type: "switch",
+            label: "게임 프로세스 감지 최적화",
+            description:
+              "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)",
+            icon: "memory",
+            onInit: async ({ setValue, setDescription }) => {
+              const val = await window.electronAPI?.getConfig(
+                "processWatcherEnabled",
+              );
+              setValue(!!val);
+
+              // Update description based on state
+              const autoLaunch =
+                await window.electronAPI?.getConfig("autoLaunch");
+              const closeAction =
+                await window.electronAPI?.getConfig("closeAction");
+
+              if (val === false) {
+                let desc =
+                  "런처가 백그라운드에서도 항상 게임 실행을 감시합니다.\n\n[주의]\n";
+                const warnings: string[] = [];
+                if (!autoLaunch)
+                  warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
+                if (closeAction === "close")
+                  warnings.push(
+                    "- 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
+                  );
+
+                if (warnings.length > 0) {
+                  desc +=
+                    warnings.join("\n") +
+                    "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.";
+                } else {
+                  desc += "항상 감시 모드가 활성화되었습니다.";
+                }
+                setDescription(desc);
+              }
+            },
+            onChangeListener: async (val, { setDescription, showToast }) => {
+              showToast(
+                `[최적화] ${val ? "활성화 (리소스 절약)" : "비활성화 (항상 감지)"}`,
+              );
+
+              let desc =
+                "런처가 비활성 상태일 때 프로세스 감시를 일시 중지하여 시스템 리소스를 절약합니다.\n(끄면 항상 감시하여 런처 외부 실행도 추적합니다)";
+
+              if (!val) {
+                const autoLaunch =
+                  await window.electronAPI?.getConfig("autoLaunch");
+                const closeAction =
+                  await window.electronAPI?.getConfig("closeAction");
+
+                desc =
+                  "런처가 백그라운드에서도 항상 게임 실행을 감시합니다.\n\n[주의]\n";
+                const warnings: string[] = [];
+                if (!autoLaunch)
+                  warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
+                if (closeAction === "close")
+                  warnings.push(
+                    "- 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
+                  );
+
+                if (warnings.length > 0) {
+                  desc +=
+                    warnings.join("\n") +
+                    "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.";
+                } else {
+                  desc += "항상 감시 모드가 활성화되었습니다.";
+                }
+              }
+              setDescription(desc);
+            },
+          },
+        ],
+      },
+    ],
+  },
   /* {
     id: "display",
     label: "화면",
