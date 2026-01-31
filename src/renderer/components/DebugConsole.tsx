@@ -24,8 +24,29 @@ const DebugConsole: React.FC = () => {
   const [initialValue, setInitialValue] = useState<unknown>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [saveError, setSaveError] = useState<string | null>(null);
-
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // --- Scrolling Logic ---
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
+  const prevLogCountRef = useRef(0);
+  const prevFilterRef = useRef(filter);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } =
+      scrollContainerRef.current;
+    // Check if user is near bottom (within 50px)
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setIsAutoScroll(isAtBottom);
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior });
+      setIsAutoScroll(true);
+    }
+  };
 
   // --- Drag-to-scroll for Tabs ---
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -251,9 +272,23 @@ const DebugConsole: React.FC = () => {
     }
   }, [editValue, editingKey]);
 
+  // Handle auto-scroll on log updates or filter change
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logState, filter]);
+    const currentCount = logState.all.length;
+    const isNewLog = currentCount > prevLogCountRef.current;
+    const isFilterChanged = filter !== prevFilterRef.current;
+
+    prevLogCountRef.current = currentCount;
+    prevFilterRef.current = filter;
+
+    if (isFilterChanged) {
+      // Always scroll to bottom on tab change
+      scrollToBottom("auto");
+    } else if (isNewLog && isAutoScroll) {
+      // Auto-scroll only if explicitly enabled (user is at bottom)
+      scrollToBottom("smooth");
+    }
+  }, [logState, filter, isAutoScroll]);
 
   const activeModule = modules.find((m) =>
     m.getTabs(getModuleContext(m.id)).some((t) => t.id === filter),
@@ -276,6 +311,42 @@ const DebugConsole: React.FC = () => {
     >
       <style>
         {`
+          @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          
+          .new-log-button {
+            background-color: rgba(0, 122, 204, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 5px 12px;
+            border-radius: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: slideUp 0.3s ease-out;
+          }
+
+          .new-log-button:hover {
+            background-color: rgba(0, 122, 204, 0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+          }
+
+          .new-log-button:active {
+            transform: translateY(0);
+            background-color: #007acc;
+          }
+
           @keyframes blink {
             0% { opacity: 1; }
             50% { opacity: 0.4; }
@@ -367,13 +438,32 @@ const DebugConsole: React.FC = () => {
       </div>
 
       <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
         style={{
           flex: 1,
           overflowY: "auto",
           whiteSpace: filter === "RAW CONFIGS" ? "normal" : "pre-wrap",
+          position: "relative",
         }}
       >
         {activeModule?.renderPanel(filter, getModuleProps(filter))}
+
+        {/* New Log Badge / Scroll to Bottom Button */}
+        {!isAutoScroll && filter !== "RAW CONFIGS" && (
+          <button
+            onClick={() => scrollToBottom("smooth")}
+            className="new-log-button"
+            style={{
+              position: "fixed",
+              bottom: "55px",
+              right: "25px",
+              zIndex: 100,
+            }}
+          >
+            <span style={{ fontSize: "12px" }}>⬇</span> 새 로그 보기
+          </button>
+        )}
       </div>
 
       {/* Footer Container */}
