@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 import { AppConfig } from "../../../shared/types";
+import { logger } from "../../utils/logger";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
@@ -25,7 +26,7 @@ export const StartPoeGggHandler: EventHandler<UIEvent> = {
     const config = context.getConfig() as AppConfig;
     const { activeGame, serviceChannel } = config;
 
-    console.log(`[StartPoeGggHandler] Starting ${activeGame} for GGG...`);
+    logger.log(`[StartPoeGggHandler] Starting ${activeGame} for GGG...`);
 
     // 1. Notify Preparing
     eventBus.emit<GameStatusChangeEvent>(
@@ -70,7 +71,7 @@ export const StartPoeGggHandler: EventHandler<UIEvent> = {
       // Actually, POE2 beta uses PathOfExile.exe in its own folder usually.
 
       const fullPath = path.join(installPath, exeName);
-      console.log(`[StartPoeGggHandler] Executing: ${fullPath}`);
+      logger.log(`[StartPoeGggHandler] Executing: ${fullPath}`);
 
       // 5. Spawn Process
       const gameProcess = spawn(fullPath, [], {
@@ -93,7 +94,7 @@ export const StartPoeGggHandler: EventHandler<UIEvent> = {
         },
       );
     } catch (e) {
-      console.error(`[StartPoeGggHandler] Launch failed: ${e}`);
+      logger.error(`[StartPoeGggHandler] Launch failed: ${e}`);
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         context,

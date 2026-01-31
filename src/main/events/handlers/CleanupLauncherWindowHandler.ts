@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 
 import { DEBUG_APP_CONFIG } from "../../../shared/config";
+import { logger } from "../../utils/logger";
 import { AppContext, EventHandler, EventType, ProcessEvent } from "../types";
 
 export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
@@ -14,7 +15,7 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
   },
 
   handle: async (event, context) => {
-    console.log(
+    logger.log(
       `[CleanupHandler] Launcher Detected (${event.payload.name})! Cleaning up windows...`,
     );
 
@@ -30,7 +31,7 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
           try {
             await win.loadURL("about:blank");
           } catch (e) {
-            console.error(`[CleanupHandler] Failed to unload URL: ${e}`);
+            logger.error(`[CleanupHandler] Failed to unload URL: ${e}`);
           }
           win.hide();
         }
@@ -44,7 +45,7 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
           context.debugWindow && win === context.debugWindow;
 
         if (isDebugWindow) {
-          console.log("[CleanupHandler] Skipping Debug Console cleanup.");
+          logger.log("[CleanupHandler] Skipping Debug Console cleanup.");
           continue;
         }
 
@@ -53,19 +54,19 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
           url.includes(DEBUG_APP_CONFIG.HASH) ||
           win.title === DEBUG_APP_CONFIG.TITLE
         ) {
-          console.log(
+          logger.log(
             "[CleanupHandler] Skipping Debug Console cleanup (matched by title/URL).",
           );
           continue;
         }
 
-        console.log(
+        logger.log(
           `[CleanupHandler] Closing auxiliary window: ${win.title} (ID: ${win.id}, URL: ${url})`,
         );
         win.close();
       }
     }
 
-    console.log(`[CleanupHandler] Cleanup complete.`);
+    logger.log(`[CleanupHandler] Cleanup complete.`);
   },
 };

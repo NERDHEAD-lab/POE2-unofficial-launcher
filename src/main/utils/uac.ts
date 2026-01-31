@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import { app, shell, dialog } from "electron";
 
+import { logger } from "./logger";
 import { PowerShellManager } from "./powershell";
 import {
   DAUM_STARTER_PROTOCOL_KEY as PROTOCOL_KEY,
@@ -27,7 +28,7 @@ function getWorkDirectory(): string {
     try {
       mkdirSync(workDir, { recursive: true });
     } catch (e) {
-      console.error("[UAC] Failed to create work directory:", e);
+      logger.error("[UAC] Failed to create work directory:", e);
     }
   }
   return workDir;
@@ -40,7 +41,7 @@ function getWorkDirectory(): string {
 export async function isUACBypassEnabled(): Promise<boolean> {
   const cmd = await getDaumGameStarterCommand();
   if (!cmd) {
-    console.log("[UAC] Bypass check: No protocol command found.");
+    logger.log("[UAC] Bypass check: No protocol command found.");
     return false;
   }
 
@@ -51,7 +52,7 @@ export async function isUACBypassEnabled(): Promise<boolean> {
 
   const isEnabled = hasRegistryKey && fileExists;
 
-  console.log(
+  logger.log(
     `[UAC] Bypass check: ${isEnabled ? "ENABLED" : "DISABLED"} (Reg: ${hasRegistryKey}, File: ${fileExists})`,
   );
   return isEnabled;
@@ -63,7 +64,7 @@ export async function isUACBypassEnabled(): Promise<boolean> {
 export async function enableUACBypass(): Promise<boolean> {
   const currentCmd = await getDaumGameStarterCommand();
   if (!currentCmd) {
-    console.error("[UAC] Could not read DaumGameStarter protocol command.");
+    logger.error("[UAC] Could not read DaumGameStarter protocol command.");
     return false;
   }
 
@@ -75,7 +76,7 @@ export async function enableUACBypass(): Promise<boolean> {
     currentCmd.toLowerCase().includes("proxy.vbs") &&
     existsSync(proxyVbsPath)
   ) {
-    console.log("[UAC] UAC bypass is already enabled and valid.");
+    logger.log("[UAC] UAC bypass is already enabled and valid.");
     return true;
   }
 
@@ -93,9 +94,9 @@ export async function enableUACBypass(): Promise<boolean> {
     try {
       // Use standard UTF-8 for backup file
       writeFileSync(backupFilePath, currentCmd, "utf8");
-      console.log("[UAC] Backed up original command to:", backupFilePath);
+      logger.log("[UAC] Backed up original command to:", backupFilePath);
     } catch (e) {
-      console.error("[UAC] Failed to write backup file:", e);
+      logger.error("[UAC] Failed to write backup file:", e);
     }
     daumStarterForScript = extractExePath(currentCmd);
   } else {
@@ -103,16 +104,16 @@ export async function enableUACBypass(): Promise<boolean> {
     if (existsSync(backupFilePath)) {
       try {
         const backupCmd = readFileSync(backupFilePath, "utf8");
-        console.log("[UAC] Using backed up command for extraction.");
+        logger.log("[UAC] Using backed up command for extraction.");
         daumStarterForScript = extractExePath(backupCmd);
       } catch (e) {
-        console.error("[UAC] Failed to read backup file:", e);
+        logger.error("[UAC] Failed to read backup file:", e);
       }
     }
   }
 
   if (!daumStarterForScript) {
-    console.error(
+    logger.error(
       `[UAC] Could not extract valid exe path from current or backup: ${currentCmd}`,
     );
     return false;
@@ -154,7 +155,7 @@ logStream.Close
     writeFileSync(runnerVbsPath, runnerScriptContent);
   } catch (e: unknown) {
     const error = e as Error;
-    console.error(`[UAC] Failed to create runner script: ${error.message}`);
+    logger.error(`[UAC] Failed to create runner script: ${error.message}`);
     return false;
   }
 
@@ -192,11 +193,11 @@ shell.Run "schtasks /run /tn """ & "${TASK_NAME}" & """", 0, False
     writeFileSync(proxyVbsPath, proxyScriptContent);
   } catch (e: unknown) {
     const error = e as Error;
-    console.error(`[UAC] Failed to create proxy script: ${error.message}`);
+    logger.error(`[UAC] Failed to create proxy script: ${error.message}`);
     return false;
   }
 
-  console.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
+  logger.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
   // [Fix] Use simpler PowerShell command structure.
   // Avoid complex arrays in literals to reduce quoting errors.
   const combinedScript = `
@@ -259,16 +260,16 @@ try {
   const success = result.code === 0 && result.stdout.includes("SUCCESS_MARKER");
 
   if (success) {
-    console.log("[UAC] Successfully applied bypass settings.");
+    logger.log("[UAC] Successfully applied bypass settings.");
     // [New] Create standalone cleanup script for Uninstaller
     const originalCmd = readFileSync(backupFilePath, "utf8").trim();
     createCleanupScript(originalCmd);
   } else {
-    console.error(
+    logger.error(
       "[UAC] Failed to apply bypass settings. Registry might not have been updated.",
     );
-    console.error("[UAC] PowerShell Logout STDOUT:", result.stdout);
-    console.error("[UAC] PowerShell Logout STDERR:", result.stderr);
+    logger.error("[UAC] PowerShell Logout STDOUT:", result.stdout);
+    logger.error("[UAC] PowerShell Logout STDERR:", result.stderr);
   }
 
   return success;
@@ -314,9 +315,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd}'; 
 
   try {
     writeFileSync(batPath, batContent, { encoding: "utf8" });
-    console.log("[UAC] Created cleanup script at:", batPath);
+    logger.log("[UAC] Created cleanup script at:", batPath);
   } catch (e) {
-    console.error("[UAC] Failed to create cleanup script:", e);
+    logger.error("[UAC] Failed to create cleanup script:", e);
   }
 }
 
@@ -339,7 +340,7 @@ export async function disableUACBypass(
       // [New] Check if the executable in the backup actually exists
       const originalExe = extractExePath(originalCmd);
       if (originalExe && existsSync(originalExe)) {
-        console.log("[UAC] Valid backup found. Restoring original command...");
+        logger.log("[UAC] Valid backup found. Restoring original command...");
 
         // [Fix] More robust PowerShell quoting for registry value restoration
         // We use a PowerShell variable to handle the string safely
@@ -360,33 +361,30 @@ ${originalCmd}
           result.code === 0 &&
           result.stdout.includes("RESTORE_SUCCESS_MARKER")
         ) {
-          console.log("[UAC] Successfully restored original registry key.");
+          logger.log("[UAC] Successfully restored original registry key.");
           restored = true;
 
           // Delete backup file ONLY after successful restoration
           try {
             if (existsSync(backupFilePath)) unlinkSync(backupFilePath);
           } catch (e) {
-            console.warn(
-              "[UAC] Failed to delete backup file after restore:",
-              e,
-            );
+            logger.warn("[UAC] Failed to delete backup file after restore:", e);
           }
         }
       } else {
-        console.warn(
+        logger.warn(
           "[UAC] Backup exists but target executable is missing or invalid:",
           originalExe,
         );
       }
     } catch (e) {
-      console.error("[UAC] Failed to restore from backup:", e);
+      logger.error("[UAC] Failed to restore from backup:", e);
     }
   }
 
   if (!restored) {
     // Case 1: Backup missing or target exe lost -> Must reinstall
-    console.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
+    logger.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
     if (!silent) {
       await shell.openExternal(
         "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
@@ -428,10 +426,10 @@ ${originalCmd}
       const p = join(workDir, f);
       if (existsSync(p)) unlinkSync(p);
     });
-    console.log("[UAC] Cleanup complete.");
+    logger.log("[UAC] Cleanup complete.");
   } catch (e: unknown) {
     const error = e as Error;
-    console.warn(`[UAC] Cleanup error: ${error.message}`);
+    logger.warn(`[UAC] Cleanup error: ${error.message}`);
   }
 
   return true;

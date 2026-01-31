@@ -36,6 +36,13 @@ export abstract class LoggerBase {
     this.executeLog(message, args, false);
   }
 
+  /**
+   * log 메서드의 별칭입니다.
+   */
+  public info(message: unknown, ...args: unknown[]) {
+    this.log(message, ...args);
+  }
+
   public warn(message: unknown, ...args: unknown[]) {
     this.executeLog(message, args, false, "#FFB86C");
   }
@@ -51,6 +58,8 @@ export abstract class LoggerBase {
   public silent() {
     return {
       log: (message: unknown, ...args: unknown[]) =>
+        this.executeLog(message, args, false, undefined, true),
+      info: (message: unknown, ...args: unknown[]) =>
         this.executeLog(message, args, false, undefined, true),
       warn: (message: unknown, ...args: unknown[]) =>
         this.executeLog(message, args, false, "#FFB86C", true),

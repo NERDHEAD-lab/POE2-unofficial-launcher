@@ -119,7 +119,10 @@ class EventBus {
         // Safe validation: We registered usage based on targetEvent, so handler expects T
         await handler.handle(event, context);
       } catch (error) {
-        console.error(`[EventBus] ❌ Error in Handler ${handler.id}:`, error);
+        this.logger.error(
+          `[EventBus] ❌ Error in Handler ${handler.id}:`,
+          error,
+        );
       }
     });
 

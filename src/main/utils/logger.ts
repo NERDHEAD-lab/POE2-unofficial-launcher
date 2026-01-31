@@ -1,14 +1,20 @@
 import { LoggerBase, LoggerOptions } from "../../shared/logger-base";
-import { eventBus } from "../events/EventBus";
-import { AppContext, EventType, DebugLogEvent } from "../events/types";
+import { AppContext, DebugLogEvent, EventType } from "../events/types";
 
 let globalContext: AppContext | null = null;
+let logEmitter: ((event: DebugLogEvent) => void) | null = null;
 
 /**
- * 메인 프로세스에서 Logger가 AppContext를 참조할 수 있도록 설정합니다.
+ * 메인 프로세스에서 Logger가 AppContext와 로그 전송 콜백을 참조할 수 있도록 설정합니다.
  */
-export function setupMainLogger(context: AppContext) {
+export function setupMainLogger(
+  context: AppContext,
+  emitter?: (event: DebugLogEvent) => void,
+) {
   globalContext = context;
+  if (emitter) {
+    logEmitter = emitter;
+  }
 }
 
 export class Logger extends LoggerBase {
@@ -21,18 +27,18 @@ export class Logger extends LoggerBase {
   }
 
   protected emit(content: string, isError: boolean, textColor?: string): void {
-    if (!globalContext) return;
+    if (!globalContext || !logEmitter) return;
 
-    // Avoid infinite loop: Check if this is already an EventBus log or something similar
-    // But since we use eventBus.emit directly, it's safer than overriding console.log.
-
-    eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, globalContext, {
-      type: this.type,
-      content: content,
-      isError: isError,
-      timestamp: Date.now(),
-      typeColor: this.typeColor,
-      textColor: textColor || (isError ? "#FF5555" : this.textColor),
+    logEmitter({
+      type: EventType.DEBUG_LOG,
+      payload: {
+        type: this.type,
+        content: content,
+        isError: isError,
+        timestamp: Date.now(),
+        typeColor: this.typeColor,
+        textColor: textColor || (isError ? "#FF5555" : this.textColor),
+      },
     });
   }
 }

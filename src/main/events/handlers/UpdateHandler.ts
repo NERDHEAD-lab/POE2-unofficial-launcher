@@ -2,6 +2,7 @@ import { app } from "electron";
 import { autoUpdater } from "electron-updater";
 
 import { UpdateStatus } from "../../../shared/types";
+import { logger } from "../../utils/logger";
 import {
   AppContext,
   EventHandler,
@@ -33,7 +34,7 @@ const attachUpdateListeners = (context: AppContext) => {
   if (isListenerAttached) return;
 
   autoUpdater.on("checking-for-update", () => {
-    console.log("[UpdateHandler] Checking for updates...");
+    logger.log("[UpdateHandler] Checking for updates...");
     sendStatus(context, { state: "checking" });
   });
 
@@ -41,21 +42,21 @@ const attachUpdateListeners = (context: AppContext) => {
 
   autoUpdater.on("update-available", (info) => {
     lastVersionInfo = info.version; // Store version for progress updates
-    console.log(
+    logger.log(
       `[UpdateHandler] Update available: ${info.version} (Current: ${app.getVersion()}, Silent: ${currentCheckIsSilent})`,
     );
     sendStatus(context, { state: "available", version: info.version });
   });
 
   autoUpdater.on("update-not-available", (info) => {
-    console.log(
+    logger.log(
       `[UpdateHandler] Update not available. (Current: ${app.getVersion()}, Latest: ${info.version})`,
     );
     sendStatus(context, { state: "idle" });
   });
 
   autoUpdater.on("error", (err) => {
-    console.error("[UpdateHandler] Update error:", err);
+    logger.error("[UpdateHandler] Update error:", err);
     sendStatus(context, { state: "idle" });
   });
 
@@ -68,7 +69,7 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("update-downloaded", (info) => {
-    console.log(`[UpdateHandler] Update downloaded: ${info.version}`);
+    logger.log(`[UpdateHandler] Update downloaded: ${info.version}`);
     sendStatus(context, { state: "downloaded", version: info.version });
   });
 
@@ -83,16 +84,16 @@ export const startUpdateCheckInterval = (context: AppContext) => {
   const ONE_HOUR = 1000 * 60 * 60;
   const UPDATE_INTERVAL = ONE_HOUR * 4; // Check every 4 hours
 
-  console.log("[UpdateHandler] Initializing background update scheduler.");
+  logger.log("[UpdateHandler] Initializing background update scheduler.");
 
   setInterval(async () => {
-    console.log("[UpdateHandler] Background update check triggered.");
+    logger.log("[UpdateHandler] Background update check triggered.");
     currentCheckIsSilent = true; // Background checks are silent
     attachUpdateListeners(context);
     try {
       await autoUpdater.checkForUpdates();
     } catch (e) {
-      console.error("[UpdateHandler] Background check failed:", e);
+      logger.error("[UpdateHandler] Background check failed:", e);
     }
   }, UPDATE_INTERVAL);
 };
@@ -113,7 +114,7 @@ export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
     try {
       await autoUpdater.checkForUpdates();
     } catch (e) {
-      console.error("[UpdateHandler] Failed check:", e);
+      logger.error("[UpdateHandler] Failed check:", e);
     }
   },
 };
@@ -128,7 +129,7 @@ export const UpdateDownloadHandler: EventHandler<UIUpdateDownloadEvent> = {
   condition: () => true,
 
   handle: async (_event, context: AppContext) => {
-    console.log("[UpdateHandler] Requesting download...");
+    logger.log("[UpdateHandler] Requesting download...");
     currentCheckIsSilent = false; // Downloading is usually explicit
     attachUpdateListeners(context);
     await autoUpdater.downloadUpdate();
@@ -145,10 +146,10 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
   condition: () => true,
 
   handle: async (_event, _context: AppContext) => {
-    console.log("[UpdateHandler] Requesting install & quit...");
+    logger.log("[UpdateHandler] Requesting install & quit...");
 
     if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
-      console.log(
+      logger.log(
         "[UpdateHandler] Dev mode detected. Skipping actual quitAndInstall.",
       );
       return;

@@ -1,4 +1,5 @@
 import { AppConfig } from "../../../shared/types";
+import { logger } from "../../utils/logger";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
@@ -46,7 +47,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
   {
     processName: "POE2_Launcher.exe",
     onStart: (event, context) => {
-      console.log(
+      logger.log(
         "[GameProcess] Detected POE2 Launcher. Setting inference context to POE2.",
       );
       lastDetectedKakaoLauncher = "POE2";
@@ -65,7 +66,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
   {
     processName: "POE_Launcher.exe",
     onStart: (event, context) => {
-      console.log(
+      logger.log(
         "[GameProcess] Detected POE1 Launcher. Setting inference context to POE1.",
       );
       lastDetectedKakaoLauncher = "POE1";
@@ -88,7 +89,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       // because obtaining path requires Admin rights which we might not have.
       const inferredGameId = lastDetectedKakaoLauncher || "POE2"; // Default to POE2 if unknown (Safest bet for now)
 
-      console.log(
+      logger.log(
         `[GameProcess] Detected PathOfExile_KG.exe. Inferred Game: ${inferredGameId} (Last Launcher: ${lastDetectedKakaoLauncher})`,
       );
 
@@ -182,7 +183,7 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
       context.mainWindow &&
       !context.mainWindow.isDestroyed()
     ) {
-      console.log(
+      logger.log(
         "[GameProcess] quitOnGameStart is enabled. Closing main window.",
       );
       context.mainWindow.close();

@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { app, Menu, Tray, BrowserWindow } from "electron";
 
+import { logger } from "../utils/logger";
+
 class TrayManager {
   private static instance: TrayManager;
   private tray: Tray | null = null;
@@ -43,7 +45,7 @@ class TrayManager {
         this.showMainWindow();
       });
     } catch (error) {
-      console.error("[Tray] Failed to create tray icon:", error);
+      logger.error("[Tray] Failed to create tray icon:", error);
     }
   }
 

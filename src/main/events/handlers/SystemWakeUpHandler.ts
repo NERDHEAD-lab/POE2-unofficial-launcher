@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import {
   AppContext,
   EventHandler,
@@ -13,7 +14,7 @@ export const SystemWakeUpHandler: EventHandler<SystemWakeUpEvent> = {
     if (context.processWatcher) {
       context.processWatcher.wakeUp(reason);
     } else {
-      console.warn(
+      logger.warn(
         `[SystemWakeUpHandler] ProcessWatcher service not found in context. Wake up for '${reason}' ignored.`,
       );
     }
