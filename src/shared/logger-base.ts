@@ -3,6 +3,7 @@ export interface LoggerOptions {
   typeColor?: string;
   textColor?: string;
   useConsole?: boolean;
+  priority?: number;
 }
 
 export abstract class LoggerBase {
@@ -10,6 +11,7 @@ export abstract class LoggerBase {
   protected typeColor: string;
   protected textColor?: string;
   protected useConsole: boolean;
+  protected priority: number;
 
   constructor(optionsOrType?: LoggerOptions | string) {
     const options =
@@ -20,6 +22,7 @@ export abstract class LoggerBase {
     this.typeColor = options.typeColor || "#bbbbbb";
     this.textColor = options.textColor;
     this.useConsole = options.useConsole !== false;
+    this.priority = options.priority ?? 9999;
   }
 
   /**

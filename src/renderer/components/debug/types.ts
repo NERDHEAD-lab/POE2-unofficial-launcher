@@ -6,6 +6,7 @@ export interface LogEntry {
   count?: number;
   typeColor?: string;
   textColor?: string;
+  priority?: number;
   // UI Meta
   contentHash?: string;
   mergeGroupId?: string;

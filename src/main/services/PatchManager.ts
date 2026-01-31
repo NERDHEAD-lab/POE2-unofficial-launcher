@@ -25,7 +25,10 @@ export class PatchManager {
   private fileStates: Map<string, FileProgress> = new Map();
   private totalFilesCount: number = 0;
   private completedFilesCount: number = 0;
-  private logger = new Logger({ type: "auto_patch", typeColor: "#dcdcaa" });
+  private logger = new Logger({
+    type: "auto_patch",
+    typeColor: "#dcdcaa",
+  });
 
   constructor(context: AppContext) {
     this.context = context;

@@ -18,10 +18,11 @@ export class Logger extends LoggerBase {
         timestamp: Date.now(),
         typeColor: this.typeColor,
         textColor: textColor || (isError ? "#FF5555" : this.textColor),
+        priority: this.priority,
       });
     }
   }
 }
 
 // Default instance for general usage
-export const logger = new Logger("GENERAL");
+export const logger = new Logger({ type: "GENERAL", priority: 0 });
