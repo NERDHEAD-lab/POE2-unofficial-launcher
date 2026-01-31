@@ -621,6 +621,8 @@ function createWindows() {
       const startHidden = process.argv.includes("--hidden");
       if (!startHidden) {
         mainWindow.show();
+        // [Fix] Show Debug Console ONLY AFTER main window is shown to ensure correct Z-order/Focus
+        initDebugWindow("AppStart");
       } else {
         logger.log("[Main] Starting hidden (minimized to tray).");
       }
@@ -852,7 +854,7 @@ function createWindows() {
   });
 
   // --- Debug Window Management ---
-  initDebugWindow("AppStart");
+  // [Removed] initDebugWindow("AppStart") - Moved to ready-to-show event of mainWindow
 }
 
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
@@ -914,10 +916,17 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         minimizable: true,
         closable: true,
         autoHideMenuBar: true,
-        show: true, // Explicitly show
+        show: false, // [Fix] Start hidden to prevent white flash & ensure ready-to-show logic
         webPreferences: {
           preload: path.join(__dirname, "preload.js"),
         },
+      });
+
+      // Reveal when ready
+      debugWindow.once("ready-to-show", () => {
+        if (debugWindow && !debugWindow.isDestroyed()) {
+          debugWindow.show();
+        }
       });
 
       // Update Context
