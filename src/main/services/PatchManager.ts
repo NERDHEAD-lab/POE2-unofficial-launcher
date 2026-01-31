@@ -6,12 +6,8 @@ import axios from "axios";
 import { AppConfig, PatchProgress, FileProgress } from "../../shared/types";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
-import {
-  AppContext,
-  EventType,
-  PatchProgressEvent,
-  DebugLogEvent,
-} from "../events/types";
+import { AppContext, EventType, PatchProgressEvent } from "../events/types";
+import { Logger } from "../utils/logger";
 
 interface ParsedLogInfo {
   webRoot: string | null;
@@ -29,6 +25,7 @@ export class PatchManager {
   private fileStates: Map<string, FileProgress> = new Map();
   private totalFilesCount: number = 0;
   private completedFilesCount: number = 0;
+  private logger = new Logger({ type: "auto_patch", typeColor: "#dcdcaa" });
 
   constructor(context: AppContext) {
     this.context = context;
@@ -40,7 +37,7 @@ export class PatchManager {
       if (this.abortController) {
         this.abortController.abort();
       }
-      this.emitLog("[PatchManager] Cancel requested.");
+      this.logger.log("Cancel requested.");
     }
   }
 
@@ -51,9 +48,8 @@ export class PatchManager {
   ): Promise<boolean> {
     // [Fix] Prevent re-entrancy / double-execution
     if (this.isPatching) {
-      this.emitLog(
-        "[PatchManager] Patch ALREADY in progress. Ignoring duplicate request.",
-        true,
+      this.logger.error(
+        "Patch ALREADY in progress. Ignoring duplicate request.",
       );
       return false;
     }
@@ -133,7 +129,7 @@ export class PatchManager {
       this.emitGlobalStatus("done", "패치 복구 완료", 100);
       return true;
     } catch (e: unknown) {
-      console.error("[PatchManager] Error:", e);
+      this.logger.error("Error during diagnosis:", e);
       const msg = e instanceof Error ? e.message : String(e);
       this.emitGlobalStatus("error", msg || "알 수 없는 오류", 0, msg);
       return false;
@@ -260,7 +256,7 @@ export class PatchManager {
 
     if (isBackupEnabled) {
       if (fs.existsSync(backupDir)) {
-        this.emitLog(`[Backup] Cleaning up previous backups...`);
+        this.logger.log(`[Backup] Cleaning up previous backups...`);
         await fs.promises.rm(backupDir, { recursive: true, force: true });
       }
       await fs.promises.mkdir(backupDir, { recursive: true });
@@ -295,8 +291,7 @@ export class PatchManager {
       const url = `${webRoot.endsWith("/") ? webRoot : webRoot + "/"}${file}`;
       const dest = path.join(tempDir, file);
       const finalDest = path.join(installPath, file);
-
-      this.emitLog(`Downloading: ${file} ...`);
+      this.logger.log(`Downloading: ${file} ...`);
 
       try {
         await this.downloadFile(url, dest, file);
@@ -320,13 +315,13 @@ export class PatchManager {
         this.completedFilesCount++;
         this.emitCurrentState("downloading");
       } catch (e: unknown) {
-        console.error(`Failed to download/install ${file} due to:`, e);
+        this.logger.error(`Failed to download/install ${file} due to:`, e);
 
         // Backup URL Retry Logic
         if (backupWebRoot && backupWebRoot !== webRoot && !this.shouldStop) {
           const backupUrl = `${backupWebRoot.endsWith("/") ? backupWebRoot : backupWebRoot + "/"}${file}`;
           try {
-            this.emitLog(`Retrying with backup: ${file}`);
+            this.logger.log(`Retrying with backup: ${file}`);
             await this.downloadFile(backupUrl, dest, file);
 
             // Copy/Move Steps again
@@ -373,7 +368,7 @@ export class PatchManager {
     if (isBackupEnabled && backedUpFiles.length > 0) {
       try {
         const metadataPath = path.join(backupDir, "backup-info.json");
-        this.emitLog(
+        this.logger.log(
           `[Backup] Writing metadata... (Version: ${currentVersion}, Files: ${backedUpFiles.length})`,
         );
 
@@ -387,11 +382,11 @@ export class PatchManager {
           JSON.stringify(metadata, null, 2),
           "utf-8",
         );
-        this.emitLog(`[Backup] Metadata saved successfully.`);
+        this.logger.log(`[Backup] Metadata saved successfully.`);
       } catch (err) {
-        console.error("Failed to write backup metadata:", err);
+        this.logger.error("Failed to write backup metadata:", err);
         const msg = err instanceof Error ? err.message : String(err);
-        this.emitLog(`[Backup] Failed to save metadata: ${msg}`, true);
+        this.logger.error(`[Backup] Failed to save metadata: ${msg}`);
       }
     }
 
@@ -541,16 +536,5 @@ export class PatchManager {
       this.context,
       payload,
     );
-  }
-
-  private emitLog(content: string, isError: boolean = false) {
-    eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
-      type: "auto_patch",
-      content,
-      isError,
-      timestamp: Date.now(),
-      typeColor: "#dcdcaa",
-      textColor: isError ? "#f48771" : "#d4d4d4",
-    });
   }
 }

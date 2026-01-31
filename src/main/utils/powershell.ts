@@ -2,8 +2,8 @@ import { spawn, ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 
-import { eventBus } from "../events/EventBus";
-import { AppContext, DebugLogEvent, EventType } from "../events/types";
+import { Logger } from "./logger";
+import { AppContext } from "../events/types";
 
 interface PSResult {
   stdout: string;
@@ -31,19 +31,24 @@ interface SessionState {
   pipePath: string | null;
 }
 
-// ...
-
 export class PowerShellManager {
   private static instance: PowerShellManager;
   private context: AppContext | null = null;
+
+  private adminLogger = new Logger({
+    type: "process_admin",
+    typeColor: "#c586c0",
+  });
+  private normalLogger = new Logger({
+    type: "process_normal",
+    typeColor: "#4ec9b0",
+  });
 
   // Separate states for Admin and Normal sessions
   private adminSession: SessionState = this.createEmptySession();
   private normalSession: SessionState = this.createEmptySession();
 
-  private constructor() {
-    console.log(`[PowerShellManager] Initialized.`);
-  }
+  private constructor() {}
 
   public static getInstance(): PowerShellManager {
     if (!PowerShellManager.instance) {
@@ -69,74 +74,33 @@ export class PowerShellManager {
   public async execute(
     command: string,
     useAdmin: boolean = false,
+    silent: boolean = false,
   ): Promise<PSResult> {
     const session = useAdmin ? this.adminSession : this.normalSession;
-    return this.executeCommand(command, session, useAdmin);
-  }
-
-  private emitLog(
-    type: string,
-    content: string,
-    isError: boolean = false,
-    options: { typeColor?: string; textColor?: string } = {},
-  ) {
-    // Only emit if context is set
-    if (this.context) {
-      if (typeof eventBus !== "undefined") {
-        eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
-          type,
-          content,
-          isError,
-          timestamp: Date.now(),
-          typeColor: options.typeColor,
-          textColor: options.textColor,
-        });
-      }
-    }
-  }
-
-  /**
-   * Helper to determine colors based on session type
-   */
-  private getLogColors(
-    isAdmin: boolean,
-    isError: boolean,
-  ): { typeColor: string; textColor: string } {
-    if (isError) {
-      return {
-        typeColor: isAdmin ? "#c586c0" : "#4ec9b0",
-        textColor: "#f48771", // Red
-      };
-    }
-    return isAdmin
-      ? { typeColor: "#c586c0", textColor: "#569cd6" } // Admin: Purple / Blue
-      : { typeColor: "#4ec9b0", textColor: "#d4d4d4" }; // Normal: Teal / Grey
+    return this.executeCommand(command, session, useAdmin, silent);
   }
 
   public async executeCommand(
     command: string,
     session: SessionState,
     isAdmin: boolean,
+    silent: boolean = false,
   ): Promise<PSResult> {
+    const logger = isAdmin ? this.adminLogger : this.normalLogger;
+
     // Log Command Start
-    this.emitLog(
-      isAdmin ? "process_admin" : "process_normal",
-      `> ${command}`,
-      false,
-      this.getLogColors(isAdmin, false),
-    );
+    if (silent) {
+      logger.silent().log(`> ${command}`);
+    } else {
+      logger.log(`> ${command}`);
+    }
 
     // 1. Ensure Session
     await this.ensureSession(session, isAdmin);
 
     if (!session.socket) {
       const msg = "Failed to establish connection to PowerShell session";
-      this.emitLog(
-        isAdmin ? "process_admin" : "process_normal",
-        msg,
-        true,
-        this.getLogColors(isAdmin, true),
-      );
+      logger.error(msg);
       return {
         stdout: "",
         stderr: msg,
@@ -154,12 +118,7 @@ export class PowerShellManager {
           if (session.pendingRequests.has(id)) {
             session.pendingRequests.delete(id);
             const msg = "Request execution timed out (30s)";
-            this.emitLog(
-              isAdmin ? "process_admin" : "process_normal",
-              msg,
-              true,
-              this.getLogColors(isAdmin, true),
-            );
+            logger.error(msg);
             resolve({
               stdout: "",
               stderr: msg,
@@ -168,25 +127,18 @@ export class PowerShellManager {
           }
         },
         isAdmin ? 30000 : 10000,
-      ); // Admin setup might take longer, normal usually fast
+      );
 
       session.pendingRequests.set(id, (res) => {
         clearTimeout(timeout);
         // Log Result
-        if (res.stdout)
-          this.emitLog(
-            isAdmin ? "process_admin" : "process_normal",
-            res.stdout.trim(),
-            false,
-            this.getLogColors(isAdmin, false),
-          );
-        if (res.stderr)
-          this.emitLog(
-            isAdmin ? "process_admin" : "process_normal",
-            res.stderr.trim(),
-            true,
-            this.getLogColors(isAdmin, true),
-          );
+        if (silent) {
+          if (res.stdout) logger.silent().log(res.stdout.trim());
+          if (res.stderr) logger.silent().error(res.stderr.trim());
+        } else {
+          if (res.stdout) logger.log(res.stdout.trim());
+          if (res.stderr) logger.error(res.stderr.trim());
+        }
         resolve(res);
       });
 
@@ -199,12 +151,7 @@ export class PowerShellManager {
             if (session.pendingRequests.has(id)) {
               session.pendingRequests.delete(id);
               const msg = `Socket Write Error: ${err.message}`;
-              this.emitLog(
-                isAdmin ? "process_admin" : "process_normal",
-                msg,
-                true,
-                this.getLogColors(isAdmin, true),
-              );
+              logger.error(msg);
               resolve({
                 stdout: "",
                 stderr: msg,
@@ -217,12 +164,7 @@ export class PowerShellManager {
         clearTimeout(timeout);
         session.pendingRequests.delete(id);
         const msg = "Socket disconnected or process died before request";
-        this.emitLog(
-          isAdmin ? "process_admin" : "process_normal",
-          msg,
-          true,
-          this.getLogColors(isAdmin, true),
-        );
+        logger.error(msg);
         resolve({ stdout: "", stderr: msg, code: 1 });
       }
     });
@@ -232,15 +174,10 @@ export class PowerShellManager {
     session: SessionState,
     isAdmin: boolean,
   ): Promise<void> {
-    // [Fix] Prioritize socket connection over process exit code.
-    // For Admin sessions, the spawner process (launcher) exits immediately after Start-Process.
-    // We must keep the session as long as the socket is connected.
     if (session.socket && !session.socket.destroyed && session.server) {
       return Promise.resolve();
     }
 
-    // If socket is gone but process is somehow still "alive" without connection,
-    // or if everything is gone, we cleanup and start new.
     this.cleanupSession(session);
 
     return new Promise((resolve, reject) => {
@@ -250,9 +187,8 @@ export class PowerShellManager {
         session.pipePath = `\\\\.\\pipe\\${pipeName}`;
 
         session.server = net.createServer((socket) => {
-          console.log(
-            `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} Client Connected!`,
-          );
+          const logger = isAdmin ? this.adminLogger : this.normalLogger;
+          logger.log(`${isAdmin ? "Admin" : "Normal"} Client Connected!`);
           session.socket = socket;
 
           let buffer = "";
@@ -279,10 +215,7 @@ export class PowerShellManager {
                   }
                 }
               } catch (err) {
-                console.error(
-                  `[PowerShellManager:${isAdmin ? "Admin" : "Normal"}] JSON Parse Error:`,
-                  err,
-                );
+                logger.error(`JSON Parse Error:`, err);
               }
             }
           });
@@ -292,10 +225,7 @@ export class PowerShellManager {
           });
 
           socket.on("error", (err) => {
-            console.error(
-              `[PowerShellManager:${isAdmin ? "Admin" : "Normal"}] Socket Error:`,
-              err,
-            );
+            logger.error(`Socket Error:`, err);
             session.socket = null;
           });
 
@@ -324,13 +254,6 @@ export class PowerShellManager {
     pipeName: string,
   ) {
     if (!session.pipePath) throw new Error("Pipe path not initialized");
-
-    // Pure Pype Name for PowerShell (No \\.\pipe\ prefix needed if we handle it carefully,
-    // but .NET NamedPipeClientStream usually takes just the name part).
-    // Node pipe path: \\.\pipe\NAME
-    // PowerShell NamedPipeClientStream: NAME
-
-    // The previous bug was replace logic. Here we pass simple NAME.
 
     const psScript = `
 $ErrorActionPreference = "Stop"
@@ -391,9 +314,7 @@ try {
     `;
 
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
-
     const isDev = this.context?.getConfig("dev_mode") === true;
-
     const windowStyle = "Hidden";
     const noExitFlag = isDev ? "-NoExit" : "";
 
@@ -401,11 +322,7 @@ try {
     let commandToSpawn: string;
 
     if (isAdmin) {
-      // Admin: Use Start-Process with Verb RunAs
       commandToSpawn = "powershell";
-
-      // [Fix] Dynamically build arguments to avoid empty strings which cause parsing error (Exit Code 1)
-      // When dev_mode is off, noExitFlag is empty. Passing "" in -ArgumentList breaks Start-Process.
       const args = [
         noExitFlag,
         "-NoProfile",
@@ -425,10 +342,6 @@ try {
         `Start-Process powershell ${startProcessArgs}`,
       ];
     } else {
-      // Normal: Spawn PowerShell directly with encoded command
-      // We want to control visibility directly here if possible?
-      // Node spawn options.windowsHide works for the direct process.
-      // But if we want "-WindowStyle Normal", passing it to powershell.exe works best.
       commandToSpawn = "powershell";
       spawnArgs = [
         "-NoProfile",
@@ -443,35 +356,31 @@ try {
       ].filter((arg) => arg !== "");
     }
 
-    console.log(
-      `[PowerShellManager] Spawning ${isAdmin ? "Admin" : "Normal"} Session...`,
-    );
+    const logger = isAdmin ? this.adminLogger : this.normalLogger;
+    logger.log(`Spawning ${isAdmin ? "Admin" : "Normal"} Session...`);
 
     const child = spawn(commandToSpawn, spawnArgs, {
-      windowsHide: !isDev, // Hide if not debug
+      windowsHide: true,
       stdio: "ignore",
     });
 
     session.process = child;
 
     child.on("error", (err) => {
-      console.error(
-        `[PowerShellManager] Failed to spawn ${isAdmin ? "Admin" : "Normal"} process:`,
+      logger.error(
+        `Failed to spawn ${isAdmin ? "Admin" : "Normal"} process:`,
         err,
       );
     });
 
     child.on("exit", (code) => {
-      console.log(
-        `[PowerShellManager] ${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
+      logger.log(
+        `${isAdmin ? "Admin" : "Normal"} process exited with code ${code}`,
       );
 
-      // [Fix] Admin Spawner exits immediately after Start-Process.
-      // We should only fail if code is non-zero (indicating Start-Process failed).
-      // If code is 0, we stay silent and wait for the actual worker process to connect via socket.
       if (isAdmin && code === 0) {
-        console.log(
-          "[PowerShellManager] Admin spawner finished successfully. Waiting for elevated worker...",
+        logger.log(
+          "Admin spawner finished successfully. Waiting for elevated worker...",
         );
         return;
       }
@@ -507,8 +416,9 @@ try {
     reason: string,
   ) {
     if (session.pendingRequests.size > 0) {
-      console.warn(
-        `[PowerShellManager] Failing ${session.pendingRequests.size} requests: ${reason}`,
+      const logger = isAdmin ? this.adminLogger : this.normalLogger;
+      logger.warn(
+        `Failing ${session.pendingRequests.size} requests: ${reason}`,
       );
       session.pendingRequests.forEach((callback) => {
         callback({

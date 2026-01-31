@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("news-updated", handler);
     return () => ipcRenderer.off("news-updated", handler);
   },
+  sendDebugLog: (log: DebugLogEvent["payload"]) =>
+    ipcRenderer.send("debug-log:send", log),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
 
   // [Update API]
