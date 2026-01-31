@@ -21,6 +21,7 @@ import {
   DescriptionBlock,
   DescriptionVariant,
 } from "../../settings/types";
+import { logger } from "../../utils/logger";
 import "../../settings/Settings.css";
 
 interface Props {
@@ -123,12 +124,12 @@ const SettingItemRenderer: React.FC<{
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
-      console.log(`[Settings] Running onInit for ${item.id}`);
+      logger.log(`[Settings] Running onInit for ${item.id}`);
       item
         .onInit({
           setValue: (newValue) => {
             if (mounted) {
-              console.log(`[Settings] onInit ${item.id} -> ${newValue}`);
+              logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
               setVal(newValue);
               setAuthorityClaimed(true);
               onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
@@ -151,7 +152,7 @@ const SettingItemRenderer: React.FC<{
           },
         })
         .catch((err) => {
-          console.error(`[Settings] Failed to init setting ${item.id}:`, err);
+          logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
         });
     }
     return () => {
@@ -193,7 +194,7 @@ const SettingItemRenderer: React.FC<{
   };
 
   const handleActionClick = (_actionId: string) => {
-    // console.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
+    // logger.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
 
     // Priority 1: Generic listener (onClickListener)
     if ("onClickListener" in item && item.onClickListener) {

@@ -15,8 +15,6 @@ export const getProcessPaths = async (
     // This ensures we detect the process even if ExecutablePath is null (permission issues)
     const psCommand = `Get-CimInstance Win32_Process -Filter "Name = '${processName}'" | Select-Object ProcessId, ExecutablePath | ConvertTo-Json -Compress`;
 
-    // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
-    // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
     const { stdout, stderr } = await PowerShellManager.getInstance().execute(
       psCommand,
       false,

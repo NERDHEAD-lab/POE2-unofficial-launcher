@@ -2,6 +2,7 @@ import { ipcRenderer } from "electron";
 
 import { AppConfig } from "../../shared/types";
 import { isUserFacingPage } from "../../shared/visibility";
+import { logger } from "../utils/preload-logger";
 
 // --- Interfaces ---
 
@@ -78,7 +79,7 @@ function safeClick(element: HTMLElement | null) {
       element instanceof HTMLAnchorElement &&
       element.href.toLowerCase().startsWith("javascript:")
     ) {
-      console.log(
+      logger.log(
         "[Game Window] Detecting javascript: href, dispatching custom click event.",
       );
       const event = new MouseEvent("click", {
@@ -92,13 +93,13 @@ function safeClick(element: HTMLElement | null) {
 
     // 2. Native click
     if (typeof element.click === "function") {
-      console.log("[Game Window] Performing native .click()");
+      logger.log("[Game Window] Performing native .click()");
       element.click();
       return true;
     }
 
     // 3. Fallback: Dispatch Event
-    console.log("[Game Window] Native click not function, dispatching event.");
+    logger.log("[Game Window] Native click not function, dispatching event.");
     const event = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
@@ -106,7 +107,7 @@ function safeClick(element: HTMLElement | null) {
     element.dispatchEvent(event);
     return true;
   } catch (err) {
-    console.error("[Game Window] safeClick failed:", err);
+    logger.error("[Game Window] safeClick failed:", err);
     return false;
   }
 }
@@ -117,7 +118,7 @@ function observeAndInteract(
 ) {
   if (checkFn()) return;
 
-  console.log(
+  logger.log(
     "[Game Window] Target not found immediately. Starting observer...",
   );
 
@@ -132,7 +133,7 @@ function observeAndInteract(
   if (timeoutMs > 0) {
     setTimeout(() => {
       observer.disconnect();
-      console.log("[Game Window] Observer timed out.");
+      logger.log("[Game Window] Observer timed out.");
     }, timeoutMs);
   }
 }
@@ -148,11 +149,11 @@ const PoeMainHandler: PageHandler = {
   description: "POE1 Homepage - Game Start",
   match: (url) => url.hostname === "poe.game.daum.net",
   execute: async () => {
-    console.log(`[Handler] Executing ${PoeMainHandler.name}`);
+    logger.log(`[Handler] Executing ${PoeMainHandler.name}`);
     observeAndInteract((obs) => {
       const startBtn = document.querySelector(SELECTORS.POE1.BTN_GAME_START);
       if (safeClick(startBtn as HTMLElement)) {
-        console.log("[PoeMainHandler] Clicked POE1 Start Button");
+        logger.log("[PoeMainHandler] Clicked POE1 Start Button");
         if (obs) obs.disconnect();
         return true;
       }
@@ -171,7 +172,7 @@ const Poe2MainHandler: PageHandler = {
   description: "POE2 Homepage - Intro Modal & Game Start",
   match: (url) => url.hostname === "pathofexile2.game.daum.net",
   execute: async () => {
-    console.log(`[Handler] Executing ${Poe2MainHandler.name}`);
+    logger.log(`[Handler] Executing ${Poe2MainHandler.name}`);
 
     // 1. Modal Logic (Immediate check, then Observer fallback via runSequence)
     const handleIntroModal = async () => {
@@ -185,7 +186,7 @@ const Poe2MainHandler: PageHandler = {
       );
 
       if (cookies["POE2_INTRO_MODAL"] === "1") {
-        console.log("[Poe2MainHandler] Intro Modal cookie present, skipping.");
+        logger.log("[Poe2MainHandler] Intro Modal cookie present, skipping.");
         return;
       }
 
@@ -202,9 +203,9 @@ const Poe2MainHandler: PageHandler = {
 
           // Priority: Today Close -> Close X
           if (todayBtn && safeClick(todayBtn as HTMLElement)) {
-            console.log('[Poe2MainHandler] Clicked "Today Close"');
+            logger.log('[Poe2MainHandler] Clicked "Today Close"');
           } else if (closeBtn && safeClick(closeBtn as HTMLElement)) {
-            console.log('[Poe2MainHandler] Clicked "Close X"');
+            logger.log('[Poe2MainHandler] Clicked "Close X"');
           }
           await new Promise((r) => setTimeout(r, 500)); // Small delay after close
         }
@@ -214,11 +215,11 @@ const Poe2MainHandler: PageHandler = {
     // 2. Observer for Button Interactivity
     observeAndInteract((obs) => {
       // Try handling modal first in every mutation cycle if it exists
-      handleIntroModal().catch(console.error);
+      handleIntroModal().catch(logger.error);
 
       const startBtn = document.querySelector(SELECTORS.POE2.BTN_GAME_START);
       if (safeClick(startBtn as HTMLElement)) {
-        console.log("[Poe2MainHandler] Clicked POE2 Main Start Button");
+        logger.log("[Poe2MainHandler] Clicked POE2 Main Start Button");
         if (obs) obs.disconnect();
         return true;
       }
@@ -238,7 +239,7 @@ const LauncherCheckHandler: PageHandler = {
     );
   },
   execute: () => {
-    console.log(`[Handler] Executing ${LauncherCheckHandler.name}`);
+    logger.log(`[Handler] Executing ${LauncherCheckHandler.name}`);
     observeAndInteract((obs) => {
       const bodyText = document.body.innerText;
       if (
@@ -246,7 +247,7 @@ const LauncherCheckHandler: PageHandler = {
           bodyText.includes(text),
         )
       ) {
-        console.log("[LauncherCheckHandler] Login Required Detected.");
+        logger.log("[LauncherCheckHandler] Login Required Detected.");
         const confirmBtn = document.querySelector(
           SELECTORS.LAUNCHER.BTN_CONFIRM,
         );
@@ -265,7 +266,7 @@ const DaumLoginHandler: PageHandler = {
   description: "Daum Login Page",
   match: (url) => url.hostname === "logins.daum.net",
   execute: () => {
-    console.log(`[Handler] Executing ${DaumLoginHandler.name}`);
+    logger.log(`[Handler] Executing ${DaumLoginHandler.name}`);
     observeAndInteract((obs) => {
       const selectors = [
         SELECTORS.LOGIN_DAUM.BTN_KAKAO_LOGIN,
@@ -290,7 +291,7 @@ const KakaoSimpleLoginHandler: PageHandler = {
     url.hostname === "accounts.kakao.com" &&
     url.pathname.includes("/login/simple"),
   execute: () => {
-    console.log(`[Handler] Executing ${KakaoSimpleLoginHandler.name}`);
+    logger.log(`[Handler] Executing ${KakaoSimpleLoginHandler.name}`);
     observeAndInteract((obs) => {
       // Try to click the first account in the list
       const firstItem = document.querySelector(
@@ -298,7 +299,7 @@ const KakaoSimpleLoginHandler: PageHandler = {
       );
 
       if (safeClick(firstItem as HTMLElement)) {
-        console.log("[KakaoSimpleLoginHandler] Clicked first account in list.");
+        logger.log("[KakaoSimpleLoginHandler] Clicked first account in list.");
         if (obs) obs.disconnect();
         return true;
       }
@@ -314,7 +315,7 @@ const KakaoAuthHandler: PageHandler = {
     url.hostname === "kauth.kakao.com" &&
     url.pathname.includes("/oauth/authorize"),
   execute: () => {
-    console.log(`[Handler] Executing ${KakaoAuthHandler.name}`);
+    logger.log(`[Handler] Executing ${KakaoAuthHandler.name}`);
     observeAndInteract((obs) => {
       const agreeBtn = document.querySelector(SELECTORS.KAKAO_AUTH.BTN_AGREE);
       if (safeClick(agreeBtn as HTMLElement)) {
@@ -331,7 +332,7 @@ const SecurityCenterHandler: PageHandler = {
   description: "Security Center / Designated PC",
   match: (url) => url.hostname === "security-center.game.daum.net",
   execute: () => {
-    console.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
+    logger.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
     ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
 
     observeAndInteract((obs) => {
@@ -380,7 +381,7 @@ const LauncherCompletionHandler: PageHandler = {
     url.hostname === "pubsvc.game.daum.net" &&
     url.pathname.includes("/completed.html"),
   execute: () => {
-    console.log(`[Handler] Executing ${LauncherCompletionHandler.name}`);
+    logger.log(`[Handler] Executing ${LauncherCompletionHandler.name}`);
     ipcRenderer.send("game-status-update", "ready", activeGameContext);
 
     observeAndInteract((obs) => {
@@ -413,11 +414,11 @@ const HANDLERS: PageHandler[] = [
 
 function dispatchPageLogic() {
   const currentUrl = new URL(window.location.href);
-  console.log(`[Game Window] Logic Dispatcher: ${currentUrl.href}`);
+  logger.log(`[Game Window] Logic Dispatcher: ${currentUrl.href}`);
 
   for (const handler of HANDLERS) {
     if (handler.match(currentUrl)) {
-      console.log(`[Game Window] Matched Handler: ${handler.name}`);
+      logger.log(`[Game Window] Matched Handler: ${handler.name}`);
       handler.execute();
       return;
     }
@@ -437,19 +438,19 @@ try {
 
   if (stored) {
     activeGameContext = JSON.parse(stored);
-    console.log(
+    logger.log(
       "[Game Window] Restored Context from SessionStorage:",
       activeGameContext,
     );
   }
 } catch (e) {
-  console.warn("[Game Window] SessionStorage access denied or failed:", e);
+  logger.warn("[Game Window] SessionStorage access denied or failed:", e);
 }
 
 // --- IPC Listeners ---
 
 ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
-  console.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
+  logger.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
   if (context && context.gameId && context.serviceId) {
     activeGameContext = context;
     try {
@@ -457,7 +458,7 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
         sessionStorage.setItem("activeGameContext", JSON.stringify(context));
       }
     } catch (e) {
-      console.warn(
+      logger.warn(
         "[Game Window] Failed to persist context to SessionStorage:",
         e,
       );
@@ -468,7 +469,7 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
 // --- Initialization ---
 
 window.addEventListener("DOMContentLoaded", () => {
-  console.log("[Game Window] DOMContentLoaded");
+  logger.log("[Game Window] DOMContentLoaded");
 
   const currentUrl = new URL(window.location.href);
 
@@ -481,4 +482,4 @@ window.addEventListener("DOMContentLoaded", () => {
   dispatchPageLogic();
 });
 
-console.log("[Game Window] Preload Loaded");
+logger.log("[Game Window] Preload Loaded");

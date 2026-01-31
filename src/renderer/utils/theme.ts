@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 export interface ThemeColors {
   text: string;
   accent: string;
@@ -104,7 +106,7 @@ export async function extractThemeColors(
       resolve({ colors: { text, accent, footer }, hash });
     };
     img.onerror = () => {
-      console.warn("Failed to load bg image, using fallback:", imageUrl);
+      logger.warn("Failed to load bg image, using fallback:", imageUrl);
       resolve({ colors: fallback, hash: "error" });
     };
   });

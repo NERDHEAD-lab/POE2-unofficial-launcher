@@ -3,6 +3,7 @@ import React, { useState } from "react";
 
 import { NewsItem as NewsItemType } from "../../../shared/types";
 import itemBg from "../../assets/layout/img-news-bg.png";
+import { logger } from "../../utils/logger";
 
 interface NewsItemProps {
   item: NewsItemType;
@@ -28,7 +29,7 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
         setContent(result);
         onRead(item.id);
       } catch (error) {
-        console.error("Failed to load news content:", error);
+        logger.error("Failed to load news content:", error);
         setContent("내용을 불러오는 데 실패했습니다.");
       } finally {
         setIsLoading(false);
