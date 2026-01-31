@@ -205,7 +205,12 @@
 
 - **설정 구성**: [settings-config.ts](../src/renderer/settings/settings-config.ts)에서 실제 노출될 아이템들을 정의합니다.
   - **카테고리 구조**: `General`, `Account`, `Automation`, `Advanced`, `About`
-- **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 [shared/config.ts](../src/shared/config.ts)의 기본값과 설정 UI의 정합성을 검증합니다.
+- **핵심 메커니즘**:
+  - **Type-Safe Binding**: `shared/config.ts`의 `DEFAULT_CONFIG`와 `id`로 매핑되어 영속성을 보장받습니다.
+  - **Dynamic Context**: `onInit`, `onChangeListener`를 통해 실시간 시스템 상태 반영 및 항목 레이블/비활성화 제어가 가능합니다.
+  - **Semantic Feedback**: `addDescription`을 통한 `info`, `warning`, `error` 시각적 피드백 시스템을 갖추고 있습니다.
+  - **Option Richness**: `radio`, `select` 타입의 개별 옵션에 상세 설명을 추가하여 직관적인 UI를 제공합니다.
+- **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
 
 ## 6. Documentation Map
