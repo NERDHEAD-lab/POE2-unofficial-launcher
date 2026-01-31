@@ -128,6 +128,7 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) => Promise<boolean | BackupMetadata>; // New
+  getDebugHistory: () => Promise<DebugLogPayload[]>;
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
   getNews: (
     game: AppConfig["activeGame"],

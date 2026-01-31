@@ -66,7 +66,7 @@ import {
   setupStoreObservers,
   default as store,
 } from "./store";
-import { setupMainLogger, logger } from "./utils/logger";
+import { setupMainLogger, logger, getLogHistory } from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
@@ -199,6 +199,10 @@ ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
 ipcMain.on("app:relaunch", () => {
   app.relaunch();
   app.exit(0);
+});
+
+ipcMain.handle("debug:get-history", () => {
+  return getLogHistory();
 });
 
 ipcMain.handle("session:logout", async () => {

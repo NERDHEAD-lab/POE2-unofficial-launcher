@@ -123,10 +123,19 @@ class EventBus {
         // Safe validation: We registered usage based on targetEvent, so handler expects T
         await handler.handle(event, context);
       } catch (error) {
-        this.logger.error(
-          `[EventBus] ❌ Error in Handler ${handler.id}:`,
-          error,
-        );
+        // [Fix] Prevent logging loop: If DebugLogHandler itself fails (e.g. window destroyed),
+        // don't use this.logger.error because it emits a new DEBUG_LOG event, causing a loop.
+        if (handler.id === "DebugLogHandler") {
+          console.error(
+            `[EventBus] ❌ Critical Error in DebugLogHandler (Loop Prevention):`,
+            error,
+          );
+        } else {
+          this.logger.error(
+            `[EventBus] ❌ Error in Handler ${handler.id}:`,
+            error,
+          );
+        }
       }
     });
 
