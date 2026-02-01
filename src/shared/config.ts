@@ -1,6 +1,12 @@
 import { AppConfig, ConfigDefinition } from "./types";
 
 export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
+  LAUNCHER_VERSION: {
+    key: "launcherVersion",
+    name: "Launcher Version",
+    category: "Info",
+    description: "현재 런처의 버전 정보를 기록합니다. (자동 관리)",
+  },
   ACTIVE_GAME: {
     key: "activeGame",
     name: "Active Game",
@@ -106,6 +112,7 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
 
 // 기존 코드와의 호환성을 위한 키 매핑
 export const CONFIG_KEYS = {
+  LAUNCHER_VERSION: CONFIG_METADATA.LAUNCHER_VERSION.key,
   ACTIVE_GAME: CONFIG_METADATA.ACTIVE_GAME.key,
   SERVICE_CHANNEL: CONFIG_METADATA.SERVICE_CHANNEL.key,
   AUTO_FIX_PATCH_ERROR: CONFIG_METADATA.AUTO_FIX_PATCH_ERROR.key,
@@ -123,6 +130,7 @@ export const CONFIG_KEYS = {
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
+  launcherVersion: "",
   activeGame: "POE1",
   serviceChannel: "Kakao Games",
   themeCache: {},

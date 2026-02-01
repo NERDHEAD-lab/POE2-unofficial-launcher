@@ -1,4 +1,5 @@
 export const CONFIG_CATEGORIES = [
+  "Info",
   "General",
   "Game",
   "Appearance",
@@ -40,6 +41,7 @@ export interface AppConfig {
    * Default: "resource-saving"
    */
   processWatchMode: "resource-saving" | "always-on";
+  launcherVersion: string;
 }
 
 // Granular Status Codes for granular UI feedback

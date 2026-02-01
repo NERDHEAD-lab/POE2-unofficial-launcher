@@ -1462,6 +1462,16 @@ app.on("activate", () => {
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
 app.whenReady().then(async () => {
+  // [NEW] Sync Launcher Version (for future migrations)
+  const currentVersion = app.getVersion();
+  const storedVersion = getConfig("launcherVersion") as string;
+  if (currentVersion !== storedVersion) {
+    logger.log(
+      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
+    );
+    setConfig("launcherVersion", currentVersion);
+  }
+
   // [NEW] Handle Uninstall Cleanup Flag
   createWindows();
 });
