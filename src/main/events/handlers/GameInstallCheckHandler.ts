@@ -1,4 +1,4 @@
-import { AppConfig, RunStatus } from "../../../shared/types";
+import { AppConfig } from "../../../shared/types";
 import { logger } from "../../utils/logger";
 import { isGameInstalled } from "../../utils/registry";
 import { eventBus } from "../EventBus";
@@ -7,17 +7,22 @@ import {
   EventHandler,
   EventType,
   GameStatusChangeEvent,
-  UIGameInstallCheckEvent,
+  ConfigChangeEvent,
 } from "../types";
 
 /**
- * Handler: Check if the game is installed and its current status.
+ * Handler to check game installation status when configuration changes
  */
-export const GameInstallCheckHandler: EventHandler<UIGameInstallCheckEvent> = {
+export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
   id: "GameInstallCheckHandler",
-  targetEvent: EventType.UI_GAME_INSTALL_CHECK,
+  targetEvent: EventType.CONFIG_CHANGE,
 
-  condition: () => true,
+  condition: (event) => {
+    return (
+      event.payload.key === "activeGame" ||
+      event.payload.key === "serviceChannel"
+    );
+  },
 
   handle: async (_event, context: AppContext) => {
     const config = context.getConfig() as AppConfig;
@@ -27,22 +32,43 @@ export const GameInstallCheckHandler: EventHandler<UIGameInstallCheckEvent> = {
       `[GameInstallCheckHandler] Checking installation for ${activeGame} (${serviceChannel})...`,
     );
 
-    // 1. Check Registry/Path installation
     const installed = await isGameInstalled(serviceChannel, activeGame);
 
-    // 2. [New] If installed, check if it's currently RUNNING
-    let isRunning = false;
-    if (installed) {
-      const targetProcessName =
-        serviceChannel === "Kakao Games"
-          ? "PathOfExile_KG.exe"
-          : "PathOfExile.exe";
+    // [Fix] Check if the game is already RUNNING before resetting to 'idle'
+    // This prevents status flickering or resetting when switching tabs while game is open.
+    // [Refactor] Use explicit process mapping for accurate status detection
+    // This prevents POE1 activity from falsely reporting POE2 as running (and vice versa).
+    // Previously, we relied on generic 'GameServiceProfiles' which mapped both to 'PathOfExile_KG.exe', causing cross-talk.
 
-      // We might want to verify the path as well, but for now name is enough
-      if (context.processWatcher) {
-        isRunning = context.processWatcher.isProcessRunning(targetProcessName);
-      }
+    let targetProcessName = "";
+    let criteria:
+      | ((info: { pid: number; path: string }) => boolean)
+      | undefined;
+
+    if (serviceChannel === "Kakao Games") {
+      // Use specific Launcher names for Kakao to distinguish games
+      targetProcessName =
+        activeGame === "POE2" ? "POE2_Launcher.exe" : "POE_Launcher.exe";
+    } else {
+      // GGG uses the same process name but different paths
+      targetProcessName = "PathOfExile.exe";
+      criteria = (info) => {
+        const lowerPath = info.path.toLowerCase();
+        if (activeGame === "POE2") {
+          return lowerPath.includes("path of exile 2");
+        } else {
+          // POE1: Must include "path of exile" but NOT "path of exile 2"
+          return (
+            lowerPath.includes("path of exile") &&
+            !lowerPath.includes("path of exile 2")
+          );
+        }
+      };
     }
+
+    const isRunning =
+      targetProcessName &&
+      context.processWatcher?.isProcessRunning(targetProcessName, criteria);
 
     if (isRunning) {
       logger.log(
@@ -57,16 +83,17 @@ export const GameInstallCheckHandler: EventHandler<UIGameInstallCheckEvent> = {
           status: "running",
         },
       );
-    } else {
-      eventBus.emit<GameStatusChangeEvent>(
-        EventType.GAME_STATUS_CHANGE,
-        context,
-        {
-          gameId: activeGame,
-          serviceId: serviceChannel,
-          status: (installed ? "idle" : "uninstalled") as RunStatus,
-        },
-      );
+      return;
     }
+
+    eventBus.emit<GameStatusChangeEvent>(
+      EventType.GAME_STATUS_CHANGE,
+      context,
+      {
+        gameId: activeGame,
+        serviceId: serviceChannel,
+        status: installed ? "idle" : "uninstalled",
+      },
+    );
   },
 };

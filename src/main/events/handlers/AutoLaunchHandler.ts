@@ -10,10 +10,6 @@ import {
   EventType,
 } from "../types";
 
-/**
- * Handler to synchronize auto-launch settings with OS.
- * Triggers when 'autoLaunch' or 'startMinimized' config changes.
- */
 export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
   id: "AutoLaunchHandler",
   targetEvent: EventType.CONFIG_CHANGE,
@@ -24,6 +20,8 @@ export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
   },
 
   handle: async (_event, _context: AppContext) => {
+    // Current State Resolution
+    // key가 무엇이든 최신 config 기반으로 재설정
     const currentConfig = getConfig() as AppConfig;
     const shouldAutoLaunch = currentConfig.autoLaunch === true;
     const shouldStartMinimized = currentConfig.startMinimized === true;
@@ -39,29 +37,11 @@ export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
       return;
     }
 
-    try {
-      // Electron's setLoginItemSettings handles Windows Registry (Run key)
-      app.setLoginItemSettings({
-        openAtLogin: shouldAutoLaunch,
-        path: app.getPath("exe"),
-        args: shouldStartMinimized ? ["--hidden"] : [],
-      });
-    } catch (e) {
-      logger.error("[AutoLaunch] Failed to sync login settings:", e);
-    }
+    app.setLoginItemSettings({
+      openAtLogin: shouldAutoLaunch,
+      openAsHidden: false, // Legacy macOS option (we use args instead for cross-platform control)
+      path: app.getPath("exe"),
+      args: shouldStartMinimized ? ["--hidden"] : [],
+    });
   },
-};
-
-/**
- * Helper to force sync on startup
- */
-export const syncAutoLaunchOnStartup = () => {
-  const currentConfig = getConfig() as AppConfig;
-  if (!app.isPackaged) return;
-
-  app.setLoginItemSettings({
-    openAtLogin: currentConfig.autoLaunch === true,
-    path: app.getPath("exe"),
-    args: currentConfig.startMinimized === true ? ["--hidden"] : [],
-  });
 };
