@@ -105,6 +105,12 @@ const DebugConsole: React.FC = () => {
     setSaveError(null);
   };
 
+  const deleteConfig = async (key: string) => {
+    if (window.electronAPI) {
+      await window.electronAPI.deleteConfig(key);
+    }
+  };
+
   const getModuleContext = (moduleId: string) => {
     if (moduleId === "log-module") return { logState };
     if (moduleId === "config-module") return { currentConfig };
@@ -131,6 +137,7 @@ const DebugConsole: React.FC = () => {
         startEditing,
         cancelEditing,
         saveConfig,
+        deleteConfig,
         setEditValue,
         setSaveError,
       };
@@ -216,7 +223,16 @@ const DebugConsole: React.FC = () => {
 
       const removeConfigListener = window.electronAPI.onConfigChange(
         (key, value) => {
-          setCurrentConfig((prev) => ({ ...prev, [key]: value }));
+          setCurrentConfig((prev) => {
+            const next = { ...prev };
+            if (value === undefined) {
+              delete next[key as keyof AppConfig];
+            } else {
+              next[key as keyof AppConfig] =
+                value as AppConfig[keyof AppConfig];
+            }
+            return next;
+          });
         },
       );
 

@@ -161,6 +161,7 @@ export interface ElectronAPI {
   // [App Control]
   relaunchApp: () => void;
   logoutSession: () => Promise<boolean>;
+  deleteConfig: (key: string) => Promise<void>;
 }
 
 export type UpdateStatus =

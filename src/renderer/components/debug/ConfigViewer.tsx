@@ -18,6 +18,7 @@ export interface ConfigViewerProps {
   startEditing: (key: string, value: unknown) => void;
   cancelEditing: () => void;
   saveConfig: (key: string) => Promise<void>;
+  deleteConfig: (key: string) => Promise<void>;
   setEditValue: (value: string) => void;
   setSaveError: (error: string | null) => void;
 }
@@ -32,9 +33,14 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
   startEditing,
   cancelEditing,
   saveConfig,
+  deleteConfig,
   setEditValue,
   setSaveError,
 }) => {
+  const [confirmDeleteKey, setConfirmDeleteKey] = React.useState<string | null>(
+    null,
+  );
+
   const renderConfigItem = (
     key: string,
     name: string,
@@ -104,20 +110,36 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
           </div>
 
           {!isEditing ? (
-            <button
-              onClick={() => startEditing(key, value)}
-              style={{
-                background: "rgba(255,255,255,0.1)",
-                color: "#ccc",
-                border: "none",
-                padding: "2px 8px",
-                borderRadius: "3px",
-                cursor: "pointer",
-                fontSize: "11px",
-              }}
-            >
-              Edit
-            </button>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                onClick={() => setConfirmDeleteKey(key)}
+                style={{
+                  background: "#4e1e1e",
+                  color: "#fff",
+                  border: "none",
+                  padding: "2px 8px",
+                  borderRadius: "3px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => startEditing(key, value)}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#ccc",
+                  border: "none",
+                  padding: "2px 8px",
+                  borderRadius: "3px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Edit
+              </button>
+            </div>
           ) : (
             <div style={{ display: "flex", gap: "6px" }}>
               <button
@@ -295,6 +317,99 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
               true,
             ),
           )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteKey && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            style={{
+              background: "#252526",
+              padding: "24px",
+              borderRadius: "8px",
+              width: "400px",
+              border: "1px solid #444",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+              animation: "slideUp 0.3s ease-out",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 16px 0",
+                color: "#f48771",
+                fontSize: "18px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              ⚠️ 설정 삭제 확인
+            </h3>
+            <p
+              style={{ margin: "0 0 24px 0", color: "#ccc", fontSize: "13px" }}
+            >
+              다음 설정을 정말로 삭제하시겠습니까? 삭제된 설정은 복구할 수
+              없으며, 런처 재시작 후 기본값으로 초기화되거나 완전히 제거됩니다.
+              <br />
+              <br />
+              <strong style={{ color: "#fff", fontFamily: "monospace" }}>
+                Key: {confirmDeleteKey}
+              </strong>
+            </p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
+              <button
+                onClick={() => setConfirmDeleteKey(null)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#333",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={async () => {
+                  await deleteConfig(confirmDeleteKey);
+                  setConfirmDeleteKey(null);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  background: "#a52a2a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                삭제하기
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

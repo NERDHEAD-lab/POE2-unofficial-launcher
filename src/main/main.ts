@@ -21,11 +21,15 @@ import {
   LogWebRootHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
-  PatchProgressHandler, // Added
-  triggerPendingManualPatches, // Added
-  cancelPendingPatches, // Added
+  PatchProgressHandler,
+  triggerPendingManualPatches,
+  cancelPendingPatches,
 } from "./events/handlers/AutoPatchHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
+import {
+  ConfigChangeSyncHandler,
+  ConfigDeleteSyncHandler,
+} from "./events/handlers/ConfigSyncHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
 import {
@@ -46,6 +50,7 @@ import {
 import {
   AppContext,
   ConfigChangeEvent,
+  ConfigDeleteEvent,
   EventType,
   GameStatusChangeEvent,
   EventHandler,
@@ -63,6 +68,7 @@ import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
   setConfig,
+  deleteConfig,
   setupStoreObservers,
   default as store,
 } from "./store";
@@ -254,12 +260,25 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
 
   setConfig(key, value);
 
-  // Dispatch Config Change Event
+  // Dispatch Config Change Event (Sync Handler will handle UI broadcast)
   if (appContext) {
     eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
       key,
       oldValue,
       newValue: value,
+    });
+  }
+});
+
+ipcMain.handle("config:delete", (_event, key: string) => {
+  const oldValue = getConfig(key);
+  deleteConfig(key);
+
+  // Dispatch Config Delete Event (Sync Handler will handle UI broadcast)
+  if (appContext) {
+    eventBus.emit<ConfigDeleteEvent>(EventType.CONFIG_DELETE, appContext, {
+      key,
+      oldValue,
     });
   }
 });
@@ -516,6 +535,8 @@ setupStoreObservers(context);
 // 4. Register Event Handlers
 const handlers = [
   DebugLogHandler,
+  ConfigChangeSyncHandler,
+  ConfigDeleteSyncHandler,
   StartPoe1KakaoHandler,
   StartPoe2KakaoHandler,
   StartPoeGggHandler,

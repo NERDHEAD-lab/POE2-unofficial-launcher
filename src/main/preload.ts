@@ -125,4 +125,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
     gameId: AppConfig["activeGame"],
   ) => ipcRenderer.invoke("patch:check-backup", serviceId, gameId),
   getDebugHistory: () => ipcRenderer.invoke("debug:get-history"),
+  deleteConfig: (key: string) => ipcRenderer.invoke("config:delete", key),
 });
