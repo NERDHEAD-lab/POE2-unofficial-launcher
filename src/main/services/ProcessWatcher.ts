@@ -92,39 +92,46 @@ export class ProcessWatcher {
   }
 
   public cancelSuspension() {
+    // If optimization is disabled, we are already running and never suspended.
+    if (!this.isOptimizationEnabled()) {
+      return;
+    }
+
     if (this.suspendTimer) {
       // Cancel pending suspension
       clearTimeout(this.suspendTimer);
       this.suspendTimer = null;
-    } else {
-      // Resume if suspended (Timer was null implies it might have fired)
-      // Check if we are running first to be safe, but startWatching is idempotent now.
+    } else if (!this.timer) {
+      // Only log and start if it was actually stopped (timer is null)
       this.logger.log("Resuming from suspension.");
       this.startWatching();
     }
   }
 
   public wakeUp(reason: string) {
-    // 1. Cancel suspension timer if running
+    // 1. If optimization is disabled, we should already be running.
+    if (!this.isOptimizationEnabled()) {
+      if (!this.timer) this.startWatching();
+      return;
+    }
+
+    // 2. Cancel suspension timer if running
     if (this.suspendTimer) {
       clearTimeout(this.suspendTimer);
       this.suspendTimer = null;
     }
 
-    // 2. Restart/Resume Watcher
-    this.startWatching();
-
-    // If optimization is disabled, keep running indefinitely.
-    if (!this.isOptimizationEnabled()) {
-      return;
+    // 3. Restart/Resume Watcher if not running
+    if (!this.timer) {
+      this.logger.log(`Waking up for: ${reason}`);
+      this.startWatching();
     }
 
-    // 3. Reset Timer if app is still inactive
+    // 4. Reset Timer since app is still inactive (wakeUp is typically called from background events)
     const isMainFocused = this.context.mainWindow?.isFocused();
     const isDebugFocused = this.context.debugWindow?.isFocused();
 
     if (!isMainFocused && !isDebugFocused) {
-      this.logger.log(`Waking up for: ${reason}`);
       this.suspendTimer = setTimeout(() => {
         this.suspendTimer = null;
         this.logger.log("Wake-up period ended. Suspending again.");
