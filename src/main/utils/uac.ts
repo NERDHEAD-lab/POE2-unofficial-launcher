@@ -120,13 +120,13 @@ export async function enableUACBypass(): Promise<boolean> {
   }
 
   // 1. Create runner.vbs (Runs as Admin via Task Scheduler)
-  const runnerScriptContent = `
+  const runnerScriptContent = `\ufeff
 On Error Resume Next
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
 ' Read argument from shared file
-Set ts = fso.OpenTextFile("${argsFilePath.replaceAll("\\", "\\\\")}", 1)
+Set ts = fso.OpenTextFile("${argsFilePath}", 1)
 arg = ts.ReadAll
 ts.Close
 arg = Trim(arg)
@@ -137,22 +137,26 @@ logStream.Type = 2
 logStream.Charset = "utf-8"
 logStream.Open
 logStream.WriteText Now & " [Runner] Starting..." & vbCrLf
-logStream.WriteText Now & " [Runner] Target Exe: ${daumStarterForScript.replaceAll("\\", "\\\\")}" & vbCrLf
+logStream.WriteText Now & " [Runner] Target Exe: ${daumStarterForScript}" & vbCrLf
 logStream.WriteText Now & " [Runner] Read arg: " & arg & vbCrLf
 
 ' Execute real starter
-shell.Run """${daumStarterForScript.replaceAll("\\", "\\\\")}"" " & arg, 1, False
+shell.Run """${daumStarterForScript}"" " & arg, 1, False
 
 If Err.Number <> 0 Then
     logStream.WriteText Now & " [Runner] Error: " & Err.Description & vbCrLf
 End If
 
-logStream.SaveToFile "${debugLogPath.replaceAll("\\", "\\\\")}", 2
+logStream.SaveToFile "${debugLogPath}", 2
 logStream.Close
-`;
+`.trim();
 
   try {
-    writeFileSync(runnerVbsPath, runnerScriptContent);
+    // [Fix] Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
+    // Prepend BOM and use utf16le encoding.
+    writeFileSync(runnerVbsPath, "\ufeff" + runnerScriptContent, {
+      encoding: "utf16le",
+    });
   } catch (e: unknown) {
     const error = e as Error;
     logger.error(`[UAC] Failed to create runner script: ${error.message}`);
@@ -160,7 +164,7 @@ logStream.Close
   }
 
   // 2. Create proxy.vbs (Runs as User, triggers Task)
-  const proxyScriptContent = `
+  const proxyScriptContent = `\ufeff
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
@@ -172,7 +176,7 @@ Else
 End If
 
 ' Write arg to shared file
-Set ts = fso.CreateTextFile("${argsFilePath.replaceAll("\\", "\\\\")}", True)
+Set ts = fso.CreateTextFile("${argsFilePath}", True)
 ts.WriteLine arg
 ts.Close
 
@@ -183,14 +187,18 @@ logStream.Charset = "utf-8"
 logStream.Open
 logStream.WriteText Now & " [Proxy] Received args: " & arg & vbCrLf
 logStream.WriteText Now & " [Proxy] Triggering Task: ${TASK_NAME}" & vbCrLf
-logStream.SaveToFile "${debugLogPath.replaceAll("\\", "\\\\")}", 2
+logStream.SaveToFile "${debugLogPath}", 2
 logStream.Close
 
 shell.Run "schtasks /run /tn """ & "${TASK_NAME}" & """", 0, False
-`;
+`.trim();
 
   try {
-    writeFileSync(proxyVbsPath, proxyScriptContent);
+    // [Fix] Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
+    // Prepend BOM and use utf16le encoding.
+    writeFileSync(proxyVbsPath, "\ufeff" + proxyScriptContent, {
+      encoding: "utf16le",
+    });
   } catch (e: unknown) {
     const error = e as Error;
     logger.error(`[UAC] Failed to create proxy script: ${error.message}`);
@@ -290,7 +298,7 @@ function createCleanupScript(originalCmd: string): void {
     .replace(/\r?\n/g, "") // Single line
     .replace(/%/g, "%%"); // [Fix] Escape % to %% for Batch file execution
 
-  const batContent = `
+  const batContent = `\ufeff
 @echo off
 chcp 65001 >nul
 
@@ -310,10 +318,13 @@ exit /b
 schtasks /delete /tn "${TASK_NAME}" /f >nul 2>&1
 
 :: 2. Restore Registry (via PowerShell for safety)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd}'; Set-Item -Path '${PROTOCOL_KEY}' -Value $val -Force" >nul 2>&1
+:: Use double single-quotes for PowerShell string if needed
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd.replaceAll("'", "''")}'; Set-Item -Path '${PROTOCOL_KEY}' -Value $val -Force" >nul 2>&1
   `.trim();
 
   try {
+    // [Fix] Batch files (.bat) don't support UTF-16 well, and UTF-8 BOM can cause syntax errors
+    // in the first command for some CMD environments. Use plain UTF-8 (without BOM).
     writeFileSync(batPath, batContent, { encoding: "utf8" });
     logger.log("[UAC] Created cleanup script at:", batPath);
   } catch (e) {
