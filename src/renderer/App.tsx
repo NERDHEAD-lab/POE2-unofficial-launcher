@@ -100,6 +100,16 @@ function App() {
   });
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isLowResMode, setIsLowResMode] = useState(false);
+
+  // [NEW] Scaling Mode Listener
+  useEffect(() => {
+    if (window.electronAPI.onScalingModeChange) {
+      return window.electronAPI.onScalingModeChange((enabled: boolean) => {
+        setIsLowResMode(enabled);
+      });
+    }
+  }, []);
 
   // [NEW] Patch Modal State
   const [patchModalState, setPatchModalState] = useState<{
@@ -552,10 +562,44 @@ function App() {
     window.electronAPI?.setConfig(CONFIG_KEYS.SHOW_ONBOARDING, false);
   };
 
+  // --- Auto Scaling Logic (Scale-to-Fit) ---
+  const BASE_WIDTH = 1440;
+  const BASE_HEIGHT = 960;
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      // Calculate ratios for both dimensions
+      const widthRatio = windowWidth / BASE_WIDTH;
+      const heightRatio = windowHeight / BASE_HEIGHT;
+
+      // Use the smaller ratio to ensure UI fits within the window
+      // [Fix] Cap scale at 1.0 to prevent scaling-up (oversizing) on high-res monitors
+      const newScale = Math.min(widthRatio, heightRatio, 1.0);
+      setScale(newScale);
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
   return (
     <div
       id="app-container"
       className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#000",
+        overflow: "hidden",
+      }}
     >
       <OnboardingModal
         isOpen={showOnboarding}
@@ -595,162 +639,193 @@ function App() {
         onClose={handlePatchClose}
       />
 
-      {/* Background Layer for Transitions */}
+      {/* Scalable UI Content */}
       <div
-        id="app-background"
+        className="app-scaler"
         style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${bgImage}')`,
-          opacity: bgOpacity,
-        }}
-      />
-
-      {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
-      <TitleBar
-        showUpdateIcon={!isUpdateModalOpen && updateState.state === "available"}
-        onUpdateClick={() => setIsUpdateModalOpen(true)}
-      />
-
-      {/* 2. Main Content Frame */}
-      <div
-        className="app-main-content"
-        style={{
-          flex: 1,
+          transform: `scale(${scale})`,
+          width: `${BASE_WIDTH}px`,
+          height: `${BASE_HEIGHT}px`,
+          transformOrigin: "center center",
           display: "flex",
           flexDirection: "column",
           position: "relative",
           zIndex: 10,
-          minHeight: 0 /* Force flex constraints */,
-          overflow: "hidden" /* Clip any runaway contents */,
-          paddingTop:
-            "32px" /* Ensure content starts below absolute TitleBar */,
+          flexShrink: 0,
+          backgroundColor: "#000", // Background of the UI frame itself
         }}
       >
-        {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
-        <div className="frame-decoration top-center"></div>
-        <div className="frame-decoration top-left"></div>
-        <div className="frame-decoration top-right"></div>
+        {/* Background Layer (Now inside Scaler to create Letterbox effect) */}
+        <div
+          id="app-background"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${bgImage}')`,
+            opacity: bgOpacity,
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundSize: "cover",
+            backgroundPosition: "center top",
+            zIndex: 0,
+          }}
+        />
+        {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
+        <TitleBar
+          title={`PoE Unofficial Launcher v${__APP_VERSION__}${isLowResMode ? " (저해상도 지원 모드)" : ""}`}
+          showUpdateIcon={
+            !isUpdateModalOpen && updateState.state === "available"
+          }
+          onUpdateClick={() => setIsUpdateModalOpen(true)}
+        />
 
-        <div className="app-layout">
-          {/* === Left Panel: Controls (400px width) === */}
-          <div className="left-panel">
-            {/* Section A: Game Selector (Top) */}
-            <div style={{ marginTop: "10px" }}>
-              <GameSelector
-                activeGame={activeGame}
-                onGameChange={handleGameChange}
-              />
-            </div>
+        {/* 2. Main Content Frame */}
+        <div
+          className="app-main-content"
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            position: "relative",
+            zIndex: 10,
+            minHeight: 0 /* Force flex constraints */,
+            overflow: "hidden" /* Clip any runaway contents */,
+            paddingTop:
+              "32px" /* Ensure content starts below absolute TitleBar */,
+          }}
+        >
+          {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
+          <div className="frame-decoration top-center"></div>
+          <div className="frame-decoration top-left"></div>
+          <div className="frame-decoration top-right"></div>
 
-            {/* Section B: Menu Area (Middle) - Flex Grow */}
-            <div
-              className="middle-menu-area"
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-start" /* Top align */,
-                alignItems: "flex-start" /* Left align */,
-                paddingTop: "40px" /* Some top spacing */,
-                paddingLeft: "20px" /* Small padding for left alignment */,
-                paddingRight: "20px" /* Symmetric padding */,
-              }}
-            >
-              <SupportLinks />
-            </div>
-
-            {/* Section C: Game Start & Company Logos (Bottom) */}
-            <div className="bottom-controls">
-              <div style={{ width: "340px", marginBottom: "4px" }}>
-                <ServiceChannelSelector
-                  channel={serviceChannel}
-                  onChannelChange={handleChannelChange}
-                  onSettingsClick={() => setIsSettingsOpen(true)}
+          <div className="app-layout">
+            {/* === Left Panel: Controls (400px width) === */}
+            <div className="left-panel">
+              {/* Section A: Game Selector (Top) */}
+              <div style={{ marginTop: "10px" }}>
+                <GameSelector
+                  activeGame={activeGame}
+                  onGameChange={handleGameChange}
                 />
               </div>
-              <GameStartButton
-                onClick={handleGameStart}
-                label={
-                  activeGameStatus.status === "uninstalled"
-                    ? "설치하기"
-                    : "게임 시작"
-                }
-                className={isButtonDisabled ? "disabled" : ""}
-                style={
-                  isButtonDisabled
-                    ? {
-                        opacity: 0.5,
-                        cursor: "not-allowed",
-                        pointerEvents: "none",
-                      }
-                    : {}
-                }
-              />
 
-              {/* Progress Info Message */}
+              {/* Section B: Menu Area (Middle) - Flex Grow */}
               <div
+                className="middle-menu-area"
                 style={{
-                  height: "20px",
-                  marginTop: "2px",
-                  marginBottom: "2px",
+                  flex: 1,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--theme-accent)",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                  opacity: activeStatusMessage ? 1 : 0,
-                  transition: "opacity 0.3s ease-in-out",
+                  flexDirection: "column",
+                  justifyContent: "flex-start" /* Top align */,
+                  alignItems: "flex-start" /* Left align */,
+                  paddingTop: "40px" /* Some top spacing */,
+                  paddingLeft: "20px" /* Small padding for left alignment */,
+                  paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                {activeStatusMessage || " "}
+                <SupportLinks />
               </div>
 
-              {/* Company Logos - Removed and moved to Service Channel Dropdown */}
-              <div className="company-logos" style={{ display: "none" }} />
-            </div>
-          </div>
+              {/* Section C: Game Start & Company Logos (Bottom) */}
+              <div className="bottom-controls">
+                <div style={{ width: "340px", marginBottom: "4px" }}>
+                  <ServiceChannelSelector
+                    channel={serviceChannel}
+                    onChannelChange={handleChannelChange}
+                    onSettingsClick={() => setIsSettingsOpen(true)}
+                  />
+                </div>
+                <GameStartButton
+                  onClick={handleGameStart}
+                  label={
+                    activeGameStatus.status === "uninstalled"
+                      ? "설치하기"
+                      : "게임 시작"
+                  }
+                  className={isButtonDisabled ? "disabled" : ""}
+                  style={
+                    isButtonDisabled
+                      ? {
+                          opacity: 0.5,
+                          cursor: "not-allowed",
+                          pointerEvents: "none",
+                        }
+                      : {}
+                  }
+                />
 
-          {/* === Right Panel: Content Area === */}
-          <div className="right-panel">
-            <div className="dev-notice-container">
-              <NewsSection
-                title="개발자 공지사항"
-                items={devNotices}
-                forumUrl=""
-                onRead={handleDevRead}
-                isDevSection={true}
-                headerVariant="long"
+                {/* Progress Info Message */}
+                <div
+                  style={{
+                    height: "20px",
+                    marginTop: "2px",
+                    marginBottom: "2px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--theme-accent)",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                    opacity: activeStatusMessage ? 1 : 0,
+                    transition: "opacity 0.3s ease-in-out",
+                  }}
+                >
+                  {activeStatusMessage || " "}
+                </div>
+
+                {/* Company Logos - Removed and moved to Service Channel Dropdown */}
+                <div className="company-logos" style={{ display: "none" }} />
+              </div>
+            </div>
+
+            {/* === Right Panel: Content Area === */}
+            <div className="right-panel">
+              <div className="dev-notice-container">
+                <NewsSection
+                  title="개발자 공지사항"
+                  items={devNotices}
+                  forumUrl=""
+                  onRead={handleDevRead}
+                  isDevSection={true}
+                  headerVariant="long"
+                />
+              </div>
+              <NewsDashboard
+                activeGame={activeGame}
+                serviceChannel={serviceChannel}
               />
             </div>
-            <NewsDashboard
-              activeGame={activeGame}
-              serviceChannel={serviceChannel}
-            />
-          </div>
-        </div>
-
-        {/* Footer Section (Button + Image Separation) */}
-        <div className="footer-section">
-          {/* 1. Background Image Wrapper (Clipped) */}
-          <div className="footer-bg-wrapper">
-            <img
-              src={bannerBottom}
-              className="footer-bg-image"
-              alt="Footer Banner"
-            />
           </div>
 
-          {/* 2. Content Overlay (Text & Icon) */}
-          <div className="footer-content">
-            <span className="credits-text">Powered by NERDHEAD LAB</span>
-            <a
-              href={SUPPORT_URLS.GITHUB_REPO}
-              target="_blank"
-              className="github-link"
-            >
-              <img src={iconGithub} className="github-icon" alt="GitHub Repo" />
-            </a>
+          {/* Footer Section (Button + Image Separation) */}
+          <div className="footer-section">
+            {/* 1. Background Image Wrapper (Clipped) */}
+            <div className="footer-bg-wrapper">
+              <img
+                src={bannerBottom}
+                className="footer-bg-image"
+                alt="Footer Banner"
+              />
+            </div>
+
+            {/* 2. Content Overlay (Text & Icon) */}
+            <div className="footer-content">
+              <span className="credits-text">Powered by NERDHEAD LAB</span>
+              <a
+                href={SUPPORT_URLS.GITHUB_REPO}
+                target="_blank"
+                className="github-link"
+              >
+                <img
+                  src={iconGithub}
+                  className="github-icon"
+                  alt="GitHub Repo"
+                />
+              </a>
+            </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, dialog, shell, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  session,
+  screen,
+} from "electron";
 import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
@@ -609,6 +617,78 @@ handlers.forEach((handler) => {
 
 // Track app quitting state to bypass "hide-on-close" behavior
 let isQuitting = false;
+const BASE_WIDTH = 1440;
+const BASE_HEIGHT = 960;
+
+let lastLoggedContext = "";
+
+/**
+ * Dynamically adjusts window constraints (resizable, size, etc.) based on the current display environment.
+ */
+function applyIntelligentConstraints(win: BrowserWindow | null) {
+  if (!win || win.isDestroyed()) return;
+
+  // Use the display where the window is currently located
+  const currentDisplay = screen.getDisplayNearestPoint(win.getBounds());
+  const { width: screenWidth, height: screenHeight } =
+    currentDisplay.workAreaSize;
+
+  const needsScaling =
+    screenWidth < BASE_WIDTH + 10 || screenHeight < BASE_HEIGHT + 10;
+
+  // [Fix] Prevent log spam: Only log when the display or resolution actually changes
+  const contextKey = `${currentDisplay.id}-${screenWidth}x${screenHeight}`;
+  if (contextKey !== lastLoggedContext) {
+    logger.log(
+      `[Main] UI Context Update: Display [${currentDisplay.id}] (${screenWidth}x${screenHeight}), ScalingRequired: ${needsScaling}`,
+    );
+    lastLoggedContext = contextKey;
+  }
+
+  if (needsScaling) {
+    // Small Screen / High DPI: Enable flexibility
+    if (!win.isResizable()) win.setResizable(true);
+    if (!win.isMaximizable()) win.setMaximizable(true);
+
+    // Initial fill: If window is currently too large for the work area, maximize it
+    const [currW, currH] = win.getSize();
+    if (currW > screenWidth || currH > screenHeight) {
+      if (!win.isMaximized()) {
+        win.maximize();
+      }
+    }
+
+    // [New] Update Window Title for Status Indication
+    win.setTitle(
+      `PoE Unofficial Launcher v${app.getVersion()} (저해상도 지원 모드)`,
+    );
+    win.webContents.send("scaling-mode-changed", true);
+  } else {
+    // Large Screen: Force fixed UX for stability as requested
+    // [Fix] Order of operations: We must allow resizing/maximizing before we can unmaximize and set the size.
+    if (!win.isResizable()) win.setResizable(true);
+    if (!win.isMaximizable()) win.setMaximizable(true);
+
+    if (win.isMaximized()) {
+      win.unmaximize();
+    }
+
+    // Ensure it's exactly the base size
+    const [currW, currH] = win.getSize();
+    if (currW !== BASE_WIDTH || currH !== BASE_HEIGHT) {
+      win.setSize(BASE_WIDTH, BASE_HEIGHT);
+      win.center();
+    }
+
+    // [Fix] LOCK constraints AFTER the transformation is complete
+    win.setResizable(false);
+    win.setMaximizable(false);
+
+    // [New] Restore Window Title
+    win.setTitle(`PoE Unofficial Launcher v${app.getVersion()}`);
+    win.webContents.send("scaling-mode-changed", false);
+  }
+}
 
 // Global Context
 let appContext: AppContext;
@@ -621,18 +701,34 @@ newsService.init(() => {
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
-    width: 1440, // Increased by 20% (1200 * 1.2)
-    height: 960, // Increased by 20% (800 * 1.2)
-    resizable: false, // Fixed size
-    maximizable: false, // Prevent maximize on double-click
-    frame: false, // Disable OS Frame
-    titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
+    width: BASE_WIDTH,
+    height: BASE_HEIGHT,
+    minWidth: 1024,
+    minHeight: 683,
+    resizable: false, // Will be updated by applyIntelligentConstraints
+    maximizable: false, // Will be updated by applyIntelligentConstraints
+    frame: false,
+    titleBarStyle: "hidden",
     icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
-    show: false, // Start hidden to prevent white flash
-    backgroundColor: "#000000", // Match app theme
+    show: false,
+    backgroundColor: "#000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // Apply initial constraints based on the display it will open on
+  applyIntelligentConstraints(mainWindow);
+
+  // Monitor for resolution/DPI changes OR moving between monitors
+  screen.on("display-metrics-changed", () => {
+    logger.log("[Main] Display metrics changed. Updating UI constraints...");
+    applyIntelligentConstraints(mainWindow);
+  });
+
+  // Also update when window is moved (to handle multi-monitor scaling)
+  mainWindow.on("move", () => {
+    applyIntelligentConstraints(mainWindow);
   });
 
   // Reveal window when ready-to-show
@@ -730,18 +826,7 @@ function createWindows() {
     },
   );
 
-  // FIX: Prevent forced fullscreen/maximize on monitor driver reset
-  mainWindow.on("maximize", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.unmaximize();
-    }
-  });
-
-  mainWindow.on("enter-full-screen", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setFullScreen(false);
-    }
-  });
+  // [Removed] Prevented forced fullscreen/maximize - Now allowing it for scaling
 
   // Initialize Global Context
   appContext = context;
@@ -845,17 +930,7 @@ function createWindows() {
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
-
-    // [Fix] Automatically restore window size if it was stretched by OS/Resolution changes
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const [width, height] = mainWindow.getSize();
-      if (width !== 1440 || height !== 960) {
-        logger.log(
-          `[Main] Resolution divergence detected (${width}x${height}). Restoring to 1440x960.`,
-        );
-        mainWindow.setSize(1440, 960);
-      }
-    }
+    // [Removed] Legacy forced restoration - Now handled by applyIntelligentConstraints in display events
   });
 
   // 2. Game Window (Lazy Init - Do NOT create here)

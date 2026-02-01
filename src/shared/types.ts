@@ -162,6 +162,7 @@ export interface ElectronAPI {
   relaunchApp: () => void;
   logoutSession: () => Promise<boolean>;
   deleteConfig: (key: string) => Promise<void>;
+  onScalingModeChange?: (callback: (enabled: boolean) => void) => () => void;
 }
 
 export type UpdateStatus =

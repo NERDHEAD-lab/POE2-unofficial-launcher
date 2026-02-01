@@ -211,6 +211,17 @@
   - **통합 가시성**: 개발자 도구를 열지 않고도 런처 UI 내에서 모든 시스템 흐름과 자동화 과정을 실시간으로 모니터링할 수 있음.
   - **디버깅 편의성**: 로그 발생 시점의 정확한 타임스탬프와 프로세스 문맥을 보존하여 복합적인 오류 원인을 빠르게 식별함.
 
+#### ADR-016: Intelligent Window Scaling & Real-time Resolution Adaptation
+
+- **상황**: 1440x960 고정 해상도 런처가 FHD 노트북이나 UMPC(Steam Deck, Legion Go 등)와 같은 저해상도/고배율 환경에서 UI가 잘리거나 조작이 불가능해지는 현상이 발생함.
+- **결정**:
+  - **Dynamic Scaling Mode**: 화면 해상도를 실시간으로 감지하여, 공간이 부족할 경우 `resizable: true` 모드로 자동 전환하고 렌더러에서 `transform: scale()`을 이용한 Scale-to-fit을 적용함.
+  - **Fixed UX Priority**: QHD/4K 등 충분한 해상도 환경에서는 기존의 고정형 창(Fixed size) UX를 우선하여 디자인 정체성을 유지함.
+  - **Real-time Metrics Observation**: `display-metrics-changed` 및 `move` 이벤트를 구독하여 창이 다른 모니터로 이동하거나 해상도 설정이 변경되는 즉시 모드를 전환함.
+  - **Letterbox Implementation**: 배경 이미지를 스케일러 내부로 가두어, 화면 비율이 다를 경우 상하단/좌우에 블랙 바를 형성함으로써 시각적 일관성을 확보함.
+  - **State Indication**: 저해상도 지원 모드 활성화 시 타이틀바 제목에 상태 문구를 추가하여 사용자에게 가변 모드임을 인지시킴.
+- **결과**: 다양한 폼팩터(UMPC, 구형 노트북 등)에서 런처가 잘림 없이 항상 최적의 크기로 노출되며, 고성능 환경에서는 원래의 프리미엄 고정 디자인을 유지함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.

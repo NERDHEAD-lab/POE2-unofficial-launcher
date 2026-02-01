@@ -126,4 +126,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => ipcRenderer.invoke("patch:check-backup", serviceId, gameId),
   getDebugHistory: () => ipcRenderer.invoke("debug:get-history"),
   deleteConfig: (key: string) => ipcRenderer.invoke("config:delete", key),
+  onScalingModeChange: (callback: (enabled: boolean) => void) => {
+    const handler = (_event: IpcRendererEvent, enabled: boolean) =>
+      callback(enabled);
+    ipcRenderer.on("scaling-mode-changed", handler);
+    return () => ipcRenderer.off("scaling-mode-changed", handler);
+  },
 });
