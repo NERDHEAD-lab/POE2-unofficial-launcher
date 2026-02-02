@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.0...0.6.1) (2026-02-02)
+
+
+### Bug Fixes
+
+* 간편 로그인이 로그인 직전에 풀리는 문제 수정 ([5cd3ec2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5cd3ec282632829d22c3355b7fd285ebf42f74e4))
+* 간편 로그인이 로그인 직전에 풀리는 문제 수정 ([0941020](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0941020752d7e91aeaf58e1d78fd919e34a08665))
+
 ## [0.6.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.5.0...0.6.0) (2026-02-02)
 
 
