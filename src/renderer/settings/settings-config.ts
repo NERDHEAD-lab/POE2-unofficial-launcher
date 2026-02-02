@@ -516,6 +516,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     sections: [
       {
         id: "abt_info",
+        title: "일반 정보",
         items: [
           {
             id: "version_info",
@@ -536,6 +537,62 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               url: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/master/LICENSE",
             },
             icon: "description",
+          },
+        ],
+      },
+      {
+        id: "abt_paths",
+        title: "경로 정보",
+        items: [
+          {
+            id: "btn_open_install",
+            type: "button",
+            label: "런처 설치 경로",
+            buttonText: "폴더 열기",
+            icon: "folder_shared",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                clearDescription();
+                addDescription(installDir, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                await window.electronAPI.openPath(installDir);
+              }
+            },
+          },
+          {
+            id: "btn_open_config",
+            type: "button",
+            label: "설정 파일 경로",
+            buttonText: "폴더 열기",
+            icon: "settings_system_daydream",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                clearDescription();
+                addDescription(userDataPath, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                await window.electronAPI.openPath(userDataPath);
+              }
+            },
           },
         ],
       },

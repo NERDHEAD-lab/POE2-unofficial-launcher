@@ -91,6 +91,8 @@ import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
   readRegistryValue,
   writeRegistryValue,
+  findUninstallKeyByName,
+  runPowerShell,
   LAUNCHER_UNINSTALL_REG_KEY,
 } from "./utils/registry";
 import {
@@ -109,29 +111,50 @@ async function syncInstallLocation() {
   try {
     const currentExePath = app.getPath("exe");
     const currentInstallDir = path.dirname(currentExePath);
+    const exeName = path.basename(currentExePath);
+    const productName = app.getName();
+    const uninstallerName = `Uninstall ${productName}.exe`;
 
-    // [Standard] Check HKCU Uninstall key (used by NSIS and electron-updater)
-    const storedPath = await readRegistryValue(
-      LAUNCHER_UNINSTALL_REG_KEY,
-      "InstallLocation",
-    );
+    // [Strict] We only update if the key explicitly exists. No arbitrary creation.
+    const dynamicKey = await findUninstallKeyByName(productName);
+    const targetKey = dynamicKey || LAUNCHER_UNINSTALL_REG_KEY;
+
+    // Verify key existence before doing anything
+    const psCheckCommand = `Test-Path "${targetKey}"`;
+    const { stdout: exists } = await runPowerShell(psCheckCommand);
+
+    if (exists.trim().toLowerCase() !== "true") {
+      logger.warn(
+        `[Main] Registry key not found for ${productName}. Skipping sync to avoid registry pollution.`,
+      );
+      return;
+    }
+
+    const storedPath = await readRegistryValue(targetKey, "InstallLocation");
 
     if (storedPath !== currentInstallDir) {
       logger.log(
-        `[Main] InstallLocation mismatch detected. Synchronizing registry: ${storedPath || "none"} -> ${currentInstallDir}`,
+        `[Main] Syncing install paths to ${targetKey} (Previous: ${storedPath || "none"})`,
       );
 
-      const success = await writeRegistryValue(
-        LAUNCHER_UNINSTALL_REG_KEY,
-        "InstallLocation",
-        currentInstallDir,
-        false, // HKCU doesn't need admin
-      );
+      const updates = [
+        { key: "InstallLocation", value: currentInstallDir },
+        {
+          key: "UninstallString",
+          value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser`,
+        },
+        {
+          key: "QuietUninstallString",
+          value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser /S`,
+        },
+        {
+          key: "DisplayIcon",
+          value: `${path.join(currentInstallDir, exeName)},0`,
+        },
+      ];
 
-      if (success) {
-        logger.log("[Main] InstallLocation synchronized successfully.");
-      } else {
-        logger.error("[Main] Failed to synchronize InstallLocation.");
+      for (const update of updates) {
+        await writeRegistryValue(targetKey, update.key, update.value, false);
       }
     }
   } catch (error) {
@@ -476,6 +499,17 @@ ipcMain.handle("news:mark-multiple-as-read", async (_event, ids: string[]) => {
 
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   return shell.openExternal(url);
+});
+
+ipcMain.handle(
+  "app:get-path",
+  (_event, name: Parameters<typeof app.getPath>[0]) => {
+    return app.getPath(name);
+  },
+);
+
+ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
+  return shell.openPath(targetPath);
 });
 
 // --- UAC Bypass IPC Handlers ---

@@ -36,8 +36,10 @@ const REGISTRY_MAP: Record<
 export const DAUM_STARTER_PROTOCOL_KEY =
   "Registry::HKEY_CLASSES_ROOT\\daumgamestarter\\shell\\open\\command";
 
-export const LAUNCHER_UNINSTALL_REG_KEY =
-  "Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\com.nerdhead.poe2-launcher";
+// @ts-expect-error - injected by vite
+const APP_GUID = __APP_GUID__;
+
+export const LAUNCHER_UNINSTALL_REG_KEY = `Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_GUID}`;
 
 /**
  * Standardize registry paths to PowerShell Registry:: provider format
@@ -216,4 +218,36 @@ export const isGameInstalled = async (
   } catch (_e) {
     return false;
   }
+};
+
+/**
+ * Finds the actual registry key for a given product name in the Uninstall section
+ */
+export const findUninstallKeyByName = async (
+  productName: string,
+): Promise<string | null> => {
+  const uninstallRoot =
+    "Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+  const psCommand = `
+    Get-ChildItem -Path "${uninstallRoot}" | ForEach-Object {
+      $val = Get-ItemProperty $_.PSPath
+      if ($val.DisplayName -eq "${productName}") {
+        $_.PSPath
+      }
+    }
+  `.trim();
+
+  const { stdout, code } = await runPowerShell(psCommand);
+  if (code === 0 && stdout && stdout.trim()) {
+    // Return the first match, converting PSPath format to our standardized Registry:: format
+    const foundPath = stdout.trim().split("\n")[0].trim();
+    if (foundPath.startsWith("Microsoft.PowerShell.Core\\Registry::")) {
+      return foundPath.replace(
+        "Microsoft.PowerShell.Core\\Registry::",
+        "Registry::",
+      );
+    }
+    return foundPath;
+  }
+  return null;
 };
