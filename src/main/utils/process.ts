@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { PowerShellManager } from "./powershell";
 
 /**
@@ -14,13 +15,14 @@ export const getProcessPaths = async (
     // This ensures we detect the process even if ExecutablePath is null (permission issues)
     const psCommand = `Get-CimInstance Win32_Process -Filter "Name = '${processName}'" | Select-Object ProcessId, ExecutablePath | ConvertTo-Json -Compress`;
 
-    // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
-    // console.log(`[getProcessPaths] Executing PS: ${psCommand}`);
-    const { stdout, stderr } =
-      await PowerShellManager.getInstance().execute(psCommand);
+    const { stdout, stderr } = await PowerShellManager.getInstance().execute(
+      psCommand,
+      false,
+      true,
+    );
 
     if (stderr) {
-      console.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
+      logger.warn(`[getProcessPaths] stderr for ${processName}:`, stderr);
     }
 
     if (!stdout || !stdout.trim()) {
@@ -32,10 +34,7 @@ export const getProcessPaths = async (
     try {
       result = JSON.parse(stdout);
     } catch (e) {
-      console.error(
-        `[getProcessPaths] JSON Parse Error for ${processName}:`,
-        e,
-      );
+      logger.error(`[getProcessPaths] JSON Parse Error for ${processName}:`, e);
       return [];
     }
 
@@ -54,7 +53,11 @@ export const getProcessPaths = async (
         try {
           const fallbackCmd = `Get-Process -Name "${nameInternal}" | Select-Object -ExpandProperty Path | Select-Object -Unique`;
           const { stdout: fallbackOut } =
-            await PowerShellManager.getInstance().execute(fallbackCmd);
+            await PowerShellManager.getInstance().execute(
+              fallbackCmd,
+              false,
+              true,
+            );
 
           if (fallbackOut && fallbackOut.trim()) {
             const fallbackPaths = fallbackOut
@@ -75,7 +78,7 @@ export const getProcessPaths = async (
     // Deduplicate
     return [...new Set(paths)];
   } catch (e) {
-    console.error(`[getProcessPaths] Error executing for ${processName}:`, e);
+    logger.error(`[getProcessPaths] Error executing for ${processName}:`, e);
     return [];
   }
 };
@@ -99,7 +102,11 @@ export const getProcessesInfo = async (
     const filter = processNames.map((name) => `Name = '${name}'`).join(" or ");
     const psCommand = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId, Name, ExecutablePath | ConvertTo-Json -Compress`;
 
-    const { stdout } = await PowerShellManager.getInstance().execute(psCommand);
+    const { stdout } = await PowerShellManager.getInstance().execute(
+      psCommand,
+      false,
+      true,
+    );
 
     if (!stdout || !stdout.trim()) {
       return [];

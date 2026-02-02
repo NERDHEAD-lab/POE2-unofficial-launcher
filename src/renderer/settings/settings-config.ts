@@ -1,16 +1,53 @@
-import { SettingsCategory, SettingValue } from "./types";
+import { SettingsCategory, SettingValue, DescriptionVariant } from "./types";
 import { BackupMetadata } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
+import { logger } from "../utils/logger";
+
+// Helper for Process Watch Mode Description (Warnings Only)
+const updateProcessWatchModeDescription = async (
+  mode: string,
+  addDescription: (text: string, variant?: DescriptionVariant) => void,
+  clearDescription: () => void,
+) => {
+  clearDescription();
+
+  const isAlwaysOn = mode === "always-on";
+
+  if (isAlwaysOn) {
+    // Check for warnings
+    const autoLaunch = await window.electronAPI?.getConfig("autoLaunch");
+    const closeAction = await window.electronAPI?.getConfig("closeAction");
+
+    const warnings: string[] = [];
+    if (!autoLaunch)
+      warnings.push("- 컴퓨터 시작 시 자동 실행이 꺼져 있습니다.");
+    if (closeAction === "close")
+      warnings.push(
+        "- 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
+      );
+
+    if (warnings.length > 0) {
+      addDescription(
+        "[주의]\n" +
+          warnings.join("\n") +
+          "\n\n런처가 실행 중이지 않으면 감지가 불가능할 수 있습니다.",
+        "warning",
+      );
+    }
+  }
+};
 
 const initBackupButton = async (
   {
     setValue: _setValue,
-    setDescription,
+    addDescription,
+    clearDescription,
     setDisabled: _setDisabled,
     setVisible,
   }: {
     setValue: (v: SettingValue) => void;
-    setDescription: (d: string) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    clearDescription: () => void;
     setDisabled: (v: boolean) => void;
     setVisible: (v: boolean) => void;
   },
@@ -42,18 +79,21 @@ const initBackupButton = async (
     desc += `\n- 백업 일시: ${dateStr}`;
     if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
 
-    setDescription(desc);
+    clearDescription();
+    addDescription(desc);
   }
 };
 
 const initDevSetting = async ({
   setValue,
   setDisabled,
-  setDescription: _setDescription,
+  addDescription: _addDescription,
+  clearDescription: _clearDescription,
   setVisible: _setVisible,
 }: {
   setValue: (v: SettingValue) => void;
-  setDescription: (d: string) => void;
+  addDescription: (text: string, variant?: DescriptionVariant) => void;
+  clearDescription: () => void;
   setDisabled: (v: boolean) => void;
   setVisible: (v: boolean) => void;
 }) => {
@@ -75,7 +115,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "autoLaunch",
-            type: "switch",
+            type: "check",
             label: "컴퓨터 시작 시 자동 실행",
             description: "컴퓨터 시작 시 게임 런처를 자동으로 실행합니다.",
             icon: "power_settings_new",
@@ -88,7 +128,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "quitOnGameStart",
-            type: "switch",
+            type: "check",
             label: "게임 실행 시 런처 닫기",
             description:
               "게임 실행 시 런처를 자동으로 닫습니다. (닫기 설정을 따름)",
@@ -96,7 +136,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "startMinimized",
-            type: "switch",
+            type: "check",
             label: "트레이로 최소화하여 실행",
             description:
               "자동 실행 시 창을 띄우지 않고 트레이 아이콘으로 시작합니다.",
@@ -140,6 +180,89 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onChangeListener: (val, { showToast }) => {
               showToast(
                 `[런처 언어] ${val === "ko" ? "한국어 (Korean)" : "English"}`,
+              );
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "performance",
+    label: "성능",
+    icon: "speed",
+    sections: [
+      {
+        id: "perf_process",
+        title: "프로세스 관리",
+        items: [
+          {
+            id: "processWatchMode", // Match config name (but manual sync via defaultValue)
+            type: "radio",
+            label: "패치 오류 감지 모드",
+            description: "",
+            defaultValue: "resource-saving", // Prevents auto-sync to store
+            options: [
+              {
+                label: "런처를 통한 실행만 감지",
+                value: "resource-saving",
+                description:
+                  "런처의 [게임 시작] 버튼으로 실행할 때만 패치 오류를 검사합니다.",
+              },
+              {
+                label: "항상 감지 (모든 경로)",
+                value: "always-on",
+                description:
+                  "런처가 켜져 있다면, 홈페이지(카카오게임즈) 혹은 바로가기 실행(GGG) 시에도 즉시 오류를 감지합니다.",
+              },
+            ],
+            icon: "monitor_heart",
+            onInit: async ({
+              setValue,
+              addDescription,
+              setLabel,
+              clearDescription,
+            }) => {
+              // Manual Sync: Read from actual config
+              const mode = (await window.electronAPI?.getConfig(
+                "processWatchMode",
+              )) as string;
+
+              // Default to resource-saving if undefined/null
+              const currentMode =
+                mode === "always-on" ? "always-on" : "resource-saving";
+              setValue(currentMode);
+
+              // Clear default static label - Radio has its own labels
+              setLabel("패치 오류 감지 모드");
+
+              // Update Description using Helper
+              await updateProcessWatchModeDescription(
+                currentMode,
+                addDescription,
+                clearDescription,
+              );
+            },
+            onChangeListener: async (
+              val,
+              { addDescription, clearDescription, showToast },
+            ) => {
+              // Manual Sync: Write to actual config
+              // val is already string "resource-saving" | "always-on" due to Radio type
+              const newMode = val as string;
+              await window.electronAPI?.setConfig("processWatchMode", newMode);
+
+              const isAlwaysOn = newMode === "always-on";
+
+              showToast(
+                `[패치 오류 감지] ${isAlwaysOn ? "항상 감지 (모든 경로)" : "런처를 통한 실행만 감지"}`,
+              );
+
+              // Update Description using Helper
+              await updateProcessWatchModeDescription(
+                newMode,
+                addDescription,
+                clearDescription,
               );
             },
           },
@@ -194,7 +317,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                       showToast("[로그아웃] 실패했습니다.");
                     }
                   } catch (err) {
-                    console.error("[Settings] Logout error:", err);
+                    logger.error("[Settings] Logout error:", err);
                     showToast("[로그아웃] 오류가 발생했습니다.");
                   }
                 },
@@ -222,7 +345,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "uac_bypass",
-            type: "switch",
+            type: "check",
             label: "DaumGameStarter UAC 우회",
             description:
               "카카오게임즈에서 게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
@@ -260,7 +383,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "autoFixPatchError",
-            type: "switch",
+            type: "check",
             label: "패치 오류 자동 수정 (Auto Fix)",
             description:
               "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
@@ -268,7 +391,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "autoGameStartAfterFix",
-            type: "switch",
+            type: "check",
             label: "패치 복구 후 게임 자동 시작",
             description:
               "패치 오류 자동 수정이 완료되면, 해당 서비스를 통해 게임을 자동으로 실행합니다.",
@@ -277,7 +400,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "backupPatchFiles",
-            type: "switch",
+            type: "check",
             label: "패치 파일 백업 (Backup)",
             description:
               "패치 파일 교체 시 원본 파일을 안전한 곳(.patch_backups)에 보관합니다.",
@@ -352,7 +475,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         items: [
           {
             id: "dev_mode",
-            type: "switch",
+            type: "check",
             label: "개발자 모드 활성화",
             icon: "bug_report",
             requiresRestart: true,
@@ -360,7 +483,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "debug_console",
-            type: "switch",
+            type: "check",
             label: "디버그 콘솔 표시",
             icon: "terminal",
             dependsOn: "dev_mode",
@@ -368,7 +491,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "show_inactive_windows",
-            type: "switch",
+            type: "check",
             label: "비활성 윈도우 표시",
             icon: "visibility",
             dependsOn: "dev_mode",
@@ -376,7 +499,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           },
           {
             id: "show_inactive_window_console",
-            type: "switch",
+            type: "check",
             label: "비활성 윈도우 콘솔 표시",
             icon: "javascript",
             dependsOn: "dev_mode",

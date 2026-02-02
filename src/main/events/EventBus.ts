@@ -1,10 +1,5 @@
-import {
-  AppContext,
-  AppEvent,
-  EventHandler,
-  EventType,
-  DebugLogEvent,
-} from "./types";
+import { AppContext, AppEvent, EventHandler, EventType } from "./types";
+import { Logger } from "../utils/logger";
 
 class EventBus {
   private context: AppContext | null = null;
@@ -12,34 +7,20 @@ class EventBus {
   public setContext(context: AppContext) {
     this.context = context;
   }
+
+  private logger = new Logger({
+    type: "EVENT_BUS",
+    typeColor: "#dcdcaa",
+    priority: 1,
+  });
+
   // Store handlers as generic handlers
   private handlers: Map<EventType, EventHandler<AppEvent>[]> = new Map();
 
   private log(message: string, ...args: unknown[]) {
+    // Only print to real console in dev
     if (process.env.VITE_DEV_SERVER_URL) {
-      console.log(`[EventBus] ${message}`, ...args);
-    }
-
-    if (this.context) {
-      let content = message;
-      if (args.length > 0) {
-        const formattedArgs = args
-          .map((arg) => smartJSONStringify(arg))
-          .join(" ");
-        content = `${message} ${formattedArgs}`;
-      }
-
-      // Check if we should suppress known noisy logs (e.g. detailed payloads)
-      // For now, we allow everything but could filter if needed
-
-      this.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
-        type: "event_bus",
-        content,
-        isError: false,
-        timestamp: Date.now(),
-        typeColor: "#dcdcaa", // Light Yellow for EventBus events
-        textColor: "#d4d4d4", // Default text color
-      });
+      this.logger.log(message, ...args);
     }
   }
 
@@ -142,7 +123,19 @@ class EventBus {
         // Safe validation: We registered usage based on targetEvent, so handler expects T
         await handler.handle(event, context);
       } catch (error) {
-        console.error(`[EventBus] ❌ Error in Handler ${handler.id}:`, error);
+        // [Fix] Prevent logging loop: If DebugLogHandler itself fails (e.g. window destroyed),
+        // don't use this.logger.error because it emits a new DEBUG_LOG event, causing a loop.
+        if (handler.id === "DebugLogHandler") {
+          console.error(
+            `[EventBus] ❌ Critical Error in DebugLogHandler (Loop Prevention):`,
+            error,
+          );
+        } else {
+          this.logger.error(
+            `[EventBus] ❌ Error in Handler ${handler.id}:`,
+            error,
+          );
+        }
       }
     });
 
@@ -152,62 +145,3 @@ class EventBus {
 
 // Export Singleton Instance
 export const eventBus = new EventBus();
-
-/**
- * Smart JSON Stringify
- * - Recursively checks if an object can fit in one line (<= 80 chars).
- * - If yes, formats it as single-line JSON.
- * - If no, expands it but recursively applies the logic to children.
- * - Handles circular references.
- */
-function smartJSONStringify(value: unknown, maxLength = 80): string {
-  const seen = new WeakSet();
-
-  const process = (val: unknown, docLevel: number): string => {
-    // Primitives
-    if (typeof val !== "object" || val === null) {
-      return JSON.stringify(val);
-    }
-
-    // Circular check
-    if (seen.has(val as object)) {
-      return '"[Circular]"';
-    }
-    seen.add(val as object);
-
-    // 1. Try compact stringify
-    try {
-      const compact = JSON.stringify(val);
-      if (compact.length <= maxLength) {
-        seen.delete(val as object);
-        return compact;
-      }
-    } catch (_e) {
-      // Ignore stringify error (likely circular), proceed to manual expansion
-    }
-
-    // 2. Expand
-    const indent = "  ".repeat(docLevel + 1);
-    const endIndent = "  ".repeat(docLevel);
-
-    let result: string;
-    if (Array.isArray(val)) {
-      const items = val
-        .map((item) => process(item, docLevel + 1))
-        .join(`,\n${indent}`);
-      result = `[\n${indent}${items}\n${endIndent}]`;
-    } else {
-      const entries = Object.entries(val)
-        .map(([k, v]) => {
-          return `${JSON.stringify(k)}: ${process(v, docLevel + 1)}`;
-        })
-        .join(`,\n${indent}`);
-      result = `{\n${indent}${entries}\n${endIndent}}`;
-    }
-
-    seen.delete(val as object);
-    return result;
-  };
-
-  return process(value, 0);
-}

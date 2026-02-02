@@ -8,13 +8,16 @@ import {
   PatchProgress,
 } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
+import { PreloadLogger } from "./utils/preload-logger";
+
+const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
 // --- Electron API Expose ---
 // Used by React Renderer (App.tsx)
 
 contextBridge.exposeInMainWorld("electronAPI", {
   triggerGameStart: () => {
-    console.log("[Preload] Sending trigger-game-start to Main Process");
+    logger.log("[Preload] Sending trigger-game-start to Main Process");
     ipcRenderer.send("trigger-game-start");
   },
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
@@ -63,6 +66,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("news-updated", handler);
     return () => ipcRenderer.off("news-updated", handler);
   },
+  sendDebugLog: (log: DebugLogEvent["payload"]) =>
+    ipcRenderer.send("debug-log:send", log),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
 
   // [Update API]
@@ -119,4 +124,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) => ipcRenderer.invoke("patch:check-backup", serviceId, gameId),
+  getDebugHistory: () => ipcRenderer.invoke("debug:get-history"),
+  deleteConfig: (key: string) => ipcRenderer.invoke("config:delete", key),
+  onScalingModeChange: (callback: (enabled: boolean) => void) => {
+    const handler = (_event: IpcRendererEvent, enabled: boolean) =>
+      callback(enabled);
+    ipcRenderer.on("scaling-mode-changed", handler);
+    return () => ipcRenderer.off("scaling-mode-changed", handler);
+  },
 });

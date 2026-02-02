@@ -3,12 +3,25 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, dialog, shell, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  session,
+  screen,
+} from "electron";
 import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
-import { AppConfig, RunStatus, NewsCategory } from "../shared/types";
+import {
+  AppConfig,
+  RunStatus,
+  NewsCategory,
+  DebugLogPayload,
+} from "../shared/types";
 import { isUserFacingPage } from "../shared/visibility";
 import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
 import {
@@ -16,11 +29,15 @@ import {
   LogWebRootHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
-  PatchProgressHandler, // Added
-  triggerPendingManualPatches, // Added
-  cancelPendingPatches, // Added
+  PatchProgressHandler,
+  triggerPendingManualPatches,
+  cancelPendingPatches,
 } from "./events/handlers/AutoPatchHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
+import {
+  ConfigChangeSyncHandler,
+  ConfigDeleteSyncHandler,
+} from "./events/handlers/ConfigSyncHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
 import {
@@ -41,6 +58,7 @@ import {
 import {
   AppContext,
   ConfigChangeEvent,
+  ConfigDeleteEvent,
   EventType,
   GameStatusChangeEvent,
   EventHandler,
@@ -48,6 +66,7 @@ import {
   UIUpdateCheckEvent,
   UIUpdateDownloadEvent,
   UIUpdateInstallEvent,
+  DebugLogEvent,
 } from "./events/types";
 import { trayManager } from "./managers/TrayManager"; // Added
 import { LogWatcher } from "./services/LogWatcher";
@@ -57,9 +76,16 @@ import { ProcessWatcher } from "./services/ProcessWatcher";
 import {
   getConfig,
   setConfig,
+  deleteConfig,
   setupStoreObservers,
   default as store,
 } from "./store";
+import {
+  setupMainLogger,
+  logger,
+  getLogHistory,
+  printBanner,
+} from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
@@ -105,11 +131,11 @@ const windowContextMap = new Map<number, SessionContext>();
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  console.log("[Main] Another instance is already running. Quitting...");
+  logger.log("[Main] Another instance is already running. Quitting...");
   app.quit();
 } else {
   app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
-    console.log("[Main] Second instance detected. Focusing existing window...");
+    logger.log("[Main] Second instance detected. Focusing existing window...");
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
@@ -144,7 +170,6 @@ function getEffectiveConfig(key?: string): unknown {
 
   // 2. Force Debug Mode via Env Var
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
-    // console.log(`[Main] getEffectiveConfig(${key}) -> true (Forced by Env)`);
     return true;
   }
 
@@ -152,13 +177,11 @@ function getEffectiveConfig(key?: string): unknown {
   if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
     const isDevMode = getEffectiveConfig("dev_mode") === true;
     if (!isDevMode) {
-      // console.log(`[Main] getEffectiveConfig(${key}) -> false (Dependency dev_mode is OFF)`);
       return false;
     }
   }
 
   const value = getConfig(key);
-  // console.log(`[Main] getEffectiveConfig(${key}) -> ${value} (From Store)`);
   return value;
 }
 
@@ -186,9 +209,19 @@ ipcMain.handle("config:get", (_event, key?: string) => {
   return getEffectiveConfig(key);
 });
 
+ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
+  if (appContext) {
+    eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, appContext, log);
+  }
+});
+
 ipcMain.on("app:relaunch", () => {
   app.relaunch();
   app.exit(0);
+});
+
+ipcMain.handle("debug:get-history", () => {
+  return getLogHistory();
 });
 
 ipcMain.handle("session:logout", async () => {
@@ -198,7 +231,7 @@ ipcMain.handle("session:logout", async () => {
 
     // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
     if (gameWindow && !gameWindow.isDestroyed()) {
-      console.log("[Main] Closing GameWindow for logout...");
+      logger.log("[Main] Closing GameWindow for logout...");
       gameWindow.close();
       gameWindow = null;
       context.gameWindow = null;
@@ -214,10 +247,10 @@ ipcMain.handle("session:logout", async () => {
         "serviceworkers",
       ],
     });
-    console.log("[Main] Session storage cleared (Logout).");
+    logger.log("[Main] Session storage cleared (Logout).");
     return true;
   } catch (error) {
-    console.error("[Main] Failed to clear session storage:", error);
+    logger.error("[Main] Failed to clear session storage:", error);
     return false;
   }
 });
@@ -235,12 +268,25 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
 
   setConfig(key, value);
 
-  // Dispatch Config Change Event
+  // Dispatch Config Change Event (Sync Handler will handle UI broadcast)
   if (appContext) {
     eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
       key,
       oldValue,
       newValue: value,
+    });
+  }
+});
+
+ipcMain.handle("config:delete", (_event, key: string) => {
+  const oldValue = getConfig(key);
+  deleteConfig(key);
+
+  // Dispatch Config Delete Event (Sync Handler will handle UI broadcast)
+  if (appContext) {
+    eventBus.emit<ConfigDeleteEvent>(EventType.CONFIG_DELETE, appContext, {
+      key,
+      oldValue,
     });
   }
 });
@@ -289,7 +335,7 @@ ipcMain.handle(
         return true;
       }
     } catch (error) {
-      console.error("[Main] Failed to save report:", error);
+      logger.error("[Main] Failed to save report:", error);
       return false;
     }
   },
@@ -341,7 +387,7 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
     const fileBuffer = await fs.readFile(targetPath);
     return crypto.createHash("md5").update(fileBuffer).digest("hex");
   } catch (error) {
-    console.error(`[Hash] Failed to get hash for ${filePath}:`, error);
+    logger.error(`[Hash] Failed to get hash for ${filePath}:`, error);
     return "";
   }
 });
@@ -394,7 +440,7 @@ ipcMain.handle("uac:disable", () => disableUACBypass());
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
-  console.log(`[Main] Window Open Request: ${url}`);
+  logger.log(`[Main] Window Open Request: ${url}`);
 
   const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
   const showInactive = getEffectiveConfig("show_inactive_windows") === true;
@@ -471,7 +517,7 @@ function resetGameStatusIfInterrupted(_win: BrowserWindow) {
   ];
 
   if (interruptibleStates.includes(currentSystemStatus)) {
-    console.log(
+    logger.log(
       `[Main] Critical window closed during ${currentSystemStatus}. Resetting to idle.`,
     );
 
@@ -497,6 +543,8 @@ setupStoreObservers(context);
 // 4. Register Event Handlers
 const handlers = [
   DebugLogHandler,
+  ConfigChangeSyncHandler,
+  ConfigDeleteSyncHandler,
   StartPoe1KakaoHandler,
   StartPoe2KakaoHandler,
   StartPoeGggHandler,
@@ -520,14 +568,14 @@ const handlers = [
 // --- Patch IPC ---
 ipcMain.on("patch:start-manual", () => {
   if (appContext) {
-    console.log("[Main] Triggering Manual Patch via IPC");
+    logger.log("[Main] Triggering Manual Patch via IPC");
     triggerPendingManualPatches(appContext);
   }
 });
 
 ipcMain.on("patch:cancel", () => {
   if (appContext) {
-    console.log("[Main] Cancelling Patch via IPC");
+    logger.log("[Main] Cancelling Patch via IPC");
     cancelPendingPatches(appContext);
   }
 });
@@ -569,6 +617,78 @@ handlers.forEach((handler) => {
 
 // Track app quitting state to bypass "hide-on-close" behavior
 let isQuitting = false;
+const BASE_WIDTH = 1440;
+const BASE_HEIGHT = 960;
+
+let lastLoggedContext = "";
+
+/**
+ * Dynamically adjusts window constraints (resizable, size, etc.) based on the current display environment.
+ */
+function applyIntelligentConstraints(win: BrowserWindow | null) {
+  if (!win || win.isDestroyed()) return;
+
+  // Use the display where the window is currently located
+  const currentDisplay = screen.getDisplayNearestPoint(win.getBounds());
+  const { width: screenWidth, height: screenHeight } =
+    currentDisplay.workAreaSize;
+
+  const needsScaling =
+    screenWidth < BASE_WIDTH + 10 || screenHeight < BASE_HEIGHT + 10;
+
+  // [Fix] Prevent log spam: Only log when the display or resolution actually changes
+  const contextKey = `${currentDisplay.id}-${screenWidth}x${screenHeight}`;
+  if (contextKey !== lastLoggedContext) {
+    logger.log(
+      `[Main] UI Context Update: Display [${currentDisplay.id}] (${screenWidth}x${screenHeight}), ScalingRequired: ${needsScaling}`,
+    );
+    lastLoggedContext = contextKey;
+  }
+
+  if (needsScaling) {
+    // Small Screen / High DPI: Enable flexibility
+    if (!win.isResizable()) win.setResizable(true);
+    if (!win.isMaximizable()) win.setMaximizable(true);
+
+    // Initial fill: If window is currently too large for the work area, maximize it
+    const [currW, currH] = win.getSize();
+    if (currW > screenWidth || currH > screenHeight) {
+      if (!win.isMaximized()) {
+        win.maximize();
+      }
+    }
+
+    // [New] Update Window Title for Status Indication
+    win.setTitle(
+      `PoE Unofficial Launcher v${app.getVersion()} (저해상도 지원 모드)`,
+    );
+    win.webContents.send("scaling-mode-changed", true);
+  } else {
+    // Large Screen: Force fixed UX for stability as requested
+    // [Fix] Order of operations: We must allow resizing/maximizing before we can unmaximize and set the size.
+    if (!win.isResizable()) win.setResizable(true);
+    if (!win.isMaximizable()) win.setMaximizable(true);
+
+    if (win.isMaximized()) {
+      win.unmaximize();
+    }
+
+    // Ensure it's exactly the base size
+    const [currW, currH] = win.getSize();
+    if (currW !== BASE_WIDTH || currH !== BASE_HEIGHT) {
+      win.setSize(BASE_WIDTH, BASE_HEIGHT);
+      win.center();
+    }
+
+    // [Fix] LOCK constraints AFTER the transformation is complete
+    win.setResizable(false);
+    win.setMaximizable(false);
+
+    // [New] Restore Window Title
+    win.setTitle(`PoE Unofficial Launcher v${app.getVersion()}`);
+    win.webContents.send("scaling-mode-changed", false);
+  }
+}
 
 // Global Context
 let appContext: AppContext;
@@ -581,18 +701,34 @@ newsService.init(() => {
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
-    width: 1440, // Increased by 20% (1200 * 1.2)
-    height: 960, // Increased by 20% (800 * 1.2)
-    resizable: false, // Fixed size
-    maximizable: false, // Prevent maximize on double-click
-    frame: false, // Disable OS Frame
-    titleBarStyle: "hidden", // Allow custom drag regions on macOS (optional for Windows but good practice)
+    width: BASE_WIDTH,
+    height: BASE_HEIGHT,
+    minWidth: 1024,
+    minHeight: 683,
+    resizable: false, // Will be updated by applyIntelligentConstraints
+    maximizable: false, // Will be updated by applyIntelligentConstraints
+    frame: false,
+    titleBarStyle: "hidden",
     icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
-    show: false, // Start hidden to prevent white flash
-    backgroundColor: "#000000", // Match app theme
+    show: false,
+    backgroundColor: "#000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // Apply initial constraints based on the display it will open on
+  applyIntelligentConstraints(mainWindow);
+
+  // Monitor for resolution/DPI changes OR moving between monitors
+  screen.on("display-metrics-changed", () => {
+    logger.log("[Main] Display metrics changed. Updating UI constraints...");
+    applyIntelligentConstraints(mainWindow);
+  });
+
+  // Also update when window is moved (to handle multi-monitor scaling)
+  mainWindow.on("move", () => {
+    applyIntelligentConstraints(mainWindow);
   });
 
   // Reveal window when ready-to-show
@@ -602,8 +738,10 @@ function createWindows() {
       const startHidden = process.argv.includes("--hidden");
       if (!startHidden) {
         mainWindow.show();
+        // [Fix] Show Debug Console ONLY AFTER main window is shown to ensure correct Z-order/Focus
+        initDebugWindow("AppStart");
       } else {
-        console.log("[Main] Starting hidden (minimized to tray).");
+        logger.log("[Main] Starting hidden (minimized to tray).");
       }
     }
   });
@@ -615,11 +753,11 @@ function createWindows() {
       if (config.closeAction === "minimize") {
         e.preventDefault();
         mainWindow?.hide();
-        console.log("[Main] Window hidden due to 'minimize' closeAction.");
+        logger.log("[Main] Window hidden due to 'minimize' closeAction.");
         return;
       }
     }
-    console.log("[Main] Window closing (quitting).");
+    logger.log("[Main] Window closing (quitting).");
   });
 
   // Visibility Synchronization
@@ -669,7 +807,7 @@ function createWindows() {
       const isBlocked = BLOCKED_PERMISSIONS.includes(permission);
 
       if (isBlocked) {
-        console.log(`[Security] Blocked permission request: ${permission}`);
+        logger.log(`[Security] Blocked permission request: ${permission}`);
         return callback(false); // DENY
       }
 
@@ -683,27 +821,22 @@ function createWindows() {
   session.defaultSession.webRequest.onBeforeRequest(
     { urls: ["https://accounts.kakao.com/api/v2/passkey/*"] },
     (details, callback) => {
-      console.log(`[Security] Blocked Passkey API request: ${details.url}`);
+      logger.log(`[Security] Blocked Passkey API request: ${details.url}`);
       callback({ cancel: true });
     },
   );
 
-  // FIX: Prevent forced fullscreen/maximize on monitor driver reset
-  mainWindow.on("maximize", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.unmaximize();
-    }
-  });
-
-  mainWindow.on("enter-full-screen", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setFullScreen(false);
-    }
-  });
+  // [Removed] Prevented forced fullscreen/maximize - Now allowing it for scaling
 
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
+  setupMainLogger(appContext, (event) => {
+    eventBus.emit(event.type, appContext, event.payload);
+  });
+
+  printBanner();
+  logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
   const initialConfig = getConfig() as AppConfig; // [Restore] Needed for downstream usage (Auto Launch)
@@ -715,7 +848,7 @@ function createWindows() {
       { game: "POE2", service: "GGG" },
     ] as const;
 
-    console.log("[Main] Checking initial status for all game contexts...");
+    logger.log("[Main] Checking initial status for all game contexts...");
 
     for (const combo of combinations) {
       const installed = await isGameInstalled(
@@ -745,7 +878,7 @@ function createWindows() {
 
   // Sync Auto Launch Status
   if (!app.isPackaged) {
-    console.log(
+    logger.log(
       "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
     );
   } else if (initialConfig.autoLaunch) {
@@ -790,24 +923,14 @@ function createWindows() {
 
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
-    console.log("[Main] Window blurred (Focus Lost).");
+    logger.log("[Main] Window blurred (Focus Lost).");
     processWatcher.scheduleSuspension();
   });
 
   mainWindow.on("focus", () => {
-    console.log("[Main] Window focused.");
+    logger.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
-
-    // [Fix] Automatically restore window size if it was stretched by OS/Resolution changes
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const [width, height] = mainWindow.getSize();
-      if (width !== 1440 || height !== 960) {
-        console.log(
-          `[Main] Resolution divergence detected (${width}x${height}). Restoring to 1440x960.`,
-        );
-        mainWindow.setSize(1440, 960);
-      }
-    }
+    // [Removed] Legacy forced restoration - Now handled by applyIntelligentConstraints in display events
   });
 
   // 2. Game Window (Lazy Init - Do NOT create here)
@@ -827,7 +950,7 @@ function createWindows() {
   });
 
   // --- Debug Window Management ---
-  initDebugWindow("AppStart");
+  // [Removed] initDebugWindow("AppStart") - Moved to ready-to-show event of mainWindow
 }
 
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
@@ -838,14 +961,14 @@ let isInitInProgress = false; // Guard against recursive/redundant calls during 
  */
 function initDebugWindow(triggerSource: string = "Dynamic") {
   if (!mainWindow || mainWindow.isDestroyed()) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] initDebugWindow skipped: mainWindow is missing/destroyed`,
     );
     return;
   }
 
   if (isInitInProgress) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] initDebugWindow skipped: Initialization already in progress`,
     );
     return;
@@ -855,7 +978,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
   const isDebugConsole = getEffectiveConfig("debug_console") === true;
   const shouldShow = isDevMode && isDebugConsole;
 
-  console.log(`[Main][${triggerSource}] Debug Window State Check:`, {
+  logger.log(`[Main][${triggerSource}] Debug Window State Check:`, {
     isDevMode,
     isDebugConsole,
     shouldShow,
@@ -871,7 +994,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       const targetX = mainBounds.x + mainBounds.width;
       const targetY = mainBounds.y;
 
-      console.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
+      logger.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
         targetX,
         targetY,
       });
@@ -889,10 +1012,17 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         minimizable: true,
         closable: true,
         autoHideMenuBar: true,
-        show: true, // Explicitly show
+        show: false, // [Fix] Start hidden to prevent white flash & ensure ready-to-show logic
         webPreferences: {
           preload: path.join(__dirname, "preload.js"),
         },
+      });
+
+      // Reveal when ready
+      debugWindow.once("ready-to-show", () => {
+        if (debugWindow && !debugWindow.isDestroyed()) {
+          debugWindow.show();
+        }
       });
 
       // Update Context
@@ -963,7 +1093,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       });
 
       debugWindow.on("closed", () => {
-        console.log("[Main] Debug Window Closed event fired.");
+        logger.log("[Main] Debug Window Closed event fired.");
         debugWindow = null;
         context.debugWindow = null;
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -971,14 +1101,14 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         }
       });
 
-      console.log("[Main] Debug Console Creation Finalized.");
+      logger.log("[Main] Debug Console Creation Finalized.");
     } finally {
       isInitInProgress = false;
     }
   }
   // 2. If we should NOT show but window exists -> Close
   else if (!shouldShow && debugWindow && !debugWindow.isDestroyed()) {
-    console.log(
+    logger.log(
       `[Main][${triggerSource}] Closing Debug Window (Disabled in settings or dependency failed)`,
     );
     debugWindow.close();
@@ -989,11 +1119,11 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
 
 // IPC Handlers
 ipcMain.on("trigger-game-start", () => {
-  console.log('[Main] IPC "trigger-game-start" Received from Renderer');
+  logger.log('[Main] IPC "trigger-game-start" Received from Renderer');
   if (appContext) {
     eventBus.emit(EventType.UI_GAME_START_CLICK, appContext, undefined);
   } else {
-    console.error("[Main] AppContext not initialized!");
+    logger.error("[Main] AppContext not initialized!");
   }
 });
 
@@ -1027,7 +1157,7 @@ ipcMain.on(
       appContext.getConfig("activeGame")) as AppConfig["activeGame"];
     const installPath = await getGameInstallPath(serviceId, activeGame);
 
-    console.log(
+    logger.log(
       `[Main] Triggering Manual Patch Fix for ${serviceId} / ${activeGame}`,
     );
 
@@ -1047,7 +1177,7 @@ ipcMain.on(
           // activeManualPatchManager = null;
         });
     } else {
-      console.error("Install path not found for manual patch fix.");
+      logger.error("Install path not found for manual patch fix.");
     }
   },
 );
@@ -1090,18 +1220,18 @@ ipcMain.handle(
         return false;
       }
     } catch (error) {
-      console.error("[Main] Failed to check backup availability:", error);
+      logger.error("[Main] Failed to check backup availability:", error);
       return false;
     }
   },
 );
 
 ipcMain.on("patch:cancel", () => {
-  console.log("[Main] Patch Cancel requested.");
+  logger.log("[Main] Patch Cancel requested.");
   if (activeManualPatchManager) {
     activeManualPatchManager.cancelPatch();
   } else {
-    console.log("[Main] No active manual patch manager to cancel.");
+    logger.log("[Main] No active manual patch manager to cancel.");
   }
 });
 
@@ -1159,7 +1289,7 @@ ipcMain.on(
         !activeSessionContext &&
         (!gameId || !serviceId)
       ) {
-        console.error(
+        logger.error(
           `[Main] IPC "game-status-update" received from unknown window (${senderId}) with no active session context!`,
         );
       }
@@ -1202,12 +1332,12 @@ app.on("browser-window-created", (_, window) => {
 
     if (shouldShow) {
       if (!window.isVisible()) {
-        console.log(`[Main] Showing window: ${url}`);
+        logger.log(`[Main] Showing window: ${url}`);
         window.show();
       }
     } else {
       if (window.isVisible()) {
-        console.log(`[Main] Hiding prohibited/background window: ${url}`);
+        logger.log(`[Main] Hiding prohibited/background window: ${url}`);
         window.hide();
       }
     }
@@ -1234,7 +1364,7 @@ app.on("browser-window-created", (_, window) => {
   if (isDebugEnv || showConsole) {
     if (!window.isDestroyed()) {
       window.webContents.openDevTools({ mode: "detach" });
-      console.log("[Main] DevTools opened for new window");
+      logger.log("[Main] DevTools opened for new window");
       window.setMenuBarVisibility(false);
     }
   }
@@ -1332,6 +1462,16 @@ app.on("activate", () => {
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
 app.whenReady().then(async () => {
+  // [NEW] Sync Launcher Version (for future migrations)
+  const currentVersion = app.getVersion();
+  const storedVersion = getConfig("launcherVersion") as string;
+  if (currentVersion !== storedVersion) {
+    logger.log(
+      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
+    );
+    setConfig("launcherVersion", currentVersion);
+  }
+
   // [NEW] Handle Uninstall Cleanup Flag
   createWindows();
 });

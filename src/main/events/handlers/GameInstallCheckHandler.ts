@@ -1,4 +1,5 @@
 import { AppConfig } from "../../../shared/types";
+import { logger } from "../../utils/logger";
 import { isGameInstalled } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
@@ -27,16 +28,11 @@ export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
     const config = context.getConfig() as AppConfig;
     const { activeGame, serviceChannel } = config;
 
-    console.log(
+    logger.log(
       `[GameInstallCheckHandler] Checking installation for ${activeGame} (${serviceChannel})...`,
     );
 
     const installed = await isGameInstalled(serviceChannel, activeGame);
-
-    // If uninstalled, set status to 'uninstalled'
-    // If installed, we usually set to 'idle' but ProcessWatcher might already have it as 'running'
-    // For now, let's just emit 'uninstalled' or 'idle'.
-    // The ProcessWatcher will eventually overwrite with 'running' if it's actually running.
 
     // [Fix] Check if the game is already RUNNING before resetting to 'idle'
     // This prevents status flickering or resetting when switching tabs while game is open.
@@ -75,7 +71,7 @@ export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
       context.processWatcher?.isProcessRunning(targetProcessName, criteria);
 
     if (isRunning) {
-      console.log(
+      logger.log(
         `[GameInstallCheckHandler] Game ${activeGame} (${serviceChannel}) is currently RUNNING. Emitting 'running' status.`,
       );
       eventBus.emit<GameStatusChangeEvent>(

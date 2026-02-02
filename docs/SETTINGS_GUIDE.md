@@ -10,8 +10,9 @@
 - **영속성**: 메인 프로세스의 `electron-store`와 연동되어 설정값이 자동으로 저장되고 앱 재시작 시 유지됩니다.
 - **반응성**: 값이 변경되면 시스템 전체에 `config-changed` 이벤트가 브로드캐스트되어 실시간으로 반영됩니다.
 - **Transience vs Persistence**: `SettingItem`의 `defaultValue` 속성 유무에 따라 저장소 사용 여부가 결정됩니다.
+- **Semantic Description**: `onInit` 또는 `onChangeListener`를 통해 항목 아래에 동적인 설명 블록(`DescriptionBlock`)을 추가하여 사용자에게 실시간 피드백(경고, 정보 등)을 제공할 수 있습니다.
 
-## 2. Persistence Model (중요)
+## 2. Persistence Model
 
 `defaultValue` 속성은 단순한 초기값이 아니라, **저장소(Electron Store) 사용 여부**를 결정하는 핵심 플래그입니다.
 
@@ -29,85 +30,108 @@
 - **동작**:
   - `Electron Store`를 **사용하지 않습니다**.
   - UI가 열릴 때마다 `defaultValue`로 초기화되거나 `onInit` 훅을 통해 동적으로 값을 설정해야 합니다.
-  - 값이 변경되어도 저장소에 기록되지 않으며, 주로 런타임 상태 제어(예: UI 토글, 액션 트리거)에 사용됩니다.
+  - 값이 변경되어도 저장소에 기록되지 않으며, 주로 런타임 상태 제어(예: UAC 우회 토글, 액션 트리거)에 사용됩니다.
 
 ---
 
-## 2. SettingItem Types & Examples
+## 3. SettingItem Types & Examples
 
-### Switch (Boolean)
+### Check (Checkbox)
 
-가장 기본적인 On/Off 형태의 토글 스위치입니다.
+표준 체크박스 형태의 On/Off 토글입니다. 주로 일반적인 설정을 켜고 끌 때 사용합니다.
+
+```typescript
+{
+  id: "autoLaunch",
+  type: "check",
+  label: "컴퓨터 시작 시 자동 실행",
+  description: "컴퓨터 시작 시 게임 런처를 자동으로 실행합니다.",
+  icon: "power_settings_new"
+}
+```
+
+### Switch (Toggle Switch)
+
+시각적으로 강조된 토글 스위치 형태입니다. `check`와 기능적으로는 동일하나 UI 상의 강조가 필요할 때 사용합니다.
 
 ```typescript
 {
   id: "noti_patch",
   type: "switch",
-  label: "업데이트 알림 받기",
-  description: "새로운 패치가 있을 때 알림을 보냅니다.",
-  // defaultValue 없음: 영속 설정 (Store 저장)
-  icon: "system_update",
-  onChangeListener: (val, { showToast }) => {
-    showToast(`알림 설정이 ${val ? "켜짐" : "꺼짐"}으로 변경되었습니다.`);
-  }
+  label: "실시간 감지 활성화",
+  // ...
 }
 ```
 
 ### Radio & Select (Option Selection)
 
-여러 옵션 중 하나를 선택할 때 사용합니다. `radio`는 모든 옵션을 나열하고, `select`는 드롭다운 형식으로 표시합니다.
+여러 옵션 중 하나를 선택할 때 사용합니다. `radio`는 각 옵션별로 상세 설명(`description`)을 추가할 수 있는 확장 기능을 지원합니다.
 
 ```typescript
 {
-  id: "close_action",
+  id: "processWatchMode",
   type: "radio",
-  label: "닫기 설정",
-  // defaultValue: "minimize", // 주석 처리 시 영속 설정이 됨
+  label: "패치 오류 감지 모드",
   options: [
-    { label: "트레이로 최소화", value: "minimize" },
-    { label: "런처 닫기", value: "close" }
+    {
+      label: "런처를 통한 실행만 감지",
+      value: "resource-saving",
+      description: "런처의 [게임 시작] 버튼으로 실행할 때만 오류를 검사합니다." // [New] 옵션별 설명
+    },
+    {
+      label: "항상 감지",
+      value: "always-on",
+      description: "런처가 켜져 있다면 어떤 경로로 실행해도 오류를 감지합니다."
+    }
   ]
 }
 ```
 
 ### Slider & Number (Value Adjustment)
 
-수치 데이터를 조절할 때 사용합니다.
+수치 데이터를 조절할 때 사용합니다. `number` 타입은 `suffix`(단위) 속성을 지원합니다.
 
 ```typescript
 {
   id: "ui_scale",
   type: "slider",
   label: "UI 크기 조절",
-  min: 80,
-  max: 120,
-  step: 5,
-  defaultValue: 100,
+  min: 80, max: 120, step: 5,
   valueFormat: (v) => `${v}%`
+}
+```
+
+### Text (Information Display)
+
+정보를 표시하거나 복사하기, 외부 링크 연결 등에 사용됩니다.
+
+```typescript
+{
+  id: "version_info",
+  type: "text",
+  label: "현재 버전",
+  value: "v1.0.0",
+  copyable: true, // 클릭 시 클립보드 복사
+  externalLink: { label: "기록 보기", url: "https://..." }, // 외부 링크 연결
+  isExpandable: true // 긴 텍스트 접기/펴기
 }
 ```
 
 ### Button (Action Trigger)
 
-즉시 실행이 필요한 액션(로그아웃, 데이터 복구 등)을 처리합니다.
+즉시 실행이 필요한 액션을 처리합니다. `variant`를 통해 스타일(primary, danger)을 지정할 수 있습니다.
 
 ```typescript
 {
   id: "btn_logout",
   type: "button",
-  label: "계정 관리",
   buttonText: "로그아웃",
   variant: "danger",
   onClickListener: ({ showConfirm, showToast }) => {
     showConfirm({
       title: "로그아웃",
       message: "정말 로그아웃 하시겠습니까?",
-      confirmText: "로그아웃",
-      variant: "danger",
-      onConfirm: async () => {
-        // ... 로그아웃 로직
-        showToast("로그아웃 되었습니다.");
-      }
+      onConfirm: () => { /* ... logic */ }
     });
   }
 }
@@ -115,48 +139,41 @@
 
 ---
 
-## 3. Advanced Hooks & Logic
+## 4. Advanced Hooks & Logic (Context API)
 
-### `onInit` (실시간 상태 반영)
+모든 설정 항목은 실행 시점에 강력한 **Context API**를 제공받아 UI를 동적으로 제어할 수 있습니다.
 
-설정창이 열릴 때 시스템의 현재 상태(예: 외부 설정, 실제 레지스트리 값 등)를 읽어와 UI에 강제로 반영해야 할 때 사용합니다.
+### `onInit` (동적 초기화)
 
-```typescript
-onInit: async ({ setValue, setDisabled }) => {
-  const isEnabled = await window.electronAPI.checkSomeSystemStatus();
-  setValue(isEnabled);
-  if (import.meta.env.VITE_DEBUG) setDisabled(true); // 디버그 모드 시 수정 불가 처리 등
-};
-```
+설정창이 열릴 때 호출됩니다.
 
-### `dependsOn` (조건부 표시)
+- **제공되는 함수**:
+  - `setValue(value)`: 항목의 현재 값을 강제로 설정합니다.
+  - `addDescription(text, variant?)`: 항목 아래에 설명 블록을 추가합니다. (`default`, `info`, `warning`, `error`)
+  - `clearDescription()`: 추가된 모든 설명을 제거합니다.
+  - `setDisabled(boolean)`: 항목의 활성화 상태를 제어합니다.
+  - `setVisible(boolean)`: 항목의 표시 여부를 제어합니다.
+  - `setLabel(text)`: 레이블 텍스트를 동적으로 변경합니다.
+
+### `onChangeListener` (값 변경 대응)
+
+사용자가 값을 변경할 때 호출됩니다.
+
+- **제공되는 함수**:
+  - `showToast(message)`: 상단 토스트 알림을 띄웁니다.
+  - `addDescription / clearDescription / setLabel`: `onInit`과 동일한 UI 제어가 가능합니다.
+
+### `dependsOn` (조건부 노출)
 
 특정 부모 설정이 `true`일 때만 해당 항목을 화면에 표시합니다.
 
-```typescript
-{
-  id: "dev_mode",
-  type: "switch",
-  label: "개발자 모드"
-},
-{
-  id: "debug_console",
-  type: "switch",
-  label: "콘솔 표시",
-  dependsOn: "dev_mode" // dev_mode가 켜졌을 때만 보임
-}
-```
+---
 
-### `requiresRestart` (재시작 안내)
+## 5. Semantic Description Variants
 
-중요한 시스템 설정이라 즉시 반영이 어렵고 앱 재시작이 필요한 경우, UI 하단에 안내 메시지를 표시합니다.
+`addDescription` 호출 시 `variant`를 지정하여 의미에 맞는 색상과 스타일을 적용할 수 있습니다.
 
-```typescript
-{
-  id: "language",
-  type: "select",
-  label: "언어 선택",
-  requiresRestart: true,
-  // ...
-}
-```
+- **`default`**: 일반적인 보조 설명 (회색)
+- **`info`**: 정보 제공 (파란색, 'i' 아이콘)
+- **`warning`**: 주의 사항 (노란색, 삼각형 '!' 아이콘)
+- **`error`**: 심각한 경고 또는 오류 (빨간색, 동그라미 '!' 아이콘)

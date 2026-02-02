@@ -8,18 +8,34 @@ export const LogModule: DebugModule<LogViewerProps> = {
   id: "log-module",
   order: 1,
   position: "left",
-  getTabs: ({ logState }) => [
-    { id: "ALL", label: "ALL", color: "#969696" },
-    ...Object.keys(logState.byType).map((type) => ({
-      id: type,
-      label: type.toUpperCase(),
-      color: logState.byType[type][0]?.typeColor || "#ce9178",
-    })),
-  ],
+  getTabs: ({ logState }) => {
+    const types = Object.keys(logState.byType).sort((a, b) => {
+      const pA = logState.byType[a][0]?.priority ?? 9999;
+      const pB = logState.byType[b][0]?.priority ?? 9999;
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b);
+    });
+
+    return [
+      { id: "ALL", label: "ALL", color: "#969696" },
+      ...types.map((type) => ({
+        id: type,
+        label: type.toUpperCase(),
+        color: logState.byType[type][0]?.typeColor || "#ce9178",
+      })),
+    ];
+  },
   renderPanel: (activeTabId, props) => (
     <LogViewer {...props} filter={activeTabId} />
   ),
   getExportSources: ({ logState }) => {
+    const types = Object.keys(logState.byType).sort((a, b) => {
+      const pA = logState.byType[a][0]?.priority ?? 9999;
+      const pB = logState.byType[b][0]?.priority ?? 9999;
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b);
+    });
+
     const sources = [
       {
         id: "log-all",
@@ -38,7 +54,7 @@ export const LogModule: DebugModule<LogViewerProps> = {
           },
         ],
       },
-      ...Object.keys(logState.byType).map((type) => ({
+      ...types.map((type) => ({
         id: `log-${type}`,
         label: `📝 ${type.toUpperCase()} LOGS`,
         getFiles: () => [

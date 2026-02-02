@@ -21,7 +21,9 @@ const store = new Store<AppConfig>({
 /**
  * Setup config observers to notify renderer on changes
  */
-export function setupStoreObservers(context: AppContext) {
+export function setupStoreObservers(_context: AppContext) {
+  // Manual broadcasting removed in favor of ConfigSyncHandler (EventBus pattern)
+  /*
   Object.values(CONFIG_KEYS).forEach((key) => {
     store.onDidChange(key as keyof AppConfig, (newValue) => {
       // Broadcast to all active windows in the context
@@ -38,6 +40,7 @@ export function setupStoreObservers(context: AppContext) {
       });
     });
   });
+  */
 }
 
 /**
@@ -54,4 +57,11 @@ export function setConfig(key: string, value: unknown) {
   store.set(key as keyof AppConfig, value as AppConfig[keyof AppConfig]);
 }
 
-export default store;
+/**
+ * Delete a key from the store
+ */
+export function deleteConfig(key: string) {
+  store.delete(key as keyof AppConfig);
+}
+
+export { store as default };

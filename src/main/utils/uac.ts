@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import { app, shell, dialog } from "electron";
 
+import { logger } from "./logger";
 import { PowerShellManager } from "./powershell";
 import {
   DAUM_STARTER_PROTOCOL_KEY as PROTOCOL_KEY,
@@ -27,7 +28,7 @@ function getWorkDirectory(): string {
     try {
       mkdirSync(workDir, { recursive: true });
     } catch (e) {
-      console.error("[UAC] Failed to create work directory:", e);
+      logger.error("[UAC] Failed to create work directory:", e);
     }
   }
   return workDir;
@@ -40,7 +41,7 @@ function getWorkDirectory(): string {
 export async function isUACBypassEnabled(): Promise<boolean> {
   const cmd = await getDaumGameStarterCommand();
   if (!cmd) {
-    console.log("[UAC] Bypass check: No protocol command found.");
+    logger.log("[UAC] Bypass check: No protocol command found.");
     return false;
   }
 
@@ -51,7 +52,7 @@ export async function isUACBypassEnabled(): Promise<boolean> {
 
   const isEnabled = hasRegistryKey && fileExists;
 
-  console.log(
+  logger.log(
     `[UAC] Bypass check: ${isEnabled ? "ENABLED" : "DISABLED"} (Reg: ${hasRegistryKey}, File: ${fileExists})`,
   );
   return isEnabled;
@@ -63,7 +64,7 @@ export async function isUACBypassEnabled(): Promise<boolean> {
 export async function enableUACBypass(): Promise<boolean> {
   const currentCmd = await getDaumGameStarterCommand();
   if (!currentCmd) {
-    console.error("[UAC] Could not read DaumGameStarter protocol command.");
+    logger.error("[UAC] Could not read DaumGameStarter protocol command.");
     return false;
   }
 
@@ -75,7 +76,7 @@ export async function enableUACBypass(): Promise<boolean> {
     currentCmd.toLowerCase().includes("proxy.vbs") &&
     existsSync(proxyVbsPath)
   ) {
-    console.log("[UAC] UAC bypass is already enabled and valid.");
+    logger.log("[UAC] UAC bypass is already enabled and valid.");
     return true;
   }
 
@@ -93,9 +94,9 @@ export async function enableUACBypass(): Promise<boolean> {
     try {
       // Use standard UTF-8 for backup file
       writeFileSync(backupFilePath, currentCmd, "utf8");
-      console.log("[UAC] Backed up original command to:", backupFilePath);
+      logger.log("[UAC] Backed up original command to:", backupFilePath);
     } catch (e) {
-      console.error("[UAC] Failed to write backup file:", e);
+      logger.error("[UAC] Failed to write backup file:", e);
     }
     daumStarterForScript = extractExePath(currentCmd);
   } else {
@@ -103,29 +104,29 @@ export async function enableUACBypass(): Promise<boolean> {
     if (existsSync(backupFilePath)) {
       try {
         const backupCmd = readFileSync(backupFilePath, "utf8");
-        console.log("[UAC] Using backed up command for extraction.");
+        logger.log("[UAC] Using backed up command for extraction.");
         daumStarterForScript = extractExePath(backupCmd);
       } catch (e) {
-        console.error("[UAC] Failed to read backup file:", e);
+        logger.error("[UAC] Failed to read backup file:", e);
       }
     }
   }
 
   if (!daumStarterForScript) {
-    console.error(
+    logger.error(
       `[UAC] Could not extract valid exe path from current or backup: ${currentCmd}`,
     );
     return false;
   }
 
   // 1. Create runner.vbs (Runs as Admin via Task Scheduler)
-  const runnerScriptContent = `
+  const runnerScriptContent = `\ufeff
 On Error Resume Next
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
 ' Read argument from shared file
-Set ts = fso.OpenTextFile("${argsFilePath.replaceAll("\\", "\\\\")}", 1)
+Set ts = fso.OpenTextFile("${argsFilePath}", 1)
 arg = ts.ReadAll
 ts.Close
 arg = Trim(arg)
@@ -136,30 +137,34 @@ logStream.Type = 2
 logStream.Charset = "utf-8"
 logStream.Open
 logStream.WriteText Now & " [Runner] Starting..." & vbCrLf
-logStream.WriteText Now & " [Runner] Target Exe: ${daumStarterForScript.replaceAll("\\", "\\\\")}" & vbCrLf
+logStream.WriteText Now & " [Runner] Target Exe: ${daumStarterForScript}" & vbCrLf
 logStream.WriteText Now & " [Runner] Read arg: " & arg & vbCrLf
 
 ' Execute real starter
-shell.Run """${daumStarterForScript.replaceAll("\\", "\\\\")}"" " & arg, 1, False
+shell.Run """${daumStarterForScript}"" " & arg, 1, False
 
 If Err.Number <> 0 Then
     logStream.WriteText Now & " [Runner] Error: " & Err.Description & vbCrLf
 End If
 
-logStream.SaveToFile "${debugLogPath.replaceAll("\\", "\\\\")}", 2
+logStream.SaveToFile "${debugLogPath}", 2
 logStream.Close
-`;
+`.trim();
 
   try {
-    writeFileSync(runnerVbsPath, runnerScriptContent);
+    // [Fix] Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
+    // Prepend BOM and use utf16le encoding.
+    writeFileSync(runnerVbsPath, "\ufeff" + runnerScriptContent, {
+      encoding: "utf16le",
+    });
   } catch (e: unknown) {
     const error = e as Error;
-    console.error(`[UAC] Failed to create runner script: ${error.message}`);
+    logger.error(`[UAC] Failed to create runner script: ${error.message}`);
     return false;
   }
 
   // 2. Create proxy.vbs (Runs as User, triggers Task)
-  const proxyScriptContent = `
+  const proxyScriptContent = `\ufeff
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
@@ -171,7 +176,7 @@ Else
 End If
 
 ' Write arg to shared file
-Set ts = fso.CreateTextFile("${argsFilePath.replaceAll("\\", "\\\\")}", True)
+Set ts = fso.CreateTextFile("${argsFilePath}", True)
 ts.WriteLine arg
 ts.Close
 
@@ -182,21 +187,25 @@ logStream.Charset = "utf-8"
 logStream.Open
 logStream.WriteText Now & " [Proxy] Received args: " & arg & vbCrLf
 logStream.WriteText Now & " [Proxy] Triggering Task: ${TASK_NAME}" & vbCrLf
-logStream.SaveToFile "${debugLogPath.replaceAll("\\", "\\\\")}", 2
+logStream.SaveToFile "${debugLogPath}", 2
 logStream.Close
 
 shell.Run "schtasks /run /tn """ & "${TASK_NAME}" & """", 0, False
-`;
+`.trim();
 
   try {
-    writeFileSync(proxyVbsPath, proxyScriptContent);
+    // [Fix] Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
+    // Prepend BOM and use utf16le encoding.
+    writeFileSync(proxyVbsPath, "\ufeff" + proxyScriptContent, {
+      encoding: "utf16le",
+    });
   } catch (e: unknown) {
     const error = e as Error;
-    console.error(`[UAC] Failed to create proxy script: ${error.message}`);
+    logger.error(`[UAC] Failed to create proxy script: ${error.message}`);
     return false;
   }
 
-  console.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
+  logger.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
   // [Fix] Use simpler PowerShell command structure.
   // Avoid complex arrays in literals to reduce quoting errors.
   const combinedScript = `
@@ -259,16 +268,16 @@ try {
   const success = result.code === 0 && result.stdout.includes("SUCCESS_MARKER");
 
   if (success) {
-    console.log("[UAC] Successfully applied bypass settings.");
+    logger.log("[UAC] Successfully applied bypass settings.");
     // [New] Create standalone cleanup script for Uninstaller
     const originalCmd = readFileSync(backupFilePath, "utf8").trim();
     createCleanupScript(originalCmd);
   } else {
-    console.error(
+    logger.error(
       "[UAC] Failed to apply bypass settings. Registry might not have been updated.",
     );
-    console.error("[UAC] PowerShell Logout STDOUT:", result.stdout);
-    console.error("[UAC] PowerShell Logout STDERR:", result.stderr);
+    logger.error("[UAC] PowerShell Logout STDOUT:", result.stdout);
+    logger.error("[UAC] PowerShell Logout STDERR:", result.stderr);
   }
 
   return success;
@@ -289,7 +298,7 @@ function createCleanupScript(originalCmd: string): void {
     .replace(/\r?\n/g, "") // Single line
     .replace(/%/g, "%%"); // [Fix] Escape % to %% for Batch file execution
 
-  const batContent = `
+  const batContent = `\ufeff
 @echo off
 chcp 65001 >nul
 
@@ -309,14 +318,17 @@ exit /b
 schtasks /delete /tn "${TASK_NAME}" /f >nul 2>&1
 
 :: 2. Restore Registry (via PowerShell for safety)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd}'; Set-Item -Path '${PROTOCOL_KEY}' -Value $val -Force" >nul 2>&1
+:: Use double single-quotes for PowerShell string if needed
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd.replaceAll("'", "''")}'; Set-Item -Path '${PROTOCOL_KEY}' -Value $val -Force" >nul 2>&1
   `.trim();
 
   try {
+    // [Fix] Batch files (.bat) don't support UTF-16 well, and UTF-8 BOM can cause syntax errors
+    // in the first command for some CMD environments. Use plain UTF-8 (without BOM).
     writeFileSync(batPath, batContent, { encoding: "utf8" });
-    console.log("[UAC] Created cleanup script at:", batPath);
+    logger.log("[UAC] Created cleanup script at:", batPath);
   } catch (e) {
-    console.error("[UAC] Failed to create cleanup script:", e);
+    logger.error("[UAC] Failed to create cleanup script:", e);
   }
 }
 
@@ -339,7 +351,7 @@ export async function disableUACBypass(
       // [New] Check if the executable in the backup actually exists
       const originalExe = extractExePath(originalCmd);
       if (originalExe && existsSync(originalExe)) {
-        console.log("[UAC] Valid backup found. Restoring original command...");
+        logger.log("[UAC] Valid backup found. Restoring original command...");
 
         // [Fix] More robust PowerShell quoting for registry value restoration
         // We use a PowerShell variable to handle the string safely
@@ -360,33 +372,30 @@ ${originalCmd}
           result.code === 0 &&
           result.stdout.includes("RESTORE_SUCCESS_MARKER")
         ) {
-          console.log("[UAC] Successfully restored original registry key.");
+          logger.log("[UAC] Successfully restored original registry key.");
           restored = true;
 
           // Delete backup file ONLY after successful restoration
           try {
             if (existsSync(backupFilePath)) unlinkSync(backupFilePath);
           } catch (e) {
-            console.warn(
-              "[UAC] Failed to delete backup file after restore:",
-              e,
-            );
+            logger.warn("[UAC] Failed to delete backup file after restore:", e);
           }
         }
       } else {
-        console.warn(
+        logger.warn(
           "[UAC] Backup exists but target executable is missing or invalid:",
           originalExe,
         );
       }
     } catch (e) {
-      console.error("[UAC] Failed to restore from backup:", e);
+      logger.error("[UAC] Failed to restore from backup:", e);
     }
   }
 
   if (!restored) {
     // Case 1: Backup missing or target exe lost -> Must reinstall
-    console.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
+    logger.log("[UAC] Auto-restore impossible. Guiding user to re-install.");
     if (!silent) {
       await shell.openExternal(
         "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
@@ -428,10 +437,10 @@ ${originalCmd}
       const p = join(workDir, f);
       if (existsSync(p)) unlinkSync(p);
     });
-    console.log("[UAC] Cleanup complete.");
+    logger.log("[UAC] Cleanup complete.");
   } catch (e: unknown) {
     const error = e as Error;
-    console.warn(`[UAC] Cleanup error: ${error.message}`);
+    logger.warn(`[UAC] Cleanup error: ${error.message}`);
   }
 
   return true;

@@ -27,6 +27,7 @@
 
 :root {
   --theme-text: #c8c8c8;
+  --text-secondary: #888888;
   --theme-accent: #dfcf99;
   --theme-footer-bg: #0e0e0e;
 }
@@ -54,15 +55,12 @@ body {
 
 /* Dedicated Background Layer */
 #app-background {
-  position: fixed;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
-  z-index: 0; /* Changed from -1 to 0 to ensure visibility test */
+  z-index: 0;
   background-size: cover;
   background-position: center top;
-  transition: opacity 0.4s ease-in-out; /* Smooth fade effect */
+  transition: opacity 0.4s ease-in-out;
   opacity: 1;
 }
 

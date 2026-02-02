@@ -25,6 +25,7 @@ export enum EventType {
   LOG_BACKUP_WEB_ROOT_FOUND = "LOG:BACKUP_WEB_ROOT_FOUND",
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
+  CONFIG_DELETE = "CONFIG:DELETE",
 }
 
 // ...
@@ -89,6 +90,16 @@ export interface ConfigChangeEvent {
     key: string;
     oldValue: unknown;
     newValue: unknown;
+  };
+  timestamp?: number;
+}
+
+// 1.1 Config Delete Event
+export interface ConfigDeleteEvent {
+  type: EventType.CONFIG_DELETE;
+  payload: {
+    key: string;
+    oldValue: unknown;
   };
   timestamp?: number;
 }
@@ -198,7 +209,8 @@ export type AppEvent =
   | LogWebRootFoundEvent
   | LogBackupWebRootFoundEvent
   | LogErrorDetectedEvent
-  | PatchProgressEvent;
+  | PatchProgressEvent
+  | ConfigDeleteEvent;
 
 // --- Context & Handler Interfaces ---
 

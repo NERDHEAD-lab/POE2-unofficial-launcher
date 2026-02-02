@@ -9,8 +9,8 @@ import {
   EventType,
   ProcessEvent,
   LogErrorDetectedEvent,
-  DebugLogEvent,
 } from "../events/types";
+import { Logger } from "../utils/logger";
 import { getGameInstallPath } from "../utils/registry";
 
 const ERROR_PATTERN = "Transferred a partial file";
@@ -18,6 +18,11 @@ const ERROR_THRESHOLD = 10;
 
 export class LogWatcher {
   private context: AppContext;
+  private logger = new Logger({
+    type: "LOG_WATCHER",
+    typeColor: "#4fc1ff",
+    priority: 5,
+  });
   private watchTimer: NodeJS.Timeout | null = null;
   private currentLogPath: string | null = null;
   private lastSize: number = 0;
@@ -33,15 +38,10 @@ export class LogWatcher {
   }
 
   private emitLog(content: string, isError: boolean = false) {
-    if (this.context) {
-      eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, this.context, {
-        type: "log_watcher",
-        content,
-        isError,
-        timestamp: Date.now(),
-        typeColor: "#4fc1ff", // Light Blue for LogWatcher
-        textColor: isError ? "#f48771" : "#d4d4d4",
-      });
+    if (isError) {
+      this.logger.error(content);
+    } else {
+      this.logger.log(content);
     }
   }
 

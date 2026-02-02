@@ -19,6 +19,15 @@ try {
   // Fallback to Dev if git is not available or fails
 }
 
+const appVersion = JSON.stringify(
+  JSON.parse(readFileSync("package.json", "utf-8")).version,
+);
+
+const defines = {
+  __APP_VERSION__: appVersion,
+  __APP_HASH__: JSON.stringify(commitHash),
+};
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -27,11 +36,17 @@ export default defineConfig({
       {
         // Main-Process entry file of the Electron App.
         entry: "src/main/main.ts",
+        vite: {
+          define: defines,
+        },
       },
       {
         entry: "src/main/preload.ts",
         onstart(options) {
           options.reload();
+        },
+        vite: {
+          define: defines,
         },
       },
       {
@@ -56,6 +71,7 @@ export default defineConfig({
               },
             },
           },
+          define: defines,
         },
       },
     ]),
@@ -70,10 +86,5 @@ export default defineConfig({
     port: 54321,
     strictPort: true,
   },
-  define: {
-    __APP_VERSION__: JSON.stringify(
-      JSON.parse(readFileSync("package.json", "utf-8")).version,
-    ),
-    __APP_HASH__: JSON.stringify(commitHash),
-  },
+  define: defines,
 });

@@ -1,9 +1,11 @@
 export const CONFIG_CATEGORIES = [
+  "Info",
   "General",
   "Game",
   "Appearance",
   "Patch",
   "Debug",
+  "Performance",
 ] as const;
 
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
@@ -33,6 +35,13 @@ export interface AppConfig {
   closeAction: "minimize" | "close";
   quitOnGameStart: boolean;
   showOnboarding: boolean;
+  /**
+   * - "resource-saving": Optimization Mode (Background Scan OFF)
+   * - "always-on": High Performance Mode (Background Scan ON)
+   * Default: "resource-saving"
+   */
+  processWatchMode: "resource-saving" | "always-on";
+  launcherVersion: string;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -88,6 +97,7 @@ export interface DebugLogPayload {
   timestamp: number;
   typeColor?: string; // Hex color for the [TYPE] label
   textColor?: string; // Hex color for the content text
+  priority?: number;
 }
 
 export interface ElectronAPI {
@@ -120,6 +130,7 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) => Promise<boolean | BackupMetadata>; // New
+  getDebugHistory: () => Promise<DebugLogPayload[]>;
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
   getNews: (
     game: AppConfig["activeGame"],
@@ -135,6 +146,7 @@ export interface ElectronAPI {
   markNewsAsRead: (id: string) => Promise<void>;
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
+  sendDebugLog: (log: DebugLogPayload) => void;
   openExternal: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download
@@ -151,6 +163,8 @@ export interface ElectronAPI {
   // [App Control]
   relaunchApp: () => void;
   logoutSession: () => Promise<boolean>;
+  deleteConfig: (key: string) => Promise<void>;
+  onScalingModeChange?: (callback: (enabled: boolean) => void) => () => void;
 }
 
 export type UpdateStatus =

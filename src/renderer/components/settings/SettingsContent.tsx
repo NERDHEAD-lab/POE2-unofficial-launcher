@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
+import { CheckItem } from "./items/SettingCheck";
 import { NumberItem } from "./items/SettingNumber";
 import { RadioItem } from "./items/SettingRadio";
 import { SelectItem } from "./items/SettingSelect";
@@ -12,13 +13,15 @@ import {
   SettingsCategory,
   SettingItem,
   SettingValue,
-  SettingSwitch,
   SettingRadio,
   SettingSelect,
   SettingNumber,
   SettingSlider,
   SettingButton,
+  DescriptionBlock,
+  DescriptionVariant,
 } from "../../settings/types";
+import { logger } from "../../utils/logger";
 import "../../settings/Settings.css";
 
 interface Props {
@@ -49,9 +52,39 @@ const SettingItemRenderer: React.FC<{
   onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
-  const [description, setDescription] = useState<string | undefined>(
-    item.description,
-  );
+  // [New] Dynamic Label State
+  const [label, setLabel] = useState<string>(item.label);
+
+  // [Refactor] Description Blocks State
+  // [Refactor] Description Blocks State
+  // Initialize description blocks from prop lazily to avoid effect on mount
+  const [descriptionBlocks, setDescriptionBlocks] = useState<
+    DescriptionBlock[]
+  >(() => {
+    return item.description
+      ? [{ text: item.description, variant: "default" }]
+      : [];
+  });
+
+  const isFirstRender = useRef(true);
+
+  // Initialize description blocks from item.description (string)
+
+  useEffect(() => {
+    // Skip the first run as lazy init handled it
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (item.description) {
+      // eslint-disable-next-line
+      setDescriptionBlocks([{ text: item.description, variant: "default" }]);
+    } else {
+      setDescriptionBlocks([]);
+    }
+  }, [item.description]); // Reset when prop changes
+
   const [disabled, setDisabled] = useState<boolean>(!!item.disabled);
   const [isVisible, setIsVisible] = useState<boolean>(true);
 
@@ -75,23 +108,38 @@ const SettingItemRenderer: React.FC<{
     }
   }
 
+  // Helper to add description
+  const addDescription = useCallback(
+    (text: string, variant: DescriptionVariant = "default") => {
+      setDescriptionBlocks((prev) => [...prev, { text, variant }]);
+    },
+    [],
+  );
+
+  const clearDescription = useCallback(() => {
+    setDescriptionBlocks([]);
+  }, []);
+
   // [Generic] onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
-      console.log(`[Settings] Running onInit for ${item.id}`);
+      logger.log(`[Settings] Running onInit for ${item.id}`);
       item
         .onInit({
           setValue: (newValue) => {
             if (mounted) {
-              console.log(`[Settings] onInit ${item.id} -> ${newValue}`);
+              logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
               setVal(newValue);
               setAuthorityClaimed(true);
               onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
             }
           },
-          setDescription: (newDesc) => {
-            if (mounted) setDescription(newDesc);
+          addDescription: (text, variant) => {
+            if (mounted) addDescription(text, variant);
+          },
+          clearDescription: () => {
+            if (mounted) clearDescription();
           },
           setDisabled: (newDisabled) => {
             if (mounted) setDisabled(newDisabled);
@@ -99,15 +147,18 @@ const SettingItemRenderer: React.FC<{
           setVisible: (newVisible) => {
             if (mounted) setIsVisible(newVisible);
           },
+          setLabel: (newLabel) => {
+            if (mounted) setLabel(newLabel);
+          },
         })
         .catch((err) => {
-          console.error(`[Settings] Failed to init setting ${item.id}:`, err);
+          logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
         });
     }
     return () => {
       mounted = false;
     };
-  }, [item, onValueChange]);
+  }, [item, onValueChange, addDescription, clearDescription]);
 
   const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
   const isFinalVisible = isVisible && isDependentVisible;
@@ -133,12 +184,17 @@ const SettingItemRenderer: React.FC<{
     // Call listener
     if ("onChangeListener" in item && item.onChangeListener) {
       // @ts-expect-error - listener signature is generic
-      item.onChangeListener(newValue, { showToast: onShowToast });
+      item.onChangeListener(newValue, {
+        showToast: onShowToast,
+        addDescription: addDescription,
+        clearDescription: clearDescription,
+        setLabel: setLabel,
+      });
     }
   };
 
   const handleActionClick = (_actionId: string) => {
-    // console.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
+    // logger.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
 
     // Priority 1: Generic listener (onClickListener)
     if ("onClickListener" in item && item.onClickListener) {
@@ -155,12 +211,17 @@ const SettingItemRenderer: React.FC<{
             },
           });
         },
+        setValue: (newValue) => handleChange(newValue),
       });
     }
     // Priority 2: Standard onChangeListener (for legacy support if needed)
     else if ("onChangeListener" in item && item.onChangeListener) {
       // @ts-expect-error - listener signature is generic
-      item.onChangeListener(true, { showToast: onShowToast });
+      item.onChangeListener(true, {
+        showToast: onShowToast,
+        addDescription,
+        clearDescription,
+      });
     }
   };
 
@@ -169,21 +230,26 @@ const SettingItemRenderer: React.FC<{
 
   // Render Control based on type
   const renderControl = () => {
-    const boolVal = !!currentVal;
     const stringVal = String(currentVal ?? "");
     const numVal = Number(currentVal ?? 0);
 
     switch (item.type) {
-      case "switch": {
-        const i = item as SettingSwitch;
+      case "check":
         return (
-          <SwitchItem
-            item={{ ...i, disabled: isDisabled }}
-            value={boolVal}
-            onChange={(_, v) => handleChange(v)}
+          <CheckItem
+            item={item}
+            value={!!val}
+            onChange={(id, v) => handleChange(v)}
           />
         );
-      }
+      case "switch":
+        return (
+          <SwitchItem
+            item={item}
+            value={!!val}
+            onChange={(id, v) => handleChange(v)}
+          />
+        );
       case "radio": {
         const i = item as SettingRadio;
         return (
@@ -257,7 +323,9 @@ const SettingItemRenderer: React.FC<{
         isExpanded ? "is-expanded" : ""
       } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""} ${
         !isFinalVisible ? "is-hidden" : ""
-      } ${item.dependsOn ? "is-dependent" : ""}`}
+      } ${item.dependsOn ? "is-dependent" : ""} ${
+        descriptionBlocks.length > 0 ? "has-description" : "no-description"
+      }`}
       onClick={() => {
         if (isExpandable) setIsExpanded(!isExpanded);
       }}
@@ -272,7 +340,7 @@ const SettingItemRenderer: React.FC<{
         <div className="setting-info">
           <div className="setting-label">
             <div className="label-wrapper">
-              {item.label}
+              {label}
               {item.infoImage && (
                 <div
                   className="info-icon-trigger"
@@ -309,13 +377,33 @@ const SettingItemRenderer: React.FC<{
               )}
           </div>
 
-          {/* Dynamic Description Rendering */}
-          {description && (
-            <div
-              className="setting-description"
-              style={{ whiteSpace: "pre-wrap" }}
-            >
-              {description}
+          {/* Dynamic Description Rendering (Semantic Blocks) */}
+          {descriptionBlocks.length > 0 && (
+            <div className="setting-description-container">
+              {descriptionBlocks.map((block, index) => (
+                <div
+                  key={index}
+                  className={`setting-description-block variant-${block.variant}`}
+                  style={{ whiteSpace: "pre-wrap" }}
+                >
+                  {block.variant === "info" && (
+                    <span className="description-icon material-symbols-outlined">
+                      info
+                    </span>
+                  )}
+                  {block.variant === "warning" && (
+                    <span className="description-icon material-symbols-outlined">
+                      warning
+                    </span>
+                  )}
+                  {block.variant === "error" && (
+                    <span className="description-icon material-symbols-outlined">
+                      report
+                    </span>
+                  )}
+                  <span>{block.text}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>

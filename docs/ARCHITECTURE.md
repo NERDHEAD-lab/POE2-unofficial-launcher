@@ -139,7 +139,8 @@
     - `proxy.vbs`: 레지스트리 프로토콜 핸들러에 등록되어 `schtasks /run`을 호출하는 트리거 역할.
     - `runner.vbs`: 실제 관리자 권한으로 실행되어 원본 게임 실행 파일을 실행하고 결과를 로그로 남기는 역할.
   - **PowerShell 인자 최적화**: 경로 내 공백 및 인용 부호 문제를 해결하기 위해 PowerShell의 배열 인자 처리 방식(`$schArgs = @(...)`)과 이중 따옴표(`""`) 이스케이프 관례를 적용함.
-- **결과**: 사용자는 최초 한 번의 UAC 승인만으로 이후 모든 게임 실행 과정에서 추가 팝업 없이 자동 로그인 및 실행 기능을 누릴 수 있음.
+  - **Encoding Standardization (UTF-16 LE)**: Windows Script Host(WSH)가 한글 사용자 계정 경로(`NON-ASCII`)를 인식하지 못하고 오류(`800A0408`)를 발생하는 문제를 해결하기 위해, 모든 `.vbs` 스크립트를 **UTF-16 LE (with BOM)** 형식으로 생성하도록 표준화함. (UTF-8 BOM은 일부 WSH 환경에서 컴파일 오류 유발)
+- **결과**: 사용자는 최초 한 번의 UAC 승인만으로 이후 모든 게임 실행 과정에서 한글 사용자 환경을 포함한 모든 OS 환경에서 추가 팝업 없이 자동 로그인 및 실행 기능을 누릴 수 있음.
 
 #### ADR-009: Single Instance Lock & Active Window Focus
 
@@ -190,13 +191,50 @@
     - 패치 오류 등으로 프로세스가 **시작 직후 종료(Immediate Crash)**되는 경우를 대비하여, `PROCESS_STOP` 이벤트 수신 시 **마지막 로그 체크(`checkLog`)**를 강제 수행하도록 개선함.
 - **결과**: 서비스 채널별 특성에 맞춘 최적화된 감시 전략을 통해 로그 누락 및 오작동을 방지함.
 
+#### ADR-014: Continuous Process Monitoring Strategy (Optimization Toggle)
+
+- **상황**: 런처 외부(웹 브라우저, 직접 실행 등)에서 게임이 실행되거나, 사용자가 런처를 백그라운드로 두고 다른 작업을 할 때도 패치 오류 등을 감지해야 한다는 요구사항이 존재함. 기존 로직은 리소스 절약을 위해 런처가 포커스를 잃으면 감시를 일시 중단(Suspend)했음.
+- **결정**:
+  - **Optimization Setting**: `processWatcherEnabled` 설정을 도입하여 프로세스 감시 최적화 모드(기본값: 활성)를 제어함.
+  - **Always-On Monitoring**: 최적화 모드를 끄면(`false`), 런처가 백그라운드 상태이거나 포커스가 없어도 감시 루프를 중단하지 않고 **항상 유지**함.
+  - **Smart Warning**: 설정을 끌 때, '부팅 시 자동 실행' 및 '트레이 최소화'가 설정되어 있지 않다면 감지 효과가 제한적일 수 있음을 경고 메시지로 안내함.
+- **결과**: 리소스 사용량(CPU/Polling)은 소폭 증가하지만, 런처의 실행 상태와 무관하게(런처가 켜져만 있다면) 게임 실행 및 오류를 놓치지 않고 포착할 수 있음.
+
+#### ADR-015: Standardized Logging System (Main, Preload, Renderer)
+
+- **상황**: 프로젝트 전반(`Main`, `Preload`, `Renderer`)에서 `console.log`, `console.warn`, `console.error`를 직접 사용함으로 인해 로그 형식이 파편화되고, 런처 내부의 '디버그 콘솔' 탭에서 로그를 통합적으로 모니터링하기 어려움. 특히 프리로드 환경의 로그는 브라우저 도구를 열지 않으면 확인이 불가능함.
+- **결정**:
+  - **Unified Logger System**: 모든 레이어에서 `LoggerBase`를 확장한 커스텀 로거(`Logger`, `PreloadLogger`, `RendererLogger`)를 사용하도록 강제함.
+  - **Implicit Console Ban**: 코드 내에서 원시 `console.*` 호출을 엄격히 지양함. 모든 로그는 반드시 관련 로거 인스턴스를 통해 생성해야 함.
+  - **Process-Specific Categorization**: 로그 타입을 나누어(`MAIN`, `PRELOAD`, `DEVTOOLS`, `RENDERER` 등) 디버그 콘솔에서 프로세스별 필터링이 가능하도록 설계함.
+  - **Inter-process Streaming**: IPC(`debug-log:send`)를 통해 프리로드 및 렌더러의 로그를 메인 프로세스로 집약하여 하나의 타임라인으로 시각화함.
+- **결과**:
+  - **통합 가시성**: 개발자 도구를 열지 않고도 런처 UI 내에서 모든 시스템 흐름과 자동화 과정을 실시간으로 모니터링할 수 있음.
+  - **디버깅 편의성**: 로그 발생 시점의 정확한 타임스탬프와 프로세스 문맥을 보존하여 복합적인 오류 원인을 빠르게 식별함.
+
+#### ADR-016: Intelligent Window Scaling & Real-time Resolution Adaptation
+
+- **상황**: 1440x960 고정 해상도 런처가 FHD 노트북이나 UMPC(Steam Deck, Legion Go 등)와 같은 저해상도/고배율 환경에서 UI가 잘리거나 조작이 불가능해지는 현상이 발생함.
+- **결정**:
+  - **Dynamic Scaling Mode**: 화면 해상도를 실시간으로 감지하여, 공간이 부족할 경우 `resizable: true` 모드로 자동 전환하고 렌더러에서 `transform: scale()`을 이용한 Scale-to-fit을 적용함.
+  - **Fixed UX Priority**: QHD/4K 등 충분한 해상도 환경에서는 기존의 고정형 창(Fixed size) UX를 우선하여 디자인 정체성을 유지함.
+  - **Real-time Metrics Observation**: `display-metrics-changed` 및 `move` 이벤트를 구독하여 창이 다른 모니터로 이동하거나 해상도 설정이 변경되는 즉시 모드를 전환함.
+  - **Letterbox Implementation**: 배경 이미지를 스케일러 내부로 가두어, 화면 비율이 다를 경우 상하단/좌우에 블랙 바를 형성함으로써 시각적 일관성을 확보함.
+  - **State Indication**: 저해상도 지원 모드 활성화 시 타이틀바 제목에 상태 문구를 추가하여 사용자에게 가변 모드임을 인지시킴.
+- **결과**: 다양한 폼팩터(UMPC, 구형 노트북 등)에서 런처가 잘림 없이 항상 최적의 크기로 노출되며, 고성능 환경에서는 원래의 프리미엄 고정 디자인을 유지함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
 
 - **설정 구성**: [settings-config.ts](../src/renderer/settings/settings-config.ts)에서 실제 노출될 아이템들을 정의합니다.
   - **카테고리 구조**: `General`, `Account`, `Automation`, `Advanced`, `About`
-- **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 [shared/config.ts](../src/shared/config.ts)의 기본값과 설정 UI의 정합성을 검증합니다.
+- **핵심 메커니즘**:
+  - **Type-Safe Binding**: `shared/config.ts`의 `DEFAULT_CONFIG`와 `id`로 매핑되어 영속성을 보장받습니다.
+  - **Dynamic Context**: `onInit`, `onChangeListener`를 통해 실시간 시스템 상태 반영 및 항목 레이블/비활성화 제어가 가능합니다.
+  - **Semantic Feedback**: `addDescription`을 통한 `info`, `warning`, `error` 시각적 피드백 시스템을 갖추고 있습니다.
+  - **Option Richness**: `radio`, `select` 타입의 개별 옵션에 상세 설명을 추가하여 직관적인 UI를 제공합니다.
+- **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
 
 ## 6. Documentation Map

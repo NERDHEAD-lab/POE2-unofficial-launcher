@@ -2,16 +2,22 @@ import { app } from "electron";
 
 import { AppConfig } from "../../../shared/types";
 import { getConfig } from "../../store";
-import { AppContext, EventHandler } from "../types";
-import { ConfigChangeEvent, EventType } from "../types";
+import { logger } from "../../utils/logger";
+import {
+  AppContext,
+  ConfigChangeEvent,
+  EventHandler,
+  EventType,
+} from "../types";
 
 export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
   id: "AutoLaunchHandler",
   targetEvent: EventType.CONFIG_CHANGE,
 
-  condition: (event) =>
-    event.payload.key === "autoLaunch" ||
-    event.payload.key === "startMinimized",
+  condition: (event) => {
+    const key = event.payload.key;
+    return key === "autoLaunch" || key === "startMinimized";
+  },
 
   handle: async (_event, _context: AppContext) => {
     // Current State Resolution
@@ -20,12 +26,12 @@ export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
     const shouldAutoLaunch = currentConfig.autoLaunch === true;
     const shouldStartMinimized = currentConfig.startMinimized === true;
 
-    console.log(
+    logger.log(
       `[AutoLaunch] Syncing settings: OpenAtLogin=${shouldAutoLaunch}, Minimized=${shouldStartMinimized}`,
     );
 
     if (!app.isPackaged) {
-      console.log(
+      logger.log(
         `[AutoLaunch] Dev mode detected. Skipping OS registration. (HIDDEN_ARG=${shouldStartMinimized ? '"--hidden"' : "NONE"})`,
       );
       return;

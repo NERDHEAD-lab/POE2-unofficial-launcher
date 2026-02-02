@@ -250,6 +250,12 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
           // Auto Fix
           const installPath = await getGameInstallPath(serviceId, gameId);
           if (installPath) {
+            // [UX] Ensure window is visible before showing modal and starting fix
+            if (context.mainWindow) {
+              context.mainWindow.show();
+              context.mainWindow.focus();
+            }
+
             context.mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
               autoStart: true,
             });
@@ -288,6 +294,12 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             context,
             `[AutoPatch] Requesting User Confirmation (Manual Mode)`,
           );
+
+          // [UX] Ensure window is visible for manual confirmation
+          if (context.mainWindow) {
+            context.mainWindow.show();
+            context.mainWindow.focus();
+          }
 
           // Store in pending (PERSIST DATA for manual trigger)
           stateManager.setPendingManualPatch(serviceId, session);

@@ -1,6 +1,12 @@
 import { AppConfig, ConfigDefinition } from "./types";
 
 export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
+  LAUNCHER_VERSION: {
+    key: "launcherVersion",
+    name: "Launcher Version",
+    category: "Info",
+    description: "현재 런처의 버전 정보를 기록합니다. (자동 관리)",
+  },
   ACTIVE_GAME: {
     key: "activeGame",
     name: "Active Game",
@@ -95,10 +101,18 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "General",
     description: "앱 최초 실행 시 온보딩 위저드를 표시할지 여부를 설정합니다.",
   },
+  PROCESS_WATCH_MODE: {
+    key: "processWatchMode",
+    name: "Game Process Watch Mode",
+    category: "Performance",
+    description:
+      "런처가 백그라운드 상태일 때 감시 모드를 설정합니다. ('resource-saving' | 'always-on')",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
 export const CONFIG_KEYS = {
+  LAUNCHER_VERSION: CONFIG_METADATA.LAUNCHER_VERSION.key,
   ACTIVE_GAME: CONFIG_METADATA.ACTIVE_GAME.key,
   SERVICE_CHANNEL: CONFIG_METADATA.SERVICE_CHANNEL.key,
   AUTO_FIX_PATCH_ERROR: CONFIG_METADATA.AUTO_FIX_PATCH_ERROR.key,
@@ -112,9 +126,11 @@ export const CONFIG_KEYS = {
   CLOSE_ACTION: CONFIG_METADATA.CLOSE_ACTION.key,
   QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
   SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
+  PROCESS_WATCH_MODE: CONFIG_METADATA.PROCESS_WATCH_MODE.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
+  launcherVersion: "",
   activeGame: "POE1",
   serviceChannel: "Kakao Games",
   themeCache: {},
@@ -130,6 +146,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   closeAction: "minimize",
   quitOnGameStart: false,
   showOnboarding: true,
+  processWatchMode: "resource-saving",
 };
 
 export const DEBUG_APP_CONFIG = {

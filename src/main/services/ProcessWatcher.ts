@@ -1,12 +1,18 @@
 import { eventBus } from "../events/EventBus";
 import { SUPPORTED_PROCESS_NAMES } from "../events/handlers/GameProcessStatusHandler";
 import { AppContext, EventType, ProcessEvent } from "../events/types";
+import { Logger } from "../utils/logger";
 import * as processUtils from "../utils/process";
 
 const TARGET_PROCESSES = SUPPORTED_PROCESS_NAMES;
 
 export class ProcessWatcher {
   private context: AppContext;
+  private logger = new Logger({
+    type: "PROCESS_WATCHER",
+    typeColor: "#4ec9b0",
+    priority: 4,
+  });
   private timer: NodeJS.Timeout | null = null;
   /**
    * PID-based cache for currently running target processes.
@@ -25,7 +31,7 @@ export class ProcessWatcher {
       // Already running (Idempotent)
       return;
     }
-    console.log("[ProcessWatcher] Starting Watcher Service (PID-based)...");
+    this.logger.log("Starting Watcher Service (PID-based)...");
     this.runCheck(); // Initial check
 
     this.timer = setInterval(() => {
@@ -37,7 +43,7 @@ export class ProcessWatcher {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      console.log("[ProcessWatcher] Watcher Service Stopped.");
+      this.logger.log("Watcher Service Stopped.");
     }
   }
 
@@ -62,50 +68,73 @@ export class ProcessWatcher {
 
   // --- Suspension Logic ---
 
+  private isOptimizationEnabled(): boolean {
+    // Optimization is enabled (resource saving) when NOT in "always-on" mode.
+    // Default is "resource-saving", so this returns true unless explicitly set to "always-on".
+    return this.context.getConfig("processWatchMode") !== "always-on";
+  }
+
   public scheduleSuspension() {
+    // If optimization is disabled, we never suspend the watcher.
+    if (!this.isOptimizationEnabled()) {
+      return;
+    }
+
     // Start 1-minute timer to suspend watcher
     if (this.suspendTimer) clearTimeout(this.suspendTimer);
     this.suspendTimer = setTimeout(() => {
       this.suspendTimer = null; // Mark as suspended
-      console.log(
-        "[ProcessWatcher] Inactivity detected (1m). Suspending to save resources.",
+      this.logger.log(
+        "Inactivity detected (1m). Suspending to save resources.",
       );
       this.stopWatching();
     }, 60 * 1000);
   }
 
   public cancelSuspension() {
+    // If optimization is disabled, we are already running and never suspended.
+    if (!this.isOptimizationEnabled()) {
+      return;
+    }
+
     if (this.suspendTimer) {
       // Cancel pending suspension
       clearTimeout(this.suspendTimer);
       this.suspendTimer = null;
-    } else {
-      // Resume if suspended (Timer was null implies it might have fired)
-      // Check if we are running first to be safe, but startWatching is idempotent now.
-      console.log("[ProcessWatcher] Resuming from suspension.");
+    } else if (!this.timer) {
+      // Only log and start if it was actually stopped (timer is null)
+      this.logger.log("Resuming from suspension.");
       this.startWatching();
     }
   }
 
   public wakeUp(reason: string) {
-    // 1. Cancel suspension timer if running
+    // 1. If optimization is disabled, we should already be running.
+    if (!this.isOptimizationEnabled()) {
+      if (!this.timer) this.startWatching();
+      return;
+    }
+
+    // 2. Cancel suspension timer if running
     if (this.suspendTimer) {
       clearTimeout(this.suspendTimer);
       this.suspendTimer = null;
     }
 
-    // 2. Restart/Resume Watcher
-    this.startWatching();
+    // 3. Restart/Resume Watcher if not running
+    if (!this.timer) {
+      this.logger.log(`Waking up for: ${reason}`);
+      this.startWatching();
+    }
 
-    // 3. Reset Timer if app is still inactive
+    // 4. Reset Timer since app is still inactive (wakeUp is typically called from background events)
     const isMainFocused = this.context.mainWindow?.isFocused();
     const isDebugFocused = this.context.debugWindow?.isFocused();
 
     if (!isMainFocused && !isDebugFocused) {
-      console.log(`[ProcessWatcher] Waking up for: ${reason}`);
       this.suspendTimer = setTimeout(() => {
         this.suspendTimer = null;
-        console.log("[ProcessWatcher] Wake-up period ended. Suspending again.");
+        this.logger.log("Wake-up period ended. Suspending again.");
         this.stopWatching();
       }, 60 * 1000);
     }
@@ -124,8 +153,8 @@ export class ProcessWatcher {
           // New Process Detected
           this.activePids.set(p.pid, { name: p.name, path: p.path });
 
-          console.log(
-            `[ProcessWatcher] Process Started: ${p.name} (PID: ${p.pid}, Path: ${p.path || "Unknown"})`,
+          this.logger.log(
+            `Process Started: ${p.name} (PID: ${p.pid}, Path: ${p.path || "Unknown"})`,
           );
 
           eventBus.emit<ProcessEvent>(EventType.PROCESS_START, this.context, {
@@ -140,9 +169,7 @@ export class ProcessWatcher {
       for (const [pid, info] of this.activePids.entries()) {
         if (!currentPidSet.has(pid)) {
           // Process Stopped
-          console.log(
-            `[ProcessWatcher] Process Stopped: ${info.name} (PID: ${pid})`,
-          );
+          this.logger.log(`Process Stopped: ${info.name} (PID: ${pid})`);
 
           eventBus.emit<ProcessEvent>(EventType.PROCESS_STOP, this.context, {
             name: info.name,
@@ -154,7 +181,7 @@ export class ProcessWatcher {
         }
       }
     } catch (e) {
-      console.error(`[ProcessWatcher] Error during runCheck:`, e);
+      this.logger.error(`Error during runCheck:`, e);
     }
   }
 }
