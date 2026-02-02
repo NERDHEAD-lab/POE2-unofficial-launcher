@@ -89,10 +89,55 @@ import {
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import {
+  readRegistryValue,
+  writeRegistryValue,
+  LAUNCHER_UNINSTALL_REG_KEY,
+} from "./utils/registry";
+import {
   isUACBypassEnabled,
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
+
+/**
+ * Synchronizes the app's installation path in the registry with the actual current execution path.
+ * This is crucial for fixing the issue where manual move (copy-paste) causes updates to land in the old directory.
+ */
+async function syncInstallLocation() {
+  if (!app.isPackaged) return;
+
+  try {
+    const currentExePath = app.getPath("exe");
+    const currentInstallDir = path.dirname(currentExePath);
+
+    // [Standard] Check HKCU Uninstall key (used by NSIS and electron-updater)
+    const storedPath = await readRegistryValue(
+      LAUNCHER_UNINSTALL_REG_KEY,
+      "InstallLocation",
+    );
+
+    if (storedPath !== currentInstallDir) {
+      logger.log(
+        `[Main] InstallLocation mismatch detected. Synchronizing registry: ${storedPath || "none"} -> ${currentInstallDir}`,
+      );
+
+      const success = await writeRegistryValue(
+        LAUNCHER_UNINSTALL_REG_KEY,
+        "InstallLocation",
+        currentInstallDir,
+        false, // HKCU doesn't need admin
+      );
+
+      if (success) {
+        logger.log("[Main] InstallLocation synchronized successfully.");
+      } else {
+        logger.error("[Main] Failed to synchronize InstallLocation.");
+      }
+    }
+  } catch (error) {
+    logger.error("[Main] Error during InstallLocation synchronization:", error);
+  }
+}
 
 // --- Global State for Interruption Handling ---
 let currentSystemStatus: RunStatus = "idle";
@@ -1473,5 +1518,6 @@ app.whenReady().then(async () => {
   }
 
   // [NEW] Handle Uninstall Cleanup Flag
+  await syncInstallLocation();
   createWindows();
 });

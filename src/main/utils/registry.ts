@@ -36,6 +36,9 @@ const REGISTRY_MAP: Record<
 export const DAUM_STARTER_PROTOCOL_KEY =
   "Registry::HKEY_CLASSES_ROOT\\daumgamestarter\\shell\\open\\command";
 
+export const LAUNCHER_UNINSTALL_REG_KEY =
+  "Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\com.nerdhead.poe2-launcher";
+
 /**
  * Standardize registry paths to PowerShell Registry:: provider format
  */
