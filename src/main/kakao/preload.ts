@@ -62,6 +62,10 @@ const SELECTORS = {
   KAKAO_AUTH: {
     BTN_AGREE: '.btn_agree, button[type="submit"].btn_g',
   },
+  KAKAO_LOGIN: {
+    CHECKBOX_SAVE: 'input[name="saveSignedIn"]',
+    CONTAINER_CHOICE: ".item_choice",
+  },
   KAKAO_SIMPLE: {
     // Select first account in list (target a[role="button"] for semantic click)
     FIRST_ACCOUNT: ".list_easy li:first-child a[role='button']",
@@ -284,6 +288,112 @@ const DaumLoginHandler: PageHandler = {
   },
 };
 
+const KakaoLoginHandler: PageHandler = {
+  name: "KakaoLoginHandler",
+  description: "Kakao Login Page - Auto Check 'Save Login'",
+  match: (url) =>
+    url.hostname === "accounts.kakao.com" &&
+    url.pathname.includes("/login") &&
+    !url.pathname.includes("/simple"),
+  execute: () => {
+    logger.log(`[Handler] Executing ${KakaoLoginHandler.name}`);
+
+    observeAndInteract((obs) => {
+      const checkbox = document.querySelector(
+        SELECTORS.KAKAO_LOGIN.CHECKBOX_SAVE,
+      ) as HTMLInputElement;
+
+      if (checkbox) {
+        // 1. Auto-check if not checked
+        if (!checkbox.checked) {
+          logger.log(
+            "[KakaoLoginHandler] Auto-checking 'saveSignedIn' checkbox.",
+          );
+          checkbox.checked = true;
+          // Trigger change event for UI consistency of the page
+          checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        // 2. Setup Warning UI for uncheck action
+        // Use .set_login as primary container for vertical stacking if available
+        const container = (checkbox.closest(".set_login") ||
+          checkbox.closest(
+            SELECTORS.KAKAO_LOGIN.CONTAINER_CHOICE,
+          )) as HTMLElement;
+
+        if (
+          container &&
+          !container.nextElementSibling?.classList.contains(
+            "launcher-warning-msg",
+          )
+        ) {
+          const warningMsg = document.createElement("div");
+          warningMsg.className = "launcher-warning-msg";
+          warningMsg.style.display = checkbox.checked ? "none" : "block";
+          warningMsg.style.width = "100%";
+          warningMsg.style.marginTop = "10px";
+          warningMsg.style.boxSizing = "border-box";
+
+          // Alert Box (Bordered, contains source text and warning)
+          const alertBox = document.createElement("div");
+          alertBox.style.border = "1px solid #7e6c42"; // PoE Muted Gold
+          alertBox.style.borderRadius = "6px";
+          alertBox.style.padding = "12px";
+          alertBox.style.backgroundColor = "rgba(126, 108, 66, 0.05)";
+          alertBox.style.display = "flex";
+          alertBox.style.flexDirection = "column";
+          alertBox.style.gap = "6px";
+
+          const sourceLabel = document.createElement("div");
+          sourceLabel.innerText = "POE UNOFFICIAL LAUNCHER";
+          sourceLabel.style.fontSize = "10px";
+          sourceLabel.style.fontWeight = "bold";
+          sourceLabel.style.color = "#7e6c42";
+          sourceLabel.style.letterSpacing = "0.5px";
+          sourceLabel.style.opacity = "0.8";
+
+          const textWrapper = document.createElement("div");
+          textWrapper.style.display = "flex";
+          textWrapper.style.alignItems = "flex-start";
+          textWrapper.style.gap = "8px";
+
+          // Warning Icon (SVG)
+          const warningIcon = document.createElement("span");
+          warningIcon.style.display = "flex";
+          warningIcon.style.alignItems = "center";
+          warningIcon.style.marginTop = "2px";
+          warningIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="14px" viewBox="0 -960 960 960" width="14px" fill="#ff4d4f"><path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm302-40q17 0 28.5-11.5T520-280q0-17-11.5-28.5T480-320q-17 0-28.5 11.5T440-280q0 17 11.5 28.5T480-240Zm-40-120h80v-200h-80v200Zm40-100Z"/></svg>`;
+
+          const text = document.createElement("span");
+          text.innerText =
+            "간편로그인을 저장하지 않으면 매번 아이디와 패스워드 입력이 필요합니다.";
+          text.style.color = "#ff4d4f";
+          text.style.fontSize = "12px";
+          text.style.lineHeight = "1.5";
+
+          textWrapper.appendChild(warningIcon);
+          textWrapper.appendChild(text);
+
+          alertBox.appendChild(sourceLabel);
+          alertBox.appendChild(textWrapper);
+
+          warningMsg.appendChild(alertBox);
+          container.insertAdjacentElement("afterend", warningMsg);
+
+          // Listener for checkbox change
+          checkbox.addEventListener("change", () => {
+            warningMsg.style.display = checkbox.checked ? "none" : "block";
+          });
+        }
+
+        if (obs) obs.disconnect();
+        return true;
+      }
+      return false;
+    });
+  },
+};
+
 const KakaoSimpleLoginHandler: PageHandler = {
   name: "KakaoSimpleLoginHandler",
   description: "Kakao Simple Login Page - Auto Click First Account",
@@ -404,6 +514,7 @@ const HANDLERS: PageHandler[] = [
   Poe2MainHandler,
   LauncherCheckHandler,
   DaumLoginHandler,
+  KakaoLoginHandler,
   KakaoSimpleLoginHandler,
   KakaoAuthHandler,
   SecurityCenterHandler,
