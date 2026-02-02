@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.6.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.5.0...0.6.0) (2026-02-02)
+
+
+### Features
+
+* **ui:** 저해상도 기기 대응 및 지능형 런처 크기 제어 도입 ([1cd59b7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1cd59b7502fff0c715e26356d7b1adf564d86f82))
+* 디버그 콘솔 key값 삭제 기능 추가 ([77b30ac](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/77b30acaab466332fb17e160ab8d35667d8afe56))
+* 디버그 콘솔 UI 개선 ([2f8aa3a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/2f8aa3aab3a2a25c63b43141a875fc89e57f9da0))
+* 디버그 콘솔 내보내기 UI 개선 ([c9d5128](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c9d51281cc3e376f88de2db1733d24d7b976cf7b))
+* 디버그 콘솔 스크롤 사용감 개선 ([20dc02a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/20dc02a0d0af6cc93e3eda26c456aede4dd23cb9))
+* 디버그 콘솔 탭 우선순위 기능 추가 및 할당 ([1744d53](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1744d5390e7aa7509f7e86151ecb42964b0fb59f))
+* 디버그 콘솔이 런쳐 다음으로 뜨도록 개선 ([5a7c155](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5a7c15503432a45f4302e879bdd0eba9b5621e79))
+* 디버그 콘솔이 로드되기 전 쌓이던 로그가 두번 출력되는 문제 수정 ([d97b654](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/d97b654186ae49958fb6a565dc8c7323c64c04fc))
+* 디버깅용으로 설정에 현재 런쳐 버전 추가 ([3fcb382](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3fcb382f56b780bbbd341fe8e73cd35829abe1f1))
+* 모든 로그를 logger로 통합 및 logger에서 디버그 콘솔에 로그 이벤트를 전달 하도록 통합 - 1 ([3df0ac7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3df0ac73780b51ae38c92191dce27cbb692601e9))
+* 모든 로그를 logger로 통합 및 logger에서 디버그 콘솔에 로그 이벤트를 전달 하도록 통합 - 2 ( 잔여 console.log, error 등 통합 ) ([e6bdb3e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e6bdb3e358a4cbdbf12e2c4509e53d6017890f10))
+* 모든 로그를 logger로 통합 및 logger에서 디버그 콘솔에 로그 이벤트를 전달 하도록 통합 - 3 ( renderer 단 통합 ) ([69810b3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/69810b3919b069ac8530b962399559a057009cc9))
+* 모든 로그를 logger로 통합 및 logger에서 디버그 콘솔에 로그 이벤트를 전달 하도록 통합 - 4 ( 종료 시 DebugLogEvent 무한루프 수정 ) ([b43854a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b43854ab8107328ec03b1fdddeba8e68733371d5))
+* 모든 로그를 logger로 통합 및 logger에서 디버그 콘솔에 로그 이벤트를 전달 하도록 통합 - 5 ( 로그 배너 추가 ) ([8a7c6cc](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/8a7c6cc3e1d8a7df681330d4c9fd46379003cba4))
+* 설정 UI 일부 개선 ([bd12c39](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bd12c397b10ca1ecf016e83c817c73dcb56dfb50))
+* 설정 UI 일부 개선 - 2 ([91875e9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/91875e989dd6eebeb8cf252e4be9178c1753056b))
+* 설정 UI 일부 개선 - 3 ([88ce075](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/88ce075102d5fa0ffe5d6e5f98ce379de2dc2db4))
+* 설정 UI 일부 개선 - 4 ([64b490d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/64b490df0a36c80a8b9f0d7bd0e531477c9ed660))
+* 설정 UI 일부 개선 - 5 ([7e9a3c5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/7e9a3c55611d1c6276343dc93cfa18ee4ee9eeb0))
+* 일부 상황에서 런쳐에서 게임 실행 시 매번 로그인이 필요한 문제 조치 ([a612d61](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a612d61cc1544e3bd9ff5e4c3e5980d3dc7ddb9c))
+* 프로세스 감시 최적화 기능을 off 할 수 있도록 설정 추가 ([1984fb2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1984fb2b8301184ccc303fcf674b4166c870cc9a))
+* 프로세스 감시 최적화 기능을 off 할 수 있도록 설정 추가 - 2 ([fdcb180](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/fdcb180cba7f6939b413e21bb0f95b9418faf851))
+* 프로세스 감시 최적화 기능을 off 할 수 있도록 설정 추가 - 3 ([882e33d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/882e33dfb7b3d39059d8810ddf9aa63b8cb39116))
+* 프로세스 감시 최적화 기능을 off 할 수 있도록 설정 추가 - 4 ([5d9eafc](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5d9eafce1a1e8b0aa2c6e3174be655b7d8fee429))
+* 프로세스 감시 최적화 기능을 off 할 수 있도록 설정 추가 - 5 ([f4cc4ee](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f4cc4ee478d275e6477dd5a795dc15e45c556c2c))
+
+
+### Bug Fixes
+
+* **uac:** 한글 경로 인식 오류 수정을 위한 VBScript 인코딩 보정(UTF-16 LE) ([b14e2e2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b14e2e2a84940020b3f9bb064cd237bdecaf5aee))
+* 의도와 다르게 수정된 코드 원복 ([6ec2389](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/6ec23891709c953ea4fff6c2f1e76ef73ccb879d))
+
 ## [0.5.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.4.0...0.5.0) (2026-01-31)
 
 
