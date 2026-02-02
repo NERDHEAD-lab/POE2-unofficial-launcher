@@ -65,6 +65,7 @@ const SELECTORS = {
   KAKAO_LOGIN: {
     CHECKBOX_SAVE: 'input[name="saveSignedIn"]',
     CONTAINER_CHOICE: ".item_choice",
+    BTN_LOGIN: 'button[type="submit"], .btn_g',
   },
   KAKAO_SIMPLE: {
     // Select first account in list (target a[role="button"] for semantic click)
@@ -298,24 +299,24 @@ const KakaoLoginHandler: PageHandler = {
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoLoginHandler.name}`);
 
-    observeAndInteract((obs) => {
+    let hasAutoChecked = false;
+
+    observeAndInteract((_obs) => {
       const checkbox = document.querySelector(
         SELECTORS.KAKAO_LOGIN.CHECKBOX_SAVE,
       ) as HTMLInputElement;
 
       if (checkbox) {
-        // 1. Auto-check if not checked
-        if (!checkbox.checked) {
-          logger.log(
-            "[KakaoLoginHandler] Auto-checking 'saveSignedIn' checkbox.",
-          );
-          checkbox.checked = true;
-          // Trigger change event for UI consistency of the page
-          checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+        // 1. Initial Auto-check (Official click to sync state, only ONCE)
+        if (!hasAutoChecked) {
+          if (!checkbox.checked) {
+            logger.log("[KakaoLoginHandler] Performing initial auto-check.");
+            checkbox.click();
+          }
+          hasAutoChecked = true;
         }
 
         // 2. Setup Warning UI for uncheck action
-        // Use .set_login as primary container for vertical stacking if available
         const container = (checkbox.closest(".set_login") ||
           checkbox.closest(
             SELECTORS.KAKAO_LOGIN.CONTAINER_CHOICE,
@@ -334,9 +335,8 @@ const KakaoLoginHandler: PageHandler = {
           warningMsg.style.marginTop = "10px";
           warningMsg.style.boxSizing = "border-box";
 
-          // Alert Box (Bordered, contains source text and warning)
           const alertBox = document.createElement("div");
-          alertBox.style.border = "1px solid #7e6c42"; // PoE Muted Gold
+          alertBox.style.border = "1px solid #7e6c42";
           alertBox.style.borderRadius = "6px";
           alertBox.style.padding = "12px";
           alertBox.style.backgroundColor = "rgba(126, 108, 66, 0.05)";
@@ -357,7 +357,6 @@ const KakaoLoginHandler: PageHandler = {
           textWrapper.style.alignItems = "flex-start";
           textWrapper.style.gap = "8px";
 
-          // Warning Icon (SVG)
           const warningIcon = document.createElement("span");
           warningIcon.style.display = "flex";
           warningIcon.style.alignItems = "center";
@@ -373,20 +372,17 @@ const KakaoLoginHandler: PageHandler = {
 
           textWrapper.appendChild(warningIcon);
           textWrapper.appendChild(text);
-
           alertBox.appendChild(sourceLabel);
           alertBox.appendChild(textWrapper);
-
           warningMsg.appendChild(alertBox);
           container.insertAdjacentElement("afterend", warningMsg);
 
-          // Listener for checkbox change
           checkbox.addEventListener("change", () => {
             warningMsg.style.display = checkbox.checked ? "none" : "block";
           });
         }
 
-        if (obs) obs.disconnect();
+        // We don't disconnect the observer here because the UI might re-render (dynamic tabs)
         return true;
       }
       return false;

@@ -19,6 +19,7 @@
 - **개선안**:
   - 메인 창의 `ready-to-show` 이벤트 이후 특정 지연 시간이나 렌더링 완료 신호를 받아 디버그 콘솔을 표시하는 구조 강화.
   - `parent: mainWindow` 설정 외에도 `alwaysOnTop` 등의 설정을 통해 런처 레이어링 정책 확립.
+  - [ ] **[Suggestion]** src/main/kakao/preload.ts: `about:blank` 및 보안되지 않은 컨텍스트에서 `SessionStorage` 접근 시 발생하는 보안 경고(SecurityError)를 방지하기 위한 프로토콜 체크 추가 필요. (Reason: 불필요한 에러 로그 감소 및 안정성 확보)
 
 ## 2. 로그 시스템 안정화
 
