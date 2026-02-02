@@ -23,9 +23,16 @@ const appVersion = JSON.stringify(
   JSON.parse(readFileSync("package.json", "utf-8")).version,
 );
 
+const builderConfig = readFileSync("electron-builder.json5", "utf-8");
+const guidMatch = builderConfig.match(/guid:\s*["'](.*?)["']/);
+const appGuid = guidMatch
+  ? guidMatch[1]
+  : "612ccee6-aa48-58b5-9d2e-fdd023b16218";
+
 const defines = {
   __APP_VERSION__: appVersion,
   __APP_HASH__: JSON.stringify(commitHash),
+  __APP_GUID__: JSON.stringify(appGuid),
 };
 
 // https://vitejs.dev/config/
