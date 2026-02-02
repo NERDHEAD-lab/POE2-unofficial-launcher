@@ -146,7 +146,9 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
   condition: () => true,
 
   handle: async (_event, _context: AppContext) => {
-    logger.log("[UpdateHandler] Requesting install & quit...");
+    logger.log(
+      `[UpdateHandler] Requesting install & quit... (Current EXE: ${app.getPath("exe")})`,
+    );
 
     if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
       logger.log(
