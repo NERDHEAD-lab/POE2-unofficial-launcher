@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.2...0.6.3) (2026-02-03)
+
+
+### Bug Fixes
+
+* 공지/패치 불러오기 성능 개선 ([83c64cd](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/83c64cd79575516a509e8989a536fe41b0e22549))
+* 로그와 프로세스 감지를 위한 스케줄러가 일부 환경에서 성능 부하를 발생 시킬 수 있는 문제 수정 ([487ef34](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/487ef34ed2366a8dcae28ed2436fbe29d5aa4ffe))
+* 프로세스 감지 시 사용하는 명령어가 성능을 과도하게 사용하는 문제 개선 ( Get-CimInstance -&gt; Get-Process ) ([19c3094](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/19c3094758439b973db8fd028d1610c6496deaa2))
+
 ## [0.6.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.1...0.6.2) (2026-02-03)
 
 
