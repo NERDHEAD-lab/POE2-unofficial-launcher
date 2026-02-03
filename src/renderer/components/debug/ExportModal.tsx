@@ -20,12 +20,11 @@ const ExportModal: React.FC<ExportModalProps> = ({
   const masterCheckboxRef = useRef<HTMLInputElement>(null);
 
   // Derived state for master checkbox
-  const { allSelected, noneSelected, isIndeterminate } = useMemo(() => {
+  const { allSelected, isIndeterminate } = useMemo(() => {
     const total = sources.length;
     const selectedCount = selectedIds.length;
     return {
       allSelected: total > 0 && selectedCount === total,
-      noneSelected: selectedCount === 0,
       isIndeterminate: selectedCount > 0 && selectedCount < total,
     };
   }, [sources, selectedIds]);

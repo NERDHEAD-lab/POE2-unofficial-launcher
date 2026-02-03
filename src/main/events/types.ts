@@ -28,8 +28,6 @@ export enum EventType {
   CONFIG_DELETE = "CONFIG:DELETE",
 }
 
-// ...
-
 export interface LogBackupWebRootFoundEvent {
   type: EventType.LOG_BACKUP_WEB_ROOT_FOUND;
   payload: {
@@ -41,10 +39,6 @@ export interface LogBackupWebRootFoundEvent {
   };
   timestamp?: number;
 }
-
-// ...
-
-// ...
 
 export interface LogSessionStartEvent {
   type: EventType.LOG_SESSION_START;
@@ -118,7 +112,7 @@ export interface ProcessEvent {
 // 3. UI Event (Game Start Click, etc.)
 export interface UIEvent {
   type: EventType.UI_GAME_START_CLICK;
-  payload?: void; // No payload needed for now
+  payload?: void;
   timestamp?: number;
 }
 
@@ -140,7 +134,7 @@ export interface UIUpdateInstallEvent {
   timestamp?: number;
 }
 
-// 4. Message Event (Legacy - to be phased out or kept for generic msgs)
+// 4. Message Event
 export interface MessageEvent {
   type: EventType.MESSAGE_GAME_PROGRESS_INFO;
   payload: {
@@ -149,7 +143,7 @@ export interface MessageEvent {
   timestamp?: number;
 }
 
-// 5. Game Status Change Event (New State-Driven)
+// 5. Game Status Change Event
 export interface GameStatusChangeEvent {
   type: EventType.GAME_STATUS_CHANGE;
   payload: GameStatusState;
@@ -170,8 +164,6 @@ export interface SystemWakeUpEvent {
   timestamp?: number;
 }
 
-// LogErrorDetectedEvent removed (using the one above)
-
 export interface PatchProgressEvent {
   type: EventType.PATCH_PROGRESS;
   payload: {
@@ -185,7 +177,6 @@ export interface PatchProgressEvent {
       progress: number;
       error?: string;
     }[];
-    // Legacy support if needed, but for now we enforce new structure
     fileName?: string;
     progress?: number;
     error?: string;
@@ -237,19 +228,10 @@ export interface AppContext {
 }
 
 // Generic Handler Interface
-// T extends AppEvent allows us to narrow down the specific event type.
 export interface EventHandler<T extends AppEvent = AppEvent> {
   id: string;
-  // The specific event type this handler listens to
   targetEvent: T["type"];
-
-  // Optional condition check
-  // FIXED: Condition now receives the event to make payload-based decisions
   condition?: (event: T, context: AppContext) => boolean;
-
-  // Optional: If false, suppresses "Executing Handler" log in EventBus (Default: true)
   debug?: boolean;
-
-  // Execution logic
   handle: (event: T, context: AppContext) => Promise<void>;
 }

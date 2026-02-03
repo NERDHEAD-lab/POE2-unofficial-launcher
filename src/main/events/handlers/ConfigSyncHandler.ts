@@ -1,6 +1,5 @@
 import { BrowserWindow } from "electron";
 
-import { AppConfig } from "../../../shared/types";
 import {
   AppContext,
   ConfigChangeEvent,
