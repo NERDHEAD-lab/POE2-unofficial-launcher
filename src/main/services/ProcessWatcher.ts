@@ -21,6 +21,7 @@ export class ProcessWatcher {
    */
   private activePids: Map<number, { name: string; path: string }> = new Map();
   private suspendTimer: NodeJS.Timeout | null = null;
+  private isChecking = false;
 
   constructor(context: AppContext) {
     this.context = context;
@@ -141,6 +142,9 @@ export class ProcessWatcher {
   }
 
   private async runCheck() {
+    if (this.isChecking) return;
+    this.isChecking = true;
+
     try {
       // 1. Fetch current target processes in a single call
       const currentProcesses =
@@ -182,6 +186,8 @@ export class ProcessWatcher {
       }
     } catch (e) {
       this.logger.error(`Error during runCheck:`, e);
+    } finally {
+      this.isChecking = false;
     }
   }
 }

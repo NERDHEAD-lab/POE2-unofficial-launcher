@@ -115,21 +115,19 @@ export class PowerShellManager {
     const request: IPCRequest = { id, command };
 
     return new Promise<PSResult>((resolve) => {
-      const timeout = setTimeout(
-        () => {
-          if (session.pendingRequests.has(id)) {
-            session.pendingRequests.delete(id);
-            const msg = "Request execution timed out (30s)";
-            logger.error(msg);
-            resolve({
-              stdout: "",
-              stderr: msg,
-              code: 1,
-            });
-          }
-        },
-        isAdmin ? 30000 : 10000,
-      );
+      const timeoutMs = isAdmin ? 30000 : 10000;
+      const timeout = setTimeout(() => {
+        if (session.pendingRequests.has(id)) {
+          session.pendingRequests.delete(id);
+          const msg = `Request execution timed out (${timeoutMs / 1000}s)`;
+          logger.error(msg);
+          resolve({
+            stdout: "",
+            stderr: msg,
+            code: 1,
+          });
+        }
+      }, timeoutMs);
 
       session.pendingRequests.set(id, (res) => {
         clearTimeout(timeout);

@@ -3,7 +3,7 @@ import path from "node:path";
 import { app } from "electron";
 import Store from "electron-store";
 
-import { DEFAULT_CONFIG, CONFIG_KEYS } from "../shared/config";
+import { DEFAULT_CONFIG } from "../shared/config";
 import { AppConfig } from "../shared/types";
 import { AppContext } from "./events/types";
 

@@ -26,6 +26,7 @@ export class NewsService {
     game: AppConfig["activeGame"];
     service: AppConfig["serviceChannel"];
   } | null = null;
+  private fetchLock: Set<string> = new Set();
   private logger = new Logger({ type: "NEWS_SERVICE", typeColor: "#ce9178" });
 
   constructor() {
@@ -78,7 +79,7 @@ export class NewsService {
       try {
         const response = await fetch(url, {
           ...options,
-          signal: AbortSignal.timeout(10000), // 10s timeout
+          signal: AbortSignal.timeout(15000), // Increased to 15s timeout
         });
         if (response.ok) return response;
         if (i === retries - 1) throw new Error(`HTTP ${response.status}`);
@@ -101,6 +102,13 @@ export class NewsService {
     const url = NEWS_URL_MAP[key];
 
     if (!url) return [];
+
+    if (this.fetchLock.has(key)) {
+      this.logger.log(`Fetch already in progress for ${key}. Skipping.`);
+      return this.getCacheItems(key);
+    }
+
+    this.fetchLock.add(key);
 
     try {
       const response = await this.fetchWithRetry(url, {
@@ -176,6 +184,8 @@ export class NewsService {
     } catch (error) {
       this.logger.error(`Failed to fetch news list for ${key}:`, error);
       return this.getCacheItems(key);
+    } finally {
+      this.fetchLock.delete(key);
     }
   }
 
