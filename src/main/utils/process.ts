@@ -99,8 +99,11 @@ export const getProcessesInfo = async (
   if (processNames.length === 0) return [];
 
   try {
-    const filter = processNames.map((name) => `Name = '${name}'`).join(" or ");
-    const psCommand = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId, Name, ExecutablePath | ConvertTo-Json -Compress`;
+    // [Optimization] Use Get-Process instead of Get-CimInstance for polling.
+    // WMI (CIM) is extremely slow and causes AppHangB1 in some environments.
+    // Get-Process is much lighter.
+    const names = processNames.map((n) => n.replace(/\.exe$/i, ""));
+    const psCommand = `Get-Process -Name ${names.join(",")} -ErrorAction SilentlyContinue | Select-Object Id, Name, Path | ConvertTo-Json -Compress`;
 
     const { stdout } = await PowerShellManager.getInstance().execute(
       psCommand,
@@ -116,9 +119,6 @@ export const getProcessesInfo = async (
     try {
       result = JSON.parse(stdout);
     } catch (_e) {
-      // If only one process, it's an object, if multiple, it's an array.
-      // But ConvertTo-Json -Compress might fail if there's a parsing error in PS?
-      // Usually it's just empty string if no matches.
       return [];
     }
 
@@ -126,18 +126,17 @@ export const getProcessesInfo = async (
     const processes: ProcessInfo[] = [];
 
     for (const p of rawProcesses) {
-      if (!p || typeof p.ProcessId !== "number") continue;
+      if (!p || typeof p.Id !== "number") continue;
 
       processes.push({
-        pid: p.ProcessId,
-        name: p.Name || "",
-        path: p.ExecutablePath || "", // May be null due to permissions
+        pid: p.Id,
+        name: p.Name ? `${p.Name}.exe` : "",
+        path: p.Path || "",
       });
     }
 
     return processes;
   } catch (_e) {
-    // If the filter is too long or something fails
     return [];
   }
 };
