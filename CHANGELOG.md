@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.1...0.6.2) (2026-02-03)
+
+
+### Bug Fixes
+
+* 지정 PC가 아닌 환경에서 접속 시 게임실행이 불가능한 문제 수정 ([79cace3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/79cace31152c730b15f88ce4890286d251af240e))
+* 지정 PC가 아닌 환경에서 접속 시 게임실행이 불가능한 문제 수정 ([ead84c7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ead84c7aa7f180fa3aca61924d4b9fae969431cc))
+
 ## [0.6.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.0...0.6.1) (2026-02-02)
 
 
