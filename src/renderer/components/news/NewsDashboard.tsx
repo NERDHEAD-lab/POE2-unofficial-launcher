@@ -35,71 +35,89 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
   });
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const fetchAllNews = useCallback(async (forced = false) => {
-    const results = await Promise.all(
-      combinations.map(async ({ game, service }) => {
-        const [notices, patchNotes] = await Promise.all([
-          forced
-            ? window.electronAPI.getNews(game, service, "notice")
-            : window.electronAPI.getNewsCache(game, service, "notice"),
-          forced
-            ? window.electronAPI.getNews(game, service, "patch-notes")
-            : window.electronAPI.getNewsCache(game, service, "patch-notes"),
-        ]);
-        return { key: `${service}-${game}`, notices, patchNotes };
-      }),
-    );
-
-    setAllNews((prev) => {
-      const next = { ...prev };
-      results.forEach((res) => {
-        next[res.key] = { notices: res.notices, patchNotes: res.patchNotes };
-      });
-      return next;
-    });
-
-    // Mark all fetched items as "seen" in the backend store
-    // so they won't have 'N' on next launcher restart.
-    const allIds = results.flatMap((res) => [
-      ...res.notices.map((n) => n.id),
-      ...res.patchNotes.map((p) => p.id),
-    ]);
-    if (allIds.length > 0) {
-      window.electronAPI.markMultipleNewsAsRead(allIds);
-    }
-
-    if (!forced) {
-      // If we only loaded cache, trigger a live fetch for everything in background
-      Promise.all(
+  const fetchAllNews = useCallback(
+    async (forced = false) => {
+      // 1. Initial Load (Cache first for everyone or Active live if forced)
+      const initialResults = await Promise.all(
         combinations.map(async ({ game, service }) => {
+          const key = `${service}-${game}`;
+
+          // If forced (manual refresh), we always hit network for active.
+          // If not forced (startup/mount), we use cache for everyone initially to be fast.
+          const useCache = !forced;
+
+          const [notices, patchNotes] = await Promise.all([
+            useCache
+              ? window.electronAPI.getNewsCache(game, service, "notice")
+              : window.electronAPI.getNews(game, service, "notice"),
+            useCache
+              ? window.electronAPI.getNewsCache(game, service, "patch-notes")
+              : window.electronAPI.getNews(game, service, "patch-notes"),
+          ]);
+          return { key, notices, patchNotes };
+        }),
+      );
+
+      setAllNews((prev) => {
+        const next = { ...prev };
+        initialResults.forEach((res) => {
+          next[res.key] = { notices: res.notices, patchNotes: res.patchNotes };
+        });
+        return next;
+      });
+
+      if (forced) return; // For manual refresh, we are done after active/forced fetch
+
+      // 2. Background Live Refresh (Sequential & Prioritized)
+      // PRIORITY:
+      // 1. Current Active (Active Service, Active Game)
+      // 2. Same Service, Other Game
+      // 3. Other Service, Active Game
+      // 4. Other Service, Other Game
+      const sortedCombinations = [...combinations].sort((a, b) => {
+        const aIsActiveService = a.service === serviceChannel;
+        const bIsActiveService = b.service === serviceChannel;
+        const aIsActiveGame = a.game === activeGame;
+        const bIsActiveGame = b.game === activeGame;
+
+        // Rank Calculation
+        const getRank = (isSvc: boolean, isGm: boolean) => {
+          if (isSvc && isGm) return 0;
+          if (isSvc && !isGm) return 1;
+          if (!isSvc && isGm) return 2;
+          return 3;
+        };
+
+        return (
+          getRank(aIsActiveService, aIsActiveGame) -
+          getRank(bIsActiveService, bIsActiveGame)
+        );
+      });
+
+      // Execute sequentially to avoid concurrent network/UI load
+      const updateSequentially = async () => {
+        for (const { game, service } of sortedCombinations) {
+          const key = `${service}-${game}`;
+
+          // Small delay between fetches to ensure UI responsiveness
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
           const [notices, patchNotes] = await Promise.all([
             window.electronAPI.getNews(game, service, "notice"),
             window.electronAPI.getNews(game, service, "patch-notes"),
           ]);
-          return { key: `${service}-${game}`, notices, patchNotes };
-        }),
-      ).then((liveResults) => {
-        setAllNews((prev) => {
-          const next = { ...prev };
-          liveResults.forEach((res) => {
-            next[res.key] = {
-              notices: res.notices,
-              patchNotes: res.patchNotes,
-            };
-          });
-          return next;
-        });
 
-        const liveIds = liveResults.flatMap((res) => [
-          ...res.notices.map((n) => n.id),
-          ...res.patchNotes.map((p) => p.id),
-        ]);
-        if (liveIds.length > 0) {
-          window.electronAPI.markMultipleNewsAsRead(liveIds);
+          setAllNews((prev) => ({
+            ...prev,
+            [key]: { notices, patchNotes },
+          }));
         }
-      });
-    }
-  }, []);
+      };
+
+      updateSequentially();
+    },
+    [activeGame, serviceChannel],
+  );
 
   useEffect(() => {
     let isMounted = true;
