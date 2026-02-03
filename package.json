@@ -15,6 +15,7 @@
     "dev": "chcp 65001 && vite",
     "dev:test": "chcp 65001 && cross-env VITE_SHOW_GAME_WINDOW=true vite",
     "build": "tsc && vite build && electron-builder",
+    "build:check": "tsc && vite build",
     "package": "electron-builder",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
