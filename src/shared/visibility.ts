@@ -15,6 +15,24 @@ export const VISIBILITY_RULES: VisibilityRule[] = [
       url.hostname === "accounts.kakao.com" &&
       !url.pathname.includes("/login/simple"),
   },
+  {
+    name: "DaumSecurityCenter",
+    match: (url) => url.hostname === "security-center.game.daum.net",
+  },
+  {
+    name: "DaumMemberCert",
+    match: (url) =>
+      url.hostname === "member.game.daum.net" &&
+      url.pathname.includes("/cert/kakao/init"),
+  },
+  {
+    name: "KCBAuth",
+    match: (url) => url.hostname === "safe.ok-name.co.kr",
+  },
+  {
+    name: "KCBCardAuth",
+    match: (url) => url.hostname === "card.ok-name.co.kr",
+  },
 ];
 
 /**
