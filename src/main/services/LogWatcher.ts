@@ -32,6 +32,7 @@ export class LogWatcher {
   private lastCheckedServiceId: AppConfig["serviceChannel"] | null = null;
   private currentPid: number | null = null;
   private lastReportedErrorCount: number = 0;
+  private isChecking = false;
 
   constructor(context: AppContext) {
     this.context = context;
@@ -192,7 +193,8 @@ export class LogWatcher {
   }
 
   private async checkLog() {
-    if (!this.currentLogPath || !this.isMonitoring) return;
+    if (this.isChecking || !this.currentLogPath || !this.isMonitoring) return;
+    this.isChecking = true;
 
     try {
       const stats = await fs.promises.stat(this.currentLogPath);
@@ -309,6 +311,8 @@ export class LogWatcher {
       const msg = e instanceof Error ? e.message : String(e);
       this.emitLog(`Error during check: ${msg}`, true);
       this.stopMonitoring();
+    } finally {
+      this.isChecking = false;
     }
   }
 }
