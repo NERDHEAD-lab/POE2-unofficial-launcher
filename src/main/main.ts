@@ -1523,9 +1523,11 @@ eventBus.register({
 
 app.on("before-quit", () => {
   isQuitting = true;
+  PowerShellManager.getInstance().cleanup();
 });
 
 app.on("window-all-closed", () => {
+  PowerShellManager.getInstance().cleanup();
   if (process.platform !== "darwin") {
     app.quit();
   }
