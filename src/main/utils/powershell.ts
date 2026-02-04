@@ -310,28 +310,29 @@ try {
     }
 } catch {
    exit 1
+} finally {
+    if ($npipeClient) { $npipeClient.Close() }
+    exit 0
 }
     `;
 
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
     const isDev = this.context?.getConfig("dev_mode") === true;
     const windowStyle = "Hidden";
-    const noExitFlag = isDev ? "-NoExit" : "";
 
-    let spawnArgs: string[];
     let commandToSpawn: string;
+    let spawnArgs: string[];
 
     if (isAdmin) {
       commandToSpawn = "powershell";
       const args = [
-        noExitFlag,
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-EncodedCommand",
         encodedCommand,
-      ].filter((arg) => arg !== "");
+      ];
 
       const formattedArgs = args.map((arg) => `"${arg}"`).join(", ");
       const startProcessArgs = `-Verb RunAs -WindowStyle ${windowStyle} -ArgumentList ${formattedArgs}`;
@@ -350,17 +351,16 @@ try {
         "Bypass",
         "-WindowStyle",
         windowStyle,
-        noExitFlag,
         "-EncodedCommand",
         encodedCommand,
-      ].filter((arg) => arg !== "");
+      ];
     }
 
     const logger = isAdmin ? this.adminLogger : this.normalLogger;
     logger.log(`Spawning ${isAdmin ? "Admin" : "Normal"} Session...`);
 
     const child = spawn(commandToSpawn, spawnArgs, {
-      windowsHide: true,
+      windowsHide: windowStyle === "Hidden",
       stdio: "ignore",
     });
 
@@ -406,6 +406,10 @@ try {
     if (session.server) {
       session.server.close();
       session.server = null;
+    }
+    if (session.process) {
+      session.process.kill();
+      session.process = null;
     }
     this.failAllPendingRequests(session, false, "Session cleanup");
   }
