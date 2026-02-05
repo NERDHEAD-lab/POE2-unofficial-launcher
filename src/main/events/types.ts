@@ -26,6 +26,8 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
+  // [NEW] DevTools Sync
+  SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
 }
 
 export interface LogBackupWebRootFoundEvent {
@@ -184,6 +186,14 @@ export interface PatchProgressEvent {
   timestamp?: number;
 }
 
+export interface SyncDevToolsVisibilityEvent {
+  type: EventType.SYNC_DEVTOOLS_VISIBILITY;
+  payload?: {
+    source?: string;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
@@ -201,7 +211,8 @@ export type AppEvent =
   | LogBackupWebRootFoundEvent
   | LogErrorDetectedEvent
   | PatchProgressEvent
-  | ConfigDeleteEvent;
+  | ConfigDeleteEvent
+  | SyncDevToolsVisibilityEvent;
 
 // --- Context & Handler Interfaces ---
 

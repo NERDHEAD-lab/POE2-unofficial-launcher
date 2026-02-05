@@ -500,7 +500,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           {
             id: "show_inactive_window_console",
             type: "check",
-            label: "비활성 윈도우 콘솔 표시",
+            label: "DevTools 표시 (Show DevTools)",
             icon: "javascript",
             dependsOn: "dev_mode",
             onInit: initDevSetting,

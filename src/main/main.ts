@@ -39,6 +39,7 @@ import {
   ConfigDeleteSyncHandler,
 } from "./events/handlers/ConfigSyncHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
+import { DevToolsVisibilityHandler } from "./events/handlers/DevToolsVisibilityHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
 import {
   GameProcessStartHandler,
@@ -642,6 +643,7 @@ const handlers = [
   AutoPatchProcessStopHandler,
   PatchProgressHandler, // Added
   AutoLaunchHandler, // Added
+  DevToolsVisibilityHandler, // [NEW] Added
 ];
 
 // --- Patch IPC ---
@@ -777,6 +779,14 @@ newsService.init(() => {
   mainWindow?.webContents.send("news:updated");
 });
 
+// [Unified] DevTools Visibility Sync Logic
+// [Unified] DevTools Visibility Sync Trigger
+const triggerDevToolsSync = () => {
+  eventBus.emit(EventType.SYNC_DEVTOOLS_VISIBILITY, appContext, {
+    source: "triggerDevToolsSync",
+  });
+};
+
 function createWindows() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
@@ -839,14 +849,14 @@ function createWindows() {
     logger.log("[Main] Window closing (quitting).");
   });
 
-  // Visibility Synchronization
+  // Visibility Synchronization (Window Hiding/Showing Logic)
   const syncSubWindowsVisibility = (visible: boolean) => {
     const isDebugMode = getEffectiveConfig("dev_mode") === true;
     const showDebugConsole = getEffectiveConfig("debug_console") === true;
     const showInactiveWindows =
       getEffectiveConfig("show_inactive_windows") === true;
 
-    // 1. Manage Debug Window
+    // 1. Manage Debug Window Visibility
     if (debugWindow && !debugWindow.isDestroyed()) {
       if (visible && isDebugMode && showDebugConsole) {
         debugWindow.show();
@@ -855,22 +865,29 @@ function createWindows() {
       }
     }
 
-    // 2. Manage other subordinate windows (Popups, Inactive Game Windows)
+    // 2. Manage other subordinate windows visibility
     BrowserWindow.getAllWindows().forEach((win) => {
       if (win === mainWindow || win === debugWindow) return;
       if (win.isDestroyed()) return;
 
       if (visible) {
-        // Restore based on policy
         const url = win.webContents.getURL();
         const isUserFacing = isUserFacingPage(url);
-        const shouldShow = (isDebugMode && showInactiveWindows) || isUserFacing;
-        if (shouldShow) win.show();
+        const shouldShowWindow =
+          (isDebugMode && showInactiveWindows) || isUserFacing;
+
+        if (shouldShowWindow && !win.isVisible()) {
+          win.show();
+        }
       } else {
-        // Always hide when main window is hidden (Minimize to tray)
-        win.hide();
+        if (win.isVisible()) {
+          win.hide();
+        }
       }
     });
+
+    // [Trigger Point 1] Sync DevTools whenever Window Visibility changes (Tray interaction)
+    triggerDevToolsSync();
   };
 
   mainWindow.on("show", () => syncSubWindowsVisibility(true));
@@ -905,8 +922,6 @@ function createWindows() {
     },
   );
 
-  // [Removed] Prevented forced fullscreen/maximize - Now allowing it for scaling
-
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
@@ -918,7 +933,7 @@ function createWindows() {
   logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
-  const initialConfig = getConfig() as AppConfig; // [Restore] Needed for downstream usage (Auto Launch)
+  const initialConfig = getConfig() as AppConfig;
   const checkAllGameStatuses = async () => {
     const combinations = [
       { game: "POE1", service: "Kakao Games" },
@@ -934,13 +949,6 @@ function createWindows() {
         combo.service as AppConfig["serviceChannel"],
         combo.game as AppConfig["activeGame"],
       );
-
-      // Note: We only check 'installed' or 'uninstalled/idle' here.
-      // If a game is actually RUNNING, the 'GameProcessStartHandler' or 'ProcessWatcher' logic
-      // might need to be robust enough to detect pre-existing processes on startup.
-      // Currently, ProcessWatcher scans for processes and emits PROCESS_START.
-      // Tricky part: ProcessWatcher emits PROCESS_START, which triggers GameProcessStartHandler.
-      // So assuming ProcessWatcher starts AFTER this or concurrently, the "running" state will eventually override this "idle" state.
 
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
@@ -995,11 +1003,6 @@ function createWindows() {
   const logWatcher = new LogWatcher(appContext);
   logWatcher.init();
 
-  // Save AutoPatchHandler instance for IPC access (via find in handlers list or a better way)
-  // For simplicity, we can get it from the handlers array if we need reference,
-  // OR we can make a dedicated IPC handler class if code grows.
-  // But here we need to implement `triggerManualPatchFix` IPC which calls `AutoPatchHandler` -> `PatchManager`.
-
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
     logger.log("[Main] Window blurred (Focus Lost).");
@@ -1009,11 +1012,7 @@ function createWindows() {
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
-    // [Removed] Legacy forced restoration - Now handled by applyIntelligentConstraints in display events
   });
-
-  // 2. Game Window (Lazy Init - Do NOT create here)
-  // Removed initial creation block.
 
   // --- Main Window Loading ---
   if (VITE_DEV_SERVER_URL) {
@@ -1027,9 +1026,6 @@ function createWindows() {
     mainWindow = null;
     app.quit();
   });
-
-  // --- Debug Window Management ---
-  // [Removed] initDebugWindow("AppStart") - Moved to ready-to-show event of mainWindow
 }
 
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
@@ -1493,29 +1489,18 @@ eventBus.register({
   },
 });
 
-// Register Toggler for Auxiliary DevTools (Detach/Close dynamically)
+// Register Toggler for Auxiliary DevTools (Unified Event Handler)
 eventBus.register({
-  id: "DevToolsTicker",
+  id: "DevToolsSyncManager",
   targetEvent: EventType.CONFIG_CHANGE,
   handle: async (event: ConfigChangeEvent) => {
-    const { key, newValue } = event.payload;
-    if (key === "show_inactive_window_console") {
-      const show = newValue === true;
-      const allWindows = BrowserWindow.getAllWindows();
-
-      allWindows.forEach((win) => {
-        // Skip Main Window & Debug Console (they have their own logic or are always allowed)
-        if (win === mainWindow || win === debugWindow) return;
-
-        if (show) {
-          if (!win.webContents.isDevToolsOpened()) {
-            win.webContents.openDevTools({ mode: "detach" });
-          }
-        } else {
-          if (win.webContents.isDevToolsOpened()) {
-            win.webContents.closeDevTools();
-          }
-        }
+    const { key } = event.payload;
+    // [Trigger Point 2] Sync DevTools whenever Config changes
+    // Dependencies: show_inactive_window_console relies on dev_mode.
+    if (key === "show_inactive_window_console" || key === "dev_mode") {
+      // Emit Sync Event
+      eventBus.emit(EventType.SYNC_DEVTOOLS_VISIBILITY, appContext, {
+        source: "ConfigChange",
       });
     }
   },
