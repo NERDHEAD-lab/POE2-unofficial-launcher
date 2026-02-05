@@ -44,3 +44,15 @@ export const SUPPORT_URLS = {
   ISSUES: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues",
   GITHUB_REPO: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher",
 };
+
+// 5. Trade Site URLs
+export const TRADE_URLS: ServiceGameMap = {
+  GGG: {
+    POE1: "https://www.pathofexile.com/trade",
+    POE2: "https://www.pathofexile.com/trade2",
+  },
+  "Kakao Games": {
+    POE1: "https://poe.game.daum.net/trade",
+    POE2: "https://poe.game.daum.net/trade2",
+  },
+};

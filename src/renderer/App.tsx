@@ -21,6 +21,7 @@ import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
+import OfficialLinkButtons from "./components/OfficialLinkButtons"; // [NEW]
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -737,6 +738,13 @@ function App() {
                     onSettingsClick={() => setIsSettingsOpen(true)}
                   />
                 </div>
+
+                {/* [NEW] Official Links (Homepage/Trade) */}
+                <OfficialLinkButtons
+                  activeGame={activeGame}
+                  serviceChannel={serviceChannel}
+                />
+
                 <GameStartButton
                   onClick={handleGameStart}
                   label={
