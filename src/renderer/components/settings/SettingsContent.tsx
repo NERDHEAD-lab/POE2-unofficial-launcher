@@ -237,7 +237,12 @@ const SettingItemRenderer: React.FC<{
       case "check":
         return (
           <CheckItem
-            item={item}
+            item={
+              {
+                ...item,
+                disabled: isDisabled,
+              } as import("../../settings/types").SettingCheck
+            }
             value={!!val}
             onChange={(id, v) => handleChange(v)}
           />
@@ -245,7 +250,12 @@ const SettingItemRenderer: React.FC<{
       case "switch":
         return (
           <SwitchItem
-            item={item}
+            item={
+              {
+                ...item,
+                disabled: isDisabled,
+              } as import("../../settings/types").SettingSwitch
+            }
             value={!!val}
             onChange={(id, v) => handleChange(v)}
           />

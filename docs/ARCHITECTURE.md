@@ -237,6 +237,9 @@
 - **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
 
+> [!IMPORTANT]
+> **개발 원칙 (UI Separation)**: `SettingsContent.tsx` 및 하위 아이템(Renderer)에는 특정 설정의 비즈니스 로직을 하드코딩하지 않습니다. 모든 로직은 `settings-config.ts`의 `onInit`, `onChangeListener` 훅을 통해 구현하여 렌더러의 순수성과 확장성을 유지해야 합니다.
+
 ## 6. Documentation Map
 
 이 프로젝트의 주요 기능 및 가이드는 다음 문서와 연결되어 있습니다.

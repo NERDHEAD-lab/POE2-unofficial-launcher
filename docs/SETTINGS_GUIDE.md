@@ -177,3 +177,22 @@
 - **`info`**: 정보 제공 (파란색, 'i' 아이콘)
 - **`warning`**: 주의 사항 (노란색, 삼각형 '!' 아이콘)
 - **`error`**: 심각한 경고 또는 오류 (빨간색, 동그라미 '!' 아이콘)
+
+---
+
+## 6. 개발 원칙 (Clean UI Principles)
+
+> [!CAUTION]
+> **NO HARD-CODING IN RENDERER (Zero Tolerance)**
+>
+> 런처의 모든 설정 항목은 **선언적(Declarative)**으로 관리되어야 합니다. `SettingsContent.tsx` 및 `items/*.tsx` 파일들은 순수하게 UI를 렌더링하는 역할만 수행해야 하며, 절대로 특정 `setting.id`를 직접 참조하여 비즈니스 로직(예: `if (id === "dev_mode") ...`)을 추가해서는 안 됩니다.
+
+### 왜 하드코딩을 하면 안 되나요?
+
+1. **유지보수 저하**: 설정 항목이 수백 개로 늘어날 경우 렌더러 코드가 거대해지고 복잡해집니다.
+2. **확장성 결여**: 동일한 컴포넌트(`CheckItem` 등)를 다른 곳에서 재사용하기 어려워집니다.
+3. **가독성 오염**: 선언적 구조(`settings-config.ts`)와 명령형 로직(Renderer)이 섞여 전체 아키텍처 파악이 어려워집니다.
+
+### 올바른 접근 방법
+
+모든 조건부 로직, 상태 제어, 보안 가드는 반드시 `settings-config.ts`의 **`onInit`** 및 **`onChangeListener`** 훅 내에서 구현하십시오. 렌더러는 오직 전달받은 `disabled`, `value`, `label` 상태를 그리는 역할만 담당합니다.

@@ -22,8 +22,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   closeWindow: () => ipcRenderer.send("window-close"),
-  getConfig: (key?: string, ignoreDependencies?: boolean) =>
-    ipcRenderer.invoke("config:get", key, ignoreDependencies),
+  getConfig: (
+    key?: string,
+    ignoreDependencies?: boolean,
+    includeForced?: boolean,
+  ) => ipcRenderer.invoke("config:get", key, ignoreDependencies, includeForced),
+  isConfigForced: (key: string) => ipcRenderer.invoke("config:is-forced", key),
   setConfig: (key: string, value: unknown) =>
     ipcRenderer.invoke("config:set", key, value),
   getFileHash: (path: string) => ipcRenderer.invoke("file:get-hash", path),

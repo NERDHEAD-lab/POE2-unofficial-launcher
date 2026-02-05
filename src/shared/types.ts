@@ -115,7 +115,12 @@ export interface ElectronAPI {
   triggerGameStart: () => void;
   minimizeWindow: () => void;
   closeWindow: () => void;
-  getConfig: (key?: string, ignoreDependencies?: boolean) => Promise<unknown>;
+  getConfig: (
+    key?: string,
+    ignoreDependencies?: boolean,
+    includeForced?: boolean,
+  ) => Promise<unknown>;
+  isConfigForced: (key: string) => Promise<boolean>;
   setConfig: (key: string, value: unknown) => Promise<void>;
   getFileHash: (path: string) => Promise<string>;
   onConfigChange: (
@@ -158,7 +163,6 @@ export interface ElectronAPI {
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
   sendDebugLog: (log: DebugLogPayload) => void;
-  openExternal: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download
   installUpdate: () => void; // Trigger install & restart
