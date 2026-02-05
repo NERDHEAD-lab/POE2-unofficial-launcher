@@ -226,7 +226,7 @@ const DEBUG_KEYS = [
  * Get configuration value considering environment variable priority.
  * This does not persist the forced value to the store.
  */
-function getEffectiveConfig(key?: string): unknown {
+function getEffectiveConfig(key?: string, ignoreDependencies = false): unknown {
   // 1. Full Config Object
   if (!key) {
     const raw = getConfig() as Record<string, unknown>;
@@ -243,7 +243,7 @@ function getEffectiveConfig(key?: string): unknown {
   }
 
   // 3. Resolve Dependency: If dev_mode is disabled, force dependent keys to false
-  if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
+  if (!ignoreDependencies && DEBUG_KEYS.includes(key) && key !== "dev_mode") {
     const isDevMode = getEffectiveConfig("dev_mode") === true;
     if (!isDevMode) {
       return false;
@@ -274,9 +274,12 @@ const BLOCKED_PERMISSIONS = [
 ];
 
 // IPC Handlers for Configuration
-ipcMain.handle("config:get", (_event, key?: string) => {
-  return getEffectiveConfig(key);
-});
+ipcMain.handle(
+  "config:get",
+  (_event, key?: string, ignoreDependencies = false) => {
+    return getEffectiveConfig(key, ignoreDependencies);
+  },
+);
 
 ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
   if (appContext) {

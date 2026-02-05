@@ -104,7 +104,7 @@ export interface ElectronAPI {
   triggerGameStart: () => void;
   minimizeWindow: () => void;
   closeWindow: () => void;
-  getConfig: (key?: string) => Promise<unknown>;
+  getConfig: (key?: string, ignoreDependencies?: boolean) => Promise<unknown>;
   setConfig: (key: string, value: unknown) => Promise<void>;
   getFileHash: (path: string) => Promise<string>;
   onConfigChange: (
