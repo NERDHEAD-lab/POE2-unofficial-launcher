@@ -84,24 +84,35 @@ const initBackupButton = async (
   }
 };
 
-const initDevSetting = async ({
-  setValue,
-  setDisabled,
-  addDescription: _addDescription,
-  clearDescription: _clearDescription,
-  setVisible: _setVisible,
-}: {
-  setValue: (v: SettingValue) => void;
-  addDescription: (text: string, variant?: DescriptionVariant) => void;
-  clearDescription: () => void;
-  setDisabled: (v: boolean) => void;
-  setVisible: (v: boolean) => void;
-}) => {
-  if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
-    setValue(true);
-    setDisabled(true);
-  }
-};
+const initDevOption =
+  (key: string) =>
+  async ({
+    setValue,
+    setDisabled,
+    addDescription: _addDescription,
+    clearDescription: _clearDescription,
+    setVisible: _setVisible,
+  }: {
+    setValue: (v: SettingValue) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    clearDescription: () => void;
+    setDisabled: (v: boolean) => void;
+    setVisible: (v: boolean) => void;
+  }) => {
+    // 1. Force retrieval of raw value (ignore dependencies like dev_mode)
+    if (window.electronAPI?.getConfig) {
+      const rawValue = await window.electronAPI.getConfig(key, true);
+      if (typeof rawValue === "boolean") {
+        setValue(rawValue);
+      }
+    }
+
+    // 2. Env Var Override
+    if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
+      setValue(true);
+      setDisabled(true);
+    }
+  };
 
 export const SETTINGS_CONFIG: SettingsCategory[] = [
   {
@@ -479,7 +490,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "개발자 모드 활성화",
             icon: "bug_report",
             requiresRestart: true,
-            onInit: initDevSetting,
+            onInit: initDevOption("dev_mode"),
           },
           {
             id: "debug_console",
@@ -487,7 +498,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "디버그 콘솔 표시",
             icon: "terminal",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("debug_console"),
           },
           {
             id: "show_inactive_windows",
@@ -495,7 +506,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "비활성 윈도우 표시",
             icon: "visibility",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_windows"),
           },
           {
             id: "show_inactive_window_console",
@@ -503,7 +514,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "DevTools 표시 (Show DevTools)",
             icon: "javascript",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_window_console"),
           },
         ],
       },
