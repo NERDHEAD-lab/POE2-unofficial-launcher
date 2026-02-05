@@ -107,6 +107,28 @@ export const startUpdateCheckInterval = (context: AppContext) => {
 };
 
 /**
+ * Triggers an update check immediately.
+ * @param context App context
+ * @param isSilent Whether to suppress UI popups if an update is found
+ */
+export const triggerUpdateCheck = async (
+  context: AppContext,
+  isSilent = false,
+) => {
+  logger.log(
+    `[UpdateHandler] Manual/Triggered update check (isSilent: ${isSilent})`,
+  );
+  currentCheckIsSilent = isSilent;
+  attachUpdateListeners(context);
+
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    logger.error("[UpdateHandler] Failed check:", e);
+  }
+};
+
+/**
  * Handler: Check for Updates
  */
 export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
@@ -115,15 +137,9 @@ export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
 
   condition: () => true,
 
-  handle: async (_event, context: AppContext) => {
-    currentCheckIsSilent = false; // Manual/Startup trigger is NOT silent
-    attachUpdateListeners(context);
-
-    try {
-      await autoUpdater.checkForUpdates();
-    } catch (e) {
-      logger.error("[UpdateHandler] Failed check:", e);
-    }
+  handle: async (event, context: AppContext) => {
+    const isSilent = event.payload?.isSilent ?? false;
+    await triggerUpdateCheck(context, isSilent);
   },
 };
 

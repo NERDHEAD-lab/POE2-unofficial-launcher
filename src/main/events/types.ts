@@ -122,7 +122,9 @@ export interface UIEvent {
 
 export interface UIUpdateCheckEvent {
   type: EventType.UI_UPDATE_CHECK;
-  payload?: void;
+  payload?: {
+    isSilent?: boolean;
+  };
   timestamp?: number;
 }
 

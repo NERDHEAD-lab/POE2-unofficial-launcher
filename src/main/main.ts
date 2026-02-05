@@ -57,6 +57,7 @@ import {
   UpdateDownloadHandler,
   UpdateInstallHandler,
   startUpdateCheckInterval,
+  triggerUpdateCheck,
 } from "./events/handlers/UpdateHandler";
 import {
   AppContext,
@@ -211,6 +212,11 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+
+      // [Trigger] Check for updates silently when a second instance tries to launch
+      if (appContext) {
+        triggerUpdateCheck(appContext, true);
+      }
     }
   });
 }
@@ -936,7 +942,7 @@ function createWindows() {
   mainWindow.on("hide", () => syncSubWindowsVisibility(false));
 
   // Initialize Tray
-  trayManager.init(mainWindow);
+  trayManager.init(mainWindow, context);
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
   // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
