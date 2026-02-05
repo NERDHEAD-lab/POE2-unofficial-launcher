@@ -5,7 +5,7 @@ import { changelogService } from "./ChangelogService";
 
 // Mock axios
 vi.mock("axios");
-const mockedAxios = vi.mocked(axios);
+const mockedAxios = vi.mocked(axios, true);
 
 describe("ChangelogService", () => {
   beforeEach(() => {
@@ -15,24 +15,30 @@ describe("ChangelogService", () => {
   const mockReleases = [
     {
       tag_name: "v1.0.2",
+      name: "v1.0.2",
       published_at: "2024-01-03T00:00:00Z",
       body: "Fix bug B",
       html_url: "http://github.com/v1.0.2",
       draft: false,
+      prerelease: false,
     },
     {
       tag_name: "v1.0.1",
+      name: "v1.0.1",
       published_at: "2024-01-02T00:00:00Z",
       body: "Feature A",
       html_url: "http://github.com/v1.0.1",
       draft: false,
+      prerelease: false,
     },
     {
       tag_name: "v1.0.0",
+      name: "v1.0.0",
       published_at: "2024-01-01T00:00:00Z",
       body: "Initial Release",
       html_url: "http://github.com/v1.0.0",
       draft: false,
+      prerelease: false,
     },
   ];
 
@@ -71,7 +77,9 @@ describe("ChangelogService", () => {
     const drafts = [
       {
         tag_name: "v1.0.3",
+        name: "v1.0.3",
         draft: true, // Should be ignored
+        prerelease: false,
         published_at: "2024-01-04T00:00:00Z",
         body: "Draft",
         html_url: "http://github.com/draft",
