@@ -4,7 +4,7 @@ import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
-  AppEvent, // Added
+  AppEvent,
   EventHandler,
   EventType,
   LogErrorDetectedEvent,
@@ -13,7 +13,7 @@ import {
   LogBackupWebRootFoundEvent,
   ProcessEvent,
   DebugLogEvent,
-  UIEvent, // Added
+  UIEvent,
 } from "../types";
 
 // --- Helper for UI Logging ---
@@ -250,7 +250,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
           // Auto Fix
           const installPath = await getGameInstallPath(serviceId, gameId);
           if (installPath) {
-            // [UX] Ensure window is visible before showing modal and starting fix
+            // Ensure window is visible before showing modal and starting fix
             if (context.mainWindow) {
               context.mainWindow.show();
               context.mainWindow.focus();
@@ -271,7 +271,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
               },
             );
 
-            // [NEW] Auto Game Start Logic
+            // Auto Game Start Logic
             const autoStartGame =
               context.getConfig("autoGameStartAfterFix") === true;
             if (success && autoStartGame) {
@@ -295,7 +295,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             `[AutoPatch] Requesting User Confirmation (Manual Mode)`,
           );
 
-          // [UX] Ensure window is visible for manual confirmation
+          // Ensure window is visible for manual confirmation
           if (context.mainWindow) {
             context.mainWindow.show();
             context.mainWindow.focus();

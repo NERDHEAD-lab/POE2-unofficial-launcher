@@ -590,7 +590,7 @@ const context: AppContext = {
 };
 
 /**
- * [NEW] Resets the game status back to 'idle' if a critical window is closed
+ * Resets the game status back to 'idle' if a critical window is closed
  * while the system is still in an intermediate automation state.
  */
 function resetGameStatusIfInterrupted(_win: BrowserWindow) {
@@ -648,7 +648,7 @@ const handlers = [
   AutoPatchProcessStopHandler,
   PatchProgressHandler, // Added
   AutoLaunchHandler, // Added
-  DevToolsVisibilityHandler, // [NEW] Added
+  DevToolsVisibilityHandler,
   ChangelogCheckHandler,
   ChangelogUISyncHandler,
 ];
@@ -746,7 +746,7 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
       }
     }
 
-    // [New] Update Window Title for Status Indication
+    // Update Window Title for Status Indication
     win.setTitle(
       `PoE Unofficial Launcher v${app.getVersion()} (저해상도 지원 모드)`,
     );
@@ -772,7 +772,7 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
     win.setResizable(false);
     win.setMaximizable(false);
 
-    // [New] Restore Window Title
+    // Restore Window Title
     win.setTitle(`PoE Unofficial Launcher v${app.getVersion()}`);
     win.webContents.send("scaling-mode-changed", false);
   }
@@ -997,7 +997,7 @@ function createWindows() {
   PowerShellManager.getInstance().setContext(appContext);
   eventBus.setContext(appContext);
 
-  // [NEW] Start Background Update Scheduler
+  // Start Background Update Scheduler
   startUpdateCheckInterval(appContext);
 
   // Initialize and Start Process Watcher
@@ -1535,7 +1535,7 @@ app.on("activate", () => {
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
 app.whenReady().then(async () => {
-  // [NEW] Sync Launcher Version (for future migrations)
+  // Sync Launcher Version (for future migrations)
   const currentVersion = app.getVersion();
   const storedVersion = getConfig("launcherVersion") as string;
   if (currentVersion !== storedVersion) {
@@ -1555,7 +1555,7 @@ app.whenReady().then(async () => {
     }
   }
 
-  // [NEW] Handle Uninstall Cleanup Flag
+  // Handle Uninstall Cleanup Flag
   await syncInstallLocation();
   createWindows();
 });

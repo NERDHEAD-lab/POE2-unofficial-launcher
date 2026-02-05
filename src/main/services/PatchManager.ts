@@ -49,7 +49,7 @@ export class PatchManager {
     serviceId: AppConfig["serviceChannel"],
     overrides?: { webRoot?: string; backupWebRoot?: string },
   ): Promise<boolean> {
-    // [Fix] Prevent re-entrancy / double-execution
+    // Prevent re-entrancy / double-execution
     if (this.isPatching) {
       this.logger.error(
         "Patch ALREADY in progress. Ignoring duplicate request.",
@@ -273,7 +273,7 @@ export class PatchManager {
     // Initial emit
     this.emitCurrentState("downloading");
 
-    // [NEW] Metadata Collection
+    // Metadata Collection
     const backedUpFiles: string[] = [];
 
     // Extract version from Web Root (e.g. .../patch/4.4.0.5.2/)
@@ -367,7 +367,7 @@ export class PatchManager {
 
     await Promise.all(activePromises);
 
-    // [NEW] Write Backup Metadata
+    // Write Backup Metadata
     if (isBackupEnabled && backedUpFiles.length > 0) {
       try {
         const metadataPath = path.join(backupDir, "backup-info.json");

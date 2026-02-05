@@ -16,14 +16,14 @@ import {
   NewsItem,
   PatchProgress,
   UpdateStatus,
-  ChangelogItem, // [NEW]
+  ChangelogItem,
 } from "../shared/types";
-import ChangelogModal from "./components/modal/ChangelogModal"; // [NEW]
-import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
+import ChangelogModal from "./components/modal/ChangelogModal";
+import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
-import OfficialLinkButtons from "./components/OfficialLinkButtons"; // [NEW]
+import OfficialLinkButtons from "./components/OfficialLinkButtons";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -47,7 +47,7 @@ const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
   authenticating: { message: "지정 PC 확인 중...", timeout: 3000 },
   ready: { message: "게임 실행 준비 완료! 잠시 후 실행됩니다.", timeout: 3000 },
   running: { message: "게임 실행 중", timeout: -1 }, // Sticky
-  stopping: { message: "게임이 종료되었습니다.", timeout: 0 }, // [New] Shown during transition
+  stopping: { message: "게임이 종료되었습니다.", timeout: 0 }, // Shown during transition
   error: { message: "실행 오류 발생", timeout: 3000 },
 };
 
@@ -96,8 +96,8 @@ function App() {
 
   const prevStatusRef = useRef<RunStatus>("idle");
 
-  // [NEW] Update State
-  // [NEW] Update State (Using object for richer metadata)
+  // Update State
+  // Update State (Using object for richer metadata)
   const [updateState, setUpdateState] = useState<UpdateStatus>({
     state: "idle",
   });
@@ -119,7 +119,7 @@ function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isLowResMode, setIsLowResMode] = useState(false);
 
-  // [NEW] Scaling Mode Listener
+  // Scaling Mode Listener
   useEffect(() => {
     if (window.electronAPI.onScalingModeChange) {
       return window.electronAPI.onScalingModeChange((enabled: boolean) => {
@@ -128,7 +128,7 @@ function App() {
     }
   }, []);
 
-  // [NEW] Patch Modal State
+  // Patch Modal State
   const [patchModalState, setPatchModalState] = useState<{
     isOpen: boolean;
     mode: "confirm" | "progress" | "done" | "error";
@@ -141,7 +141,7 @@ function App() {
     mode: "confirm",
   });
 
-  // [NEW] Patch Progress Listener
+  // Patch Progress Listener
   useEffect(() => {
     if (window.electronAPI) {
       if (window.electronAPI.onPatchProgress) {
@@ -219,7 +219,7 @@ function App() {
     setPatchModalState((prev) => ({ ...prev, isOpen: false }));
   };
 
-  // [NEW] Update Check Effect
+  // Update Check Effect
   useEffect(() => {
     if (window.electronAPI) {
       // Listen for update status
@@ -358,7 +358,7 @@ function App() {
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
           );
 
-        // [NEW] Load Onboarding State
+        // Load Onboarding State
         if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
           setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
         }
@@ -762,7 +762,7 @@ function App() {
                   />
                 </div>
 
-                {/* [NEW] Official Links (Homepage/Trade) */}
+                {/* Official Links (Homepage/Trade) */}
                 <OfficialLinkButtons
                   activeGame={activeGame}
                   serviceChannel={serviceChannel}
