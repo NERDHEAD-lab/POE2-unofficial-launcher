@@ -135,4 +135,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("scaling-mode-changed", handler);
     return () => ipcRenderer.off("scaling-mode-changed", handler);
   },
+
+  // Changelog
+  onShowChangelog: (
+    callback: (changelogs: import("../shared/types").ChangelogItem[]) => void,
+  ) => {
+    const subscription = (
+      _event: IpcRendererEvent,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: any,
+    ) => callback(data.changelogs);
+    ipcRenderer.on("UI:SHOW_CHANGELOG", subscription);
+    return () => {
+      ipcRenderer.removeListener("UI:SHOW_CHANGELOG", subscription);
+    };
+  },
 });

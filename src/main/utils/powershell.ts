@@ -317,7 +317,6 @@ try {
     `;
 
     const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
-    const isDev = this.context?.getConfig("dev_mode") === true;
     const windowStyle = "Hidden";
 
     let commandToSpawn: string;

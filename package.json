@@ -27,11 +27,15 @@
     "node": ">=24"
   },
   "dependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/marked": "^5.0.2",
     "axios": "^1.13.4",
     "dompurify": "^3.3.1",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.1.7",
+    "github-markdown-css": "^5.9.0",
     "jszip": "^3.10.1",
+    "marked": "^17.0.1",
     "node-html-parser": "^7.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

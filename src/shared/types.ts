@@ -100,7 +100,18 @@ export interface DebugLogPayload {
   priority?: number;
 }
 
+export interface ChangelogItem {
+  version: string;
+  date: string;
+  body: string;
+  htmlUrl: string;
+}
+
 export interface ElectronAPI {
+  onShowChangelog?: (
+    callback: (changelogs: ChangelogItem[]) => void,
+  ) => () => void;
+
   triggerGameStart: () => void;
   minimizeWindow: () => void;
   closeWindow: () => void;
