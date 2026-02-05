@@ -321,7 +321,7 @@ const DebugConsole: React.FC = () => {
       scrollToBottom("auto");
     } else if (isNewLog && isAutoScroll) {
       // Auto-scroll only if explicitly enabled (user is at bottom)
-      scrollToBottom("smooth");
+      scrollToBottom("auto");
     }
   }, [logState, filter, isAutoScroll]);
 
