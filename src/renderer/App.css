@@ -410,3 +410,55 @@ img {
   /* Entry Transition: Snappy Pop In */
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+/* --- Official Link Buttons (Homepage/Trade) --- */
+.official-links-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 5px; /* Spacing from Service Selector */
+  margin-bottom: 5px; /* Spacing from Game Start Button */
+}
+
+.official-link-btn {
+  width: 152px; /* Approx half of the panel width minus gap */
+  height: 48px;
+  background-image: url("assets/layout/btn-text.png");
+  background-size: 100% 200%; /* Sprite: 2 rows (Normal/Hover) */
+  background-repeat: no-repeat;
+  background-position: center top; /* Show Top Half (Normal) */
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  /* Text Styles */
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ebdcb2; /* Brighter Gold */
+  letter-spacing: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  padding-bottom: 2px; /* Slight optical adjustment */
+
+  /* transition: all 0.2s ease; - Removed to prevent bg sliding */
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+  filter: brightness(0.9) grayscale(0.2);
+}
+
+.official-link-btn:hover {
+  background-position: center bottom; /* Instant Swap */
+  color: #fff; /* White Text */
+  text-shadow: 0 0 5px rgba(223, 207, 153, 0.5);
+}
+
+.official-link-btn:active {
+  transform: translateY(1px);
+  filter: brightness(0.8);
+}
