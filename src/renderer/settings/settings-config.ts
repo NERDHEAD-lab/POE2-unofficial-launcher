@@ -89,7 +89,7 @@ const initDevOption =
   async ({
     setValue,
     setDisabled,
-    addDescription: _addDescription,
+    addDescription,
     clearDescription: _clearDescription,
     setVisible: _setVisible,
   }: {
@@ -107,10 +107,19 @@ const initDevOption =
       }
     }
 
-    // 2. Env Var Override
-    if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
-      setValue(true);
-      setDisabled(true);
+    // 2. Forced Setting Check (dev:test mode)
+    if (window.electronAPI?.isConfigForced) {
+      const isForced = await window.electronAPI.isConfigForced(key);
+      if (isForced) {
+        setValue(true);
+        setDisabled(true);
+        if (key === "dev_mode") {
+          addDescription(
+            "개발자 테스트 모드로 인해 이 설정은 강제 활성화되었습니다.",
+            "info",
+          );
+        }
+      }
     }
   };
 

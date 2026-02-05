@@ -228,19 +228,23 @@ const DEBUG_KEYS = [
  * Get configuration value considering environment variable priority.
  * This does not persist the forced value to the store.
  */
-function getEffectiveConfig(key?: string, ignoreDependencies = false): unknown {
+function getEffectiveConfig(
+  key?: string,
+  ignoreDependencies = false,
+  includeForced = true,
+): unknown {
   // 1. Full Config Object
   if (!key) {
     const raw = getConfig() as Record<string, unknown>;
     const effective = { ...raw };
     DEBUG_KEYS.forEach((k) => {
-      effective[k] = getEffectiveConfig(k);
+      effective[k] = getEffectiveConfig(k, ignoreDependencies, includeForced);
     });
     return effective;
   }
 
   // 2. Force Debug Mode via Env Var
-  if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
+  if (includeForced && FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
     return true;
   }
 
@@ -278,10 +282,14 @@ const BLOCKED_PERMISSIONS = [
 // IPC Handlers for Configuration
 ipcMain.handle(
   "config:get",
-  (_event, key?: string, ignoreDependencies = false) => {
-    return getEffectiveConfig(key, ignoreDependencies);
+  (_event, key?: string, ignoreDependencies = false, includeForced = true) => {
+    return getEffectiveConfig(key, ignoreDependencies, includeForced);
   },
 );
+
+ipcMain.handle("config:is-forced", (_event, key: string) => {
+  return FORCE_DEBUG && DEBUG_KEYS.includes(key);
+});
 
 ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
   if (appContext) {
@@ -330,6 +338,12 @@ ipcMain.handle("session:logout", async () => {
 });
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
+  // [Safety] Do not persist if the key is forced in dev:test mode
+  if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
+    logger.warn(`[Main] config:set ignored for forced key: ${key}`);
+    return;
+  }
+
   const oldValue = getConfig(key);
 
   // Optimization: Only update and emit if value has changed
