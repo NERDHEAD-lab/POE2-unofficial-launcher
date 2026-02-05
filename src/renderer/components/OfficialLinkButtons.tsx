@@ -23,7 +23,7 @@ const OfficialLinkButtons: React.FC<OfficialLinkButtonsProps> = ({
     }
 
     if (url) {
-      window.electronAPI.openExternal(url);
+      window.open(url, "_blank");
     }
   };
 

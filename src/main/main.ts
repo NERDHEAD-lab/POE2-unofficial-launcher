@@ -813,6 +813,27 @@ function createWindows() {
     },
   });
 
+  // [Security] Force external links to open in default browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http:") || url.startsWith("https:")) {
+      shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  // [Security] Block internal navigation to external sites
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    // Only allow navigation to internal file:// or localhost (dev)
+    const isInternal =
+      url.startsWith("file://") ||
+      (VITE_DEV_SERVER_URL && url.startsWith(VITE_DEV_SERVER_URL));
+
+    if (!isInternal && (url.startsWith("http:") || url.startsWith("https:"))) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
   // Apply initial constraints based on the display it will open on
   applyIntelligentConstraints(mainWindow);
 

@@ -158,8 +158,9 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                     gap: "8px",
                   }}
                   onClick={() =>
-                    window.electronAPI?.openExternal(
+                    window.open(
                       "https://gcdn.pcpf.kakaogames.com/static/daum/starter/download.html",
+                      "_blank",
                     )
                   }
                 >

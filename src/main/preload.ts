@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   sendDebugLog: (log: DebugLogEvent["payload"]) =>
     ipcRenderer.send("debug-log:send", log),
-  openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+
   getPath: (name: string) => ipcRenderer.invoke("app:get-path", name),
   openPath: (path: string) => ipcRenderer.invoke("shell:open-path", path),
 
