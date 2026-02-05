@@ -17,8 +17,26 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Configure marked to open links in new tab (external browser)
+    marked.use({
+      gfm: true,
+      breaks: true,
+      renderer: {
+        link(token) {
+          const { href, title, text } = token;
+          const isExternal = href.startsWith("http");
+          const target = isExternal
+            ? ' target="_blank" rel="noopener noreferrer"'
+            : "";
+          const titleAttr = title ? ` title="${title}"` : "";
+          return `<a href="${href}"${target}${titleAttr}>${text}</a>`;
+        },
+      },
+    });
+
     // Fade-in animation
-    setTimeout(() => setIsVisible(true), 10);
+    const timer = setTimeout(() => setIsVisible(true), 10);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
@@ -162,10 +180,29 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
                   lineHeight: "1.6",
                   color: "#d4d4d4", // Ensure text color is standard
                 }}
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(marked.parse(log.body) as string),
-                }}
-              />
+              >
+                <style>
+                  {`
+                    .markdown-body img {
+                      max-width: 100% !important;
+                      height: auto !important;
+                      display: block;
+                      margin: 10px 0;
+                      border-radius: 4px;
+                    }
+                  `}
+                </style>
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(
+                      marked.parse(log.body || "") as string,
+                      {
+                        ADD_ATTR: ["target", "rel"],
+                      },
+                    ),
+                  }}
+                />
+              </div>
             </div>
           ))}
         </div>
