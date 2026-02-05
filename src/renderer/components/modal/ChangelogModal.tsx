@@ -161,7 +161,7 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
                   href="#"
                   onClick={(e) => {
                     e.preventDefault();
-                    window.electronAPI.openExternal(log.htmlUrl);
+                    window.open(log.htmlUrl, "_blank");
                   }}
                   style={{
                     fontSize: "12px",

@@ -540,7 +540,7 @@ function App() {
       // Open Download Page using centralized URL constants
       const downloadUrl = DOWNLOAD_URLS[serviceChannel][activeGame];
       if (downloadUrl) {
-        window.electronAPI.openExternal(downloadUrl);
+        window.open(downloadUrl, "_blank");
       } else {
         logger.error(
           `[App] No download URL found for ${activeGame} / ${serviceChannel}`,
