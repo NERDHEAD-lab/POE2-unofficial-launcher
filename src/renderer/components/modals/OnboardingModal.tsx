@@ -12,7 +12,7 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
   const [step, setStep] = useState(1);
   const [uacBypass, setUacBypass] = useState(false);
 
-  // [New] Patch & Automation States
+  // Patch & Automation States
   const [autoFix, setAutoFix] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [backup, setBackup] = useState(true);
@@ -61,7 +61,7 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
 
   const handleFinish = () => {
     onFinish();
-    // [Review] Force save onboarding shown state just in case
+    // Force save onboarding shown state just in case
     if (window.electronAPI) {
       window.electronAPI.setConfig("showOnboarding", false);
     }

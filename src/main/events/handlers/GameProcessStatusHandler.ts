@@ -28,7 +28,7 @@ const emitGameStatus = (
   context: AppContext,
   gameId: AppConfig["activeGame"],
   serviceId: AppConfig["serviceChannel"],
-  status: "running" | "idle" | "stopping", // [Update] Added 'stopping'
+  status: "running" | "idle" | "stopping",
 ) => {
   eventBus.emit<GameStatusChangeEvent>(EventType.GAME_STATUS_CHANGE, context, {
     gameId,
@@ -54,7 +54,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE2", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE2", "Kakao Games", "stopping");
       setTimeout(() => {
         emitGameStatus(context, "POE2", "Kakao Games", "idle");
@@ -73,7 +73,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE1", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE1", "Kakao Games", "stopping");
       setTimeout(() => {
         emitGameStatus(context, "POE1", "Kakao Games", "idle");
@@ -85,7 +85,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
   {
     processName: "PathOfExile_KG.exe",
     onStart: (event, context) => {
-      // [Context Inference] Use the last seen launcher to determine Game ID
+      // Use the last seen launcher to determine Game ID
       // because obtaining path requires Admin rights which we might not have.
       const inferredGameId = lastDetectedKakaoLauncher || "POE2"; // Default to POE2 if unknown (Safest bet for now)
 
@@ -137,7 +137,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
         return;
       }
 
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, gameId, "GGG", "stopping");
       setTimeout(() => {
         emitGameStatus(context, gameId, "GGG", "idle");
@@ -175,8 +175,8 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
       await strategy.onStart(event, context);
     }
 
-    // [New] Close/Minimize launcher on game start if configured
-    // [Fix] Retrieve 'quitOnGameStart' directly as it is a root-level config key
+    // Close/Minimize launcher on game start if configured
+    // Retrieve 'quitOnGameStart' directly as it is a root-level config key
     const quitOnGameStart = context.getConfig("quitOnGameStart") === true;
     if (
       quitOnGameStart &&

@@ -19,7 +19,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 // Prevent duplicate listeners
 let isListenerAttached = false;
 let currentCheckIsSilent = false;
-let lastEmittedPercent = -1; // [New] For throttling progress updates
+let lastEmittedPercent = -1; // For throttling progress updates
 
 const sendStatus = (context: AppContext, status: UpdateStatus) => {
   const win = context.mainWindow;
@@ -62,7 +62,7 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("download-progress", (progressObj) => {
-    // [Optimization] Only send updates if percent increased by at least 10%
+    // Only send updates if percent increased by at least 10%
     // to prevent flooding the event bus and UI logs.
     const currentPercent = Math.floor(progressObj.percent / 10) * 10;
     if (currentPercent !== lastEmittedPercent) {
@@ -85,7 +85,7 @@ const attachUpdateListeners = (context: AppContext) => {
 };
 
 /**
- * [NEW] Starts a periodic update check in the background.
+ * Starts a periodic update check in the background.
  * Periodic checks are always 'silent' (don't show popup).
  */
 export const startUpdateCheckInterval = (context: AppContext) => {
@@ -164,6 +164,6 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
       );
       return;
     }
-    autoUpdater.quitAndInstall(true, true); // [Fix] Enforce Silent Install (isSilent: true)
+    autoUpdater.quitAndInstall(true, true); // Enforce Silent Install (isSilent: true)
   },
 };

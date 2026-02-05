@@ -88,7 +88,7 @@ export async function enableUACBypass(): Promise<boolean> {
   let daumStarterForScript: string | null = null;
   const isCurrentlyBypassed = currentCmd.toLowerCase().includes("proxy.vbs");
 
-  // [New] Backup and Restore Strategy
+  // Backup and Restore Strategy
   if (!isCurrentlyBypassed) {
     // Current is original: Save it
     try {
@@ -152,7 +152,7 @@ logStream.Close
 `.trim();
 
   try {
-    // [Fix] Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
+    // Use UTF-16 LE with BOM for VBScript. WSH chokes on UTF-8 BOM as "Invalid character".
     // Prepend BOM and use utf16le encoding.
     writeFileSync(runnerVbsPath, "\ufeff" + runnerScriptContent, {
       encoding: "utf16le",
@@ -206,7 +206,7 @@ shell.Run "schtasks /run /tn """ & "${TASK_NAME}" & """", 0, False
   }
 
   logger.log("[UAC] Applying bypass settings (Single UAC Prompt)...");
-  // [Fix] Use simpler PowerShell command structure.
+  // Use simpler PowerShell command structure.
   // Avoid complex arrays in literals to reduce quoting errors.
   const combinedScript = `
 $ErrorActionPreference = "Stop"
@@ -215,7 +215,7 @@ try {
     $runnerPath = '${runnerVbsPath.replaceAll("'", "''")}'
     $trArg = 'wscript.exe \\"{0}\\"' -f $runnerPath
     
-    # [Fix] Relax error preference for schtasks because it emits a warning for past time (/ST 00:00)
+    # Relax error preference for schtasks because it emits a warning for past time (/ST 00:00)
     # which 'Stop' treats as a fatal exception.
     $oldPref = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -225,7 +225,7 @@ try {
     if ($LASTEXITCODE -eq 0) {
         Write-Output "Updating Registry..."
         
-        # [Fix] Target HKCU explicitly. HKCR is a merged view and writing to it is unreliable.
+        # Target HKCU explicitly. HKCR is a merged view and writing to it is unreliable.
         $hkcuPath = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\daumgamestarter\\shell\\open\\command"
         $proxyPath = '${proxyVbsPath.replaceAll("'", "''")}'
         $val = 'wscript.exe "{0}" "%1"' -f $proxyPath
@@ -269,7 +269,7 @@ try {
 
   if (success) {
     logger.log("[UAC] Successfully applied bypass settings.");
-    // [New] Create standalone cleanup script for Uninstaller
+    // Create standalone cleanup script for Uninstaller
     const originalCmd = readFileSync(backupFilePath, "utf8").trim();
     createCleanupScript(originalCmd);
   } else {
@@ -296,7 +296,7 @@ function createCleanupScript(originalCmd: string): void {
   const escapedCmd = originalCmd
     .replaceAll('"', '\\"')
     .replace(/\r?\n/g, "") // Single line
-    .replace(/%/g, "%%"); // [Fix] Escape % to %% for Batch file execution
+    .replace(/%/g, "%%"); // Escape % to %% for Batch file execution
 
   const batContent = `\ufeff
 @echo off
@@ -323,7 +323,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$val = '${escapedCmd.rep
   `.trim();
 
   try {
-    // [Fix] Batch files (.bat) don't support UTF-16 well, and UTF-8 BOM can cause syntax errors
+    // Batch files (.bat) don't support UTF-16 well, and UTF-8 BOM can cause syntax errors
     // in the first command for some CMD environments. Use plain UTF-8 (without BOM).
     writeFileSync(batPath, batContent, { encoding: "utf8" });
     logger.log("[UAC] Created cleanup script at:", batPath);
@@ -348,12 +348,12 @@ export async function disableUACBypass(
     try {
       const originalCmd = readFileSync(backupFilePath, "utf8").trim();
 
-      // [New] Check if the executable in the backup actually exists
+      // Check if the executable in the backup actually exists
       const originalExe = extractExePath(originalCmd);
       if (originalExe && existsSync(originalExe)) {
         logger.log("[UAC] Valid backup found. Restoring original command...");
 
-        // [Fix] More robust PowerShell quoting for registry value restoration
+        // More robust PowerShell quoting for registry value restoration
         // We use a PowerShell variable to handle the string safely
         const regUpdateCommand = `
           $val = @"
@@ -431,7 +431,7 @@ ${originalCmd}
       "runner.vbs",
       "launch_args.txt",
       "uac_debug.log",
-      "uninstall_uac.bat", // [New] Clean up the helper script too
+      "uninstall_uac.bat", // Clean up the helper script too
       // original_command.txt is handled above only on success
     ].forEach((f) => {
       const p = join(workDir, f);
@@ -463,7 +463,7 @@ function extractExePath(cmd: string): string | null {
   }
 
   if (exePath && exePath !== "%1" && exePath.toLowerCase().endsWith(".exe")) {
-    // [Fix] Never extract wscript.exe as the target game starter!
+    // Never extract wscript.exe as the target game starter!
     // This happens when the bypass is already active and we try to re-enable/read the registry.
     if (exePath.toLowerCase().includes("wscript.exe")) {
       return null;

@@ -31,14 +31,14 @@ interface Props {
   onRestartRequired: () => void;
 }
 
-// [GENERIC] Individual Item Renderer to manage its own initialization and dynamic state
+// Individual Item Renderer to manage its own initialization and dynamic state
 const SettingItemRenderer: React.FC<{
   item: SettingItem;
   initialValue: SettingValue | undefined;
-  config: Record<string, SettingValue>; // [New] Pass config for dependsOn check
+  config: Record<string, SettingValue>; // Pass config for dependsOn check
   onRestartRequired: () => void;
   onShowToast: (msg: string) => void;
-  onValueChange: (id: string, value: SettingValue) => void; // [New] Real-time state local sync
+  onValueChange: (id: string, value: SettingValue) => void; // Real-time state local sync
   onShowConfirm?: (props: ConfirmModalProps) => void;
   onHideConfirm?: () => void;
 }> = ({
@@ -52,11 +52,11 @@ const SettingItemRenderer: React.FC<{
   onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
-  // [New] Dynamic Label State
+  // Dynamic Label State
   const [label, setLabel] = useState<string>(item.label);
 
   // [Refactor] Description Blocks State
-  // [Refactor] Description Blocks State
+  // Description Blocks State
   // Initialize description blocks from prop lazily to avoid effect on mount
   const [descriptionBlocks, setDescriptionBlocks] = useState<
     DescriptionBlock[]
@@ -94,7 +94,7 @@ const SettingItemRenderer: React.FC<{
   // Expanded State for TextItem
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // [Fix] Track if onInit has taken control to avoid store-override race conditions
+  // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
 
   // Sync with prop updates (e.g. from global config change)
@@ -120,7 +120,7 @@ const SettingItemRenderer: React.FC<{
     setDescriptionBlocks([]);
   }, []);
 
-  // [Generic] onInit Implementation - Uses Context to allow items to update themselves
+  // onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
@@ -132,7 +132,7 @@ const SettingItemRenderer: React.FC<{
               logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
               setVal(newValue);
               setAuthorityClaimed(true);
-              onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
+              onValueChange(item.id, newValue); // Sync with parent config for dependencies
             }
           },
           addDescription: (text, variant) => {
@@ -165,10 +165,10 @@ const SettingItemRenderer: React.FC<{
 
   const handleChange = async (newValue: SettingValue) => {
     setVal(newValue); // Optimistic update
-    onValueChange(item.id, newValue); // [New] Sync locally immediately for dependsOn items
+    onValueChange(item.id, newValue); // Sync locally immediately for dependsOn items
 
     // Persist to Store
-    // [Updated Logic] Only persist if the item is NOT transient (i.e., NO defaultValue).
+    // Only persist if the item is NOT transient (i.e., NO defaultValue).
     // If defaultValue exists, it means it's a UI-only setting or managed elsewhere.
     const isStoreBacked =
       !("defaultValue" in item) || item.defaultValue === undefined;
@@ -452,7 +452,7 @@ export const SettingsContent: React.FC<Props> = ({
     null,
   );
 
-  // [New] Dependency-aware sorting logic for SettingItems
+  // Dependency-aware sorting logic for SettingItems
   const sortSettingItemsByDependency = (items: SettingItem[]) => {
     const sorted: SettingItem[] = [];
     const visited = new Set<string>();
