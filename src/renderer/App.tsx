@@ -16,7 +16,9 @@ import {
   NewsItem,
   PatchProgress,
   UpdateStatus,
+  ChangelogItem, // [NEW]
 } from "../shared/types";
+import ChangelogModal from "./components/modal/ChangelogModal"; // [NEW]
 import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
@@ -99,6 +101,20 @@ function App() {
   const [updateState, setUpdateState] = useState<UpdateStatus>({
     state: "idle",
   });
+
+  // Changelog State
+  const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+
+  // Changelog Listener
+  useEffect(() => {
+    if (window.electronAPI?.onShowChangelog) {
+      return window.electronAPI.onShowChangelog((logs) => {
+        setChangelogs(logs);
+        setIsChangelogOpen(true);
+      });
+    }
+  }, []);
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isLowResMode, setIsLowResMode] = useState(false);
@@ -606,6 +622,13 @@ function App() {
         isOpen={showOnboarding}
         onFinish={handleOnboardingFinish}
       />
+
+      {isChangelogOpen && (
+        <ChangelogModal
+          changelogs={changelogs}
+          onClose={() => setIsChangelogOpen(false)}
+        />
+      )}
 
       <UpdateModal
         isOpen={isUpdateModalOpen}

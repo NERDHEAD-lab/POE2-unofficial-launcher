@@ -26,7 +26,9 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
-  // [NEW] DevTools Sync
+  // Changelog
+  SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
+  // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
 }
 
@@ -194,6 +196,14 @@ export interface SyncDevToolsVisibilityEvent {
   timestamp?: number;
 }
 
+export interface ShowChangelogEvent {
+  type: EventType.SHOW_CHANGELOG;
+  payload: {
+    changelogs: import("../../shared/types").ChangelogItem[];
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
@@ -212,7 +222,8 @@ export type AppEvent =
   | LogErrorDetectedEvent
   | PatchProgressEvent
   | ConfigDeleteEvent
-  | SyncDevToolsVisibilityEvent;
+  | SyncDevToolsVisibilityEvent
+  | ShowChangelogEvent;
 
 // --- Context & Handler Interfaces ---
 

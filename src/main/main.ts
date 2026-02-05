@@ -33,6 +33,8 @@ import {
   triggerPendingManualPatches,
   cancelPendingPatches,
 } from "./events/handlers/AutoPatchHandler";
+import { ChangelogCheckHandler } from "./events/handlers/ChangelogCheckHandler";
+import { ChangelogUISyncHandler } from "./events/handlers/ChangelogUISyncHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import {
   ConfigChangeSyncHandler,
@@ -647,6 +649,8 @@ const handlers = [
   PatchProgressHandler, // Added
   AutoLaunchHandler, // Added
   DevToolsVisibilityHandler, // [NEW] Added
+  ChangelogCheckHandler,
+  ChangelogUISyncHandler,
 ];
 
 // --- Patch IPC ---
@@ -1539,6 +1543,16 @@ app.whenReady().then(async () => {
       `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
     );
     setConfig("launcherVersion", currentVersion);
+
+    // Emit Config Change Event manually to trigger ChangelogHandler
+    // We only trigger if there WAS a previous version (not fresh install)
+    if (storedVersion) {
+      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
+        key: "launcherVersion",
+        oldValue: storedVersion,
+        newValue: currentVersion,
+      });
+    }
   }
 
   // [NEW] Handle Uninstall Cleanup Flag
