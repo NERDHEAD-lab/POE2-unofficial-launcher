@@ -18,7 +18,7 @@ import {
   UpdateStatus,
   ChangelogItem,
 } from "../shared/types";
-import ChangelogModal from "./components/modal/ChangelogModal";
+import ChangelogModal from "./components/modals/ChangelogModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
