@@ -377,6 +377,7 @@ img {
   width: 100%;
   position: relative;
   z-index: 10;
+  pointer-events: none; /* [Fix] Explicitly passthrough */
 }
 
 .footer-bg-image {
@@ -384,6 +385,7 @@ img {
   display: block;
   transform: translateY(18%); /* Push down further to clear text area */
   filter: brightness(1);
+  pointer-events: none; /* [Fix] Explicitly passthrough */
 }
 
 .footer-content {
@@ -398,7 +400,7 @@ img {
   padding-bottom: 0; /* Container padding removed */
   z-index: 20;
   gap: 6px;
-  pointer-events: auto; /* Restore interactivity for links */
+  pointer-events: none; /* [Fix] Allow clicks to pass through empty space */
 }
 
 .credits-text {
@@ -411,6 +413,7 @@ img {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
   margin-top: 0;
   padding-bottom: 3px; /* Explicit spacing */
+  pointer-events: auto; /* [Fix] Enable text selection/interaction */
 }
 
 .github-link {
@@ -423,6 +426,7 @@ img {
     transform 0.2s;
   text-decoration: none;
   padding-bottom: 3px; /* Consistency with text */
+  pointer-events: auto; /* [Fix] Enable link clicking */
 }
 
 .github-link:hover {

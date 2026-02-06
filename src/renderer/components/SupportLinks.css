@@ -18,6 +18,8 @@
   transition: color 0.2s;
   gap: 8px;
   cursor: pointer;
+  -webkit-user-drag: none; /* [Fix] Prevent drag ghost image */
+  user-select: none; /* [Fix] Prevent text selection */
 }
 
 .support-link:hover {
