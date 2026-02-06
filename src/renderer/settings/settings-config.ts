@@ -437,7 +437,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE1");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE1");
             },
           },
           {
@@ -451,7 +451,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE2");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE2");
             },
           },
           {
@@ -464,7 +464,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE1");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE1");
             },
           },
           {
@@ -477,7 +477,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE2");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE2");
             },
           },
         ],

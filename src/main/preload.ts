@@ -127,6 +127,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.send("patch:start-manual");
     }
   },
+  triggerRestoreBackup: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => {
+    ipcRenderer.send("patch:restore-local", serviceId, gameId);
+  },
   triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
