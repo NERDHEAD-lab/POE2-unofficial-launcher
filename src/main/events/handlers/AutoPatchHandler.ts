@@ -1,5 +1,6 @@
 import { AppConfig } from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
+import { PowerShellManager } from "../../utils/powershell";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
@@ -211,13 +212,33 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
 
     const session = stateManager.getSession(pid);
 
-    if (errorCount >= 10 && session && !session.alerted) {
+    const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+    const effectiveThreshold = aggressiveMode ? 1 : 10;
+
+    if (errorCount >= effectiveThreshold && session && !session.alerted) {
       session.alerted = true;
-      emitLog(
-        context,
-        `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
-        true,
-      );
+
+      if (aggressiveMode) {
+        // [Korean Mode] Aggressive Kill
+        emitLog(
+          context,
+          `[AutoPatch] ⚡ Aggressive Mode: Error detected (Count: ${errorCount}). Killing process ${pid} immediately...`,
+          true,
+        );
+
+        // Execute TaskKill via PowerShell (Admin may be required for some, but usually owner can kill own process)
+        // Force kill main process and children via Admin Session
+        PowerShellManager.getInstance().execute(
+          `taskkill /PID ${pid} /F /T`,
+          true,
+        );
+      } else {
+        emitLog(
+          context,
+          `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
+          true,
+        );
+      }
     }
   },
 };
@@ -235,7 +256,9 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
         `[AutoPatch] Process ${pid} stop detected. Checking session state...`,
       );
 
-      const THRESHOLD = 10;
+      const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+      const THRESHOLD = aggressiveMode ? 1 : 10;
+
       if (session.errorCount >= THRESHOLD) {
         emitLog(
           context,

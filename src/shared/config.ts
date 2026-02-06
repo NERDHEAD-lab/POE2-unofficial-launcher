@@ -115,6 +115,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "런처를 관리자 권한으로 실행합니다 (한국인 모드 사용 시 권장).",
   },
+  AGGRESSIVE_PATCH_MODE: {
+    key: "aggressivePatchMode",
+    name: "Aggressive Patch Mode",
+    category: "Patch",
+    description:
+      "강력한 패치 감지 모드를 활성화합니다 (문제가 발생할 경우 사용).",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -135,6 +142,7 @@ export const CONFIG_KEYS = {
   SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
   PROCESS_WATCH_MODE: CONFIG_METADATA.PROCESS_WATCH_MODE.key,
   RUN_AS_ADMIN: CONFIG_METADATA.RUN_AS_ADMIN.key,
+  AGGRESSIVE_PATCH_MODE: CONFIG_METADATA.AGGRESSIVE_PATCH_MODE.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
