@@ -42,6 +42,7 @@ export interface AppConfig {
    */
   processWatchMode: "resource-saving" | "always-on";
   launcherVersion: string;
+  runAsAdmin: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -187,6 +188,12 @@ export interface ElectronAPI {
   isUACBypassEnabled: () => Promise<boolean>;
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
+
+  // Admin / UAC
+  isAdmin: () => Promise<boolean>;
+  relaunchAsAdmin: () => void;
+  ensureAdminSession: () => Promise<boolean>;
+  isAdminSessionActive: () => Promise<boolean>;
 
   // [App Control]
   relaunchApp: () => void;

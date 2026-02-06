@@ -134,6 +134,69 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "런쳐 설정",
         items: [
           {
+            id: "runAsAdmin",
+            type: "check",
+            label: "런처를 관리자 권한으로 실행",
+            description: "항상 관리자 권한으로 실행합니다.",
+            icon: "security",
+            onInit: async ({ addDescription }) => {
+              if (window.electronAPI) {
+                const isAdmin = await window.electronAPI.isAdmin();
+                const isAdminSession =
+                  await window.electronAPI.isAdminSessionActive();
+
+                // If config is true but not actually admin AND no admin session active, warn user
+                const configValue =
+                  await window.electronAPI.getConfig("runAsAdmin");
+                if (configValue && !isAdmin && !isAdminSession) {
+                  addDescription(
+                    "설정은 켜져 있으나 현재 관리자 권한이 없습니다. 재실행이 필요합니다.",
+                    "warning",
+                  );
+                }
+              }
+            },
+            onChangeListener: async (val, { showToast, showConfirm }) => {
+              if (val) {
+                const isAdmin = await window.electronAPI?.isAdmin();
+                const isAdminSession =
+                  await window.electronAPI?.isAdminSessionActive();
+
+                if (!isAdmin && !isAdminSession) {
+                  // [New] Immediately ensure Admin Session upon enabling
+                  showToast("관리자 권한 세션 연결을 시도합니다...");
+                  const sessionCreated =
+                    await window.electronAPI?.ensureAdminSession();
+
+                  if (sessionCreated) {
+                    showToast(
+                      "관리자 권한 세션이 연결되었습니다. (기능 즉시 사용 가능)",
+                    );
+                  }
+
+                  // If session failed, prompt for relaunch (optional, but good fallback)
+                  // If session succeeded, we DO NOT prompt for relaunch anymore.
+                  if (!sessionCreated) {
+                    showConfirm({
+                      title: "관리자 권한 필요",
+                      message:
+                        "관리자 세션 연결에 실패했습니다.\n완벽한 동작을 위해 런처를 관리자 권한으로 재실행하시겠습니까?",
+                      confirmText: "관리자 권한으로 재실행",
+                      variant: "primary",
+                      onConfirm: () => {
+                        window.electronAPI?.relaunchAsAdmin();
+                      },
+                    });
+                  }
+                } else {
+                  showToast("[관리자 권한 실행] 설정이 켜졌습니다.");
+                }
+              } else {
+                showToast("[관리자 권한 실행] 설정이 꺼졌습니다.");
+              }
+            },
+          },
+          {
             id: "autoLaunch",
             type: "check",
             label: "컴퓨터 시작 시 자동 실행",

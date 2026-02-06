@@ -96,6 +96,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   relaunchApp: () => ipcRenderer.send("app:relaunch"),
   logoutSession: () => ipcRenderer.invoke("session:logout"),
 
+  // Admin / UAC
+  isAdmin: () => ipcRenderer.invoke("admin:is-admin"),
+  relaunchAsAdmin: () => ipcRenderer.send("admin:relaunch"),
+  ensureAdminSession: () => ipcRenderer.invoke("admin:ensure-session"),
+  isAdminSessionActive: () => ipcRenderer.invoke("admin:is-session-active"),
+
   // [Patch API]
   onShowPatchFixModal: (
     callback: (data: {

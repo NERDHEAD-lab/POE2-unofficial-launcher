@@ -108,6 +108,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "런처가 백그라운드 상태일 때 감시 모드를 설정합니다. ('resource-saving' | 'always-on')",
   },
+  RUN_AS_ADMIN: {
+    key: "runAsAdmin",
+    name: "Run as Administrator",
+    category: "General",
+    description:
+      "런처를 관리자 권한으로 실행합니다 (한국인 모드 사용 시 권장).",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -127,6 +134,7 @@ export const CONFIG_KEYS = {
   QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
   SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
   PROCESS_WATCH_MODE: CONFIG_METADATA.PROCESS_WATCH_MODE.key,
+  RUN_AS_ADMIN: CONFIG_METADATA.RUN_AS_ADMIN.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -147,6 +155,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   quitOnGameStart: false,
   showOnboarding: true,
   processWatchMode: "resource-saving",
+  runAsAdmin: false,
+  aggressivePatchMode: false,
 };
 
 export const DEBUG_APP_CONFIG = {

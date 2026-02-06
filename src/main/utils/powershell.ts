@@ -82,6 +82,15 @@ export class PowerShellManager {
     return this.executeCommand(command, session, useAdmin, silent);
   }
 
+  public isAdminSessionActive(): boolean {
+    return (
+      !!this.adminSession.socket &&
+      !this.adminSession.socket.destroyed &&
+      !!this.adminSession.process &&
+      !this.adminSession.process.killed
+    );
+  }
+
   public async executeCommand(
     command: string,
     session: SessionState,
