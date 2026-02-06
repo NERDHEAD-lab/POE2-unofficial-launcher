@@ -16,6 +16,7 @@ import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
+import { getGameName, getLauncherTitle } from "../shared/naming";
 import {
   AppConfig,
   RunStatus,
@@ -89,6 +90,12 @@ import {
   default as store,
 } from "./store";
 import {
+  isAdmin,
+  relaunchAsAdmin,
+  ensureAdminSession,
+  isAdminSessionActive,
+} from "./utils/admin";
+import {
   setupMainLogger,
   logger,
   getLogHistory,
@@ -102,7 +109,6 @@ import {
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
-import { getGameName, getLauncherTitle } from "../shared/naming";
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -506,6 +512,13 @@ ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
 ipcMain.handle("uac:is-enabled", () => isUACBypassEnabled());
 ipcMain.handle("uac:enable", () => enableUACBypass());
 ipcMain.handle("uac:disable", () => disableUACBypass());
+
+// --- Admin IPC ---
+
+ipcMain.handle("admin:is-admin", () => isAdmin());
+ipcMain.handle("admin:ensure-session", () => ensureAdminSession());
+ipcMain.handle("admin:is-session-active", () => isAdminSessionActive());
+ipcMain.on("admin:relaunch", () => relaunchAsAdmin());
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
@@ -1647,6 +1660,14 @@ ipcMain.handle("changelog:get-all", async () => {
 });
 
 app.whenReady().then(async () => {
+  // [NEW] Ensure Admin Session if configured
+  if (getConfig("runAsAdmin") === true) {
+    // We don't await this to avoid blocking UI startup, but it will trigger UAC if needed
+    ensureAdminSession().catch((err) =>
+      logger.error("[Main] Failed to ensure admin session on startup:", err),
+    );
+  }
+
   // Handle Uninstall Cleanup Flag
   await syncInstallLocation();
   // Ensure Auto-Launch path is updated (in case user moved the app)

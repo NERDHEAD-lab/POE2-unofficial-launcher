@@ -87,6 +87,14 @@ export interface SettingCheck extends BaseSettingItem {
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
+      showConfirm: (options: {
+        title: string;
+        message: string;
+        confirmText?: string;
+        cancelText?: string;
+        variant?: "primary" | "danger";
+        onConfirm: () => void;
+      }) => void;
     },
   ) => void;
 }
