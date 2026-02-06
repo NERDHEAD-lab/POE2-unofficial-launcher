@@ -70,8 +70,9 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
         <div className="changelog-header">
           <div className="changelog-header-title">
             <h2>
-              패치 노트{" "}
-              {oldVersion && newVersion && ` (${oldVersion} → ${newVersion})`}
+              {oldVersion && newVersion
+                ? `패치 노트 (${oldVersion} → ${newVersion})`
+                : "전체 패치 노트"}
             </h2>
             <p>
               PoE Unofficial Launcher의 새로운 기능과 수정사항을 확인하세요.

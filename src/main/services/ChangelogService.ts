@@ -39,9 +39,12 @@ export const changelogService = {
 
       const releases = response.data;
 
-      // 2. Filter Releases (previousVersion < version <= currentVersion)
+      // 2. Filter Releases
       const newReleases = releases.filter((release) => {
         if (release.draft) return false;
+
+        // If no previous version, we want EVERYTHING up to current (or just everything)
+        if (!previousVersion) return true;
 
         // Remove 'v' prefix if exists
         const version = release.tag_name.replace(/^v/, "");

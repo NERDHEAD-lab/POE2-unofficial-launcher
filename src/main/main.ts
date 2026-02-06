@@ -73,6 +73,7 @@ import {
   DebugLogEvent,
 } from "./events/types";
 import { trayManager } from "./managers/TrayManager"; // Added
+import { changelogService } from "./services/ChangelogService";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
@@ -1608,6 +1609,12 @@ app.on("activate", () => {
 
 // Set App User Model ID for Windows Taskbar Icon handling
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
+
+ipcMain.handle("changelog:get-all", async () => {
+  const currentVersion = app.getVersion();
+  // Empty previousVersion triggers 'fetch all' in service
+  return changelogService.fetchChangelogs(currentVersion, "");
+});
 
 app.whenReady().then(async () => {
   // Handle Uninstall Cleanup Flag

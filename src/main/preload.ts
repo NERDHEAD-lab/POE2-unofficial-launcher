@@ -139,6 +139,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("scaling-mode-changed", handler);
     return () => ipcRenderer.off("scaling-mode-changed", handler);
   },
+  getAllChangelogs: () => ipcRenderer.invoke("changelog:get-all"),
 
   // Changelog
   onShowChangelog: (

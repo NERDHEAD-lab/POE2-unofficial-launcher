@@ -1,6 +1,11 @@
+import { ChangelogItem } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
 
-const SupportLinks: React.FC = () => {
+interface SupportLinksProps {
+  onShowAllChangelogs?: (logs: ChangelogItem[]) => void;
+}
+
+const SupportLinks: React.FC<SupportLinksProps> = ({ onShowAllChangelogs }) => {
   const linkStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -44,6 +49,26 @@ const SupportLinks: React.FC = () => {
           local_cafe
         </span>
         후원하기
+      </a>
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          window.electronAPI.getAllChangelogs().then((logs) => {
+            onShowAllChangelogs?.(logs);
+          });
+        }}
+        style={linkStyle}
+        onMouseEnter={hoverStyle}
+        onMouseLeave={leaveStyle}
+      >
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: "16px" }}
+        >
+          history
+        </span>
+        패치 노트
       </a>
       <a
         href={SUPPORT_URLS.ISSUES}

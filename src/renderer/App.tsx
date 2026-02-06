@@ -762,7 +762,13 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                <SupportLinks />
+                <SupportLinks
+                  onShowAllChangelogs={(logs) => {
+                    setChangelogs(logs);
+                    setVersionRange({ old: "", new: "" }); // Clear versions for "All" view
+                    setIsChangelogOpen(true);
+                  }}
+                />
               </div>
 
               {/* Section C: Game Start & Company Logos (Bottom) */}
