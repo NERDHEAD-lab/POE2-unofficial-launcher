@@ -789,6 +789,9 @@ const triggerDevToolsSync = () => {
   });
 };
 
+// Cache for title to prevent spam
+let lastBroadcastedTitle: string | null = null;
+
 /**
  * Calculates the current title based on global config/state and broadcasts it
  * to the Window, Tray, and Renderer (via Event).
@@ -814,7 +817,11 @@ function broadcastTitleUpdate() {
   // 3. Notify Renderer (for UI TitleBar)
   mainWindow.webContents.send("app:title-updated", title);
 
-  logger.log(`[Main] Title Broadcasted: ${title}`);
+  // Spam Prevention: Log only if changed
+  if (lastBroadcastedTitle !== title) {
+    logger.log(`[Main] Title Broadcasted: ${title}`);
+    lastBroadcastedTitle = title;
+  }
 }
 
 function createWindows() {
@@ -866,10 +873,30 @@ function createWindows() {
     applyIntelligentConstraints(mainWindow);
   });
 
+  // Utility: Debounce
+  function debounce<T extends (...args: unknown[]) => void>(
+    func: T,
+    wait: number,
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout | null = null;
+    return function (...args: Parameters<T>) {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        func(...args);
+      }, wait);
+    };
+  }
+
   // Also update when window is moved (to handle multi-monitor scaling)
-  mainWindow.on("move", () => {
-    applyIntelligentConstraints(mainWindow);
-  });
+  // [Optimize] Debounce move event to prevent IPC flooding (Performance)
+  mainWindow.on(
+    "move",
+    debounce(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        applyIntelligentConstraints(mainWindow);
+      }
+    }, 100),
+  );
 
   // Reveal window when ready-to-show
   mainWindow.once("ready-to-show", () => {
