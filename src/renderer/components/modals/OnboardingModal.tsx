@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import "./OnboardingModal.css";
+import gifHowToUse from "../../assets/settings/how-to-use-tooltip.gif";
 import imgUacTooltip from "../../assets/settings/uac-tooltip.png";
 
 interface Props {
@@ -109,16 +110,31 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
               </section>
 
               <section className="notice-section">
-                <h3>🔄 업데이트 관련 안내</h3>
+                <h3>🔏 디지털 서명 관련 안내</h3>
                 <p>
-                  현재 프로그램의 코드 서명 인증서가 발급되지 않아, 윈도우 보안
-                  정책에 의해 백그라운드 자동 업데이트가 제한될 수 있습니다.
-                  (Defender 알림 발생)
+                  현재 프로그램의 <strong>디지털 서명(코드 서명)</strong>{" "}
+                  인증서가 발급되지 않은 상태입니다. 이로 인해 다음과 같은
+                  현상이 발생할 수 있습니다:
                 </p>
+                <ul className="sub-text" style={{ paddingLeft: "20px" }}>
+                  <li>
+                    <strong>자동 업데이트 제한</strong>: 윈도우 보안 정책에 의해
+                    디펜더 알림이 발생하며, 백그라운드 자동 업데이트가 불가능할
+                    수 있습니다.
+                  </li>
+                  <li>
+                    <strong>
+                      <span className="alert-text">백신 오탐지</span>
+                    </strong>
+                    : 일부 백신 프로그램의 기계적 패턴 검사(Heuristic)에서
+                    디지털 서명이 없는 파일을 의심으로 검출할 수 있으나 실질적인
+                    위험은 없습니다.
+                  </li>
+                </ul>
                 <p className="sub-text">
                   인증서 발급에는 상당한 유지 비용이 발생하며, 사용자 기반이
-                  확보되는 대로 발급을 진행하여 더욱 편리한 업데이트 환경을
-                  제공할 예정입니다.
+                  확보되는 대로 발급을 진행하여 더욱 편리한 환경을 제공할
+                  예정입니다.
                 </p>
               </section>
 
@@ -322,9 +338,26 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                 </span>
                 <h3>준비가 완료되었습니다!</h3>
                 <p>
-                  이제 최적화된 환경에서 Path of Exile & Path of Exile 2를
-                  즐기실 수 있습니다.
+                  이제 최적화된 환경에서 <strong>PoE & PoE 2</strong>를 즐기실
+                  수 있습니다.
                 </p>
+              </div>
+
+              <div className="switcher-guide-box">
+                <img
+                  src={gifHowToUse}
+                  alt="Game Switcher Guide"
+                  className="switcher-gif"
+                />
+                <div className="switcher-text">
+                  <span className="material-symbols-outlined">
+                    swap_horizontal_circle
+                  </span>
+                  <p>
+                    좌측 상단의 게임 아이콘을 클릭하여 언제든지 <br />
+                    <strong>PoE & PoE 2</strong> 사이를 즉시 전환할 수 있습니다.
+                  </p>
+                </div>
               </div>
 
               <div className="automation-guide-box">
@@ -332,9 +365,8 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                   settings_suggest
                 </span>
                 <p>
-                  추가적인 자동 패치 및 자동 게임 실행 등의 상세 설정은{" "}
-                  <strong>[설정 - 자동화]</strong> 메뉴에서 확인하실 수
-                  있습니다.
+                  자동 패치 및 데이터 동기화 등 상세 기능은{" "}
+                  <strong>[설정]</strong> 메뉴에서 확인하실 수 있습니다.
                 </p>
               </div>
             </div>
