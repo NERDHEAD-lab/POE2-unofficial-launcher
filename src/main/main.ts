@@ -105,6 +105,7 @@ import {
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
+import { getGameName, getLauncherTitle } from "../shared/naming";
 
 /**
  * Synchronizes the app's installation path in the registry with the actual current execution path.
@@ -793,10 +794,8 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
       }
     }
 
-    // Update Window Title for Status Indication
-    win.setTitle(
-      `PoE Unofficial Launcher v${app.getVersion()} (저해상도 지원 모드)`,
-    );
+    // Update Window Title for Status Indication via Centralized Broadcast
+    broadcastTitleUpdate();
     win.webContents.send("scaling-mode-changed", true);
   } else {
     // Large Screen: Force fixed UX for stability as requested
@@ -819,8 +818,8 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
     win.setResizable(false);
     win.setMaximizable(false);
 
-    // Restore Window Title
-    win.setTitle(`PoE Unofficial Launcher v${app.getVersion()}`);
+    // Restore Window Title via Centralized Broadcast
+    broadcastTitleUpdate();
     win.webContents.send("scaling-mode-changed", false);
   }
 }
@@ -840,6 +839,34 @@ const triggerDevToolsSync = () => {
     source: "triggerDevToolsSync",
   });
 };
+
+/**
+ * Calculates the current title based on global config/state and broadcasts it
+ * to the Window, Tray, and Renderer (via Event).
+ */
+function broadcastTitleUpdate() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const version = app.getVersion();
+  const activeGame = (getEffectiveConfig("activeGame") || "POE2") as string;
+  const isLowRes =
+    screen.getDisplayNearestPoint(mainWindow.getBounds()).workAreaSize.width <
+    BASE_WIDTH + 10;
+
+  const gameName = getGameName(activeGame);
+  const title = getLauncherTitle(gameName, version, isLowRes);
+
+  // 1. Update Window System Title
+  mainWindow.setTitle(title);
+
+  // 2. Update Tray Tooltip
+  trayManager.updateTitle(title);
+
+  // 3. Notify Renderer (for UI TitleBar)
+  mainWindow.webContents.send("app:title-updated", title);
+
+  logger.log(`[Main] Title Broadcasted: ${title}`);
+}
 
 function createWindows() {
   // 1. Main Window (UI)
@@ -1103,6 +1130,11 @@ function createWindows() {
   } else {
     mainWindow.loadFile(path.join(process.env.DIST as string, "index.html"));
   }
+
+  // [Dynamic Splash] First title broadcast to sync UI/Tray
+  mainWindow.webContents.on("did-finish-load", () => {
+    broadcastTitleUpdate();
+  });
 
   // Ensure app quits when main UI window is closed
   mainWindow.on("closed", () => {
@@ -1393,7 +1425,17 @@ ipcMain.on("patch:cancel", () => {
   }
 });
 
+// Utility for sync config access (Preload only)
+ipcMain.on("config:get-sync", (event, key: string) => {
+  event.returnValue = getConfig(key);
+});
+
 // Window Controls IPC
+ipcMain.on("app:set-title", (_event, title: string) => {
+  // Manual override if needed, but we mostly use broadcastTitleUpdate
+  trayManager.updateTitle(title);
+});
+
 ipcMain.on("window-minimize", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) win.minimize();
@@ -1585,6 +1627,11 @@ eventBus.register({
       eventBus.emit(EventType.SYNC_DEVTOOLS_VISIBILITY, appContext, {
         source: "ConfigChange",
       });
+    }
+
+    // [Trigger Point 3] Broadcast Title Update when Active Game changes
+    if (key === "activeGame") {
+      broadcastTitleUpdate();
     }
   },
 });

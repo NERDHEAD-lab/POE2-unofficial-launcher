@@ -73,6 +73,12 @@ class TrayManager {
     this.tray.setContextMenu(contextMenu);
   }
 
+  public updateTitle(title: string) {
+    if (this.tray && !this.tray.isDestroyed()) {
+      this.tray.setToolTip(title);
+    }
+  }
+
   private showMainWindow() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) this.mainWindow.restore();

@@ -191,6 +191,9 @@ export interface ElectronAPI {
   onScalingModeChange?: (callback: (enabled: boolean) => void) => () => void;
   getPath: (name: string) => Promise<string>;
   openPath: (path: string) => Promise<void>;
+  setWindowTitle: (title: string) => void;
+  onTitleUpdated: (callback: (title: string) => void) => () => void;
+  initialGameName: string;
 }
 
 export type UpdateStatus =

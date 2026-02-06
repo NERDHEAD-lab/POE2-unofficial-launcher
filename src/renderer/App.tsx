@@ -128,14 +128,16 @@ function App() {
   }, []);
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [isLowResMode, setIsLowResMode] = useState(false);
 
-  // Scaling Mode Listener
+  // Launcher Title State (Managed by Main Process via Events)
+  const [appTitle, setAppTitle] = useState("");
+
   useEffect(() => {
-    if (window.electronAPI.onScalingModeChange) {
-      return window.electronAPI.onScalingModeChange((enabled: boolean) => {
-        setIsLowResMode(enabled);
+    if (window.electronAPI?.onTitleUpdated) {
+      const cleanup = window.electronAPI.onTitleUpdated((newTitle) => {
+        setAppTitle(newTitle);
       });
+      return cleanup;
     }
   }, []);
 
@@ -710,7 +712,7 @@ function App() {
         />
         {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
         <TitleBar
-          title={`PoE Unofficial Launcher v${__APP_VERSION__}${isLowResMode ? " (저해상도 지원 모드)" : ""}`}
+          title={appTitle}
           showUpdateIcon={
             !isUpdateModalOpen && updateState.state === "available"
           }
