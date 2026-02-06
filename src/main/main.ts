@@ -166,6 +166,32 @@ async function syncInstallLocation() {
   }
 }
 
+/**
+ * Checks if the launcher version has changed since the last run.
+ * If changed, triggers the Changelog check sequence.
+ */
+async function checkLauncherVersionUpdate(context: AppContext) {
+  const currentVersion = app.getVersion();
+  const storedVersion = getConfig("launcherVersion") as string;
+
+  if (currentVersion !== storedVersion) {
+    logger.log(
+      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
+    );
+    setConfig("launcherVersion", currentVersion);
+
+    // Emit Config Change Event manually to trigger ChangelogHandler
+    // We only trigger if there WAS a previous version (not fresh install)
+    if (storedVersion) {
+      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
+        key: "launcherVersion",
+        oldValue: storedVersion,
+        newValue: currentVersion,
+      });
+    }
+  }
+}
+
 // --- Global State for Interruption Handling ---
 let currentSystemStatus: RunStatus = "idle";
 let currentActiveContext: {
@@ -880,6 +906,14 @@ function createWindows() {
       } else {
         logger.log("[Main] Starting hidden (minimized to tray).");
       }
+
+      // [Fix] Defer Version Check/Changelog until Window is Ready
+      // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
+      setTimeout(() => {
+        if (appContext) {
+          checkLauncherVersionUpdate(appContext);
+        }
+      }, 1000);
     }
   });
 
@@ -1576,26 +1610,6 @@ app.on("activate", () => {
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
 app.whenReady().then(async () => {
-  // Sync Launcher Version (for future migrations)
-  const currentVersion = app.getVersion();
-  const storedVersion = getConfig("launcherVersion") as string;
-  if (currentVersion !== storedVersion) {
-    logger.log(
-      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
-    );
-    setConfig("launcherVersion", currentVersion);
-
-    // Emit Config Change Event manually to trigger ChangelogHandler
-    // We only trigger if there WAS a previous version (not fresh install)
-    if (storedVersion) {
-      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
-        key: "launcherVersion",
-        oldValue: storedVersion,
-        newValue: currentVersion,
-      });
-    }
-  }
-
   // Handle Uninstall Cleanup Flag
   await syncInstallLocation();
   createWindows();
