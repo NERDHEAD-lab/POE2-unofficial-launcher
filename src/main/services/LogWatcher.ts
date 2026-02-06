@@ -282,15 +282,22 @@ export class LogWatcher {
           }
         }
 
+        // [Korean Mode] Aggressive Patch Logic
+        // If aggressive mode is enabled, we trigger immediately on the FIRST error (Threshold = 1).
+        // Otherwise, we use the standard threshold (10) to avoid false positives.
+        const aggressiveMode =
+          this.context.getConfig("aggressivePatchMode") === true;
+        const effectiveThreshold = aggressiveMode ? 1 : ERROR_THRESHOLD;
+
         // [Improved] Emit only on change to avoid EventBus spam,
         // but keep tracking higher counts.
         if (
-          this.errorCount >= ERROR_THRESHOLD &&
+          this.errorCount >= effectiveThreshold &&
           this.errorCount !== this.lastReportedErrorCount
         ) {
           this.lastReportedErrorCount = this.errorCount;
           this.emitLog(
-            `Error count updated: ${this.errorCount} (Threshold: ${ERROR_THRESHOLD})`,
+            `Error count updated: ${this.errorCount} (Threshold: ${effectiveThreshold})`,
             true,
           );
 

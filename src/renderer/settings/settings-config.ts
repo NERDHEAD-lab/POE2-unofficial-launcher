@@ -473,6 +473,53 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             icon: "autorenew",
           },
           {
+            id: "aggressivePatchMode",
+            type: "check",
+            label: "한국인 모드 (BETA)",
+            description:
+              "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+            icon: "bolt",
+            dependsOn: "autoFixPatchError",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const aggressiveMode = await window.electronAPI.getConfig(
+                  "aggressivePatchMode",
+                );
+                const runAsAdmin =
+                  await window.electronAPI.getConfig("runAsAdmin");
+
+                if (aggressiveMode && !runAsAdmin) {
+                  clearDescription();
+                  addDescription(
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "warning",
+                  );
+                }
+              }
+            },
+            onChangeListener: async (
+              val,
+              { addDescription, clearDescription },
+            ) => {
+              if (val && window.electronAPI) {
+                const runAsAdmin =
+                  await window.electronAPI.getConfig("runAsAdmin");
+                if (!runAsAdmin) {
+                  clearDescription();
+                  addDescription(
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "warning",
+                  );
+                }
+              } else {
+                clearDescription();
+                addDescription(
+                  "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+                );
+              }
+            },
+          },
+          {
             id: "autoGameStartAfterFix",
             type: "check",
             label: "패치 복구 후 게임 자동 시작",

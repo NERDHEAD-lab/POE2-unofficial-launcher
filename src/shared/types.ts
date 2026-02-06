@@ -43,6 +43,7 @@ export interface AppConfig {
   processWatchMode: "resource-saving" | "always-on";
   launcherVersion: string;
   runAsAdmin: boolean;
+  aggressivePatchMode: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
