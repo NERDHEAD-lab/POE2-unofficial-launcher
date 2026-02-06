@@ -540,4 +540,105 @@ export class PatchManager {
       payload,
     );
   }
+
+  // --- Manual Local Restore Logic ---
+  public async restoreLocalBackup(installPath: string): Promise<boolean> {
+    if (this.isPatching) {
+      this.logger.error(
+        "Restore failed: Another patch operation is in progress.",
+      );
+      return false;
+    }
+
+    try {
+      this.isPatching = true;
+      this.shouldStop = false;
+      this.fileStates.clear();
+      this.totalFilesCount = 0;
+      this.completedFilesCount = 0;
+
+      const backupDir = path.join(installPath, ".patch_backups");
+      if (!fs.existsSync(backupDir)) {
+        throw new Error("백업 폴더가 존재하지 않습니다.");
+      }
+
+      // Recursive file getter
+      const getFiles = async (dir: string): Promise<string[]> => {
+        const dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+        const files = await Promise.all(
+          dirents.map((dirent) => {
+            const res = path.resolve(dir, dirent.name);
+            return dirent.isDirectory() ? getFiles(res) : res;
+          }),
+        );
+        return Array.prototype.concat(...files);
+      };
+
+      const allBackupFiles = await getFiles(backupDir);
+      // Filter out metadata file
+      const restoreFiles = allBackupFiles.filter(
+        (f) => path.basename(f) !== "backup-info.json",
+      );
+
+      if (restoreFiles.length === 0) {
+        throw new Error("복구할 백업 파일이 없습니다.");
+      }
+
+      this.totalFilesCount = restoreFiles.length;
+
+      // Initialize State
+      restoreFiles.forEach((fullPath) => {
+        const relativeName = path.relative(backupDir, fullPath); // Maintain relative path
+        this.fileStates.set(relativeName, {
+          fileName: relativeName,
+          status: "waiting",
+          progress: 0,
+        });
+      });
+
+      this.emitGlobalStatus(
+        "waiting",
+        `백업 복구 준비: ${this.totalFilesCount}개 파일`,
+        0,
+      );
+
+      // Restore Loop
+      for (const fullPath of restoreFiles) {
+        if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");
+
+        const relativeName = path.relative(backupDir, fullPath);
+        const targetPath = path.join(installPath, relativeName);
+
+        this.updateFileStatus(relativeName, "downloading", 0); // Reuse "downloading" status for UI
+        this.emitCurrentState("downloading");
+
+        try {
+          const targetDir = path.dirname(targetPath);
+          if (!fs.existsSync(targetDir)) {
+            await fs.promises.mkdir(targetDir, { recursive: true });
+          }
+          await fs.promises.copyFile(fullPath, targetPath);
+
+          this.updateFileStatus(relativeName, "done", 100);
+          this.completedFilesCount++;
+          this.emitCurrentState("downloading");
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.updateFileStatus(relativeName, "error", 0, msg);
+          this.logger.error(`Failed to restore ${relativeName}:`, e);
+        }
+      }
+
+      this.emitGlobalStatus("done", "백업 복구 완료", 100);
+      return true;
+    } catch (e: unknown) {
+      this.logger.error("Error during local restore:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      this.emitGlobalStatus("error", msg || "알 수 없는 오류", 0, msg);
+      return false;
+    } finally {
+      this.isPatching = false;
+      this.shouldStop = false;
+    }
+  }
 }

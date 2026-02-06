@@ -150,6 +150,10 @@ export interface ElectronAPI {
     serviceId?: AppConfig["serviceChannel"],
     gameId?: AppConfig["activeGame"],
   ) => void; // New
+  triggerRestoreBackup: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => void; // New
   triggerPatchCancel: () => void; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],

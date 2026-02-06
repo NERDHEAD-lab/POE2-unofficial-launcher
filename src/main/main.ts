@@ -1308,6 +1308,53 @@ ipcMain.on(
   },
 );
 
+ipcMain.on(
+  "patch:restore-local",
+  async (
+    _event,
+    serviceIdOverride?: AppConfig["serviceChannel"],
+    gameIdOverride?: AppConfig["activeGame"],
+  ) => {
+    // Cancel previous instance if running?
+    if (activeManualPatchManager) {
+      try {
+        activeManualPatchManager.cancelPatch();
+      } catch {
+        // Ignore
+      }
+    }
+
+    activeManualPatchManager = new PatchManager(appContext);
+
+    const serviceId =
+      serviceIdOverride ||
+      (appContext.getConfig("serviceChannel") as AppConfig["serviceChannel"]);
+    const activeGame = (gameIdOverride ||
+      appContext.getConfig("activeGame")) as AppConfig["activeGame"];
+    const installPath = await getGameInstallPath(serviceId, activeGame);
+
+    logger.log(
+      `[Main] Triggering Local Restore for ${serviceId} / ${activeGame}`,
+    );
+
+    if (installPath) {
+      // Show UI Modal (Reuse logic but with autoStart=false to show progress)
+      mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+        autoStart: false,
+        serviceId,
+        gameId: activeGame,
+      });
+
+      activeManualPatchManager.restoreLocalBackup(installPath).finally(() => {
+        // Cleanup
+        // activeManualPatchManager = null;
+      });
+    } else {
+      logger.error("Install path not found for local restore.");
+    }
+  },
+);
+
 ipcMain.handle(
   "patch:check-backup",
   async (
