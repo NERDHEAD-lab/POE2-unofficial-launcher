@@ -270,12 +270,10 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
 
               {/* 2. Auto Start Game (Depends on Auto Fix) */}
               <div
-                className={`uac-card ${autoFix && autoStart ? "active" : ""} ${!autoFix ? "disabled" : ""}`}
+                className={`uac-card is-dependent ${autoFix && autoStart ? "active" : ""} ${!autoFix ? "disabled" : ""}`}
                 style={{
                   opacity: autoFix ? 1 : 0.5,
                   pointerEvents: autoFix ? "auto" : "none",
-                  marginLeft: "20px",
-                  marginTop: "10px",
                 }}
                 onClick={() =>
                   autoFix &&

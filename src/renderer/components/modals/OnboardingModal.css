@@ -133,6 +133,7 @@
   line-height: 1.5;
 }
 
+/* UAC Card Base - Create Stacking Context */
 .uac-card {
   background: #222;
   border: 1px solid #333;
@@ -144,6 +145,8 @@
   cursor: pointer;
   transition: all 0.2s ease;
   margin-top: 10px;
+  position: relative;
+  z-index: 2; /* Content above lines */
 }
 
 .uac-card:hover {
@@ -154,6 +157,12 @@
 .uac-card.active {
   border-color: var(--theme-accent, #dfcf99);
   background: rgba(223, 207, 153, 0.05);
+}
+
+.uac-card.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.5);
 }
 
 .uac-card-info {
@@ -179,6 +188,48 @@
   margin-top: 2px;
 }
 
+/* Hierarchical Connection lines (Tree lines) */
+.uac-card.is-dependent {
+  margin-left: 32px !important;
+  border-left: none !important;
+  position: relative;
+  margin-top: 0 !important; /* CRITICAL: Remove margin to make gap exactly equal to flex gap (20px) */
+}
+
+/* Vertical Spine */
+.uac-card.is-dependent::before {
+  content: "";
+  position: absolute;
+  top: -22px; /* Force overlap: Start 2px higher than gap (20px) */
+  left: -12px;
+  width: 2px;
+  height: calc(50% + 22px); /* Default: ㄴ shape (compensate top) */
+  background: #333;
+}
+
+/* If followed by another sibling, extend to ㅏ shape with generous overlap */
+.uac-card.is-dependent:has(+ .uac-card.is-dependent)::before {
+  height: calc(100% + 50px); /* Deep overlap to ensure connection */
+}
+
+/* Horizontal Branch */
+.uac-card.is-dependent::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  width: 12px;
+  height: 2px;
+  background: #333;
+  transform: translateY(-50%);
+}
+
+.uac-card.active.is-dependent::before,
+.uac-card.active.is-dependent::after {
+  background: var(--theme-accent, #dfcf99);
+  opacity: 0.5;
+}
+
 .uac-toggle {
   width: 40px;
   height: 20px;
@@ -186,6 +237,7 @@
   border-radius: 10px;
   position: relative;
   transition: background 0.3s;
+  flex-shrink: 0; /* CRITICAL: Prevent shrinking on long text cards */
 }
 
 .uac-toggle.is-active {
@@ -214,17 +266,6 @@
   overflow: hidden;
   border: 1px solid #222;
   height: auto;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-/* Custom scrollbar for preview */
-.uac-preview-container::-webkit-scrollbar {
-  width: 4px;
-}
-.uac-preview-container::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 2px;
 }
 
 .uac-preview-img {
