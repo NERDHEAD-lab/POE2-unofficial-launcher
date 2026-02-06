@@ -1,0 +1,36 @@
+/* SupportLinks Styling */
+
+.support-links-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.support-link {
+  display: flex;
+  align-items: center;
+  color: #ccc;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 10px;
+  transition: color 0.2s;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.support-link:hover {
+  color: var(--theme-accent, #dfcf99);
+}
+
+.support-link-icon {
+  font-size: 16px;
+}
+
+.support-separator {
+  height: 1px;
+  background-color: #333;
+  margin: 12px 10px;
+  width: calc(100% - 20px);
+}
