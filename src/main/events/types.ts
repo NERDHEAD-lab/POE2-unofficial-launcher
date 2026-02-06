@@ -202,6 +202,8 @@ export interface ShowChangelogEvent {
   type: EventType.SHOW_CHANGELOG;
   payload: {
     changelogs: import("../../shared/types").ChangelogItem[];
+    oldVersion?: string;
+    newVersion?: string;
   };
   timestamp?: number;
 }

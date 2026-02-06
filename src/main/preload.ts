@@ -142,13 +142,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Changelog
   onShowChangelog: (
-    callback: (changelogs: import("../shared/types").ChangelogItem[]) => void,
+    callback: (
+      data:
+        | import("../shared/types").ChangelogItem[]
+        | {
+            changelogs: import("../shared/types").ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
+    ) => void,
   ) => {
     const subscription = (
       _event: IpcRendererEvent,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: any,
-    ) => callback(data.changelogs);
+    ) => callback(data);
     ipcRenderer.on("UI:SHOW_CHANGELOG", subscription);
     return () => {
       ipcRenderer.removeListener("UI:SHOW_CHANGELOG", subscription);

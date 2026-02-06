@@ -79,6 +79,24 @@
   gap: 20px;
 }
 
+/* Custom Scrollbar */
+.changelog-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.changelog-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.changelog-content::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+.changelog-content::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
 .changelog-item {
   background-color: #252526;
   border-radius: 6px;
@@ -95,12 +113,12 @@
 
 .changelog-version-info {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
 }
 
 .changelog-version {
-  font-size: 16px;
+  font-size: 26px;
   font-weight: bold;
   color: #4fc3f7;
 }

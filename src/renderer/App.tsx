@@ -104,13 +104,24 @@ function App() {
 
   // Changelog State
   const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+  const [versionRange, setVersionRange] = useState<{
+    old?: string;
+    new?: string;
+  }>({});
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
   // Changelog Listener
   useEffect(() => {
     if (window.electronAPI?.onShowChangelog) {
-      return window.electronAPI.onShowChangelog((logs) => {
-        setChangelogs(logs);
+      return window.electronAPI.onShowChangelog((data) => {
+        // Handle both old (array only) and new (object) payload for safety
+        if (Array.isArray(data)) {
+          setChangelogs(data);
+          setVersionRange({});
+        } else {
+          setChangelogs(data.changelogs);
+          setVersionRange({ old: data.oldVersion, new: data.newVersion });
+        }
         setIsChangelogOpen(true);
       });
     }
@@ -626,6 +637,8 @@ function App() {
       {isChangelogOpen && (
         <ChangelogModal
           changelogs={changelogs}
+          oldVersion={versionRange.old}
+          newVersion={versionRange.new}
           onClose={() => setIsChangelogOpen(false)}
         />
       )}

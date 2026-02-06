@@ -44,7 +44,11 @@ export const ChangelogCheckHandler: EventHandler<ConfigChangeEvent> = {
         logger.log(
           `[ChangelogCheckHandler] Broadcasting SHOW_CHANGELOG with ${changelogs.length} items.`,
         );
-        eventBus.emit(EventType.SHOW_CHANGELOG, _context, { changelogs });
+        eventBus.emit(EventType.SHOW_CHANGELOG, _context, {
+          changelogs,
+          oldVersion: oldValue,
+          newVersion: newValue,
+        });
       } else {
         logger.log("[ChangelogCheckHandler] No relevant changelogs found.");
       }

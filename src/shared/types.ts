@@ -109,7 +109,15 @@ export interface ChangelogItem {
 
 export interface ElectronAPI {
   onShowChangelog?: (
-    callback: (changelogs: ChangelogItem[]) => void,
+    callback: (
+      data:
+        | ChangelogItem[]
+        | {
+            changelogs: ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
+    ) => void,
   ) => () => void;
 
   triggerGameStart: () => void;

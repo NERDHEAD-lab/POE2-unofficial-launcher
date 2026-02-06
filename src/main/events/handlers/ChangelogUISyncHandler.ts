@@ -13,10 +13,14 @@ export const ChangelogUISyncHandler: EventHandler<ShowChangelogEvent> = {
   targetEvent: EventType.SHOW_CHANGELOG,
 
   handle: async (event, context: AppContext) => {
-    const { changelogs } = event.payload;
+    const { changelogs, oldVersion, newVersion } = event.payload;
 
     if (context.mainWindow && !context.mainWindow.isDestroyed()) {
-      context.mainWindow.webContents.send("UI:SHOW_CHANGELOG", { changelogs });
+      context.mainWindow.webContents.send("UI:SHOW_CHANGELOG", {
+        changelogs,
+        oldVersion,
+        newVersion,
+      });
     }
   },
 };
