@@ -55,7 +55,6 @@ const SettingItemRenderer: React.FC<{
   // Dynamic Label State
   const [label, setLabel] = useState<string>(item.label);
 
-  // [Refactor] Description Blocks State
   // Description Blocks State
   // Initialize description blocks from prop lazily to avoid effect on mount
   const [descriptionBlocks, setDescriptionBlocks] = useState<
@@ -432,11 +431,14 @@ export const SettingsContent: React.FC<Props> = ({
   // Global Config Sync State
   const [config, setConfig] = useState<Record<string, SettingValue>>({});
   const [restartRequired, setRestartRequired] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(false);
 
   // Load Config and Sync with Main Process
   useEffect(() => {
     const loadConfig = async () => {
-      if (!window.electronAPI) return;
+      if (!window.electronAPI) {
+        return;
+      }
       const newValues: Record<string, SettingValue> = {};
 
       for (const section of category.sections) {
@@ -446,8 +448,14 @@ export const SettingsContent: React.FC<Props> = ({
         }
       }
       setConfig((prev) => ({ ...prev, ...newValues }));
+
+      // Enable animations after a short delay to allow onInit layout shifts to settle silently
+      setTimeout(() => {
+        setAnimationsEnabled(true);
+      }, 300);
     };
 
+    // Start loading
     loadConfig();
 
     if (window.electronAPI) {
@@ -499,7 +507,10 @@ export const SettingsContent: React.FC<Props> = ({
   };
 
   return (
-    <div className="settings-content" style={{ position: "relative" }}>
+    <div
+      className={`settings-content ${animationsEnabled ? "animations-enabled" : ""}`}
+      style={{ position: "relative" }}
+    >
       <div className="content-actions-bar">
         <button className="settings-close-btn-inline" onClick={onClose}>
           <span className="material-symbols-outlined">close</span>
@@ -515,9 +526,6 @@ export const SettingsContent: React.FC<Props> = ({
 
             {sortSettingItemsByDependency(section.items as SettingItem[]).map(
               (item) => {
-                // Priority Dependency Check - Now handled in SettingItemRenderer for better reactivity
-                // and to maintain component state even when hidden.
-
                 // Resolve value for prop (falls back to default if not in config yet)
                 const defaultVal =
                   "defaultValue" in item

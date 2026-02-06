@@ -201,11 +201,17 @@
   border: 1px solid transparent;
   position: relative; /* CRITICAL: Required for tree-line positioning */
 
-  /* Slide Animation Support */
   overflow: visible; /* Tree lines need to stick out */
   max-height: 800px;
   opacity: 1;
   margin-bottom: 12px; /* Replaces gap for better animation control */
+
+  /* Transitions are DISABLED by default to prevent load glitches */
+  transition: none;
+}
+
+/* Enable transitions only after initial load settles */
+.settings-content.animations-enabled .setting-item {
   transition:
     border-color 0.2s,
     max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
