@@ -153,10 +153,19 @@ img.channel-logo[alt="Grinding Gear Games"] {
   color: #888;
   transition: all 0.2s;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.settings-button .material-symbols-outlined {
+  transition: transform 0.8s cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 .settings-button:hover {
   background-color: rgba(50, 50, 50, 0.9);
   color: var(--theme-accent, #dfcf99);
   border-color: var(--theme-accent, #dfcf99);
+}
+
+.settings-button:hover .material-symbols-outlined {
+  transform: rotate(360deg);
 }
