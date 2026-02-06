@@ -108,6 +108,7 @@ export interface ChangelogItem {
 }
 
 export interface ElectronAPI {
+  getAllChangelogs: () => Promise<ChangelogItem[]>;
   onShowChangelog?: (
     callback: (
       data:
