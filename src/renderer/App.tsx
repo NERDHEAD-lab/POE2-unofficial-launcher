@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 
 import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
@@ -205,7 +211,7 @@ function App() {
     }
   }, []);
 
-  const handlePatchConfirm = () => {
+  const handlePatchConfirm = useCallback(() => {
     // Trigger Manual Fix execution via Main IPC
     window.electronAPI.triggerManualPatchFix();
     setPatchModalState((prev) => ({
@@ -219,18 +225,23 @@ function App() {
         files: [],
       },
     }));
-  };
+  }, []);
 
-  const handlePatchCancel = () => {
-    if (patchModalState.mode === "progress") {
-      window.electronAPI.triggerPatchCancel();
-    }
-    setPatchModalState((prev) => ({ ...prev, isOpen: false }));
-  };
+  const handlePatchCancel = useCallback(() => {
+    // We need to check the *current* state mode.
+    // Since this callback depends on patchModalState.mode, it will update when mode changes.
+    // However, onCancel is NOT a dependency of the auto-close effect in PatchFixModal, so this is safe.
+    setPatchModalState((prev) => {
+      if (prev.mode === "progress") {
+        window.electronAPI.triggerPatchCancel();
+      }
+      return { ...prev, isOpen: false };
+    });
+  }, []);
 
-  const handlePatchClose = () => {
+  const handlePatchClose = useCallback(() => {
     setPatchModalState((prev) => ({ ...prev, isOpen: false }));
-  };
+  }, []);
 
   // Update Check Effect
   useEffect(() => {
