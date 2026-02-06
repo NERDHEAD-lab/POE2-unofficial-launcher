@@ -735,7 +735,12 @@ function App() {
           }}
         >
           {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
-          <div className="frame-decoration top-center"></div>
+          <div className="frame-decoration top-center">
+            {/* Blue Fire Overlay (Localized Ripple) */}
+            <div className="top-center-blue" />
+            {/* Interactive Hit Zone for Blue Fire (Top Central Demon) */}
+            <div className="top-center-trigger" />
+          </div>
           <div className="frame-decoration top-left"></div>
           <div className="frame-decoration top-right"></div>
 
