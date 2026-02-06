@@ -54,6 +54,17 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE2", "Kakao Games", "running");
     },
     onStop: (event, context) => {
+      // If Game Client is running, ignore Launcher stop
+      const isGameRunning =
+        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+
+      if (isGameRunning) {
+        logger.log(
+          "[GameProcess] POE2 Launcher stopped, but Client is running. Status maintained.",
+        );
+        return;
+      }
+
       // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE2", "Kakao Games", "stopping");
       setTimeout(() => {
@@ -73,6 +84,17 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE1", "Kakao Games", "running");
     },
     onStop: (event, context) => {
+      // If Game Client is running, ignore Launcher stop
+      const isGameRunning =
+        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+
+      if (isGameRunning) {
+        logger.log(
+          "[GameProcess] POE1 Launcher stopped, but Client is running. Status maintained.",
+        );
+        return;
+      }
+
       // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE1", "Kakao Games", "stopping");
       setTimeout(() => {
@@ -97,6 +119,23 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
     },
     onStop: (event, context) => {
       const inferredGameId = lastDetectedKakaoLauncher || "POE2";
+
+      // [Fix] Check if any instance of PathOfExile_KG.exe is still running
+      // This handles the case where an old process terminates while a new one has started
+      const isGameRunning =
+        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+
+      if (isGameRunning) {
+        logger.log(
+          `[GameProcess] PathOfExile_KG.exe stopped, but another instance is running. Status maintained. (Inferred: ${inferredGameId})`,
+        );
+        return;
+      }
+
+      // [Fix] Only trigger stop if the stopping process matches the current context
+      // e.g. If we think we are playing POE1, and KG Client stops -> Stop POE1.
+      // If we think we are playing POE2, and KG Client stops -> Stop POE2.
+      // This is logical for the shared executable.
 
       emitGameStatus(context, inferredGameId, "Kakao Games", "stopping");
       setTimeout(() => {
