@@ -9,6 +9,7 @@ import {
 } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 import { PreloadLogger } from "./utils/preload-logger";
+import { getGameName } from "../shared/naming";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
@@ -140,6 +141,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.off("scaling-mode-changed", handler);
   },
   getAllChangelogs: () => ipcRenderer.invoke("changelog:get-all"),
+  setWindowTitle: (title: string) => ipcRenderer.send("app:set-title", title),
 
   // Changelog
   onShowChangelog: (
@@ -163,4 +165,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("UI:SHOW_CHANGELOG", subscription);
     };
   },
+  onTitleUpdated: (callback: (title: string) => void) => {
+    const handler = (_event: IpcRendererEvent, title: string) =>
+      callback(title);
+    ipcRenderer.on("app:title-updated", handler);
+    return () => ipcRenderer.off("app:title-updated", handler);
+  },
+  initialGameName: getGameName(
+    ipcRenderer.sendSync("config:get-sync", "activeGame"),
+  ),
 });

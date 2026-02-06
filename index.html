@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>POE2 Unofficial Launcher</title>
+    <title>Unofficial Launcher</title>
     <style>
       /* Splash Screen Styles */
       #launcher-splash {
@@ -93,10 +93,24 @@
   </head>
   <body>
     <div id="launcher-splash">
-      <div class="splash-logo">POE2 Unofficial Launcher</div>
+      <div class="splash-logo">Unofficial Launcher</div>
       <div class="splash-loader"></div>
       <div class="splash-footer">PREPARING ASSETS...</div>
     </div>
+    <script>
+      // Apply Dynamic Naming (from Preload API) immediately for Splash Screen
+      if (window.electronAPI && window.electronAPI.initialGameName) {
+        const gameName = window.electronAPI.initialGameName;
+        const splashTitle = gameName + " Unofficial Launcher";
+
+        // 1. Update Splash Logo Text
+        const splashLogo = document.querySelector(".splash-logo");
+        if (splashLogo) splashLogo.innerText = splashTitle;
+
+        // 2. Update Initial Document Title
+        document.title = splashTitle;
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/renderer/main.tsx"></script>
   </body>
