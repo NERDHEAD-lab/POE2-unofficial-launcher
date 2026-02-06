@@ -1,8 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { app } from "electron";
+
 import { PowerShellManager } from "./powershell";
 import { AppConfig } from "../../shared/types";
+import { logger } from "../utils/logger";
 
 /**
  * Registry Mapping for Game Installation Paths
@@ -89,10 +92,13 @@ export const readRegistryValue = async (
 ): Promise<string | null> => {
   try {
     const finalPath = standardizeRegPath(regPath);
-    // Safer retrieval: GetValue() for the key object
+    // Safer retrieval: Get-ItemProperty directly
     const psCommand = `
       if (Test-Path "${finalPath}") {
-        (Get-Item -Path "${finalPath}").GetValue("${key}")
+        $prop = Get-ItemProperty -Path "${finalPath}" -Name "${key}" -ErrorAction SilentlyContinue
+        if ($prop) {
+            $prop."${key}"
+        }
       }
     `.trim();
 
@@ -118,11 +124,14 @@ export const writeRegistryValue = async (
 ): Promise<boolean> => {
   try {
     const finalPath = standardizeRegPath(regPath);
+    // Escape single quotes in value for PowerShell single-quoted string
+    const safeValue = value.replace(/'/g, "''");
+
     const psCommand = `
       if (-not (Test-Path "${finalPath}")) {
         New-Item -Path "${finalPath}" -Force | Out-Null
       }
-      Set-ItemProperty -Path "${finalPath}" -Name "${key}" -Value "${value}" -Type String -Force
+      Set-ItemProperty -Path "${finalPath}" -Name "${key}" -Value '${safeValue}' -Type String -Force
     `.trim();
 
     const { code } = await runPowerShell(psCommand, useAdmin);
@@ -221,33 +230,69 @@ export const isGameInstalled = async (
 };
 
 /**
- * Finds the actual registry key for a given product name in the Uninstall section
+ * Synchronizes the app's installation path in the registry with the actual current execution path.
+ * This is crucial for fixing the issue where manual move (copy-paste) causes updates to land in the old directory.
  */
-export const findUninstallKeyByName = async (
-  productName: string,
-): Promise<string | null> => {
-  const uninstallRoot =
-    "Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
-  const psCommand = `
-    Get-ChildItem -Path "${uninstallRoot}" | ForEach-Object {
-      $val = Get-ItemProperty $_.PSPath
-      if ($val.DisplayName -eq "${productName}") {
-        $_.PSPath
+export async function syncInstallLocation() {
+  if (!app.isPackaged) return;
+
+  try {
+    const currentExePath = app.getPath("exe");
+    const currentInstallDir = path.dirname(currentExePath);
+    const exeName = path.basename(currentExePath);
+    // [Fix] Use explicit Product Name from Build Configuration (Single Source of Truth)
+    // @ts-expect-error - injected by vite
+    const productName = __PRODUCT_NAME__;
+    const uninstallerName = `Uninstall ${productName}.exe`;
+
+    // [Strict] We only update if the key explicitly exists. No arbitrary creation.
+    const targetKey = LAUNCHER_UNINSTALL_REG_KEY;
+
+    // Verify key existence before doing anything
+    const psCheckCommand = `Test-Path "${targetKey}"`;
+    const { stdout: exists } = await runPowerShell(psCheckCommand);
+
+    if (exists.trim().toLowerCase() !== "true") {
+      logger.warn(
+        `[Main] Registry key not found for ${productName}. Skipping sync to avoid registry pollution.`,
+      );
+      return;
+    }
+
+    const updates = [
+      { key: "InstallLocation", value: currentInstallDir },
+      {
+        key: "UninstallString",
+        value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser`,
+      },
+      {
+        key: "QuietUninstallString",
+        value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser /S`,
+      },
+      {
+        key: "DisplayIcon",
+        value: `${path.join(currentInstallDir, exeName)},0`,
+      },
+    ];
+
+    for (const update of updates) {
+      const currentValue = await readRegistryValue(targetKey, update.key);
+
+      if (!currentValue) {
+        logger.warn(
+          `[Main] Registry Value for ${update.key} is missing. Restoring...`,
+        );
+        await writeRegistryValue(targetKey, update.key, update.value, false);
+      } else if (currentValue !== update.value) {
+        logger.log(
+          `[Main] Updating ${update.key}: "${currentValue}" -> "${update.value}"`,
+        );
+        await writeRegistryValue(targetKey, update.key, update.value, false);
+      } else {
+        // Value matches, do strictly nothing
       }
     }
-  `.trim();
-
-  const { stdout, code } = await runPowerShell(psCommand);
-  if (code === 0 && stdout && stdout.trim()) {
-    // Return the first match, converting PSPath format to our standardized Registry:: format
-    const foundPath = stdout.trim().split("\n")[0].trim();
-    if (foundPath.startsWith("Microsoft.PowerShell.Core\\Registry::")) {
-      return foundPath.replace(
-        "Microsoft.PowerShell.Core\\Registry::",
-        "Registry::",
-      );
-    }
-    return foundPath;
+  } catch (error) {
+    logger.error("[Main] Error during InstallLocation synchronization:", error);
   }
-  return null;
-};
+}

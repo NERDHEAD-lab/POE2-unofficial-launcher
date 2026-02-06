@@ -23,7 +23,10 @@ import {
   DebugLogPayload,
 } from "../shared/types";
 import { isUserFacingPage } from "../shared/visibility";
-import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
+import {
+  AutoLaunchHandler,
+  syncAutoLaunch,
+} from "./events/handlers/AutoLaunchHandler";
 import {
   LogSessionHandler,
   LogWebRootHandler,
@@ -93,80 +96,13 @@ import {
 } from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
-import {
-  readRegistryValue,
-  writeRegistryValue,
-  findUninstallKeyByName,
-  runPowerShell,
-  LAUNCHER_UNINSTALL_REG_KEY,
-} from "./utils/registry";
+import { syncInstallLocation } from "./utils/registry";
 import {
   isUACBypassEnabled,
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
 import { getGameName, getLauncherTitle } from "../shared/naming";
-
-/**
- * Synchronizes the app's installation path in the registry with the actual current execution path.
- * This is crucial for fixing the issue where manual move (copy-paste) causes updates to land in the old directory.
- */
-async function syncInstallLocation() {
-  if (!app.isPackaged) return;
-
-  try {
-    const currentExePath = app.getPath("exe");
-    const currentInstallDir = path.dirname(currentExePath);
-    const exeName = path.basename(currentExePath);
-    const productName = app.getName();
-    const uninstallerName = `Uninstall ${productName}.exe`;
-
-    // [Strict] We only update if the key explicitly exists. No arbitrary creation.
-    const dynamicKey = await findUninstallKeyByName(productName);
-    const targetKey = dynamicKey || LAUNCHER_UNINSTALL_REG_KEY;
-
-    // Verify key existence before doing anything
-    const psCheckCommand = `Test-Path "${targetKey}"`;
-    const { stdout: exists } = await runPowerShell(psCheckCommand);
-
-    if (exists.trim().toLowerCase() !== "true") {
-      logger.warn(
-        `[Main] Registry key not found for ${productName}. Skipping sync to avoid registry pollution.`,
-      );
-      return;
-    }
-
-    const storedPath = await readRegistryValue(targetKey, "InstallLocation");
-
-    if (storedPath !== currentInstallDir) {
-      logger.log(
-        `[Main] Syncing install paths to ${targetKey} (Previous: ${storedPath || "none"})`,
-      );
-
-      const updates = [
-        { key: "InstallLocation", value: currentInstallDir },
-        {
-          key: "UninstallString",
-          value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser`,
-        },
-        {
-          key: "QuietUninstallString",
-          value: `"${path.join(currentInstallDir, uninstallerName)}" /currentuser /S`,
-        },
-        {
-          key: "DisplayIcon",
-          value: `${path.join(currentInstallDir, exeName)},0`,
-        },
-      ];
-
-      for (const update of updates) {
-        await writeRegistryValue(targetKey, update.key, update.value, false);
-      }
-    }
-  } catch (error) {
-    logger.error("[Main] Error during InstallLocation synchronization:", error);
-  }
-}
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -1666,5 +1602,7 @@ ipcMain.handle("changelog:get-all", async () => {
 app.whenReady().then(async () => {
   // Handle Uninstall Cleanup Flag
   await syncInstallLocation();
+  // Ensure Auto-Launch path is updated (in case user moved the app)
+  syncAutoLaunch();
   createWindows();
 });

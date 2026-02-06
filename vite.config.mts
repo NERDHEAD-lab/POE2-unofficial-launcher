@@ -29,10 +29,16 @@ const appGuid = guidMatch
   ? guidMatch[1]
   : "612ccee6-aa48-58b5-9d2e-fdd023b16218";
 
+const productNameMatch = builderConfig.match(/productName:\s*["'](.*?)["']/);
+const productName = productNameMatch
+  ? productNameMatch[1]
+  : "POE2 Unofficial Launcher";
+
 const defines = {
   __APP_VERSION__: appVersion,
   __APP_HASH__: JSON.stringify(commitHash),
   __APP_GUID__: JSON.stringify(appGuid),
+  __PRODUCT_NAME__: JSON.stringify(productName),
 };
 
 // https://vitejs.dev/config/
