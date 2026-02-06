@@ -64,8 +64,11 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
   };
 
   return (
-    <div className={`changelog-overlay ${isVisible ? "visible" : ""}`}>
-      <div className="changelog-modal">
+    <div
+      className={`changelog-overlay ${isVisible ? "visible" : ""}`}
+      onClick={handleClose}
+    >
+      <div className="changelog-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="changelog-header">
           <div className="changelog-header-title">
