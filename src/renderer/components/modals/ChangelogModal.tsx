@@ -9,11 +9,28 @@ import "./ChangelogModal.css";
 
 interface ChangelogModalProps {
   changelogs: ChangelogItem[];
+  oldVersion?: string;
+  newVersion?: string;
   onClose: () => void;
 }
 
+/**
+ * Filters out technical commit hash links from the changelog body.
+ * Pattern: " ([hash](github_url))"
+ */
+const filterChangelogBody = (body: string): string => {
+  return body
+    .replace(/^##\s*\[v?[\d.]+\]\(.*?\)\s*\(.*?\)\s*\n?/gm, "") // Remove H2 version header with link (e.g., ## [0.6.3](...) (2026-02-03))
+    .replace(
+      / \(\[[0-9a-f]+\]\(https:\/\/github\.com\/.*?\/commit\/[0-9a-f]+\)\)/g,
+      "",
+    ); // Remove commit hash links
+};
+
 const ChangelogModal: React.FC<ChangelogModalProps> = ({
   changelogs,
+  oldVersion,
+  newVersion,
   onClose,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -52,7 +69,10 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
         {/* Header */}
         <div className="changelog-header">
           <div className="changelog-header-title">
-            <h2>패치 노트</h2>
+            <h2>
+              패치 노트{" "}
+              {oldVersion && newVersion && ` (${oldVersion} → ${newVersion})`}
+            </h2>
             <p>
               PoE Unofficial Launcher의 새로운 기능과 수정사항을 확인하세요.
             </p>
@@ -64,40 +84,44 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
 
         {/* Content Area */}
         <div className="changelog-content">
-          {changelogs.map((log) => (
-            <div key={log.version} className="changelog-item">
-              <div className="changelog-item-header">
-                <div className="changelog-version-info">
-                  <span className="changelog-version">{log.version}</span>
-                  <span className="changelog-date">
-                    {new Date(log.date).toLocaleDateString()}
-                  </span>
+          {changelogs.map((log) => {
+            const filteredBody = filterChangelogBody(log.body || "");
+
+            return (
+              <div key={log.version} className="changelog-item">
+                <div className="changelog-item-header">
+                  <div className="changelog-version-info">
+                    <span className="changelog-version">v{log.version}</span>
+                    <span className="changelog-date">
+                      {new Date(log.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open(log.htmlUrl, "_blank");
+                    }}
+                    className="changelog-github-link"
+                  >
+                    GitHub에서 보기 &rarr;
+                  </a>
                 </div>
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(log.htmlUrl, "_blank");
-                  }}
-                  className="changelog-github-link"
-                >
-                  GitHub에서 보기 &rarr;
-                </a>
+                <div className="markdown-body changelog-markdown-body">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(
+                        marked.parse(filteredBody) as string,
+                        {
+                          ADD_ATTR: ["target", "rel"],
+                        },
+                      ),
+                    }}
+                  />
+                </div>
               </div>
-              <div className="markdown-body changelog-markdown-body">
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(
-                      marked.parse(log.body || "") as string,
-                      {
-                        ADD_ATTR: ["target", "rel"],
-                      },
-                    ),
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer */}
