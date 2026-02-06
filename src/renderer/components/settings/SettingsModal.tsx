@@ -97,6 +97,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
         {/* Right Content */}
         <SettingsContent
+          key={activeCategory.id} // Force remount on category change to reset internal state
           category={activeCategory}
           onClose={handleCloseAttempt}
           onShowToast={showToast}
