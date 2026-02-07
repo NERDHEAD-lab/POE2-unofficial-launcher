@@ -36,7 +36,11 @@ export const syncAutoLaunch = async () => {
   if (shouldAutoLaunch) {
     if (runAsAdmin) {
       // 1. Admin Mode: Use Task Scheduler
+      logger.log(
+        "[AutoLaunch] Configuring Admin AutoLaunch (Task Scheduler)...",
+      );
       // Clean up legacy registry entry first to avoid double launch
+      logger.log("[AutoLaunch] Removing User AutoLaunch (Registry)...");
       app.setLoginItemSettings({
         openAtLogin: false,
         path: app.getPath("exe"),
@@ -46,7 +50,9 @@ export const syncAutoLaunch = async () => {
       await setupAdminAutoLaunch(true, shouldStartMinimized);
     } else {
       // 2. Normal Mode: Use Registry (Electron API)
+      logger.log("[AutoLaunch] Configuring User AutoLaunch (Registry)...");
       // Clean up Admin Task first
+      logger.log("[AutoLaunch] Removing Admin AutoLaunch (Task Scheduler)...");
       await setupAdminAutoLaunch(false);
 
       app.setLoginItemSettings({
@@ -58,10 +64,13 @@ export const syncAutoLaunch = async () => {
     }
   } else {
     // Disable All
+    logger.log("[AutoLaunch] Disabling all AutoLaunch methods...");
+    logger.log("[AutoLaunch] Removing User AutoLaunch (Registry)...");
     app.setLoginItemSettings({
       openAtLogin: false,
       path: app.getPath("exe"),
     });
+    logger.log("[AutoLaunch] Removing Admin AutoLaunch (Task Scheduler)...");
     await setupAdminAutoLaunch(false);
   }
 };

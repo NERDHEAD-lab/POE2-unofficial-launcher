@@ -1019,7 +1019,7 @@ function createWindows() {
   logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
-  const initialConfig = getConfig() as AppConfig;
+  // const initialConfig = getConfig() as AppConfig; (Removed: unused)
   const checkAllGameStatuses = async () => {
     const combinations = [
       { game: "POE1", service: "Kakao Games" },
@@ -1050,27 +1050,11 @@ function createWindows() {
   checkAllGameStatuses();
 
   // Sync Auto Launch Status
-  if (!app.isPackaged) {
-    logger.log(
-      "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
-    );
-  } else if (initialConfig.autoLaunch) {
-    const shouldStartMinimized = initialConfig.startMinimized === true;
-    app.setLoginItemSettings({
-      openAtLogin: true,
-      path: app.getPath("exe"),
-      args: shouldStartMinimized ? ["--hidden"] : [],
-    });
-  } else {
-    // Ensure it's disabled if config says so (handle external changes)
-    const loginSettings = app.getLoginItemSettings();
-    if (loginSettings.openAtLogin) {
-      app.setLoginItemSettings({
-        openAtLogin: false,
-        path: app.getPath("exe"),
-      });
-    }
-  }
+  // Sync Auto Launch Status
+  // [Refactor] Use centralized handler to respect Admin/User mode and avoid double-launch
+  syncAutoLaunch().catch((err) => {
+    logger.error("[Main] Failed to sync auto-launch settings:", err);
+  });
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
