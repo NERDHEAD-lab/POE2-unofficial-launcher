@@ -77,7 +77,6 @@ const SettingItemRenderer: React.FC<{
     }
 
     if (item.description) {
-      // eslint-disable-next-line
       setDescriptionBlocks([{ text: item.description, variant: "default" }]);
     } else {
       setDescriptionBlocks([]);
@@ -95,6 +94,8 @@ const SettingItemRenderer: React.FC<{
 
   // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
+
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Sync with prop updates (e.g. from global config change)
   const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
@@ -163,6 +164,7 @@ const SettingItemRenderer: React.FC<{
   const isFinalVisible = isVisible && isDependentVisible;
 
   const handleChange = async (newValue: SettingValue) => {
+    if (isProcessing) return; // Prevent double trigger
     setVal(newValue); // Optimistic update
     onValueChange(item.id, newValue); // Sync locally immediately for dependsOn items
 
@@ -180,53 +182,72 @@ const SettingItemRenderer: React.FC<{
       onRestartRequired();
     }
 
-    // Call listener
+    // Call listener with Auto-Disable
     if ("onChangeListener" in item && item.onChangeListener) {
-      // @ts-expect-error - listener signature is generic
-      item.onChangeListener(newValue, {
-        showToast: onShowToast,
-        addDescription: addDescription,
-        clearDescription: clearDescription,
-        setLabel: setLabel,
-        setDisabled: setDisabled,
-      });
+      try {
+        setIsProcessing(true);
+        // @ts-expect-error - listener signature is generic
+        await item.onChangeListener(newValue, {
+          showToast: onShowToast,
+          addDescription: addDescription,
+          clearDescription: clearDescription,
+          setLabel: setLabel,
+          setDisabled: setDisabled,
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
-  const handleActionClick = (_actionId: string) => {
+  const handleActionClick = async (_actionId: string) => {
     // logger.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
+    if (isProcessing) return;
 
     // Priority 1: Generic listener (onClickListener)
     if ("onClickListener" in item && item.onClickListener) {
-      item.onClickListener({
-        showToast: onShowToast,
-        showConfirm: (options) => {
-          onShowConfirm?.({
-            ...options,
-            isOpen: true,
-            onCancel: () => onHideConfirm?.(),
-            onConfirm: () => {
-              options.onConfirm();
-              onHideConfirm?.();
-            },
-          });
-        },
-        setValue: (newValue) => handleChange(newValue),
-      });
+      try {
+        setIsProcessing(true);
+        await item.onClickListener({
+          showToast: onShowToast,
+          showConfirm: (options) => {
+            onShowConfirm?.({
+              ...options,
+              isOpen: true,
+              onCancel: () => {
+                options.onCancel?.();
+                onHideConfirm?.();
+              },
+              onConfirm: () => {
+                options.onConfirm();
+                onHideConfirm?.();
+              },
+            });
+          },
+          setValue: (newValue) => handleChange(newValue),
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
     // Priority 2: Standard onChangeListener (for legacy support if needed)
     else if ("onChangeListener" in item && item.onChangeListener) {
-      // @ts-expect-error - listener signature is generic
-      item.onChangeListener(true, {
-        showToast: onShowToast,
-        addDescription,
-        clearDescription,
-      });
+      try {
+        setIsProcessing(true);
+        // @ts-expect-error - listener signature is generic
+        await item.onChangeListener(true, {
+          showToast: onShowToast,
+          addDescription,
+          clearDescription,
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
   const currentVal = val;
-  const isDisabled = disabled;
+  const isDisabled = disabled || isProcessing;
 
   // Render Control based on type
   const renderControl = () => {
