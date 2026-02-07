@@ -43,6 +43,7 @@ export const DAUM_STARTER_PROTOCOL_KEY =
 const APP_GUID = __APP_GUID__;
 
 export const LAUNCHER_UNINSTALL_REG_KEY = `Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_GUID}`;
+export const LAUNCHER_APP_REG_KEY = `Registry::HKEY_CURRENT_USER\\Software\\${APP_GUID}`;
 
 /**
  * Standardize registry paths to PowerShell Registry:: provider format
@@ -290,6 +291,27 @@ export async function syncInstallLocation() {
         await writeRegistryValue(targetKey, update.key, update.value, false);
       } else {
         // Value matches, do strictly nothing
+      }
+    }
+
+    // [New] Sync explicit App Key (HKCU\Software\{GUID}) for Updater/Auto-Patch
+    const appKey = LAUNCHER_APP_REG_KEY;
+    const { stdout: appKeyExists } = await runPowerShell(
+      `Test-Path "${appKey}"`,
+    );
+
+    if (appKeyExists.trim().toLowerCase() === "true") {
+      const currentAppPath = await readRegistryValue(appKey, "InstallLocation");
+      if (currentAppPath !== currentInstallDir) {
+        logger.log(
+          `[Main] Updating App Registry InstallLocation: "${currentAppPath}" -> "${currentInstallDir}"`,
+        );
+        await writeRegistryValue(
+          appKey,
+          "InstallLocation",
+          currentInstallDir,
+          false,
+        );
       }
     }
   } catch (error) {
