@@ -1,4 +1,7 @@
 import { exec } from "child_process";
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
 
 import { app } from "electron";
 
@@ -43,7 +46,7 @@ export function relaunchAsAdmin() {
 
 /**
  * Toggles Admin Auto Launch via Windows Task Scheduler.
- * This allows "Run with highest privileges" on startup without UAC prompt.
+ * Uses XML Import specific configuration to bypass default restrictions (Power, Multi-Instance).
  *
  * @param enable - True to create task, False to delete task.
  * @param startMinimized - If true, adds --hidden arg.
@@ -55,29 +58,39 @@ export async function setupAdminAutoLaunch(
   try {
     if (enable) {
       const exePath = app.getPath("exe");
-      // Use 'ONLOGON' to ensure it runs when user logs in, not just system boot.
-      // /rl HIGHEST is the key to bypass UAC.
-
       const args = startMinimized ? "--hidden" : "";
-
-      // Note: /tr command needs to be properly quoted if path has spaces.
-      // PowerShell Invoke-Expression requires backtick escaping (`) for double quotes inside a double-quoted string.
-      // We aim for: /tr "`"D:\Path\`" --hidden"
-      // This passes `"D:\Path" --hidden` as a single argument to /tr.
-      const psQuote = '`"';
-      const safeExePath = exePath; // No need to escape backslashes for PS strings usually, as \ is literal.
-      const trCommand = `${psQuote}${safeExePath}${psQuote}${args ? " " + args : ""}`;
+      const cwd = path.dirname(exePath);
 
       logger.log(
         `[Admin] Registering Scheduled Task: ${TASK_NAME} (Minimized: ${startMinimized})`,
       );
 
-      const createCmd = `schtasks /create /tn "${TASK_NAME}" /tr "${trCommand}" /sc ONLOGON /rl HIGHEST /f`;
+      // 1. Generate XML Content
+      const xmlContent = generateTaskXml(exePath, args, cwd);
+
+      // 2. Save to Temp File
+      const tempXmlPath = path.join(
+        os.tmpdir(),
+        `poe2-launcher-task-${Date.now()}.xml`,
+      );
+      await fs.writeFile(tempXmlPath, xmlContent, "utf-8");
+
+      // 3. Register Task via XML Import
+      // /f forces overwrite if exists
+      const createCmd = `schtasks /create /tn "${TASK_NAME}" /xml "${tempXmlPath}" /f`;
 
       const result = await PowerShellManager.getInstance().execute(
         createCmd,
         true,
       ); // Use Admin Session
+
+      // 4. Cleanup Temp File
+      try {
+        await fs.unlink(tempXmlPath);
+      } catch {
+        // Ignore cleanup failure
+      }
+
       if (result.code === 0) {
         logger.log("[Admin] Scheduled Task created successfully.");
         return true;
@@ -86,6 +99,20 @@ export async function setupAdminAutoLaunch(
         return false;
       }
     } else {
+      // [Optimization] Check if task exists before trying to delete it (Avoids unnecessary Admin Prompt)
+      const checkCmd = `schtasks /query /tn "${TASK_NAME}"`;
+      const checkResult = await PowerShellManager.getInstance().execute(
+        checkCmd,
+        false, // Run as Standard User
+      );
+
+      if (checkResult.code !== 0 || checkResult.stderr.trim().length > 0) {
+        logger.log(
+          `[Admin] Scheduled Task "${TASK_NAME}" not found (or query failed). Skipping delete.`,
+        );
+        return true;
+      }
+
       logger.log(`[Admin] Deleting Scheduled Task: ${TASK_NAME}`);
       const deleteCmd = `schtasks /delete /tn "${TASK_NAME}" /f`;
 
@@ -103,8 +130,8 @@ export async function setupAdminAutoLaunch(
       logger.error(`[Admin] Failed to delete task: ${result.stderr}`);
       return false;
     }
-  } catch (e) {
-    logger.error("[Admin] Error in setupAdminAutoLaunch:", e);
+  } catch (error) {
+    logger.error("[Admin] AutoLaunch setup failed:", error);
     return false;
   }
 }
@@ -126,6 +153,66 @@ export async function ensureAdminSession(): Promise<boolean> {
     logger.error("[Admin] Failed to ensure admin session:", e);
     return false;
   }
+}
+
+/**
+ * Generates XML content for Windows Task Scheduler.
+ * Configures specific settings:
+ * - RunLevel: HighestAvailable (Admin)
+ * - MultipleInstancesPolicy: Parallel (Allow re-launch)
+ * - DisallowStartIfOnBatteries: false (Allow on battery)
+ * - StopIfGoingOnBatteries: false (Don't kill on unplug)
+ * - ExecutionTimeLimit: PT0S (No timeout/limit)
+ */
+function generateTaskXml(exePath: string, args: string, cwd: string): string {
+  // XML needs to span multiple lines for readability/debugging if inspected manually
+  // Note: We use "InteractiveToken" logon type to ensure it runs in the user's interactive session.
+  return `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Date>${new Date().toISOString()}</Date>
+    <Author>POE2 Unofficial Launcher</Author>
+    <Description>Auto-start task for POE2 Unofficial Launcher with Administrative privileges.</Description>
+    <URI>\\${TASK_NAME}</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>Parallel</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>${exePath}</Command>
+      <Arguments>${args}</Arguments>
+      <WorkingDirectory>${cwd}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>`;
 }
 
 /**
