@@ -48,14 +48,14 @@
 
 .changelog-header-title h2 {
   margin: 0;
-  fontsize: 20px;
+  font-size: 20px;
   color: #fff;
 }
 
 .changelog-header-title p {
   margin: 5px 0 0;
   color: #888;
-  fontsize: 14px;
+  font-size: 14px;
 }
 
 .changelog-close-x {
