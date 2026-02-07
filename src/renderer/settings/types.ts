@@ -76,8 +76,6 @@ export interface SettingCheck extends BaseSettingItem {
    */
   defaultValue?: boolean;
   /**
-   * 값이 변경되었을 때 실행될 리스너 (옵션)
-   * @param value 변경된 값
    * @param context 토스트 메시지 출력 등의 유틸리티를 포함한 컨텍스트
    */
   onChangeListener?: (
@@ -95,9 +93,10 @@ export interface SettingCheck extends BaseSettingItem {
         cancelText?: string;
         variant?: "primary" | "danger";
         onConfirm: () => void;
+        onCancel?: () => void;
       }) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -124,7 +123,7 @@ export interface SettingSwitch extends BaseSettingItem {
       setLabel: (label: string) => void;
       setDisabled: (disabled: boolean) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -148,7 +147,7 @@ export interface SettingRadio extends BaseSettingItem {
       clearDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -172,7 +171,7 @@ export interface SettingSelect extends BaseSettingItem {
       clearDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -202,7 +201,7 @@ export interface SettingNumber extends BaseSettingItem {
       clearDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -232,7 +231,7 @@ export interface SettingSlider extends BaseSettingItem {
       clearDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -277,9 +276,10 @@ export interface SettingButton extends BaseSettingItem {
       cancelText?: string;
       variant?: "primary" | "danger";
       onConfirm: () => void;
+      onCancel?: () => void;
     }) => void;
     setValue: (value: SettingValue) => void; // 필요하다면 다른 아이템 제어 가능하도록 확장 고려
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 /**

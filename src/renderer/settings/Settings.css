@@ -210,6 +210,17 @@
   transition: none;
 }
 
+/* Disabled State */
+.setting-item.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(100%);
+}
+
+.setting-item.is-hidden {
+  display: none !important;
+}
+
 /* Enable transitions only after initial load settles */
 .settings-content.animations-enabled .setting-item {
   transition:

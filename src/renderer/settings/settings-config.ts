@@ -165,29 +165,28 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 if (!isAdmin && !isAdminSession) {
                   // [New] Immediately ensure Admin Session upon enabling
                   showToast("관리자 권한 세션 연결을 시도합니다...");
-                  const sessionCreated =
-                    await window.electronAPI?.ensureAdminSession();
+                  // Return promise to disable toggle while connecting
+                  return (async () => {
+                    const sessionCreated =
+                      await window.electronAPI?.ensureAdminSession();
 
-                  if (sessionCreated) {
-                    showToast(
-                      "관리자 권한 세션이 연결되었습니다. (기능 즉시 사용 가능)",
-                    );
-                  }
-
-                  // If session failed, prompt for relaunch (optional, but good fallback)
-                  // If session succeeded, we DO NOT prompt for relaunch anymore.
-                  if (!sessionCreated) {
-                    showConfirm({
-                      title: "관리자 권한 필요",
-                      message:
-                        "관리자 세션 연결에 실패했습니다.\n완벽한 동작을 위해 런처를 관리자 권한으로 재실행하시겠습니까?",
-                      confirmText: "관리자 권한으로 재실행",
-                      variant: "primary",
-                      onConfirm: () => {
-                        window.electronAPI?.relaunchAsAdmin();
-                      },
-                    });
-                  }
+                    if (sessionCreated) {
+                      showToast(
+                        "관리자 권한 세션이 연결되었습니다. (기능 즉시 사용 가능)",
+                      );
+                    } else {
+                      showConfirm({
+                        title: "관리자 권한 필요",
+                        message:
+                          "관리자 세션 연결에 실패했습니다.\n완벽한 동작을 위해 런처를 관리자 권한으로 재실행하시겠습니까?",
+                        confirmText: "관리자 권한으로 재실행",
+                        variant: "primary",
+                        onConfirm: () => {
+                          window.electronAPI?.relaunchAsAdmin();
+                        },
+                      });
+                    }
+                  })();
                 } else {
                   showToast("[관리자 권한 실행] 설정이 켜졌습니다.");
                 }
@@ -384,26 +383,35 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             icon: "logout",
             onClickListener: async ({ showToast, showConfirm }) => {
               if (!window.electronAPI) return;
-              showConfirm({
-                title: "로그아웃 확인",
-                message:
-                  "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
-                confirmText: "로그아웃",
-                variant: "danger",
-                onConfirm: async () => {
-                  try {
-                    showToast("[로그아웃] 요청 중...");
-                    const success = await window.electronAPI!.logoutSession();
-                    if (success) {
-                      showToast("[로그아웃] 완료되었습니다.");
-                    } else {
-                      showToast("[로그아웃] 실패했습니다.");
+
+              // Return a Promise that resolves ONLY after the action is fully complete (or cancelled)
+              return new Promise<void>((resolve) => {
+                showConfirm({
+                  title: "로그아웃 확인",
+                  message:
+                    "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                  confirmText: "로그아웃",
+                  variant: "danger",
+                  onConfirm: async () => {
+                    try {
+                      showToast("[로그아웃] 요청 중...");
+                      const success = await window.electronAPI!.logoutSession();
+                      if (success) {
+                        showToast("[로그아웃] 완료되었습니다.");
+                      } else {
+                        showToast("[로그아웃] 실패했습니다.");
+                      }
+                    } catch (err) {
+                      logger.error("[Settings] Logout error:", err);
+                      showToast("[로그아웃] 오류가 발생했습니다.");
+                    } finally {
+                      resolve(); // Resolve after operation
                     }
-                  } catch (err) {
-                    logger.error("[Settings] Logout error:", err);
-                    showToast("[로그아웃] 오류가 발생했습니다.");
-                  }
-                },
+                  },
+                  onCancel: () => {
+                    resolve(); // Resolve immediately if cancelled
+                  },
+                });
               });
             },
           },
@@ -443,25 +451,31 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 setValue(false);
               }
             },
-            onChangeListener: async (val, { showToast, setDisabled }) => {
+            onChangeListener: async (val, { showToast }) => {
               if (window.electronAPI) {
-                setDisabled(true); // 비활성화 (Click Block)
-                try {
-                  showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
-                  const result = val
-                    ? await window.electronAPI.enableUACBypass()
-                    : await window.electronAPI.disableUACBypass();
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI!.enableUACBypass()
+                      : await window.electronAPI!.disableUACBypass();
 
-                  if (result) {
-                    showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
-                  } else {
-                    showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
+                    if (result) {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
+                      );
+                    } else {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                      );
+                    }
+                  } catch (error) {
+                    showToast(`[UAC 우회] 오류 발생: ${error}`);
                   }
-                } catch (error) {
-                  showToast(`[UAC 우회] 오류 발생: ${error}`);
-                } finally {
-                  setDisabled(false); // 다시 활성화
-                }
+                })();
               }
             },
           },
