@@ -2,8 +2,8 @@ import { app } from "electron";
 
 import { AppConfig } from "../../../shared/types";
 import { getConfig } from "../../store";
-import { setupAdminAutoLaunch } from "../../utils/admin";
 import { logger } from "../../utils/logger";
+import { AutoLaunchFeature } from "../../utils/uac-bypass";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -39,39 +39,16 @@ export const syncAutoLaunch = async () => {
       logger.log(
         "[AutoLaunch] Configuring Admin AutoLaunch (Task Scheduler)...",
       );
-      // Clean up legacy registry entry first to avoid double launch
-      logger.log("[AutoLaunch] Removing User AutoLaunch (Registry)...");
-      app.setLoginItemSettings({
-        openAtLogin: false,
-        path: app.getPath("exe"),
-      });
-
-      // Register Task
-      await setupAdminAutoLaunch(true, shouldStartMinimized);
+      await AutoLaunchFeature.enable(true, shouldStartMinimized);
     } else {
-      // 2. Normal Mode: Use Registry (Electron API)
+      // 2. Normal Mode: Use Registry
       logger.log("[AutoLaunch] Configuring User AutoLaunch (Registry)...");
-      // Clean up Admin Task first
-      logger.log("[AutoLaunch] Removing Admin AutoLaunch (Task Scheduler)...");
-      await setupAdminAutoLaunch(false);
-
-      app.setLoginItemSettings({
-        openAtLogin: true,
-        openAsHidden: false,
-        path: app.getPath("exe"),
-        args: shouldStartMinimized ? ["--hidden"] : [],
-      });
+      await AutoLaunchFeature.enable(false, shouldStartMinimized);
     }
   } else {
     // Disable All
     logger.log("[AutoLaunch] Disabling all AutoLaunch methods...");
-    logger.log("[AutoLaunch] Removing User AutoLaunch (Registry)...");
-    app.setLoginItemSettings({
-      openAtLogin: false,
-      path: app.getPath("exe"),
-    });
-    logger.log("[AutoLaunch] Removing Admin AutoLaunch (Task Scheduler)...");
-    await setupAdminAutoLaunch(false);
+    await AutoLaunchFeature.disable();
   }
 };
 

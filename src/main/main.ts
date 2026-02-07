@@ -104,11 +104,7 @@ import {
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
-import {
-  isUACBypassEnabled,
-  enableUACBypass,
-  disableUACBypass,
-} from "./utils/uac";
+import { DaumGameStarterFeature } from "./utils/uac-bypass";
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -509,9 +505,9 @@ ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
 });
 
 // --- UAC Bypass IPC Handlers ---
-ipcMain.handle("uac:is-enabled", () => isUACBypassEnabled());
-ipcMain.handle("uac:enable", () => enableUACBypass());
-ipcMain.handle("uac:disable", () => disableUACBypass());
+ipcMain.handle("uac:is-enabled", () => DaumGameStarterFeature.isEnabled());
+ipcMain.handle("uac:enable", () => DaumGameStarterFeature.enable());
+ipcMain.handle("uac:disable", () => DaumGameStarterFeature.disable());
 
 // --- Admin IPC ---
 
