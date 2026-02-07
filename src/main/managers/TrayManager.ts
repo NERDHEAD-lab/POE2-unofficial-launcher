@@ -2,12 +2,15 @@ import path from "node:path";
 
 import { app, Menu, Tray, BrowserWindow } from "electron";
 
+import { triggerUpdateCheck } from "../events/handlers/UpdateHandler";
+import { AppContext } from "../events/types";
 import { logger } from "../utils/logger";
 
 class TrayManager {
   private static instance: TrayManager;
   private tray: Tray | null = null;
   private mainWindow: BrowserWindow | null = null;
+  private context: AppContext | null = null;
 
   private constructor() {}
 
@@ -18,8 +21,9 @@ class TrayManager {
     return TrayManager.instance;
   }
 
-  public init(mainWindow: BrowserWindow) {
+  public init(mainWindow: BrowserWindow, context: AppContext) {
     this.mainWindow = mainWindow;
+    this.context = context;
     this.createTray();
   }
 
@@ -69,11 +73,22 @@ class TrayManager {
     this.tray.setContextMenu(contextMenu);
   }
 
+  public updateTitle(title: string) {
+    if (this.tray && !this.tray.isDestroyed()) {
+      this.tray.setToolTip(title);
+    }
+  }
+
   private showMainWindow() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) this.mainWindow.restore();
       this.mainWindow.show();
       this.mainWindow.focus();
+
+      // [Trigger] Check for updates silently when window is restored from tray
+      if (this.context) {
+        triggerUpdateCheck(this.context, true);
+      }
     }
   }
 }

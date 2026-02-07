@@ -16,6 +16,7 @@ import JSZip from "jszip";
 
 import { eventBus } from "./events/EventBus";
 import { DEBUG_APP_CONFIG } from "../shared/config";
+import { getGameName, getLauncherTitle } from "../shared/naming";
 import {
   AppConfig,
   RunStatus,
@@ -23,7 +24,10 @@ import {
   DebugLogPayload,
 } from "../shared/types";
 import { isUserFacingPage } from "../shared/visibility";
-import { AutoLaunchHandler } from "./events/handlers/AutoLaunchHandler";
+import {
+  AutoLaunchHandler,
+  syncAutoLaunch,
+} from "./events/handlers/AutoLaunchHandler";
 import {
   LogSessionHandler,
   LogWebRootHandler,
@@ -33,12 +37,15 @@ import {
   triggerPendingManualPatches,
   cancelPendingPatches,
 } from "./events/handlers/AutoPatchHandler";
+import { ChangelogCheckHandler } from "./events/handlers/ChangelogCheckHandler";
+import { ChangelogUISyncHandler } from "./events/handlers/ChangelogUISyncHandler";
 import { CleanupLauncherWindowHandler } from "./events/handlers/CleanupLauncherWindowHandler";
 import {
   ConfigChangeSyncHandler,
   ConfigDeleteSyncHandler,
 } from "./events/handlers/ConfigSyncHandler";
 import { DebugLogHandler } from "./events/handlers/DebugLogHandler";
+import { DevToolsVisibilityHandler } from "./events/handlers/DevToolsVisibilityHandler";
 import { GameInstallCheckHandler } from "./events/handlers/GameInstallCheckHandler";
 import {
   GameProcessStartHandler,
@@ -54,6 +61,7 @@ import {
   UpdateDownloadHandler,
   UpdateInstallHandler,
   startUpdateCheckInterval,
+  triggerUpdateCheck,
 } from "./events/handlers/UpdateHandler";
 import {
   AppContext,
@@ -69,6 +77,7 @@ import {
   DebugLogEvent,
 } from "./events/types";
 import { trayManager } from "./managers/TrayManager"; // Added
+import { changelogService } from "./services/ChangelogService";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
@@ -81,6 +90,12 @@ import {
   default as store,
 } from "./store";
 import {
+  isAdmin,
+  relaunchAsAdmin,
+  ensureAdminSession,
+  isAdminSessionActive,
+} from "./utils/admin";
+import {
   setupMainLogger,
   logger,
   getLogHistory,
@@ -88,11 +103,38 @@ import {
 } from "./utils/logger";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
+import { syncInstallLocation } from "./utils/registry";
 import {
   isUACBypassEnabled,
   enableUACBypass,
   disableUACBypass,
 } from "./utils/uac";
+
+/**
+ * Checks if the launcher version has changed since the last run.
+ * If changed, triggers the Changelog check sequence.
+ */
+async function checkLauncherVersionUpdate(context: AppContext) {
+  const currentVersion = app.getVersion();
+  const storedVersion = getConfig("launcherVersion") as string;
+
+  if (currentVersion !== storedVersion) {
+    logger.log(
+      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
+    );
+    setConfig("launcherVersion", currentVersion);
+
+    // Emit Config Change Event manually to trigger ChangelogHandler
+    // We only trigger if there WAS a previous version (not fresh install)
+    if (storedVersion) {
+      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
+        key: "launcherVersion",
+        oldValue: storedVersion,
+        newValue: currentVersion,
+      });
+    }
+  }
+}
 
 // --- Global State for Interruption Handling ---
 let currentSystemStatus: RunStatus = "idle";
@@ -140,6 +182,11 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+
+      // [Trigger] Check for updates silently when a second instance tries to launch
+      if (appContext) {
+        triggerUpdateCheck(appContext, true);
+      }
     }
   });
 }
@@ -157,24 +204,28 @@ const DEBUG_KEYS = [
  * Get configuration value considering environment variable priority.
  * This does not persist the forced value to the store.
  */
-function getEffectiveConfig(key?: string): unknown {
+function getEffectiveConfig(
+  key?: string,
+  ignoreDependencies = false,
+  includeForced = true,
+): unknown {
   // 1. Full Config Object
   if (!key) {
     const raw = getConfig() as Record<string, unknown>;
     const effective = { ...raw };
     DEBUG_KEYS.forEach((k) => {
-      effective[k] = getEffectiveConfig(k);
+      effective[k] = getEffectiveConfig(k, ignoreDependencies, includeForced);
     });
     return effective;
   }
 
   // 2. Force Debug Mode via Env Var
-  if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
+  if (includeForced && FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
     return true;
   }
 
   // 3. Resolve Dependency: If dev_mode is disabled, force dependent keys to false
-  if (DEBUG_KEYS.includes(key) && key !== "dev_mode") {
+  if (!ignoreDependencies && DEBUG_KEYS.includes(key) && key !== "dev_mode") {
     const isDevMode = getEffectiveConfig("dev_mode") === true;
     if (!isDevMode) {
       return false;
@@ -205,8 +256,15 @@ const BLOCKED_PERMISSIONS = [
 ];
 
 // IPC Handlers for Configuration
-ipcMain.handle("config:get", (_event, key?: string) => {
-  return getEffectiveConfig(key);
+ipcMain.handle(
+  "config:get",
+  (_event, key?: string, ignoreDependencies = false, includeForced = true) => {
+    return getEffectiveConfig(key, ignoreDependencies, includeForced);
+  },
+);
+
+ipcMain.handle("config:is-forced", (_event, key: string) => {
+  return FORCE_DEBUG && DEBUG_KEYS.includes(key);
 });
 
 ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
@@ -256,6 +314,12 @@ ipcMain.handle("session:logout", async () => {
 });
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
+  // [Safety] Do not persist if the key is forced in dev:test mode
+  if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
+    logger.warn(`[Main] config:set ignored for forced key: ${key}`);
+    return;
+  }
+
   const oldValue = getConfig(key);
 
   // Optimization: Only update and emit if value has changed
@@ -433,10 +497,28 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
   return shell.openExternal(url);
 });
 
+ipcMain.handle(
+  "app:get-path",
+  (_event, name: Parameters<typeof app.getPath>[0]) => {
+    return app.getPath(name);
+  },
+);
+
+ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
+  return shell.openPath(targetPath);
+});
+
 // --- UAC Bypass IPC Handlers ---
 ipcMain.handle("uac:is-enabled", () => isUACBypassEnabled());
 ipcMain.handle("uac:enable", () => enableUACBypass());
 ipcMain.handle("uac:disable", () => disableUACBypass());
+
+// --- Admin IPC ---
+
+ipcMain.handle("admin:is-admin", () => isAdmin());
+ipcMain.handle("admin:ensure-session", () => ensureAdminSession());
+ipcMain.handle("admin:is-session-active", () => isAdminSessionActive());
+ipcMain.on("admin:relaunch", () => relaunchAsAdmin());
 
 // --- Shared Window Open Handler ---
 const handleWindowOpen = ({ url }: { url: string }) => {
@@ -505,7 +587,7 @@ const context: AppContext = {
 };
 
 /**
- * [NEW] Resets the game status back to 'idle' if a critical window is closed
+ * Resets the game status back to 'idle' if a critical window is closed
  * while the system is still in an intermediate automation state.
  */
 function resetGameStatusIfInterrupted(_win: BrowserWindow) {
@@ -563,6 +645,9 @@ const handlers = [
   AutoPatchProcessStopHandler,
   PatchProgressHandler, // Added
   AutoLaunchHandler, // Added
+  DevToolsVisibilityHandler,
+  ChangelogCheckHandler,
+  ChangelogUISyncHandler,
 ];
 
 // --- Patch IPC ---
@@ -658,10 +743,8 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
       }
     }
 
-    // [New] Update Window Title for Status Indication
-    win.setTitle(
-      `PoE Unofficial Launcher v${app.getVersion()} (저해상도 지원 모드)`,
-    );
+    // Update Window Title for Status Indication via Centralized Broadcast
+    broadcastTitleUpdate();
     win.webContents.send("scaling-mode-changed", true);
   } else {
     // Large Screen: Force fixed UX for stability as requested
@@ -684,8 +767,8 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
     win.setResizable(false);
     win.setMaximizable(false);
 
-    // [New] Restore Window Title
-    win.setTitle(`PoE Unofficial Launcher v${app.getVersion()}`);
+    // Restore Window Title via Centralized Broadcast
+    broadcastTitleUpdate();
     win.webContents.send("scaling-mode-changed", false);
   }
 }
@@ -697,6 +780,49 @@ let appContext: AppContext;
 newsService.init(() => {
   mainWindow?.webContents.send("news:updated");
 });
+
+// [Unified] DevTools Visibility Sync Logic
+// [Unified] DevTools Visibility Sync Trigger
+const triggerDevToolsSync = () => {
+  eventBus.emit(EventType.SYNC_DEVTOOLS_VISIBILITY, appContext, {
+    source: "triggerDevToolsSync",
+  });
+};
+
+// Cache for title to prevent spam
+let lastBroadcastedTitle: string | null = null;
+
+/**
+ * Calculates the current title based on global config/state and broadcasts it
+ * to the Window, Tray, and Renderer (via Event).
+ */
+function broadcastTitleUpdate() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const version = app.getVersion();
+  const activeGame = (getEffectiveConfig("activeGame") || "POE2") as string;
+  const isLowRes =
+    screen.getDisplayNearestPoint(mainWindow.getBounds()).workAreaSize.width <
+    BASE_WIDTH + 10;
+
+  const gameName = getGameName(activeGame);
+  const title = getLauncherTitle(gameName, version, isLowRes);
+
+  // 1. Update Window System Title
+  mainWindow.setTitle(title);
+
+  // 2. Update Tray Tooltip
+  trayManager.updateTitle(title);
+
+  // 3. Notify Renderer (for UI TitleBar)
+  mainWindow.webContents.send("app:title-updated", title);
+
+  // Spam Prevention: Log only if changed
+  if (lastBroadcastedTitle !== title) {
+    logger.log(`[Main] Title Broadcasted: ${title}`);
+    lastBroadcastedTitle = title;
+  }
+}
 
 function createWindows() {
   // 1. Main Window (UI)
@@ -717,6 +843,27 @@ function createWindows() {
     },
   });
 
+  // [Security] Force external links to open in default browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http:") || url.startsWith("https:")) {
+      shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  // [Security] Block internal navigation to external sites
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    // Only allow navigation to internal file:// or localhost (dev)
+    const isInternal =
+      url.startsWith("file://") ||
+      (VITE_DEV_SERVER_URL && url.startsWith(VITE_DEV_SERVER_URL));
+
+    if (!isInternal && (url.startsWith("http:") || url.startsWith("https:"))) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
   // Apply initial constraints based on the display it will open on
   applyIntelligentConstraints(mainWindow);
 
@@ -726,10 +873,30 @@ function createWindows() {
     applyIntelligentConstraints(mainWindow);
   });
 
+  // Utility: Debounce
+  function debounce<T extends (...args: unknown[]) => void>(
+    func: T,
+    wait: number,
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout | null = null;
+    return function (...args: Parameters<T>) {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        func(...args);
+      }, wait);
+    };
+  }
+
   // Also update when window is moved (to handle multi-monitor scaling)
-  mainWindow.on("move", () => {
-    applyIntelligentConstraints(mainWindow);
-  });
+  // [Optimize] Debounce move event to prevent IPC flooding (Performance)
+  mainWindow.on(
+    "move",
+    debounce(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        applyIntelligentConstraints(mainWindow);
+      }
+    }, 100),
+  );
 
   // Reveal window when ready-to-show
   mainWindow.once("ready-to-show", () => {
@@ -743,6 +910,14 @@ function createWindows() {
       } else {
         logger.log("[Main] Starting hidden (minimized to tray).");
       }
+
+      // [Fix] Defer Version Check/Changelog until Window is Ready
+      // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
+      setTimeout(() => {
+        if (appContext) {
+          checkLauncherVersionUpdate(appContext);
+        }
+      }, 1000);
     }
   });
 
@@ -760,14 +935,14 @@ function createWindows() {
     logger.log("[Main] Window closing (quitting).");
   });
 
-  // Visibility Synchronization
+  // Visibility Synchronization (Window Hiding/Showing Logic)
   const syncSubWindowsVisibility = (visible: boolean) => {
     const isDebugMode = getEffectiveConfig("dev_mode") === true;
     const showDebugConsole = getEffectiveConfig("debug_console") === true;
     const showInactiveWindows =
       getEffectiveConfig("show_inactive_windows") === true;
 
-    // 1. Manage Debug Window
+    // 1. Manage Debug Window Visibility
     if (debugWindow && !debugWindow.isDestroyed()) {
       if (visible && isDebugMode && showDebugConsole) {
         debugWindow.show();
@@ -776,29 +951,36 @@ function createWindows() {
       }
     }
 
-    // 2. Manage other subordinate windows (Popups, Inactive Game Windows)
+    // 2. Manage other subordinate windows visibility
     BrowserWindow.getAllWindows().forEach((win) => {
       if (win === mainWindow || win === debugWindow) return;
       if (win.isDestroyed()) return;
 
       if (visible) {
-        // Restore based on policy
         const url = win.webContents.getURL();
         const isUserFacing = isUserFacingPage(url);
-        const shouldShow = (isDebugMode && showInactiveWindows) || isUserFacing;
-        if (shouldShow) win.show();
+        const shouldShowWindow =
+          (isDebugMode && showInactiveWindows) || isUserFacing;
+
+        if (shouldShowWindow && !win.isVisible()) {
+          win.show();
+        }
       } else {
-        // Always hide when main window is hidden (Minimize to tray)
-        win.hide();
+        if (win.isVisible()) {
+          win.hide();
+        }
       }
     });
+
+    // [Trigger Point 1] Sync DevTools whenever Window Visibility changes (Tray interaction)
+    triggerDevToolsSync();
   };
 
   mainWindow.on("show", () => syncSubWindowsVisibility(true));
   mainWindow.on("hide", () => syncSubWindowsVisibility(false));
 
   // Initialize Tray
-  trayManager.init(mainWindow);
+  trayManager.init(mainWindow, context);
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
   // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
@@ -826,8 +1008,6 @@ function createWindows() {
     },
   );
 
-  // [Removed] Prevented forced fullscreen/maximize - Now allowing it for scaling
-
   // Initialize Global Context
   appContext = context;
   appContext.mainWindow = mainWindow;
@@ -839,7 +1019,7 @@ function createWindows() {
   logger.log("[Main] Main Logger initialized.");
 
   // Perform initial installation check for ALL contexts
-  const initialConfig = getConfig() as AppConfig; // [Restore] Needed for downstream usage (Auto Launch)
+  // const initialConfig = getConfig() as AppConfig; (Removed: unused)
   const checkAllGameStatuses = async () => {
     const combinations = [
       { game: "POE1", service: "Kakao Games" },
@@ -856,13 +1036,6 @@ function createWindows() {
         combo.game as AppConfig["activeGame"],
       );
 
-      // Note: We only check 'installed' or 'uninstalled/idle' here.
-      // If a game is actually RUNNING, the 'GameProcessStartHandler' or 'ProcessWatcher' logic
-      // might need to be robust enough to detect pre-existing processes on startup.
-      // Currently, ProcessWatcher scans for processes and emits PROCESS_START.
-      // Tricky part: ProcessWatcher emits PROCESS_START, which triggers GameProcessStartHandler.
-      // So assuming ProcessWatcher starts AFTER this or concurrently, the "running" state will eventually override this "idle" state.
-
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         appContext,
@@ -877,33 +1050,17 @@ function createWindows() {
   checkAllGameStatuses();
 
   // Sync Auto Launch Status
-  if (!app.isPackaged) {
-    logger.log(
-      "[Main] Dev mode detected. Skipping Auto Launch sync (OS registration).",
-    );
-  } else if (initialConfig.autoLaunch) {
-    const shouldStartMinimized = initialConfig.startMinimized === true;
-    app.setLoginItemSettings({
-      openAtLogin: true,
-      path: app.getPath("exe"),
-      args: shouldStartMinimized ? ["--hidden"] : [],
-    });
-  } else {
-    // Ensure it's disabled if config says so (handle external changes)
-    const loginSettings = app.getLoginItemSettings();
-    if (loginSettings.openAtLogin) {
-      app.setLoginItemSettings({
-        openAtLogin: false,
-        path: app.getPath("exe"),
-      });
-    }
-  }
+  // Sync Auto Launch Status
+  // [Refactor] Use centralized handler to respect Admin/User mode and avoid double-launch
+  syncAutoLaunch().catch((err) => {
+    logger.error("[Main] Failed to sync auto-launch settings:", err);
+  });
 
   // Inject Context into PowerShellManager for Debug Logs
   PowerShellManager.getInstance().setContext(appContext);
   eventBus.setContext(appContext);
 
-  // [NEW] Start Background Update Scheduler
+  // Start Background Update Scheduler
   startUpdateCheckInterval(appContext);
 
   // Initialize and Start Process Watcher
@@ -916,11 +1073,6 @@ function createWindows() {
   const logWatcher = new LogWatcher(appContext);
   logWatcher.init();
 
-  // Save AutoPatchHandler instance for IPC access (via find in handlers list or a better way)
-  // For simplicity, we can get it from the handlers array if we need reference,
-  // OR we can make a dedicated IPC handler class if code grows.
-  // But here we need to implement `triggerManualPatchFix` IPC which calls `AutoPatchHandler` -> `PatchManager`.
-
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
     logger.log("[Main] Window blurred (Focus Lost).");
@@ -930,11 +1082,7 @@ function createWindows() {
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
     processWatcher.cancelSuspension();
-    // [Removed] Legacy forced restoration - Now handled by applyIntelligentConstraints in display events
   });
-
-  // 2. Game Window (Lazy Init - Do NOT create here)
-  // Removed initial creation block.
 
   // --- Main Window Loading ---
   if (VITE_DEV_SERVER_URL) {
@@ -943,14 +1091,16 @@ function createWindows() {
     mainWindow.loadFile(path.join(process.env.DIST as string, "index.html"));
   }
 
+  // [Dynamic Splash] First title broadcast to sync UI/Tray
+  mainWindow.webContents.on("did-finish-load", () => {
+    broadcastTitleUpdate();
+  });
+
   // Ensure app quits when main UI window is closed
   mainWindow.on("closed", () => {
     mainWindow = null;
     app.quit();
   });
-
-  // --- Debug Window Management ---
-  // [Removed] initDebugWindow("AppStart") - Moved to ready-to-show event of mainWindow
 }
 
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
@@ -1182,6 +1332,53 @@ ipcMain.on(
   },
 );
 
+ipcMain.on(
+  "patch:restore-local",
+  async (
+    _event,
+    serviceIdOverride?: AppConfig["serviceChannel"],
+    gameIdOverride?: AppConfig["activeGame"],
+  ) => {
+    // Cancel previous instance if running?
+    if (activeManualPatchManager) {
+      try {
+        activeManualPatchManager.cancelPatch();
+      } catch {
+        // Ignore
+      }
+    }
+
+    activeManualPatchManager = new PatchManager(appContext);
+
+    const serviceId =
+      serviceIdOverride ||
+      (appContext.getConfig("serviceChannel") as AppConfig["serviceChannel"]);
+    const activeGame = (gameIdOverride ||
+      appContext.getConfig("activeGame")) as AppConfig["activeGame"];
+    const installPath = await getGameInstallPath(serviceId, activeGame);
+
+    logger.log(
+      `[Main] Triggering Local Restore for ${serviceId} / ${activeGame}`,
+    );
+
+    if (installPath) {
+      // Show UI Modal (Reuse logic but with autoStart=false to show progress)
+      mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+        autoStart: false,
+        serviceId,
+        gameId: activeGame,
+      });
+
+      activeManualPatchManager.restoreLocalBackup(installPath).finally(() => {
+        // Cleanup
+        // activeManualPatchManager = null;
+      });
+    } else {
+      logger.error("Install path not found for local restore.");
+    }
+  },
+);
+
 ipcMain.handle(
   "patch:check-backup",
   async (
@@ -1235,7 +1432,17 @@ ipcMain.on("patch:cancel", () => {
   }
 });
 
+// Utility for sync config access (Preload only)
+ipcMain.on("config:get-sync", (event, key: string) => {
+  event.returnValue = getConfig(key);
+});
+
 // Window Controls IPC
+ipcMain.on("app:set-title", (_event, title: string) => {
+  // Manual override if needed, but we mostly use broadcastTitleUpdate
+  trayManager.updateTitle(title);
+});
+
 ipcMain.on("window-minimize", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) win.minimize();
@@ -1414,39 +1621,35 @@ eventBus.register({
   },
 });
 
-// Register Toggler for Auxiliary DevTools (Detach/Close dynamically)
+// Register Toggler for Auxiliary DevTools (Unified Event Handler)
 eventBus.register({
-  id: "DevToolsTicker",
+  id: "DevToolsSyncManager",
   targetEvent: EventType.CONFIG_CHANGE,
   handle: async (event: ConfigChangeEvent) => {
-    const { key, newValue } = event.payload;
-    if (key === "show_inactive_window_console") {
-      const show = newValue === true;
-      const allWindows = BrowserWindow.getAllWindows();
-
-      allWindows.forEach((win) => {
-        // Skip Main Window & Debug Console (they have their own logic or are always allowed)
-        if (win === mainWindow || win === debugWindow) return;
-
-        if (show) {
-          if (!win.webContents.isDevToolsOpened()) {
-            win.webContents.openDevTools({ mode: "detach" });
-          }
-        } else {
-          if (win.webContents.isDevToolsOpened()) {
-            win.webContents.closeDevTools();
-          }
-        }
+    const { key } = event.payload;
+    // [Trigger Point 2] Sync DevTools whenever Config changes
+    // Dependencies: show_inactive_window_console relies on dev_mode.
+    if (key === "show_inactive_window_console" || key === "dev_mode") {
+      // Emit Sync Event
+      eventBus.emit(EventType.SYNC_DEVTOOLS_VISIBILITY, appContext, {
+        source: "ConfigChange",
       });
+    }
+
+    // [Trigger Point 3] Broadcast Title Update when Active Game changes
+    if (key === "activeGame") {
+      broadcastTitleUpdate();
     }
   },
 });
 
 app.on("before-quit", () => {
   isQuitting = true;
+  PowerShellManager.getInstance().cleanup();
 });
 
 app.on("window-all-closed", () => {
+  PowerShellManager.getInstance().cleanup();
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -1461,17 +1664,24 @@ app.on("activate", () => {
 // Set App User Model ID for Windows Taskbar Icon handling
 app.setAppUserModelId("com.nerdhead.poe2-launcher");
 
-app.whenReady().then(async () => {
-  // [NEW] Sync Launcher Version (for future migrations)
+ipcMain.handle("changelog:get-all", async () => {
   const currentVersion = app.getVersion();
-  const storedVersion = getConfig("launcherVersion") as string;
-  if (currentVersion !== storedVersion) {
-    logger.log(
-      `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
+  // Empty previousVersion triggers 'fetch all' in service
+  return changelogService.fetchChangelogs(currentVersion, "");
+});
+
+app.whenReady().then(async () => {
+  // [NEW] Ensure Admin Session if configured
+  if (getConfig("runAsAdmin") === true) {
+    // We don't await this to avoid blocking UI startup, but it will trigger UAC if needed
+    ensureAdminSession().catch((err) =>
+      logger.error("[Main] Failed to ensure admin session on startup:", err),
     );
-    setConfig("launcherVersion", currentVersion);
   }
 
-  // [NEW] Handle Uninstall Cleanup Flag
+  // Handle Uninstall Cleanup Flag
+  await syncInstallLocation();
+  // Ensure Auto-Launch path is updated (in case user moved the app)
+  syncAutoLaunch();
   createWindows();
 });

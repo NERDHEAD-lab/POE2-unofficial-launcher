@@ -84,24 +84,44 @@ const initBackupButton = async (
   }
 };
 
-const initDevSetting = async ({
-  setValue,
-  setDisabled,
-  addDescription: _addDescription,
-  clearDescription: _clearDescription,
-  setVisible: _setVisible,
-}: {
-  setValue: (v: SettingValue) => void;
-  addDescription: (text: string, variant?: DescriptionVariant) => void;
-  clearDescription: () => void;
-  setDisabled: (v: boolean) => void;
-  setVisible: (v: boolean) => void;
-}) => {
-  if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
-    setValue(true);
-    setDisabled(true);
-  }
-};
+const initDevOption =
+  (key: string) =>
+  async ({
+    setValue,
+    setDisabled,
+    addDescription,
+    clearDescription: _clearDescription,
+    setVisible: _setVisible,
+  }: {
+    setValue: (v: SettingValue) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    clearDescription: () => void;
+    setDisabled: (v: boolean) => void;
+    setVisible: (v: boolean) => void;
+  }) => {
+    // 1. Force retrieval of raw value (ignore dependencies like dev_mode)
+    if (window.electronAPI?.getConfig) {
+      const rawValue = await window.electronAPI.getConfig(key, true);
+      if (typeof rawValue === "boolean") {
+        setValue(rawValue);
+      }
+    }
+
+    // 2. Forced Setting Check (dev:test mode)
+    if (window.electronAPI?.isConfigForced) {
+      const isForced = await window.electronAPI.isConfigForced(key);
+      if (isForced) {
+        setValue(true);
+        setDisabled(true);
+        if (key === "dev_mode") {
+          addDescription(
+            "개발자 테스트 모드로 인해 이 설정은 강제 활성화되었습니다.",
+            "info",
+          );
+        }
+      }
+    }
+  };
 
 export const SETTINGS_CONFIG: SettingsCategory[] = [
   {
@@ -113,6 +133,68 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         id: "gen_launcher",
         title: "런쳐 설정",
         items: [
+          {
+            id: "runAsAdmin",
+            type: "check",
+            label: "런처를 관리자 권한으로 실행",
+            description: "항상 관리자 권한으로 실행합니다.",
+            icon: "security",
+            onInit: async ({ addDescription }) => {
+              if (window.electronAPI) {
+                const isAdmin = await window.electronAPI.isAdmin();
+                const isAdminSession =
+                  await window.electronAPI.isAdminSessionActive();
+
+                // If config is true but not actually admin AND no admin session active, warn user
+                const configValue =
+                  await window.electronAPI.getConfig("runAsAdmin");
+                if (configValue && !isAdmin && !isAdminSession) {
+                  addDescription(
+                    "설정은 켜져 있으나 현재 관리자 권한이 없습니다. 재실행이 필요합니다.",
+                    "warning",
+                  );
+                }
+              }
+            },
+            onChangeListener: async (val, { showToast, showConfirm }) => {
+              if (val) {
+                const isAdmin = await window.electronAPI?.isAdmin();
+                const isAdminSession =
+                  await window.electronAPI?.isAdminSessionActive();
+
+                if (!isAdmin && !isAdminSession) {
+                  // [New] Immediately ensure Admin Session upon enabling
+                  showToast("관리자 권한 세션 연결을 시도합니다...");
+                  // Return promise to disable toggle while connecting
+                  return (async () => {
+                    const sessionCreated =
+                      await window.electronAPI?.ensureAdminSession();
+
+                    if (sessionCreated) {
+                      showToast(
+                        "관리자 권한 세션이 연결되었습니다. (기능 즉시 사용 가능)",
+                      );
+                    } else {
+                      showConfirm({
+                        title: "관리자 권한 필요",
+                        message:
+                          "관리자 세션 연결에 실패했습니다.\n완벽한 동작을 위해 런처를 관리자 권한으로 재실행하시겠습니까?",
+                        confirmText: "관리자 권한으로 재실행",
+                        variant: "primary",
+                        onConfirm: () => {
+                          window.electronAPI?.relaunchAsAdmin();
+                        },
+                      });
+                    }
+                  })();
+                } else {
+                  showToast("[관리자 권한 실행] 설정이 켜졌습니다.");
+                }
+              } else {
+                showToast("[관리자 권한 실행] 설정이 꺼졌습니다.");
+              }
+            },
+          },
           {
             id: "autoLaunch",
             type: "check",
@@ -301,26 +383,35 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             icon: "logout",
             onClickListener: async ({ showToast, showConfirm }) => {
               if (!window.electronAPI) return;
-              showConfirm({
-                title: "로그아웃 확인",
-                message:
-                  "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
-                confirmText: "로그아웃",
-                variant: "danger",
-                onConfirm: async () => {
-                  try {
-                    showToast("[로그아웃] 요청 중...");
-                    const success = await window.electronAPI!.logoutSession();
-                    if (success) {
-                      showToast("[로그아웃] 완료되었습니다.");
-                    } else {
-                      showToast("[로그아웃] 실패했습니다.");
+
+              // Return a Promise that resolves ONLY after the action is fully complete (or cancelled)
+              return new Promise<void>((resolve) => {
+                showConfirm({
+                  title: "로그아웃 확인",
+                  message:
+                    "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                  confirmText: "로그아웃",
+                  variant: "danger",
+                  onConfirm: async () => {
+                    try {
+                      showToast("[로그아웃] 요청 중...");
+                      const success = await window.electronAPI!.logoutSession();
+                      if (success) {
+                        showToast("[로그아웃] 완료되었습니다.");
+                      } else {
+                        showToast("[로그아웃] 실패했습니다.");
+                      }
+                    } catch (err) {
+                      logger.error("[Settings] Logout error:", err);
+                      showToast("[로그아웃] 오류가 발생했습니다.");
+                    } finally {
+                      resolve(); // Resolve after operation
                     }
-                  } catch (err) {
-                    logger.error("[Settings] Logout error:", err);
-                    showToast("[로그아웃] 오류가 발생했습니다.");
-                  }
-                },
+                  },
+                  onCancel: () => {
+                    resolve(); // Resolve immediately if cancelled
+                  },
+                });
               });
             },
           },
@@ -362,16 +453,29 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             },
             onChangeListener: async (val, { showToast }) => {
               if (window.electronAPI) {
-                showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
-                const result = val
-                  ? await window.electronAPI.enableUACBypass()
-                  : await window.electronAPI.disableUACBypass();
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI!.enableUACBypass()
+                      : await window.electronAPI!.disableUACBypass();
 
-                if (result) {
-                  showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
-                } else {
-                  showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
-                }
+                    if (result) {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
+                      );
+                    } else {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                      );
+                    }
+                  } catch (error) {
+                    showToast(`[UAC 우회] 오류 발생: ${error}`);
+                  }
+                })();
               }
             },
           },
@@ -388,6 +492,53 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             description:
               "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
             icon: "autorenew",
+          },
+          {
+            id: "aggressivePatchMode",
+            type: "check",
+            label: "한국인 모드 (BETA)",
+            description:
+              "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+            icon: "bolt",
+            dependsOn: "autoFixPatchError",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const aggressiveMode = await window.electronAPI.getConfig(
+                  "aggressivePatchMode",
+                );
+                const runAsAdmin =
+                  await window.electronAPI.getConfig("runAsAdmin");
+
+                if (aggressiveMode && !runAsAdmin) {
+                  clearDescription();
+                  addDescription(
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "warning",
+                  );
+                }
+              }
+            },
+            onChangeListener: async (
+              val,
+              { addDescription, clearDescription },
+            ) => {
+              if (val && window.electronAPI) {
+                const runAsAdmin =
+                  await window.electronAPI.getConfig("runAsAdmin");
+                if (!runAsAdmin) {
+                  clearDescription();
+                  addDescription(
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "warning",
+                  );
+                }
+              } else {
+                clearDescription();
+                addDescription(
+                  "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+                );
+              }
+            },
           },
           {
             id: "autoGameStartAfterFix",
@@ -417,7 +568,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE1");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE1");
             },
           },
           {
@@ -431,7 +582,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE2");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE2");
             },
           },
           {
@@ -444,7 +595,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE1");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE1");
             },
           },
           {
@@ -457,7 +608,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE2");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE2");
             },
           },
         ],
@@ -478,8 +629,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "check",
             label: "개발자 모드 활성화",
             icon: "bug_report",
-            requiresRestart: true,
-            onInit: initDevSetting,
+            onInit: initDevOption("dev_mode"),
           },
           {
             id: "debug_console",
@@ -487,7 +637,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "디버그 콘솔 표시",
             icon: "terminal",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("debug_console"),
           },
           {
             id: "show_inactive_windows",
@@ -495,15 +645,15 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "비활성 윈도우 표시",
             icon: "visibility",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_windows"),
           },
           {
             id: "show_inactive_window_console",
             type: "check",
-            label: "비활성 윈도우 콘솔 표시",
+            label: "DevTools 표시 (Show DevTools)",
             icon: "javascript",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_window_console"),
           },
         ],
       },
@@ -516,6 +666,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     sections: [
       {
         id: "abt_info",
+        title: "일반 정보",
         items: [
           {
             id: "version_info",
@@ -536,6 +687,62 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               url: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/master/LICENSE",
             },
             icon: "description",
+          },
+        ],
+      },
+      {
+        id: "abt_paths",
+        title: "경로 정보",
+        items: [
+          {
+            id: "btn_open_install",
+            type: "button",
+            label: "런처 설치 경로",
+            buttonText: "폴더 열기",
+            icon: "folder_shared",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                clearDescription();
+                addDescription(installDir, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                await window.electronAPI.openPath(installDir);
+              }
+            },
+          },
+          {
+            id: "btn_open_config",
+            type: "button",
+            label: "설정 파일 경로",
+            buttonText: "폴더 열기",
+            icon: "settings_system_daydream",
+            onInit: async ({ addDescription, clearDescription }) => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                clearDescription();
+                addDescription(userDataPath, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                await window.electronAPI.openPath(userDataPath);
+              }
+            },
           },
         ],
       },

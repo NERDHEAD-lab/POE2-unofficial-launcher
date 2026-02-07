@@ -59,7 +59,7 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
             className="news-browser-btn"
             onClick={(e) => {
               e.stopPropagation(); // 부모의 toggle 이벤트 전파 방지
-              window.electronAPI.openExternal(item.link);
+              window.open(item.link, "_blank");
             }}
           >
             <span>🌐</span> 브라우저에서 보기
@@ -76,7 +76,7 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
                   const anchor = target.closest("a");
                   if (anchor && anchor.href) {
                     e.preventDefault();
-                    window.electronAPI.openExternal(anchor.href);
+                    window.open(anchor.href, "_blank");
                   }
                 }}
                 dangerouslySetInnerHTML={{

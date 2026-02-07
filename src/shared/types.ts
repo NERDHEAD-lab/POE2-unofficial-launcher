@@ -42,6 +42,8 @@ export interface AppConfig {
    */
   processWatchMode: "resource-saving" | "always-on";
   launcherVersion: string;
+  runAsAdmin: boolean;
+  aggressivePatchMode: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -100,11 +102,36 @@ export interface DebugLogPayload {
   priority?: number;
 }
 
+export interface ChangelogItem {
+  version: string;
+  date: string;
+  body: string;
+  htmlUrl: string;
+}
+
 export interface ElectronAPI {
+  getAllChangelogs: () => Promise<ChangelogItem[]>;
+  onShowChangelog?: (
+    callback: (
+      data:
+        | ChangelogItem[]
+        | {
+            changelogs: ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
+    ) => void,
+  ) => () => void;
+
   triggerGameStart: () => void;
   minimizeWindow: () => void;
   closeWindow: () => void;
-  getConfig: (key?: string) => Promise<unknown>;
+  getConfig: (
+    key?: string,
+    ignoreDependencies?: boolean,
+    includeForced?: boolean,
+  ) => Promise<unknown>;
+  isConfigForced: (key: string) => Promise<boolean>;
   setConfig: (key: string, value: unknown) => Promise<void>;
   getFileHash: (path: string) => Promise<string>;
   onConfigChange: (
@@ -124,6 +151,10 @@ export interface ElectronAPI {
   triggerManualPatchFix: (
     serviceId?: AppConfig["serviceChannel"],
     gameId?: AppConfig["activeGame"],
+  ) => void; // New
+  triggerRestoreBackup: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
   ) => void; // New
   triggerPatchCancel: () => void; // New
   checkBackupAvailability?: (
@@ -147,7 +178,6 @@ export interface ElectronAPI {
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
   sendDebugLog: (log: DebugLogPayload) => void;
-  openExternal: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download
   installUpdate: () => void; // Trigger install & restart
@@ -160,11 +190,22 @@ export interface ElectronAPI {
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
 
+  // Admin / UAC
+  isAdmin: () => Promise<boolean>;
+  relaunchAsAdmin: () => void;
+  ensureAdminSession: () => Promise<boolean>;
+  isAdminSessionActive: () => Promise<boolean>;
+
   // [App Control]
   relaunchApp: () => void;
   logoutSession: () => Promise<boolean>;
   deleteConfig: (key: string) => Promise<void>;
   onScalingModeChange?: (callback: (enabled: boolean) => void) => () => void;
+  getPath: (name: string) => Promise<string>;
+  openPath: (path: string) => Promise<void>;
+  setWindowTitle: (title: string) => void;
+  onTitleUpdated: (callback: (title: string) => void) => () => void;
+  initialGameName: string;
 }
 
 export type UpdateStatus =

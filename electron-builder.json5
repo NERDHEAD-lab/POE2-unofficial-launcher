@@ -13,6 +13,7 @@
     createStartMenuShortcut: true,
     shortcutName: "POE2 Unofficial Launcher",
     include: "build/installer.nsh",
+    guid: "612ccee6-aa48-58b5-9d2e-fdd023b16218",
   },
   win: {
     icon: "build/icon.ico",

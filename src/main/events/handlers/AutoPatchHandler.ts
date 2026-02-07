@@ -1,10 +1,11 @@
 import { AppConfig } from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
+import { PowerShellManager } from "../../utils/powershell";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
-  AppEvent, // Added
+  AppEvent,
   EventHandler,
   EventType,
   LogErrorDetectedEvent,
@@ -13,7 +14,7 @@ import {
   LogBackupWebRootFoundEvent,
   ProcessEvent,
   DebugLogEvent,
-  UIEvent, // Added
+  UIEvent,
 } from "../types";
 
 // --- Helper for UI Logging ---
@@ -211,13 +212,33 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
 
     const session = stateManager.getSession(pid);
 
-    if (errorCount >= 10 && session && !session.alerted) {
+    const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+    const effectiveThreshold = aggressiveMode ? 1 : 10;
+
+    if (errorCount >= effectiveThreshold && session && !session.alerted) {
       session.alerted = true;
-      emitLog(
-        context,
-        `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
-        true,
-      );
+
+      if (aggressiveMode) {
+        // [Korean Mode] Aggressive Kill
+        emitLog(
+          context,
+          `[AutoPatch] ⚡ Aggressive Mode: Error detected (Count: ${errorCount}). Killing process ${pid} immediately...`,
+          true,
+        );
+
+        // Execute TaskKill via PowerShell (Admin may be required for some, but usually owner can kill own process)
+        // Force kill main process and children via Admin Session
+        PowerShellManager.getInstance().execute(
+          `taskkill /PID ${pid} /F /T`,
+          true,
+        );
+      } else {
+        emitLog(
+          context,
+          `[AutoPatch] 🚨 Threshold reached for PID ${pid}. Waiting for process exit to trigger fix.`,
+          true,
+        );
+      }
     }
   },
 };
@@ -235,7 +256,9 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
         `[AutoPatch] Process ${pid} stop detected. Checking session state...`,
       );
 
-      const THRESHOLD = 10;
+      const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+      const THRESHOLD = aggressiveMode ? 1 : 10;
+
       if (session.errorCount >= THRESHOLD) {
         emitLog(
           context,
@@ -250,7 +273,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
           // Auto Fix
           const installPath = await getGameInstallPath(serviceId, gameId);
           if (installPath) {
-            // [UX] Ensure window is visible before showing modal and starting fix
+            // Ensure window is visible before showing modal and starting fix
             if (context.mainWindow) {
               context.mainWindow.show();
               context.mainWindow.focus();
@@ -271,7 +294,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
               },
             );
 
-            // [NEW] Auto Game Start Logic
+            // Auto Game Start Logic
             const autoStartGame =
               context.getConfig("autoGameStartAfterFix") === true;
             if (success && autoStartGame) {
@@ -295,7 +318,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             `[AutoPatch] Requesting User Confirmation (Manual Mode)`,
           );
 
-          // [UX] Ensure window is visible for manual confirmation
+          // Ensure window is visible for manual confirmation
           if (context.mainWindow) {
             context.mainWindow.show();
             context.mainWindow.focus();
