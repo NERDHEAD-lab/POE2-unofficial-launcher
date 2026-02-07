@@ -410,15 +410,6 @@ ${originalCmd}
         buttons: ["확인"],
       });
     }
-  } else {
-    if (!silent) {
-      await dialog.showMessageBox({
-        type: "info",
-        title: "UAC 우회 비활성화 완료",
-        message: "UAC 우회 기능이 비활성화되고 원본 설정으로 복구되었습니다.",
-        buttons: ["확인"],
-      });
-    }
   }
 
   // Cleanup local files and scheduled task
