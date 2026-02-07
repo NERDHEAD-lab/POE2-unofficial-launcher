@@ -12,6 +12,7 @@ interface Props {
 export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
   const [step, setStep] = useState(1);
   const [uacBypass, setUacBypass] = useState(false);
+  const [isUacProcessing, setIsUacProcessing] = useState(false);
 
   // Patch & Automation States
   const [autoFix, setAutoFix] = useState(false);
@@ -41,12 +42,17 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
   const handlePrev = () => setStep((s) => s - 1);
 
   const handleToggleUAC = async () => {
-    if (!window.electronAPI) return;
-    const nextVal = !uacBypass;
-    const result = nextVal
-      ? await window.electronAPI.enableUACBypass()
-      : await window.electronAPI.disableUACBypass();
-    if (result) setUacBypass(nextVal);
+    if (!window.electronAPI || isUacProcessing) return;
+    setIsUacProcessing(true);
+    try {
+      const nextVal = !uacBypass;
+      const result = nextVal
+        ? await window.electronAPI.enableUACBypass()
+        : await window.electronAPI.disableUACBypass();
+      if (result) setUacBypass(nextVal);
+    } finally {
+      setIsUacProcessing(false);
+    }
   };
 
   const handleToggleConfig = async (
@@ -202,7 +208,10 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
               )}
 
               <div
-                className={`uac-card ${uacBypass ? "active" : ""}`}
+                className={`uac-card ${uacBypass ? "active" : ""} ${isUacProcessing ? "disabled" : ""}`}
+                style={
+                  isUacProcessing ? { opacity: 0.6, cursor: "not-allowed" } : {}
+                }
                 onClick={handleToggleUAC}
               >
                 <div className="uac-card-info">

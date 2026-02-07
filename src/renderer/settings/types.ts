@@ -87,6 +87,7 @@ export interface SettingCheck extends BaseSettingItem {
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
+      setDisabled: (disabled: boolean) => void;
       showConfirm: (options: {
         title: string;
         message: string;
@@ -121,6 +122,7 @@ export interface SettingSwitch extends BaseSettingItem {
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
+      setDisabled: (disabled: boolean) => void;
     },
   ) => void;
 }

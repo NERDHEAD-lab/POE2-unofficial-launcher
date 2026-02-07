@@ -188,6 +188,7 @@ const SettingItemRenderer: React.FC<{
         addDescription: addDescription,
         clearDescription: clearDescription,
         setLabel: setLabel,
+        setDisabled: setDisabled,
       });
     }
   };

@@ -443,17 +443,24 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 setValue(false);
               }
             },
-            onChangeListener: async (val, { showToast }) => {
+            onChangeListener: async (val, { showToast, setDisabled }) => {
               if (window.electronAPI) {
-                showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
-                const result = val
-                  ? await window.electronAPI.enableUACBypass()
-                  : await window.electronAPI.disableUACBypass();
+                setDisabled(true); // 비활성화 (Click Block)
+                try {
+                  showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
+                  const result = val
+                    ? await window.electronAPI.enableUACBypass()
+                    : await window.electronAPI.disableUACBypass();
 
-                if (result) {
-                  showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
-                } else {
-                  showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
+                  if (result) {
+                    showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
+                  } else {
+                    showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
+                  }
+                } catch (error) {
+                  showToast(`[UAC 우회] 오류 발생: ${error}`);
+                } finally {
+                  setDisabled(false); // 다시 활성화
                 }
               }
             },
@@ -608,7 +615,6 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "check",
             label: "개발자 모드 활성화",
             icon: "bug_report",
-            requiresRestart: true,
             onInit: initDevOption("dev_mode"),
           },
           {
