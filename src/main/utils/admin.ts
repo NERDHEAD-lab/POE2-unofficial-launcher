@@ -61,9 +61,12 @@ export async function setupAdminAutoLaunch(
       const args = startMinimized ? "--hidden" : "";
 
       // Note: /tr command needs to be properly quoted if path has spaces.
-      // schtasks is picky.
-      // Example: '"C:\Path\To\App.exe" --hidden'
-      const trCommand = `\\"${exePath}\\" ${args}`;
+      // PowerShell Invoke-Expression requires backtick escaping (`) for double quotes inside a double-quoted string.
+      // We aim for: /tr "`"D:\Path\`" --hidden"
+      // This passes `"D:\Path" --hidden` as a single argument to /tr.
+      const psQuote = '`"';
+      const safeExePath = exePath; // No need to escape backslashes for PS strings usually, as \ is literal.
+      const trCommand = `${psQuote}${safeExePath}${psQuote}${args ? " " + args : ""}`;
 
       logger.log(
         `[Admin] Registering Scheduled Task: ${TASK_NAME} (Minimized: ${startMinimized})`,
