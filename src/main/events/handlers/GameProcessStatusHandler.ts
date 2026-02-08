@@ -122,8 +122,12 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
 
       // [Fix] Check if any instance of PathOfExile_KG.exe is still running
       // This handles the case where an old process terminates while a new one has started
-      const isGameRunning =
-        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+      // MUST exclude the PID of the process that just stopped.
+      const stoppedPid = event.payload.pid;
+      const isGameRunning = context.processWatcher?.isProcessRunning?.(
+        "PathOfExile_KG.exe",
+        (info) => info.pid !== stoppedPid,
+      );
 
       if (isGameRunning) {
         logger.log(
