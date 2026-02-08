@@ -25,6 +25,7 @@ import {
   ChangelogItem,
 } from "../shared/types";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import MigrationModal from "./components/modals/MigrationModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
@@ -134,6 +135,25 @@ function App() {
   }, []);
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false); // [UAC Migration]
+
+  // [UAC Migration] Listener
+  useEffect(() => {
+    if (window.electronAPI?.onUacMigrationRequest) {
+      return window.electronAPI.onUacMigrationRequest(() => {
+        setIsMigrationModalOpen(true);
+      });
+    }
+  }, []);
+
+  const handleMigrationConfirm = () => {
+    window.electronAPI?.confirmUacMigration();
+    setIsMigrationModalOpen(false);
+  };
+
+  const handleMigrationCancel = () => {
+    setIsMigrationModalOpen(false);
+  };
 
   // Launcher Title State (Managed by Main Process via Events)
   const [appTitle, setAppTitle] = useState("");
@@ -645,6 +665,12 @@ function App() {
       <OnboardingModal
         isOpen={showOnboarding}
         onFinish={handleOnboardingFinish}
+      />
+
+      <MigrationModal
+        isOpen={isMigrationModalOpen}
+        onConfirm={handleMigrationConfirm}
+        onCancel={handleMigrationCancel}
       />
 
       {isChangelogOpen && (

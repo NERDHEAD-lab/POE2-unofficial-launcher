@@ -3,7 +3,6 @@ import { app } from "electron";
 import { AppConfig } from "../../../shared/types";
 import { getConfig } from "../../store";
 import { logger } from "../../utils/logger";
-import { AutoLaunchFeature } from "../../utils/uac-bypass";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -12,18 +11,16 @@ import {
 } from "../types";
 
 /**
- * Synchronizes the Auto Launch setting with the current executable path.
- * This ensures that if the user moves the app, the startup registry entry is updated to the new path.
+ * Synchronizes the Auto Launch setting via standard Electron API (Registry Run Key).
  */
 export const syncAutoLaunch = async () => {
   // Current State Resolution
   const currentConfig = getConfig() as AppConfig;
   const shouldAutoLaunch = currentConfig.autoLaunch === true;
   const shouldStartMinimized = currentConfig.startMinimized === true;
-  const runAsAdmin = currentConfig.runAsAdmin === true;
 
   logger.log(
-    `[AutoLaunch] Syncing settings: OpenAtLogin=${shouldAutoLaunch}, Minimized=${shouldStartMinimized}, Admin=${runAsAdmin}`,
+    `[AutoLaunch] Syncing settings: OpenAtLogin=${shouldAutoLaunch}, Minimized=${shouldStartMinimized}`,
   );
 
   if (!app.isPackaged) {
@@ -33,22 +30,15 @@ export const syncAutoLaunch = async () => {
     return;
   }
 
-  if (shouldAutoLaunch) {
-    if (runAsAdmin) {
-      // 1. Admin Mode: Use Task Scheduler
-      logger.log(
-        "[AutoLaunch] Configuring Admin AutoLaunch (Task Scheduler)...",
-      );
-      await AutoLaunchFeature.enable(true, shouldStartMinimized);
-    } else {
-      // 2. Normal Mode: Use Registry
-      logger.log("[AutoLaunch] Configuring User AutoLaunch (Registry)...");
-      await AutoLaunchFeature.enable(false, shouldStartMinimized);
-    }
-  } else {
-    // Disable All
-    logger.log("[AutoLaunch] Disabling all AutoLaunch methods...");
-    await AutoLaunchFeature.disable();
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: shouldAutoLaunch,
+      openAsHidden: shouldStartMinimized,
+      args: shouldStartMinimized ? ["--hidden"] : [],
+    });
+    logger.log("[AutoLaunch] Standard login item settings updated.");
+  } catch (e) {
+    logger.error("[AutoLaunch] Failed to update login item settings:", e);
   }
 };
 
@@ -58,9 +48,7 @@ export const AutoLaunchHandler: EventHandler<ConfigChangeEvent> = {
 
   condition: (event) => {
     const key = event.payload.key;
-    return (
-      key === "autoLaunch" || key === "startMinimized" || key === "runAsAdmin"
-    );
+    return key === "autoLaunch" || key === "startMinimized";
   },
 
   handle: async (_event, _context: AppContext) => {

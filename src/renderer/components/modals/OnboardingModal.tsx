@@ -164,8 +164,8 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen, onFinish }) => {
                   건너뛰시겠습니까?
                 </p>
                 <p className="sub-text">
-                  이 설정은 윈도우 스케줄러를 사용하는 안전한 방식(UAC
-                  Bypass)으로 동작합니다.
+                  이 설정은 윈도우 호환성 레이어를 활용한 최적화된
+                  방식(RUNASINVOKER)으로 동작합니다.
                 </p>
               </div>
 

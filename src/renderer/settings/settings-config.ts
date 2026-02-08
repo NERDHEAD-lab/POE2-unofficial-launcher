@@ -134,64 +134,91 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "런쳐 설정",
         items: [
           {
-            id: "runAsAdmin",
+            id: "optimizeDaumStarter",
             type: "check",
-            label: "런처를 관리자 권한으로 실행",
-            description: "항상 관리자 권한으로 실행합니다.",
-            icon: "security",
-            onInit: async ({ addDescription }) => {
+            label: "Daum 게임 스타터 UAC 우회 (RUNASINVOKER)",
+            description:
+              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
+            icon: "speed",
+            infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
+            // [Sync] Explicitly handle init/change as requested
+            onInit: async ({ setValue }) => {
               if (window.electronAPI) {
-                const isAdmin = await window.electronAPI.isAdmin();
-                const isAdminSession =
-                  await window.electronAPI.isAdminSessionActive();
-
-                // If config is true but not actually admin AND no admin session active, warn user
-                const configValue =
-                  await window.electronAPI.getConfig("runAsAdmin");
-                if (configValue && !isAdmin && !isAdminSession) {
-                  addDescription(
-                    "설정은 켜져 있으나 현재 관리자 권한이 없습니다. 재실행이 필요합니다.",
-                    "warning",
-                  );
-                }
+                const result = await window.electronAPI.isUACBypassEnabled();
+                setValue(result);
+              } else {
+                setValue(false);
               }
             },
-            onChangeListener: async (val, { showToast, showConfirm }) => {
-              if (val) {
-                const isAdmin = await window.electronAPI?.isAdmin();
-                const isAdminSession =
-                  await window.electronAPI?.isAdminSessionActive();
+            onChangeListener: async (val, { showToast }) => {
+              if (window.electronAPI) {
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI!.enableUACBypass()
+                      : await window.electronAPI!.disableUACBypass();
 
-                if (!isAdmin && !isAdminSession) {
-                  // [New] Immediately ensure Admin Session upon enabling
-                  showToast("관리자 권한 세션 연결을 시도합니다...");
-                  // Return promise to disable toggle while connecting
-                  return (async () => {
-                    const sessionCreated =
-                      await window.electronAPI?.ensureAdminSession();
-
-                    if (sessionCreated) {
+                    if (result) {
                       showToast(
-                        "관리자 권한 세션이 연결되었습니다. (기능 즉시 사용 가능)",
+                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
                       );
                     } else {
-                      showConfirm({
-                        title: "관리자 권한 필요",
-                        message:
-                          "관리자 세션 연결에 실패했습니다.\n완벽한 동작을 위해 런처를 관리자 권한으로 재실행하시겠습니까?",
-                        confirmText: "관리자 권한으로 재실행",
-                        variant: "primary",
-                        onConfirm: () => {
-                          window.electronAPI?.relaunchAsAdmin();
-                        },
-                      });
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                      );
                     }
-                  })();
-                } else {
-                  showToast("[관리자 권한 실행] 설정이 켜졌습니다.");
-                }
+                  } catch (error) {
+                    showToast(`[UAC 우회] 오류 발생: ${error}`);
+                  }
+                })();
+              }
+            },
+          },
+          {
+            id: "legacy_uac_mode",
+            type: "check",
+            label: "[TEST] 레거시 UAC 모드 (작업 스케줄러)",
+            description:
+              "개발 및 테스트 용도: 구버전의 프록시/스케줄러 방식을 강제로 활성화합니다.",
+            icon: "science",
+            defaultValue: false, // [Restore] Prevent storage pollution
+            onInit: async ({ setValue }) => {
+              if (window.electronAPI) {
+                const result = await window.electronAPI.isLegacyUacEnabled();
+                setValue(result);
               } else {
-                showToast("[관리자 권한 실행] 설정이 꺼졌습니다.");
+                setValue(false);
+              }
+            },
+            onChangeListener: async (val, { showToast }) => {
+              if (window.electronAPI) {
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[레거시 UAC] ${val ? "복구 중..." : "제거 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI.enableLegacyUac()
+                      : await window.electronAPI.disableLegacyUac();
+
+                    if (result) {
+                      showToast(
+                        `[레거시 UAC] ${val ? "복구 완료" : "제거 완료"}`,
+                      );
+                    } else {
+                      showToast(
+                        `[레거시 UAC] ${val ? "복구 실패" : "제거 실패"}`,
+                      );
+                    }
+                  } catch (error) {
+                    showToast(`[레거시 UAC] 오류 발생: ${error}`);
+                  }
+                })();
               }
             },
           },
@@ -434,51 +461,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         id: "adv_process",
         title: "프로세스 관리",
         items: [
-          {
-            id: "uac_bypass",
-            type: "check",
-            label: "DaumGameStarter UAC 우회",
-            description:
-              "카카오게임즈에서 게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
-            defaultValue: false,
-            icon: "verified_user",
-            infoImage: imgUacTooltip,
-            onInit: async ({ setValue }) => {
-              if (window.electronAPI) {
-                const result = await window.electronAPI.isUACBypassEnabled();
-                setValue(result);
-              } else {
-                setValue(false);
-              }
-            },
-            onChangeListener: async (val, { showToast }) => {
-              if (window.electronAPI) {
-                // Return Promise to trigger auto-disable in SettingsContent.tsx
-                return (async () => {
-                  try {
-                    showToast(
-                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
-                    );
-                    const result = val
-                      ? await window.electronAPI!.enableUACBypass()
-                      : await window.electronAPI!.disableUACBypass();
-
-                    if (result) {
-                      showToast(
-                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
-                      );
-                    } else {
-                      showToast(
-                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
-                      );
-                    }
-                  } catch (error) {
-                    showToast(`[UAC 우회] 오류 발생: ${error}`);
-                  }
-                })();
-              }
-            },
-          },
+          // 기존 'UAC 우회' 설정은 '일반 -> 런처 설정 -> Daum 게임 스타터 최적화'로 통합되었습니다.
         ],
       },
       {
@@ -506,13 +489,14 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 const aggressiveMode = await window.electronAPI.getConfig(
                   "aggressivePatchMode",
                 );
-                const runAsAdmin =
-                  await window.electronAPI.getConfig("runAsAdmin");
+                const uacBypassEnabled = await window.electronAPI.getConfig(
+                  "optimize_daum_starter",
+                );
 
-                if (aggressiveMode && !runAsAdmin) {
+                if (aggressiveMode && !uacBypassEnabled) {
                   clearDescription();
                   addDescription(
-                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 'Daum 게임 스타터 UAC 우회' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
                     "warning",
                   );
                 }
@@ -523,12 +507,13 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               { addDescription, clearDescription },
             ) => {
               if (val && window.electronAPI) {
-                const runAsAdmin =
-                  await window.electronAPI.getConfig("runAsAdmin");
-                if (!runAsAdmin) {
+                const uacBypassEnabled = await window.electronAPI.getConfig(
+                  "optimize_daum_starter",
+                );
+                if (!uacBypassEnabled) {
                   clearDescription();
                   addDescription(
-                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 '런처를 관리자 권한으로 실행' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
+                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 'Daum 게임 스타터 UAC 우회' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
                     "warning",
                   );
                 }

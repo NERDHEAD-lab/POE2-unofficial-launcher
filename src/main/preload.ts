@@ -93,6 +93,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),
   disableUACBypass: () => ipcRenderer.invoke("uac:disable"),
 
+  // [Legacy UAC]
+  isLegacyUacEnabled: () => ipcRenderer.invoke("legacy-uac:is-enabled"),
+  enableLegacyUac: () => ipcRenderer.invoke("legacy-uac:enable"),
+  disableLegacyUac: () => ipcRenderer.invoke("legacy-uac:disable"),
+
   relaunchApp: () => ipcRenderer.send("app:relaunch"),
   logoutSession: () => ipcRenderer.invoke("session:logout"),
 
@@ -183,6 +188,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:title-updated", handler);
     return () => ipcRenderer.off("app:title-updated", handler);
   },
+  // [UAC Migration]
+  onUacMigrationRequest: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("uac-migration:request", handler);
+    return () => ipcRenderer.off("uac-migration:request", handler);
+  },
+  confirmUacMigration: () => ipcRenderer.send("uac-migration:confirm"),
   initialGameName: getGameName(
     ipcRenderer.sendSync("config:get-sync", "activeGame"),
   ),

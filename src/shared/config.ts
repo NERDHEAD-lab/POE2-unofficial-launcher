@@ -122,6 +122,14 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "강력한 패치 감지 모드를 활성화합니다 (문제가 발생할 경우 사용).",
   },
+
+  SKIP_DAUM_GAME_STARTER_UAC: {
+    key: "skipDaumGameStarterUac",
+    name: "Skip Daum Game Starter UAC",
+    category: "General",
+    description:
+      "Daum Game Starter가 관리자 권한을 요구하지 않도록 레지스트리를 수정하여 실행합니다. (권장)",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -143,6 +151,7 @@ export const CONFIG_KEYS = {
   PROCESS_WATCH_MODE: CONFIG_METADATA.PROCESS_WATCH_MODE.key,
   RUN_AS_ADMIN: CONFIG_METADATA.RUN_AS_ADMIN.key,
   AGGRESSIVE_PATCH_MODE: CONFIG_METADATA.AGGRESSIVE_PATCH_MODE.key,
+  SKIP_DAUM_GAME_STARTER_UAC: CONFIG_METADATA.SKIP_DAUM_GAME_STARTER_UAC.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -165,6 +174,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   processWatchMode: "resource-saving",
   runAsAdmin: false,
   aggressivePatchMode: false,
+  skipDaumGameStarterUac: false,
 };
 
 export const DEBUG_APP_CONFIG = {

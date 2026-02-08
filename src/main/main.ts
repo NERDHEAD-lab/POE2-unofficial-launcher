@@ -56,6 +56,7 @@ import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
+import { UacHandler } from "./events/handlers/UacHandler";
 import {
   UpdateCheckHandler,
   UpdateDownloadHandler,
@@ -104,7 +105,7 @@ import {
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
-import { DaumGameStarterFeature } from "./utils/uac-bypass";
+import { LegacyUacManager, SimpleUacBypass } from "./utils/uac/uac-migration";
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -505,9 +506,45 @@ ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
 });
 
 // --- UAC Bypass IPC Handlers ---
-ipcMain.handle("uac:is-enabled", () => DaumGameStarterFeature.isEnabled());
-ipcMain.handle("uac:enable", () => DaumGameStarterFeature.enable());
-ipcMain.handle("uac:disable", () => DaumGameStarterFeature.disable());
+ipcMain.on("uac-migration:confirm", async () => {
+  logger.log("[Main] User confirmed UAC Migration.");
+  await LegacyUacManager.cleanupLegacy();
+  // Don't call setRunAsInvoker directly, let UacHandler do it via config change
+  setConfig("skipDaumGameStarterUac", true); // Sync Store & UI -> Triggers UacHandler
+});
+
+// [Fix] Register Missing UAC Handlers
+ipcMain.handle("uac:is-enabled", async () => {
+  return await SimpleUacBypass.isRunAsInvokerEnabled();
+});
+
+ipcMain.handle("uac:enable", async () => {
+  // Logic moved to UacHandler (triggered by setConfig)
+  setConfig("skipDaumGameStarterUac", true);
+  return true; // Optimistic success (Handler will log error if fails)
+});
+
+ipcMain.handle("uac:disable", async () => {
+  // Logic moved to UacHandler (triggered by setConfig)
+  setConfig("skipDaumGameStarterUac", false);
+  return true; // Optimistic success
+});
+
+// [New] Legacy UAC Mode Handlers (Test/Fallback)
+ipcMain.handle("legacy-uac:is-enabled", async () => {
+  return await LegacyUacManager.detectLegacy();
+});
+
+ipcMain.handle("legacy-uac:enable", async () => {
+  // restoreLegacyForTest actually enables the legacy mode (Proxy + Scheduler)
+  // We treat this as "Enable Legacy Mode"
+  return await LegacyUacManager.restoreLegacyForTest();
+});
+
+ipcMain.handle("legacy-uac:disable", async () => {
+  // cleanupLegacy removes the legacy mode
+  return await LegacyUacManager.cleanupLegacy();
+});
 
 // --- Admin IPC ---
 
@@ -644,6 +681,7 @@ const handlers = [
   DevToolsVisibilityHandler,
   ChangelogCheckHandler,
   ChangelogUISyncHandler,
+  UacHandler, // Added
 ];
 
 // --- Patch IPC ---
@@ -909,9 +947,17 @@ function createWindows() {
 
       // [Fix] Defer Version Check/Changelog until Window is Ready
       // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
-      setTimeout(() => {
+      setTimeout(async () => {
         if (appContext) {
           checkLauncherVersionUpdate(appContext);
+        }
+
+        // [UAC Migration] Trigger In-App Modal if Legacy Detected
+        if (await LegacyUacManager.detectLegacy()) {
+          logger.log(
+            "[Main] Legacy UAC detected. Requesting migration modal...",
+          );
+          mainWindow?.webContents.send("uac-migration:request");
         }
       }, 1000);
     }
@@ -1667,12 +1713,12 @@ ipcMain.handle("changelog:get-all", async () => {
 });
 
 app.whenReady().then(async () => {
-  // [NEW] Ensure Admin Session if configured
-  if (getConfig("runAsAdmin") === true) {
-    // We don't await this to avoid blocking UI startup, but it will trigger UAC if needed
-    ensureAdminSession().catch((err) =>
-      logger.error("[Main] Failed to ensure admin session on startup:", err),
-    );
+  // [UAC Sync] Ensure RUNASINVOKER is applied if config is set
+  if (getEffectiveConfig("optimize_daum_starter") === true) {
+    if (!(await SimpleUacBypass.isRunAsInvokerEnabled())) {
+      logger.log("[Main] Re-applying RUNASINVOKER from config...");
+      await SimpleUacBypass.setRunAsInvoker(true);
+    }
   }
 
   // Handle Uninstall Cleanup Flag

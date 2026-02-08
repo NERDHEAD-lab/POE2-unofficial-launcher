@@ -44,6 +44,7 @@ export interface AppConfig {
   launcherVersion: string;
   runAsAdmin: boolean;
   aggressivePatchMode: boolean;
+  skipDaumGameStarterUac: boolean;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -190,6 +191,11 @@ export interface ElectronAPI {
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
 
+  // [Legacy UAC]
+  isLegacyUacEnabled: () => Promise<boolean>;
+  enableLegacyUac: () => Promise<boolean>;
+  disableLegacyUac: () => Promise<boolean>;
+
   // Admin / UAC
   isAdmin: () => Promise<boolean>;
   relaunchAsAdmin: () => void;
@@ -206,6 +212,10 @@ export interface ElectronAPI {
   setWindowTitle: (title: string) => void;
   onTitleUpdated: (callback: (title: string) => void) => () => void;
   initialGameName: string;
+
+  // [UAC Migration]
+  onUacMigrationRequest: (callback: () => void) => () => void;
+  confirmUacMigration: () => void;
 }
 
 export type UpdateStatus =
