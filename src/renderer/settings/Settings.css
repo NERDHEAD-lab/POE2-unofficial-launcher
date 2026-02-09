@@ -1024,3 +1024,24 @@
   margin-top: 4px;
   line-height: 1.4;
 }
+
+/* --- Shared Toast Variants --- */
+.shared-toast.success {
+  border-left: 4px solid #4caf50;
+  color: #e8f5e9;
+}
+
+.shared-toast.error {
+  border-left: 4px solid #f44336;
+  color: #ffebee;
+}
+
+.shared-toast.warning {
+  border-left: 4px solid #ff9800;
+  color: #fff3e0;
+}
+
+.shared-toast.white {
+  border-left: 4px solid #fff;
+  color: #fff;
+}

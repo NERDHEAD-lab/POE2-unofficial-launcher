@@ -27,7 +27,10 @@ import "../../settings/Settings.css";
 interface Props {
   category: SettingsCategory;
   onClose: () => void;
-  onShowToast: (msg: string) => void;
+  onShowToast: (
+    msg: string,
+    variant?: "success" | "white" | "error" | "warning",
+  ) => void;
   onRestartRequired: () => void;
 }
 
@@ -37,7 +40,10 @@ const SettingItemRenderer: React.FC<{
   initialValue: SettingValue | undefined;
   config: Record<string, SettingValue>; // Pass config for dependsOn check
   onRestartRequired: () => void;
-  onShowToast: (msg: string) => void;
+  onShowToast: (
+    msg: string,
+    variant?: "success" | "white" | "error" | "warning",
+  ) => void;
   onValueChange: (id: string, value: SettingValue) => void; // Real-time state local sync
   onShowConfirm?: (props: ConfirmModalProps) => void;
   onHideConfirm?: () => void;
@@ -187,13 +193,40 @@ const SettingItemRenderer: React.FC<{
       try {
         setIsProcessing(true);
         // @ts-expect-error - listener signature is generic
-        await item.onChangeListener(newValue, {
+        const result = await item.onChangeListener(newValue, {
           showToast: onShowToast,
           addDescription: addDescription,
           clearDescription: clearDescription,
           setLabel: setLabel,
           setDisabled: setDisabled,
+          showConfirm: (options) => {
+            onShowConfirm?.({
+              ...options,
+              isOpen: true,
+              onCancel: () => {
+                options.onCancel?.();
+                onHideConfirm?.();
+              },
+              onConfirm: () => {
+                options.onConfirm();
+                onHideConfirm?.();
+              },
+            });
+          },
         });
+
+        // [Improvement] If listener returns explicit false, revert the change
+        if (typeof result === "boolean" && result === false) {
+          // Revert UI to previous state (simple toggle invert for now, or use prevValue tracked)
+          // Since we updated 'val' optimistically, we need to revert it.
+          // For Check/Switch, it's boolean invert. For others, it might be tricky without tracking prev.
+          // However, 'val' state might have been updated by onInit logic too.
+          // Best effort revert:
+          if (typeof newValue === "boolean") {
+            setVal(!newValue);
+            onValueChange(item.id, !newValue);
+          }
+        }
       } finally {
         setIsProcessing(false);
       }

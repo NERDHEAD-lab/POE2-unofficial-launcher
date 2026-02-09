@@ -165,14 +165,19 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                     if (result) {
                       showToast(
                         `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
+                        "success",
                       );
+                      return true;
                     } else {
                       showToast(
                         `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                        "error",
                       );
+                      return false;
                     }
                   } catch (error) {
-                    showToast(`[UAC 우회] 오류 발생: ${error}`);
+                    showToast(`[UAC 우회] 오류 발생: ${error}`, "error");
+                    return false;
                   }
                 })();
               }

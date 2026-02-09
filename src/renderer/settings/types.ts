@@ -81,7 +81,10 @@ export interface SettingCheck extends BaseSettingItem {
   onChangeListener?: (
     value: boolean,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
@@ -96,7 +99,7 @@ export interface SettingCheck extends BaseSettingItem {
         onCancel?: () => void;
       }) => void;
     },
-  ) => void | Promise<void>;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
@@ -117,13 +120,16 @@ export interface SettingSwitch extends BaseSettingItem {
   onChangeListener?: (
     value: boolean,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
       setDisabled: (disabled: boolean) => void;
     },
-  ) => void | Promise<void>;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
@@ -142,12 +148,15 @@ export interface SettingRadio extends BaseSettingItem {
   onChangeListener?: (
     value: string,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
       clearDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void | Promise<void>;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
