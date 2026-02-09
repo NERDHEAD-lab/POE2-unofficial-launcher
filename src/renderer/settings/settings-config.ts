@@ -134,9 +134,9 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "런쳐 설정",
         items: [
           {
-            id: "optimizeDaumStarter",
+            id: "skipDaumGameStarterUac",
             type: "check",
-            label: "Daum 게임 스타터 UAC 우회 (RUNASINVOKER)",
+            label: "Daum 게임 스타터 UAC 우회",
             description:
               "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
             icon: "speed",

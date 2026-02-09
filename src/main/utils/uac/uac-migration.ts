@@ -78,7 +78,7 @@ export const LegacyUacManager = {
     }
 
     // 2. Check Task
-    const taskNames = [TASK_NAME, "POE2_Launcher_UAC_Bypass"];
+    const taskNames = [TASK_NAME];
     for (const task of taskNames) {
       const taskCheck = await PowerShellManager.getInstance().execute(
         `Get-ScheduledTask -TaskName "${task}" -ErrorAction SilentlyContinue`,
@@ -118,7 +118,7 @@ export const LegacyUacManager = {
 
     try {
       // 1. Delete Task (Force) - Check both known names
-      const taskNames = [TASK_NAME, "POE2_Launcher_UAC_Bypass"];
+      const taskNames = [TASK_NAME];
 
       for (const task of taskNames) {
         logger.log(
