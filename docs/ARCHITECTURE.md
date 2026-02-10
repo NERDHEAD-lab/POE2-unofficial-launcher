@@ -249,6 +249,12 @@
 
 > [!IMPORTANT]
 > **개발 원칙 (UI Separation)**: `SettingsContent.tsx` 및 하위 아이템(Renderer)에는 특정 설정의 비즈니스 로직을 하드코딩하지 않습니다. 모든 로직은 `settings-config.ts`의 `onInit`, `onChangeListener` 훅을 통해 구현하여 렌더러의 순수성과 확장성을 유지해야 합니다.
+>
+> **설정 분류 원칙 (Categorization Rule)**:
+>
+> - **일반 (General)**: 런처 자체의 동작(실행, 표시, 닫기 등)과 관련된 설정.
+> - **자동화 (Automation)**: 게임 프로세스에 직접 개입하거나 제어하는(UAC 우회, 패치, 백업 등) 설정.
+>   _이 원칙에 따라 UAC 우회 및 레거시 모드는 '자동화' 탭에 위치해야 합니다._
 
 ## 6. Documentation Map
 

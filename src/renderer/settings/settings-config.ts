@@ -134,100 +134,6 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "런쳐 설정",
         items: [
           {
-            id: "skipDaumGameStarterUac",
-            type: "check",
-            label: "Daum 게임 스타터 UAC 우회",
-            description:
-              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
-            icon: "speed",
-            infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
-            // [Sync] Explicitly handle init/change as requested
-            onInit: async ({ setValue }) => {
-              if (window.electronAPI) {
-                const result = await window.electronAPI.isUACBypassEnabled();
-                setValue(result);
-              } else {
-                setValue(false);
-              }
-            },
-            onChangeListener: async (val, { showToast }) => {
-              if (window.electronAPI) {
-                // Return Promise to trigger auto-disable in SettingsContent.tsx
-                return (async () => {
-                  try {
-                    showToast(
-                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
-                    );
-                    const result = val
-                      ? await window.electronAPI!.enableUACBypass()
-                      : await window.electronAPI!.disableUACBypass();
-
-                    if (result) {
-                      showToast(
-                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
-                        "success",
-                      );
-                      return true;
-                    } else {
-                      showToast(
-                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
-                        "error",
-                      );
-                      return false;
-                    }
-                  } catch (error) {
-                    showToast(`[UAC 우회] 오류 발생: ${error}`, "error");
-                    return false;
-                  }
-                })();
-              }
-            },
-          },
-          {
-            id: "legacy_uac_mode",
-            type: "check",
-            label: "[TEST] 레거시 UAC 모드 (작업 스케줄러)",
-            description:
-              "개발 및 테스트 용도: 구버전의 프록시/스케줄러 방식을 강제로 활성화합니다.",
-            icon: "science",
-            defaultValue: false, // [Restore] Prevent storage pollution
-            onInit: async ({ setValue }) => {
-              if (window.electronAPI) {
-                const result = await window.electronAPI.isLegacyUacEnabled();
-                setValue(result);
-              } else {
-                setValue(false);
-              }
-            },
-            onChangeListener: async (val, { showToast }) => {
-              if (window.electronAPI) {
-                // Return Promise to trigger auto-disable in SettingsContent.tsx
-                return (async () => {
-                  try {
-                    showToast(
-                      `[레거시 UAC] ${val ? "복구 중..." : "제거 중..."}`,
-                    );
-                    const result = val
-                      ? await window.electronAPI.enableLegacyUac()
-                      : await window.electronAPI.disableLegacyUac();
-
-                    if (result) {
-                      showToast(
-                        `[레거시 UAC] ${val ? "복구 완료" : "제거 완료"}`,
-                      );
-                    } else {
-                      showToast(
-                        `[레거시 UAC] ${val ? "복구 실패" : "제거 실패"}`,
-                      );
-                    }
-                  } catch (error) {
-                    showToast(`[레거시 UAC] 오류 발생: ${error}`);
-                  }
-                })();
-              }
-            },
-          },
-          {
             id: "autoLaunch",
             type: "check",
             label: "컴퓨터 시작 시 자동 실행",
@@ -466,7 +372,56 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         id: "adv_process",
         title: "프로세스 관리",
         items: [
-          // 기존 'UAC 우회' 설정은 '일반 -> 런처 설정 -> Daum 게임 스타터 최적화'로 통합되었습니다.
+          {
+            id: "skipDaumGameStarterUac",
+            type: "check",
+            label: "Daum 게임 스타터 UAC 우회",
+            description:
+              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
+            icon: "speed",
+            infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
+            // [Sync] Explicitly handle init/change as requested
+            onInit: async ({ setValue }) => {
+              if (window.electronAPI) {
+                const result = await window.electronAPI.isUACBypassEnabled();
+                setValue(result);
+              } else {
+                setValue(false);
+              }
+            },
+            onChangeListener: async (val, { showToast }) => {
+              if (window.electronAPI) {
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI!.enableUACBypass()
+                      : await window.electronAPI!.disableUACBypass();
+
+                    if (result) {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
+                        "success",
+                      );
+                      return true;
+                    } else {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                        "error",
+                      );
+                      return false;
+                    }
+                  } catch (error) {
+                    showToast(`[UAC 우회] 오류 발생: ${error}`, "error");
+                    return false;
+                  }
+                })();
+              }
+            },
+          },
         ],
       },
       {
