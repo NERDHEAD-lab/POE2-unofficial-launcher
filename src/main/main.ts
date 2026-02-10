@@ -52,6 +52,7 @@ import {
   GameProcessStopHandler,
 } from "./events/handlers/GameProcessStatusHandler";
 import { GameStatusSyncHandler } from "./events/handlers/GameStatusSyncHandler";
+import { InactiveWindowVisibilityHandler } from "./events/handlers/InactiveWindowVisibilityHandler";
 import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
@@ -279,36 +280,7 @@ ipcMain.handle("debug:get-history", () => {
   return getLogHistory();
 });
 
-ipcMain.handle("session:logout", async () => {
-  try {
-    // 1. Reset Context
-    activeSessionContext = null;
-
-    // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
-    if (gameWindow && !gameWindow.isDestroyed()) {
-      logger.log("[Main] Closing GameWindow for logout...");
-      gameWindow.close();
-      gameWindow = null;
-      context.gameWindow = null;
-    }
-
-    // 3. Clear Storage
-    await session.defaultSession.clearStorageData({
-      storages: [
-        "cookies",
-        "localstorage",
-        "cachestorage",
-        "indexdb",
-        "serviceworkers",
-      ],
-    });
-    logger.log("[Main] Session storage cleared (Logout).");
-    return true;
-  } catch (error) {
-    logger.error("[Main] Failed to clear session storage:", error);
-    return false;
-  }
-});
+// [Removed] Old session:logout handler (duplicates new partitioned one)
 
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
   // [Safety] Do not persist if the key is forced in dev:test mode
@@ -535,6 +507,12 @@ ipcMain.handle("legacy-uac:is-enabled", async () => {
   return await LegacyUacManager.detectLegacy();
 });
 
+// --- Constants ---
+const PARTITIONS = {
+  KAKAO: "persist:kakao_game",
+  GGG: "persist:ggg_game",
+};
+
 ipcMain.handle("legacy-uac:enable", async () => {
   // restoreLegacyForTest actually enables the legacy mode (Proxy + Scheduler)
   // We treat this as "Enable Legacy Mode"
@@ -553,35 +531,75 @@ ipcMain.handle("admin:ensure-session", () => ensureAdminSession());
 ipcMain.handle("admin:is-session-active", () => isAdminSessionActive());
 ipcMain.on("admin:relaunch", () => relaunchAsAdmin());
 
-// --- Shared Window Open Handler ---
-const handleWindowOpen = ({ url }: { url: string }) => {
-  logger.log(`[Main] Window Open Request: ${url}`);
+ipcMain.handle("session:logout", async () => {
+  try {
+    // 1. Reset Context
+    activeSessionContext = null;
 
-  const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
-  const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+    // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
+    if (gameWindow && !gameWindow.isDestroyed()) {
+      logger.log("[Main] Closing GameWindow for logout...");
+      gameWindow.close();
+      gameWindow = null;
+      context.gameWindow = null;
+    }
 
-  // 창이 갑자기 나타나는 '플래시' 현상을 방지하기 위해 기본적으로 숨김(show: false) 처리.
-  // 실제 노출 여부는 이후 did-navigate 핸들러(checkAndShow)에서 결정함.
-  const shouldShowAtInit = isDebugEnv || showInactive;
+    // 3. Clear Storage (Specified Partition)
+    const kakaoSession = session.fromPartition(PARTITIONS.KAKAO);
+    await kakaoSession.clearStorageData({
+      storages: [
+        "cookies",
+        "localstorage",
+        "cachestorage",
+        "indexdb",
+        "serviceworkers",
+      ],
+    });
+    logger.log(
+      `[Main] Session storage cleared for partition: ${PARTITIONS.KAKAO}`,
+    );
+    return true;
+  } catch (error) {
+    logger.error("[Main] Failed to clear session storage:", error);
+    return false;
+  }
+});
 
-  // Always Allow creation + Always Inject Preload (for automation)
-  const result = {
-    action: "allow",
-    overrideBrowserWindowOptions: {
-      width: 800,
-      height: 600,
-      autoHideMenuBar: true,
-      show: shouldShowAtInit, // Visibility Control (Default Hidden unless Debug)
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: false,
-        preload: path.join(__dirname, "kakao/preload.js"), // Always inject
+// --- Shared Window Open Handler Factory ---
+const createHandleWindowOpen =
+  (parentPartition?: string) =>
+  ({ url }: { url: string }) => {
+    logger.log(
+      `[Main] Window Open Request: ${url} (Partition: ${parentPartition || "default"})`,
+    );
+
+    const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
+    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+
+    // Checking forced visibility if creating a popup?
+    // Usually popups start hidden until navigation, but if parent is forced, maybe popup should be?
+    // For now, keep flash prevention logic.
+    const shouldShowAtInit = isDebugEnv || showInactive;
+
+    // Always Allow creation + Always Inject Preload (for automation)
+    const result = {
+      action: "allow",
+      overrideBrowserWindowOptions: {
+        width: 800,
+        height: 600,
+        autoHideMenuBar: true,
+        show: shouldShowAtInit, // Visibility Control (Default Hidden unless Debug)
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: false,
+          preload: path.join(__dirname, "kakao/preload.js"), // Always inject
+          partition: parentPartition, // Inherit Partition
+        },
       },
-    },
-  } as const;
+    } as const;
 
-  return result;
-};
+    return result;
+  };
 
 // 2. Initialize Shared Context
 const context: AppContext = {
@@ -590,17 +608,32 @@ const context: AppContext = {
   debugWindow: null,
 
   store,
-  ensureGameWindow: () => {
+  isForcedVisible: (windowId: number) => forcedVisibleWindows.has(windowId),
+  ensureGameWindow: (options?: { service: string }) => {
     if (!gameWindow || gameWindow.isDestroyed()) {
+      const service = options?.service || "Kakao Games"; // Default to Kakao for now
+      let partition = PARTITIONS.KAKAO;
+      let preloadPath = path.join(__dirname, "kakao/preload.js");
+
+      if (service === "GGG") {
+        partition = PARTITIONS.GGG;
+        // TODO: Create ggg/preload.js when GGG support is fully implemented.
+        // For now, use Kakao preload or a minimal one?
+        // Actually, GGG web login might need different preload.
+        // Let's use kakao preload as placeholder but isolated.
+        preloadPath = path.join(__dirname, "kakao/preload.js");
+      }
+
       gameWindow = new BrowserWindow({
         width: 1280,
         height: 720,
-        title: "POE2 Launcher (Game Window)",
+        title: `POE2 Launcher (${service} Window)`,
         show: false, // 기본 숨김 처리 (플래시 방지)
         webPreferences: {
-          preload: path.join(__dirname, "kakao/preload.js"),
+          preload: preloadPath,
           nodeIntegration: false,
-          contextIsolation: true,
+          contextIsolation: true, // Partitioned Game Window needs isolation? Usually yes.
+          partition: partition, // Session Isolation based on Service
         },
       });
 
@@ -682,6 +715,7 @@ const handlers = [
   ChangelogCheckHandler,
   ChangelogUISyncHandler,
   UacHandler, // Added
+  InactiveWindowVisibilityHandler, // [New] Dynamic Visibility
 ];
 
 // --- Patch IPC ---
@@ -1026,20 +1060,35 @@ function createWindows() {
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
   // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
-  session.defaultSession.setPermissionRequestHandler(
-    (webContents, permission, callback) => {
-      const isBlocked = BLOCKED_PERMISSIONS.includes(permission);
+  // [Refactored] Session Security Setup Helper
+  function setupSessionSecurity(sess: Electron.Session, partitionName: string) {
+    logger.log(
+      `[Main] Applying security policy to partition: ${partitionName}`,
+    );
 
-      if (isBlocked) {
-        logger.log(`[Security] Blocked permission request: ${permission}`);
-        return callback(false); // DENY
+    sess.setPermissionRequestHandler((webContents, permission, callback) => {
+      // 1. Block defined permissions
+      if (BLOCKED_PERMISSIONS.includes(permission)) {
+        // logger.log(`[Security] Blocked permission: ${permission} (${partitionName})`);
+        return callback(false);
       }
 
-      // Allow others (e.g., clipboard)
+      // 2. Allow others
       callback(true);
-    },
-  );
+    });
+  }
 
+  // Apply to Default Session
+  setupSessionSecurity(session.defaultSession, "default");
+
+  // Apply to Kakao Partition
+  setupSessionSecurity(
+    session.fromPartition(PARTITIONS.KAKAO),
+    PARTITIONS.KAKAO,
+  );
+  if (PARTITIONS.GGG) {
+    setupSessionSecurity(session.fromPartition(PARTITIONS.GGG), PARTITIONS.GGG);
+  }
   // --- FINAL SECURITY: Block Passkey API requests ---
   // This prevents the Kakao login page from even attempting to start the Passkey auth sequence.
   session.defaultSession.webRequest.onBeforeRequest(
@@ -1556,10 +1605,64 @@ ipcMain.on(
   },
 );
 
+// --- Visibility Management ---
+const forcedVisibleWindows = new Set<number>();
+
+ipcMain.on("window-visibility-request", (event, visible: boolean) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+
+  logger.log(
+    `[Main] Window Visibility Request from ${win.getTitle()} (ID: ${win.id}): ${visible}`,
+  );
+
+  if (visible) {
+    forcedVisibleWindows.add(win.id);
+    // Force show
+    if (!win.isVisible() || win.isMinimized()) {
+      if (win.isMinimized()) win.restore();
+      win.showInactive();
+      win.moveTop();
+    }
+  } else {
+    forcedVisibleWindows.delete(win.id);
+    // Hide if config says so
+    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+    if (!showInactive && win.isVisible()) {
+      // Don't hide Main Window or Debug Window
+      if (win !== mainWindow && win !== debugWindow) {
+        win.hide();
+      }
+    }
+  }
+});
+
 // Global Listener for New Windows (Popups)
 app.on("browser-window-created", (_, window) => {
-  // 1. Enable recursive popup handling
-  window.webContents.setWindowOpenHandler(handleWindowOpen);
+  // 1. Enable recursive popup handling with Partition Inheritance
+  const webPrefs = (window.webContents as any).getWebPreferences?.();
+  const currentPartition = webPrefs?.partition;
+  window.webContents.setWindowOpenHandler(
+    createHandleWindowOpen(currentPartition),
+  );
+  // [Log] Monitor Popup Closing
+  window.on("close", () => {
+    // Skip Main/Debug windows (handled separately)
+    if (window === mainWindow || window === debugWindow) return;
+
+    try {
+      if (!window.isDestroyed()) {
+        const url = window.webContents.getURL();
+        const title = window.getTitle();
+        // Filter out empty/initial windows
+        if (url && url !== "about:blank") {
+          logger.log(`[Main] Popup/Window closing: "${title}" (${url})`);
+        }
+      }
+    } catch (err) {
+      // Ignore
+    }
+  });
 
   // 2. Monitor Navigation for dynamic visibility
   const checkAndShow = () => {
@@ -1577,7 +1680,13 @@ app.on("browser-window-created", (_, window) => {
 
     // 1. Determine if window should be shown (Central Policy)
     const isUserFacing = isUserFacingPage(url);
-    const shouldShow = isDebugEnv || showInactive || isUserFacing;
+    const isForcedVisible = forcedVisibleWindows.has(window.id);
+
+    // Priority: Forced > DebugEnv > InactiveConfig > UserFacing (Fallback)
+    // Note: ForcedVisible might not be set yet during initial load (Preload not run yet)
+    // But once preload runs, it will trigger the IPC and show the window.
+    const shouldShow =
+      isForcedVisible || isDebugEnv || showInactive || isUserFacing;
 
     if (shouldShow) {
       if (!window.isVisible()) {

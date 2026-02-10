@@ -249,8 +249,9 @@ export interface AppContext {
       criteria?: (info: { pid: number; path: string }) => boolean,
     ) => boolean;
   };
-  ensureGameWindow: () => BrowserWindow;
+  ensureGameWindow: (options?: { service: string }) => BrowserWindow;
   getConfig: (key?: string) => unknown;
+  isForcedVisible?: (windowId: number) => boolean;
 }
 
 // Generic Handler Interface

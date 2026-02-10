@@ -6,6 +6,10 @@ import { logger } from "../utils/preload-logger";
 
 // --- Interfaces ---
 
+interface HandlerContext {
+  setVisible: (visible: boolean) => void;
+}
+
 interface GameSessionContext {
   gameId: AppConfig["activeGame"];
   serviceId: AppConfig["serviceChannel"];
@@ -16,8 +20,10 @@ interface PageHandler {
   description: string;
   /** Condition to activate this handler */
   match: (url: URL) => boolean;
+  /** If true, this page should be forcefully shown regardless of "Inactive Window" setting */
+  visible?: boolean;
   /** Main logic execution */
-  execute: () => Promise<void> | void;
+  execute: (context: HandlerContext) => Promise<void> | void;
 }
 
 // --- DOM Selectors ---
@@ -153,6 +159,7 @@ const PoeMainHandler: PageHandler = {
   name: "PoeMainHandler",
   description: "POE1 Homepage - Game Start",
   match: (url) => url.hostname === "poe.game.daum.net",
+  visible: true,
   execute: async () => {
     logger.log(`[Handler] Executing ${PoeMainHandler.name}`);
     observeAndInteract((obs) => {
@@ -176,6 +183,7 @@ const Poe2MainHandler: PageHandler = {
   name: "Poe2MainHandler",
   description: "POE2 Homepage - Intro Modal & Game Start",
   match: (url) => url.hostname === "pathofexile2.game.daum.net",
+  visible: true,
   execute: async () => {
     logger.log(`[Handler] Executing ${Poe2MainHandler.name}`);
 
@@ -526,7 +534,24 @@ function dispatchPageLogic() {
   for (const handler of HANDLERS) {
     if (handler.match(currentUrl)) {
       logger.log(`[Game Window] Matched Handler: ${handler.name}`);
-      handler.execute();
+
+      // 1. Check Visibility Requirement
+      if (handler.visible) {
+        logger.log(
+          `[Game Window] Handler requires visibility. Requesting show...`,
+        );
+        ipcRenderer.send("window-visibility-request", true);
+      }
+
+      // 2. Execute Handler with Context
+      const handlerContext: HandlerContext = {
+        setVisible: (visible: boolean) => {
+          logger.log(`[Game Window] Dynamic Visibility Request: ${visible}`);
+          ipcRenderer.send("window-visibility-request", visible);
+        },
+      };
+
+      handler.execute(handlerContext);
       return;
     }
   }
