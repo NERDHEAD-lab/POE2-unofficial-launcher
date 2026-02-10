@@ -74,7 +74,6 @@ const SettingItemRenderer: React.FC<{
   const isFirstRender = useRef(true);
 
   // Initialize description blocks from item.description (string)
-
   useEffect(() => {
     // Skip the first run as lazy init handled it
     if (isFirstRender.current) {
@@ -114,6 +113,12 @@ const SettingItemRenderer: React.FC<{
     }
   }
 
+  // Reactive dependencies for refreshOn
+  // We use stringify to create a stable dependency based on the values of the items we're watching
+  const refreshOnValues = JSON.stringify(
+    item.refreshOn?.map((id) => config[id]) || [],
+  );
+
   // Helper to add description
   const addDescription = useCallback(
     (text: string, variant: DescriptionVariant = "default") => {
@@ -122,49 +127,69 @@ const SettingItemRenderer: React.FC<{
     [],
   );
 
-  const clearDescription = useCallback(() => {
-    setDescriptionBlocks([]);
-  }, []);
+  const resetDescription = useCallback(() => {
+    // [Bug Fix] Reset should revert to the static description if it exists,
+    // rather than wiping everything to an empty array.
+    setDescriptionBlocks(
+      item.description ? [{ text: item.description, variant: "default" }] : [],
+    );
+  }, [item.description]);
 
   // onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
       logger.log(`[Settings] Running onInit for ${item.id}`);
-      item
-        .onInit({
-          setValue: (newValue) => {
-            if (mounted) {
-              logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
-              setVal(newValue);
-              setAuthorityClaimed(true);
-              onValueChange(item.id, newValue); // Sync with parent config for dependencies
-            }
-          },
-          addDescription: (text, variant) => {
-            if (mounted) addDescription(text, variant);
-          },
-          clearDescription: () => {
-            if (mounted) clearDescription();
-          },
-          setDisabled: (newDisabled) => {
-            if (mounted) setDisabled(newDisabled);
-          },
-          setVisible: (newVisible) => {
-            if (mounted) setIsVisible(newVisible);
-          },
-          setLabel: (newLabel) => {
-            if (mounted) setLabel(newLabel);
-          },
-        })
-        .catch((err) => {
+
+      // Auto-clear dynamic descriptions before re-running onInit
+      // This ensures we start with the base static description
+      resetDescription();
+
+      const result = item.onInit({
+        setValue: (newValue) => {
+          if (mounted) {
+            logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
+            setVal(newValue);
+            setAuthorityClaimed(true);
+            onValueChange(item.id, newValue); // Sync with parent config for dependencies
+          }
+        },
+        addDescription: (text, variant) => {
+          if (mounted) addDescription(text, variant);
+        },
+        resetDescription: () => {
+          if (mounted) resetDescription();
+        },
+        setDisabled: (newDisabled) => {
+          if (mounted) setDisabled(newDisabled);
+        },
+        setVisible: (newVisible) => {
+          if (mounted) setIsVisible(newVisible);
+        },
+        setLabel: (newLabel) => {
+          if (mounted) setLabel(newLabel);
+        },
+        showToast: onShowToast,
+      });
+
+      if (result instanceof Promise) {
+        result.catch((err: unknown) => {
           logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
         });
+      }
     }
     return () => {
       mounted = false;
     };
-  }, [item, onValueChange, addDescription, clearDescription]);
+    // Include refreshOnValues to re-trigger onInit when dependencies change
+  }, [
+    item,
+    onValueChange,
+    addDescription,
+    resetDescription,
+    onShowToast,
+    refreshOnValues,
+  ]);
 
   const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
   const isFinalVisible = isVisible && isDependentVisible;
@@ -196,7 +221,7 @@ const SettingItemRenderer: React.FC<{
         const result = await item.onChangeListener(newValue, {
           showToast: onShowToast,
           addDescription: addDescription,
-          clearDescription: clearDescription,
+          resetDescription: resetDescription,
           setLabel: setLabel,
           setDisabled: setDisabled,
           showConfirm: (options) => {
@@ -271,7 +296,7 @@ const SettingItemRenderer: React.FC<{
         await item.onChangeListener(true, {
           showToast: onShowToast,
           addDescription,
-          clearDescription,
+          resetDescription,
         });
       } finally {
         setIsProcessing(false);

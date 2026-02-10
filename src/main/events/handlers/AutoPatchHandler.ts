@@ -226,11 +226,13 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
           true,
         );
 
-        // Execute TaskKill via PowerShell (Admin may be required for some, but usually owner can kill own process)
-        // Force kill main process and children via Admin Session
+        // Execute TaskKill via PowerShell
+        // If UAC Bypass is enabled, we don't need admin privileges to kill the process (useAdmin: false)
+        const uacBypassEnabled =
+          context.getConfig("skipDaumGameStarterUac") === true;
         PowerShellManager.getInstance().execute(
           `taskkill /PID ${pid} /F /T`,
-          true,
+          !uacBypassEnabled, // Only use admin if bypass is disabled
         );
       } else {
         emitLog(

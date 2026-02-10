@@ -7,9 +7,9 @@ import { logger } from "../utils/logger";
 const updateProcessWatchModeDescription = async (
   mode: string,
   addDescription: (text: string, variant?: DescriptionVariant) => void,
-  clearDescription: () => void,
+  resetDescription: () => void,
 ) => {
-  clearDescription();
+  resetDescription();
 
   const isAlwaysOn = mode === "always-on";
 
@@ -37,17 +37,33 @@ const updateProcessWatchModeDescription = async (
   }
 };
 
+// Helper for Aggressive Mode Description
+const updateAggressiveModeDescription = (
+  aggressiveModeEnabled: boolean,
+  uacBypassEnabled: boolean,
+  addDescription: (text: string, variant?: DescriptionVariant) => void,
+  resetDescription: () => void,
+) => {
+  resetDescription();
+  if (aggressiveModeEnabled && !uacBypassEnabled) {
+    addDescription(
+      "[주의] DaumGameStarter UAC 우회가 꺼져있을 경우, 강제 종료 시 관리자 권한 요청(UAC)이 발생할 수 있습니다.",
+      "warning",
+    );
+  }
+};
+
 const initBackupButton = async (
   {
     setValue: _setValue,
     addDescription,
-    clearDescription,
+    resetDescription,
     setDisabled: _setDisabled,
     setVisible,
   }: {
     setValue: (v: SettingValue) => void;
     addDescription: (text: string, variant?: DescriptionVariant) => void;
-    clearDescription: () => void;
+    resetDescription: () => void;
     setDisabled: (v: boolean) => void;
     setVisible: (v: boolean) => void;
   },
@@ -79,7 +95,7 @@ const initBackupButton = async (
     desc += `\n- 백업 일시: ${dateStr}`;
     if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
 
-    clearDescription();
+    resetDescription();
     addDescription(desc);
   }
 };
@@ -90,12 +106,12 @@ const initDevOption =
     setValue,
     setDisabled,
     addDescription,
-    clearDescription: _clearDescription,
+    resetDescription: _resetDescription,
     setVisible: _setVisible,
   }: {
     setValue: (v: SettingValue) => void;
     addDescription: (text: string, variant?: DescriptionVariant) => void;
-    clearDescription: () => void;
+    resetDescription: () => void;
     setDisabled: (v: boolean) => void;
     setVisible: (v: boolean) => void;
   }) => {
@@ -241,7 +257,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               setValue,
               addDescription,
               setLabel,
-              clearDescription,
+              resetDescription,
             }) => {
               // Manual Sync: Read from actual config
               const mode = (await window.electronAPI?.getConfig(
@@ -260,12 +276,12 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               await updateProcessWatchModeDescription(
                 currentMode,
                 addDescription,
-                clearDescription,
+                resetDescription,
               );
             },
             onChangeListener: async (
               val,
-              { addDescription, clearDescription, showToast },
+              { addDescription, resetDescription, showToast },
             ) => {
               // Manual Sync: Write to actual config
               // val is already string "resource-saving" | "always-on" due to Radio type
@@ -282,7 +298,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               await updateProcessWatchModeDescription(
                 newMode,
                 addDescription,
-                clearDescription,
+                resetDescription,
               );
             },
           },
@@ -375,7 +391,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           {
             id: "skipDaumGameStarterUac",
             type: "check",
-            label: "Daum 게임 스타터 UAC 우회",
+            label: "DaumGameStarter UAC 우회",
             description:
               "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
             icon: "speed",
@@ -442,45 +458,46 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "한국인 모드 (BETA)",
             description:
               "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
-            icon: "bolt",
+            icon: "offline_bolt",
             dependsOn: "autoFixPatchError",
-            onInit: async ({ addDescription, clearDescription }) => {
+            refreshOn: ["skipDaumGameStarterUac"],
+            onInit: async ({ addDescription, resetDescription }) => {
               if (window.electronAPI) {
                 const aggressiveMode = await window.electronAPI.getConfig(
                   "aggressivePatchMode",
                 );
                 const uacBypassEnabled = await window.electronAPI.getConfig(
-                  "optimize_daum_starter",
+                  "skipDaumGameStarterUac",
                 );
 
-                if (aggressiveMode && !uacBypassEnabled) {
-                  clearDescription();
-                  addDescription(
-                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 'Daum 게임 스타터 UAC 우회' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
-                    "warning",
-                  );
-                }
+                updateAggressiveModeDescription(
+                  !!aggressiveMode,
+                  !!uacBypassEnabled,
+                  addDescription,
+                  resetDescription,
+                );
+              } else {
+                updateAggressiveModeDescription(
+                  false,
+                  false, // Both default to false
+                  addDescription,
+                  resetDescription,
+                );
               }
             },
             onChangeListener: async (
               val,
-              { addDescription, clearDescription },
+              { addDescription, resetDescription },
             ) => {
-              if (val && window.electronAPI) {
+              if (window.electronAPI) {
                 const uacBypassEnabled = await window.electronAPI.getConfig(
-                  "optimize_daum_starter",
+                  "skipDaumGameStarterUac",
                 );
-                if (!uacBypassEnabled) {
-                  clearDescription();
-                  addDescription(
-                    "[주의] 카카오 게임 프로세스 강제 종료를 위해 'Daum 게임 스타터 UAC 우회' 옵션이 필요합니다.\n(일반 탭에서 설정 가능)",
-                    "warning",
-                  );
-                }
-              } else {
-                clearDescription();
-                addDescription(
-                  "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+                updateAggressiveModeDescription(
+                  val === true, // Current checkbox state
+                  !!uacBypassEnabled,
+                  addDescription,
+                  resetDescription,
                 );
               }
             },
@@ -645,14 +662,14 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "런처 설치 경로",
             buttonText: "폴더 열기",
             icon: "folder_shared",
-            onInit: async ({ addDescription, clearDescription }) => {
+            onInit: async ({ addDescription, resetDescription }) => {
               if (window.electronAPI) {
                 const exePath = await window.electronAPI.getPath("exe");
                 const installDir = exePath.substring(
                   0,
                   Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
                 );
-                clearDescription();
+                resetDescription();
                 addDescription(installDir, "info");
               }
             },
@@ -673,11 +690,11 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "설정 파일 경로",
             buttonText: "폴더 열기",
             icon: "settings_system_daydream",
-            onInit: async ({ addDescription, clearDescription }) => {
+            onInit: async ({ addDescription, resetDescription }) => {
               if (window.electronAPI) {
                 const userDataPath =
                   await window.electronAPI.getPath("userData");
-                clearDescription();
+                resetDescription();
                 addDescription(userDataPath, "info");
               }
             },

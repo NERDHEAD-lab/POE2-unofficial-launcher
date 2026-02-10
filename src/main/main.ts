@@ -1830,7 +1830,7 @@ ipcMain.handle("changelog:get-all", async () => {
 
 app.whenReady().then(async () => {
   // [UAC Sync] Ensure RUNASINVOKER is applied if config is set
-  if (getEffectiveConfig("optimize_daum_starter") === true) {
+  if (getEffectiveConfig("skipDaumGameStarterUac") === true) {
     if (!(await SimpleUacBypass.isRunAsInvokerEnabled())) {
       logger.log("[Main] Re-applying RUNASINVOKER from config...");
       await SimpleUacBypass.setRunAsInvoker(true);

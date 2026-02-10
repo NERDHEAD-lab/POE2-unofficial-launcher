@@ -44,6 +44,8 @@ export interface BaseSettingItem {
   icon?: string;
   /** 특정 설정이 활성화되었을 때만 항목을 표시하기 위한 부모 설정 ID (옵션) */
   dependsOn?: string;
+  /** 특정 설정들이 변경될 때 이 항목을 다시 초기화(onInit 재호출)하기 위한 설정 ID 리스트 (옵션) */
+  refreshOn?: string[];
   /** 마우스 오버 시 표시될 가이드 이미지 경로 (옵션) */
   infoImage?: string;
   /**
@@ -54,11 +56,15 @@ export interface BaseSettingItem {
   onInit?: (context: {
     setValue: (value: SettingValue) => void;
     addDescription: (text: string, variant?: DescriptionVariant) => void;
-    clearDescription: () => void;
+    resetDescription: () => void;
     setDisabled: (disabled: boolean) => void;
     setVisible: (visible: boolean) => void;
     setLabel: (label: string) => void;
-  }) => Promise<void>;
+    showToast: (
+      message: string,
+      variant?: "success" | "white" | "error" | "warning",
+    ) => void;
+  }) => Promise<void> | void;
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;
 }
@@ -86,7 +92,7 @@ export interface SettingCheck extends BaseSettingItem {
         variant?: "success" | "white" | "error" | "warning",
       ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
       setDisabled: (disabled: boolean) => void;
       showConfirm: (options: {
@@ -125,7 +131,7 @@ export interface SettingSwitch extends BaseSettingItem {
         variant?: "success" | "white" | "error" | "warning",
       ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
       setDisabled: (disabled: boolean) => void;
     },
@@ -153,7 +159,7 @@ export interface SettingRadio extends BaseSettingItem {
         variant?: "success" | "white" | "error" | "warning",
       ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
   ) => void | Promise<void | boolean>;
@@ -177,7 +183,7 @@ export interface SettingSelect extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
   ) => void | Promise<void>;
@@ -207,7 +213,7 @@ export interface SettingNumber extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
   ) => void | Promise<void>;
@@ -237,7 +243,7 @@ export interface SettingSlider extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
   ) => void | Promise<void>;
