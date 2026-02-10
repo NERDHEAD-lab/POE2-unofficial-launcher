@@ -95,7 +95,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // [Legacy UAC]
   isLegacyUacEnabled: () => ipcRenderer.invoke("legacy-uac:is-enabled"),
-  enableLegacyUac: () => ipcRenderer.invoke("legacy-uac:enable"),
   disableLegacyUac: () => ipcRenderer.invoke("legacy-uac:disable"),
 
   relaunchApp: () => ipcRenderer.send("app:relaunch"),

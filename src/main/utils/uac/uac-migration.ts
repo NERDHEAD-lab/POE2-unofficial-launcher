@@ -14,13 +14,26 @@ const REG_LAYERS_KEY =
 const TASK_NAME = "SkipDaumGameStarterUAC";
 
 // New Work Dir for Migration (Temporary storage if needed)
-function getWorkDirectory(): string {
-  const workDir = join(app.getPath("userData"), "uac_bypass");
+/**
+ * Directory for legacy UAC bypass files (proxy.vbs, etc.)
+ * Note: This function only returns the path and DOES NOT create the directory.
+ * This prevents detectLegacy() from triggering false positives.
+ */
+function getLegacyWorkDirectory(): string {
+  return join(app.getPath("userData"), "uac_bypass");
+}
+
+/**
+ * Directory for the new UAC cleaner/uninstaller scripts.
+ * Use a separate name from "uac_bypass" to avoid triggering legacy migration prompts.
+ */
+function getUacCleanerDirectory(): string {
+  const workDir = join(app.getPath("userData"), "daumgamestarter_uac");
   if (!existsSync(workDir)) {
     try {
       mkdirSync(workDir, { recursive: true });
     } catch (e) {
-      logger.error("[UAC] Failed to create work directory:", e);
+      logger.error("[UAC] Failed to create cleaner directory:", e);
     }
   }
   return workDir;
@@ -98,7 +111,7 @@ export const LegacyUacManager = {
 
     // 3. Check Legacy Folder (Garbage Collection)
     // Validate existence WITHOUT creating it (getWorkDirectory generates it if missing)
-    const workDir = join(app.getPath("userData"), "uac_bypass");
+    const workDir = getLegacyWorkDirectory();
     if (existsSync(workDir)) {
       logger.log(
         `[UAC-Migration] Detected Legacy: Folder exists at ${workDir}`,
@@ -159,7 +172,7 @@ export const LegacyUacManager = {
 
       // 2. Restore Registry
       const currentCmd = await getRegValue(REG_PROTOCOL_KEY);
-      const workDir = getWorkDirectory();
+      const workDir = getLegacyWorkDirectory();
 
       if (currentCmd && currentCmd.toLowerCase().includes("proxy.vbs")) {
         // Try to find backup
@@ -207,77 +220,6 @@ export const LegacyUacManager = {
       return false;
     }
   },
-
-  /**
-   * [TEST MODE] Restore Legacy Bypass (Apply Proxy & Scheduler).
-   * This logic is copied/adapted from old `enableUACBypass`.
-   */
-  async restoreLegacyForTest(): Promise<boolean> {
-    logger.log("[UAC-Migration] Restoring Legacy Bypass for Testing...");
-    const currentCmd = await getRegValue(REG_PROTOCOL_KEY);
-    if (!currentCmd) return false;
-
-    // If already proxied, skip
-    if (currentCmd.toLowerCase().includes("proxy.vbs")) return true;
-
-    const workDir = getWorkDirectory();
-    const originalExe = extractExePath(currentCmd);
-
-    if (!originalExe || !existsSync(originalExe)) {
-      logger.error("[UAC-Migration] Setup Test: Cannot find original EXE.");
-      return false;
-    }
-
-    try {
-      // 1. Backup
-      writeFileSync(join(workDir, "original_command.txt"), currentCmd);
-
-      // 2. Create Scripts (Simplify for test)
-      const proxyVbs = `Set args = WScript.Arguments
-strArgs = ""
-For i = 0 To args.Count - 1
-    strArgs = strArgs & " " & args(i)
-Next
-Set objFSO = CreateObject("Scripting.FileSystemObject")
-Set objFile = objFSO.CreateTextFile("${join(workDir, "launch_args.txt")}", True)
-objFile.Write Trim(strArgs)
-objFile.Close
-CreateObject("WScript.Shell").Run "schtasks /run /tn \\"${TASK_NAME}\\"", 0, False
-`;
-      const runnerVbs = `Set objFSO = CreateObject("Scripting.FileSystemObject")
-strArgs = ""
-If objFSO.FileExists("${join(workDir, "launch_args.txt")}") Then
-    Set objFile = objFSO.OpenTextFile("${join(workDir, "launch_args.txt")}", 1)
-    strArgs = objFile.ReadAll
-    objFile.Close
-End If
-CreateObject("WScript.Shell").Run """${originalExe}"" " & strArgs, 1, False
-`;
-
-      writeFileSync(join(workDir, "proxy.vbs"), proxyVbs);
-      writeFileSync(join(workDir, "runner.vbs"), runnerVbs);
-
-      // 3. Register Task
-      const runnerPath = join(workDir, "runner.vbs");
-      const taskCmd = `Register-ScheduledTask -TaskName "${TASK_NAME}" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument '"${runnerPath}"') -Trigger (New-ScheduledTaskTrigger -AtLogon) -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force`;
-      // Note: Running as SYSTEM/Highest for test might need admin.
-      // Actually, standard user usually cannot create Highest task easily without UAC prompt.
-      // But we will assume the user has admin rights for this Test Action or will prompt.
-      await PowerShellManager.getInstance().execute(taskCmd, true); // Force Admin
-
-      // 4. Update Registry
-      const newCmd = `wscript.exe "${join(workDir, "proxy.vbs")}" "%1"`;
-      await PowerShellManager.getInstance().execute(
-        `Set-ItemProperty -Path "${REG_PROTOCOL_KEY}" -Name "(default)" -Value '${newCmd}'`,
-        false,
-      );
-
-      return true;
-    } catch (e) {
-      logger.error("[UAC-Migration] Test Setup Failed:", e);
-      return false;
-    }
-  },
 };
 
 // ==========================================
@@ -304,6 +246,8 @@ async function getDaumStarterPath(): Promise<string | null> {
   );
 
   // User Specification: Only check this specific path if registry fails.
+  // [IMPORTANT] DaumGamesStarter is forced to be installed in C:\Users\Default path
+  // which is why this bypass is required in the first place.
   const fallbackPath =
     "C:\\Users\\Default\\AppData\\Roaming\\DaumGames\\DaumGameStarter.exe";
 
@@ -342,6 +286,8 @@ export const SimpleUacBypass = {
     try {
       const regName = exePath; // Registry Value Name must be the full path
       const regValue = "RUNASINVOKER";
+      const cleanerDir = getUacCleanerDirectory();
+      const uninstallBatPath = join(cleanerDir, "uninstall_uac.bat");
 
       if (enable) {
         // Ensure Key Exists
@@ -352,11 +298,26 @@ export const SimpleUacBypass = {
         const cmd = `Set-ItemProperty -Path "${REG_LAYERS_KEY}" -Name "${regName}" -Value "${regValue}" -Force`;
         await PowerShellManager.getInstance().execute(cmd, false);
         logger.log(`[SimpleUac] Applied RUNASINVOKER to ${exePath}`);
+
+        // Generate uninstall script for NSIS uninstaller
+        // We use batch file so NSIS can run it easily without JS environment
+        const batKey = REG_LAYERS_KEY.replace("HKCU:\\", "HKCU\\");
+        const batContent = `@echo off\r\nreg delete "${batKey}" /v "${exePath}" /f\r\n`;
+        writeFileSync(uninstallBatPath, batContent, "utf8");
+        logger.log(
+          `[SimpleUac] Generated uninstall script: ${uninstallBatPath}`,
+        );
       } else {
         // Remove
         const cmd = `Remove-ItemProperty -Path "${REG_LAYERS_KEY}" -Name "${regName}" -ErrorAction SilentlyContinue`;
         await PowerShellManager.getInstance().execute(cmd, false);
         logger.log(`[SimpleUac] Removed RUNASINVOKER from ${exePath}`);
+
+        // Cleanup uninstall script
+        if (existsSync(uninstallBatPath)) {
+          rmSync(uninstallBatPath, { force: true });
+          logger.log("[SimpleUac] Removed uninstall script.");
+        }
       }
       return true;
     } catch (e) {

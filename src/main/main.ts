@@ -466,8 +466,22 @@ ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
 ipcMain.on("uac-migration:confirm", async () => {
   logger.log("[Main] User confirmed UAC Migration.");
   await LegacyUacManager.cleanupLegacy();
-  // Don't call setRunAsInvoker directly, let UacHandler do it via config change
-  setConfig("skipDaumGameStarterUac", true); // Sync Store & UI -> Triggers UacHandler
+
+  const key = "skipDaumGameStarterUac";
+  const oldValue = getConfig(key);
+  const newValue = true;
+
+  // 1. Update Store
+  setConfig(key, newValue);
+
+  // 2. Emit Event to trigger UacHandler & UI Sync
+  if (appContext) {
+    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
+      key,
+      oldValue,
+      newValue,
+    });
+  }
 });
 
 // [Fix] Register Missing UAC Handlers
@@ -497,12 +511,6 @@ const PARTITIONS = {
   KAKAO: KAKAO_PARTITION,
   GGG: "persist:ggg_game",
 };
-
-ipcMain.handle("legacy-uac:enable", async () => {
-  // restoreLegacyForTest actually enables the legacy mode (Proxy + Scheduler)
-  // We treat this as "Enable Legacy Mode"
-  return await LegacyUacManager.restoreLegacyForTest();
-});
 
 ipcMain.handle("legacy-uac:disable", async () => {
   // cleanupLegacy removes the legacy mode

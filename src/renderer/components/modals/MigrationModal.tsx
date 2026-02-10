@@ -31,6 +31,11 @@ const MigrationModal: React.FC<MigrationModalProps> = ({
             기존의 불안정한 우회 설정(작업 스케줄러 등)을 정리하고 새로운
             방식으로 업데이트하시겠습니까?
             {"\n\n"}
+            <span style={{ color: "#f48771", fontWeight: "bold" }}>
+              * 업데이트를 하지 않을 경우, 앱 제거(언인스톨) 후에도 일부 설정이
+              시스템에 잔류할 수 있습니다.
+            </span>
+            {"\n\n"}
             <small style={{ color: "#aaa" }}>
               * 업데이트 후에는 런처가 표준 사용자 권한으로 실행됩니다.
             </small>
