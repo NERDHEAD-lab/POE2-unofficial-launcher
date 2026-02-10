@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.7.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.3...0.7.0) (2026-02-10)
+
+
+### Features
+
+* daumgamestarter 비활성화 시 표시되는 dialog 제거 ([56ac989](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/56ac98915f19aed90a783cb96213942c54eef7b4))
+* Material Symbols 폰트 로딩 방식 최적화 ([d53736b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/d53736bc680934d25cc750505fb1456082691240))
+* Toast 메시지 UI 개선 ([01462b8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/01462b86d5cac2f65fa817f361bf762c42b699c5))
+* uac bypass 기능 고도화 ([58c43cd](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/58c43cda9e9e52f209fbb3c69f123b149840f1d4))
+* 개발 환경 및 개발자 모드 관련 동작 개선 ([907315b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/907315b6bcaa576a9b89d994eb10f1bd2f5e9d3e))
+* 개발자 모드의 devtool 관련 동작 개선 ([97ee893](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/97ee8937adcc815bf5135e32bca2d2d1ac890fad))
+* 런쳐 UI/UX 개선 ([0426ff6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0426ff6bde3a19b38521c37dc5d7118c4c998af6))
+* 런쳐 UI/UX 개선 - 2 ([feaf09c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/feaf09cd167112ad186e1b1db6a711675e6c3296))
+* 런쳐 UI/UX 개선 - 3 ([1f2e211](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1f2e211ed68b78fac1a914874f374c428939992a))
+* 런쳐 UI/UX 개선 - 4 ([104e8a1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/104e8a1a4f8d0587a3fd103f9c618ca69e004627))
+* 런쳐 업데이트 로깅 간소화 ([2b0e941](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/2b0e941f6d2d08967cd53b421ca56e48ebfb097c))
+* 런쳐가 업데이트를 좀 더 적극적으로 확인하도록 개선 ([e0ddedc](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e0ddedcc5759ab2859955f384ce6115e62134b73))
+* 런쳐의 title 및 tray의 명칭을 현재 선택된 게임으로 표시하도록 개선 ( PoE &lt;-&gt; PoE2 ) ([cca851b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/cca851b1b2cbcc186d852bf35c532d9f6e58f247))
+* 런쳐의 title 및 tray의 명칭을 현재 선택된 게임으로 표시하도록 개선 ( PoE &lt;-&gt; PoE2 ) - 2 ([17e29ac](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/17e29ac64c7fe96fc33406afa5385c838fadce85))
+* 사용자가 설치 경로를 수동으로 이동해도 업데이트/제거가 원할 할 수 있도록 개선 ([bc72df6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bc72df68626cabe1ff474760e2ad3bab9557a2a6))
+* 사용자가 설치 경로를 수동으로 이동해도 업데이트/제거가 원할 할 수 있도록 개선 - 2 ([3206123](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3206123cde8be14fd7376b173185d55f1cecefec))
+* 새소식/패치노트 게시판 성능 개선 및 최적화 ([433a471](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/433a4713c3a3d1a7096a9cb743400038fc83eb89))
+* 설정에 관리자 권한으로 실행 옵션 추가 ([ab3531e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ab3531e8baff5aa290400a95742252f5d36050ba))
+* 설정에 관리자 권한으로 실행 옵션 추가 - 2 ([59c5e18](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/59c5e1870ff1c400d5082fd486e0cf3c9bb21302))
+* 설정에 관리자 권한으로 실행 옵션 추가 - 3 ([b9f83d2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b9f83d2cc4827be66290e13a9e049dcc51c94bb7))
+* 업데이트 시 changelog 표시 기능 추가 ([5ef038e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5ef038eb36f21eb4c8d479cdc67a201d83b18ba6))
+* 업데이트 시 changelog 표시 기능 추가 - 2 ([79e3b4a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/79e3b4a2fc164e2ce63e9bcd02fb957d0d5ce3cb))
+* 업데이트 시 changelog 표시 기능 추가 - 3 ([7d01523](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/7d0152379d1ea7d52d248feb240c946ec5e20af7))
+* 업데이트 시 changelog 표시 기능 추가 - 4 ([e423da1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e423da19bfaaf78f68011c0f96fc6a090d892d71))
+* 업데이트 시 changelog 표시 기능 추가 - 5 ([c738337](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c738337a94f7e3520a228ae4e51f885b7a8e5e3d))
+* 업데이트 시 changelog 표시 기능 추가 - 6 ([e82a567](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e82a5678b93d88c47f8445f8a6278fc3fda47b36))
+* 업데이트 시 changelog 표시 기능 추가 - 7 ([371a7df](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/371a7df1b58d1ff0230ecc75a4e6356f7f8b9879))
+* 업데이트 시 changelog 표시 기능 추가 - 8 ([52d9d37](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/52d9d37e55d221214a6db7398d2120f0dfb4b793))
+* 온보딩 내용 보강 ([193d374](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/193d374b1ab3b8ecdda9bad5b5e965afbc36bc28))
+* 외부 링크가 항상 브라우저에서 열리도록 개선 ([6915913](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/691591372fb54b9f6076824b555b1853ae2ba1ad))
+* 좌측 패널 목록에 패치노트 추가 ([19f7408](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/19f7408b83958090b63574828c2f05a6692add5f))
+* 카카오게임즈 PoE/PoE2 실행 시 관리자 권한이 필요없는 방식으로 일괄 개선 ([547515c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/547515cf8ef36519ba6f481702d03c3d5d86fde7))
+* 카카오게임즈 PoE/PoE2 실행 시 관리자 권한이 필요없는 방식으로 일괄 개선 - 2 ([cf766fb](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/cf766fbf300b6778688830fbcb2c3aa63251a5a4))
+* 카카오게임즈 PoE/PoE2 실행 시 관리자 권한이 필요없는 방식으로 일괄 개선 - 3 ([1444983](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1444983c382a32a0c3ce536b26c6959f6f8bbd74))
+* 카카오게임즈 PoE/PoE2 실행 시 관리자 권한이 필요없는 방식으로 일괄 개선 - 4 ([0bfcf6f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0bfcf6fa8834f42726c811807bb55b31bcdc04b4))
+* 카카오게임즈 로그인 정보를 런쳐와 분리 - 1 ([6a724b3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/6a724b3c87e35460baaa016090742b7af9d4c7a3))
+* 카카오게임즈 로그인 정보를 런쳐와 분리 - 2 ([130dd92](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/130dd92a8b05df794921f098d4b7afd9d1107cd3))
+* 패치오류 한국인 모드 (10회 오류를 기다리지 않고 즉시 poe2 종료 후 동작) 기능 추가 (BETA) ([3fa0b2f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3fa0b2fbcd470b83ea73a500d7315830b4324de5))
+* 패치오류 한국인 모드 (10회 오류를 기다리지 않고 즉시 poe2 종료 후 동작) 기능 추가 (BETA) - 2 ([a31ae06](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a31ae0613f21b9e35622f5e1cd947a16582115b0))
+* 홈페이지/거래소 버튼 추가 ([d494552](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/d494552d5c555482241141e35344205ca9ac8a8e))
+
+
+### Bug Fixes
+
+* Daumgamestarter UAC 우회 on/off을 하는중에 추가로 토글이 가능한 문제 수정 ([4114d3c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4114d3cf4b8a5696400f2392c8a6028aa038057a))
+* 개발자 모드 활성화 설정이 매끄럽게 동작하지 않는 문제 수정 ([333247c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/333247c40ad6bad3a4522acf2a4f0275716dc325))
+* 개발자 모드가 활성화 되어 있을 때 관리자권한이 필요한 작업이 종료되지않고 잔류하는 문제 수정 ([a6943d2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a6943d21d302cb417c20f50444b3469b6a1e97db))
+* 디버그 콘솔의 스크롤 관련 동작이 매끄럽지 않은 문제 수정 ([ec0168e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ec0168e78addadde416d736f071f49254465c402))
+* 백업 복구가 패치를 다시 받는 동작을 수행하던 문제 수정 ([544e0d9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/544e0d97ddec30933e967eac4472e9f0eb5e5d18))
+* 사용자가 수동으로 설치경로를 옮길 경우, 업데이트 시 원래 경로로 돌아가는 문제 수정 ([cbd6f25](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/cbd6f2559e1454313bebc45d3f79a817be17f316))
+* 설정이 활성화/비활성화가 즉시 이루어 지지 않는 경우에도 연속으로 상호작용을 할 수 있는 문제 수정 ([7a4a9a8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/7a4a9a8b0c9e34df46d22ce5891562694104d5dc))
+* 카카오게임즈에서 PoE, PoE2 실행 중일 때 런쳐에서 제대로 표시하지 않는 문제 수정 ([0eedd07](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0eedd075868ccae72d7ff6701a8207ba4f117267))
+* 카카오게임즈에서 PoE, PoE2 실행 중일 때 런쳐에서 제대로 표시하지 않는 문제 수정 - 2 ([61064be](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/61064be78c6e6839655f6a1e49f36993d0bdbdc7))
+* 패치 오류 자동 수정 간 자동 닫기 타이머가 자연스럽지 못 한 문제 수정 ([298206e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/298206e86fdb0b76836182302e69623f71f06d36))
+
 ## [0.6.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.2...0.6.3) (2026-02-03)
 
 
