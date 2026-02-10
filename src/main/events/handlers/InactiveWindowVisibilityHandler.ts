@@ -64,11 +64,6 @@ export const InactiveWindowVisibilityHandler: EventHandler<ConfigChangeEvent> =
 
             // If we blindly hide everything, we might hide the Game Window if it's considered "secondary".
             // Let's check if it's the gameWindow.
-            if (context.gameWindow && win.id === context.gameWindow.id) {
-              // GameWindow visibility is controlled by GameStatus (e.g. show when game starts).
-              // We should NOT forcefully hide it just because this debug option is turned off.
-              return;
-            }
 
             logger.log(
               `[InactiveWindowVisibilityHandler] Hiding window: ${win.title} (ID: ${win.id})`,

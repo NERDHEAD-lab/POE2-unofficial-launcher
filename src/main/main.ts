@@ -23,7 +23,6 @@ import {
   NewsCategory,
   DebugLogPayload,
 } from "../shared/types";
-import { isUserFacingPage } from "../shared/visibility";
 import {
   AutoLaunchHandler,
   syncAutoLaunch,
@@ -78,7 +77,9 @@ import {
   UIUpdateInstallEvent,
   DebugLogEvent,
 } from "./events/types";
+import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { trayManager } from "./managers/TrayManager"; // Added
+import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
@@ -235,23 +236,7 @@ function getEffectiveConfig(
 }
 
 // Security: Explicitly blocked permissions
-const BLOCKED_PERMISSIONS = [
-  // WebAuthn (Passkey)
-  "authenticator",
-  // Camera/Microphone
-  "media",
-  // Location
-  "geolocation",
-  // Browser Notifications
-  "notifications",
-  "midi",
-  "midiSysex",
-  "pointerLock",
-  "fullscreen",
-  // "openExternal",
-  // Programmatic clipboard read
-  "clipboard-read",
-];
+// Security: Permissions are now handled in src/main/security/permissions.ts
 
 // IPC Handlers for Configuration
 ipcMain.handle(
@@ -509,7 +494,7 @@ ipcMain.handle("legacy-uac:is-enabled", async () => {
 
 // --- Constants ---
 const PARTITIONS = {
-  KAKAO: "persist:kakao_game",
+  KAKAO: KAKAO_PARTITION,
   GGG: "persist:ggg_game",
 };
 
@@ -600,6 +585,79 @@ const createHandleWindowOpen =
 
     return result;
   };
+
+// --- Visibility Control State ---
+const forcedVisibleWindows = new Set<number>();
+
+// [IPC] Dynamic Visibility Request from Preload
+ipcMain.on(
+  "window-visibility-request",
+  (
+    event,
+    isVisible: boolean,
+    options?: {
+      width?: number;
+      height?: number;
+      minWidth?: number;
+      minHeight?: number;
+    },
+  ) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed()) return;
+
+    if (isVisible && options) {
+      if (options.width && options.height) {
+        window.setSize(options.width, options.height);
+      }
+      if (options.minWidth && options.minHeight) {
+        window.setMinimumSize(options.minWidth, options.minHeight);
+      }
+      logger.log(
+        `[Main] Applied window options for ${window.id}: ${JSON.stringify(options)}`,
+      );
+    }
+
+    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+
+    if (isVisible) {
+      if (!forcedVisibleWindows.has(window.id)) {
+        forcedVisibleWindows.add(window.id);
+        logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
+        // If forced, it must show immediately (even if inactive config is off)
+        if (!window.isVisible()) {
+          window.showInactive();
+          window.moveTop();
+        }
+      }
+    } else {
+      if (forcedVisibleWindows.has(window.id)) {
+        forcedVisibleWindows.delete(window.id);
+        logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
+
+        // If released, check if it should be hidden (Config Check)
+        // If "Show Inactive" is OFF, and it's not the Main/Game/Debug window, hide it.
+        if (!showInactive) {
+          // Double check against context to avoid hiding critical windows mistakenly
+          // But logic in InactiveWindowVisibilityHandler handles this.
+          // Let's reuse the logic by manual check here for responsiveness.
+          const isMainWindow =
+            context.mainWindow && context.mainWindow.id === window.id;
+          const isGameWindow =
+            context.gameWindow && context.gameWindow.id === window.id;
+          const isDebugWindow =
+            context.debugWindow && context.debugWindow.id === window.id;
+
+          if (!isMainWindow && !isGameWindow && !isDebugWindow) {
+            logger.log(
+              `[Main] Hiding window ${window.id} (Config is OFF & Force Released)`,
+            );
+            window.hide();
+          }
+        }
+      }
+    }
+  },
+);
 
 // 2. Initialize Shared Context
 const context: AppContext = {
@@ -1033,10 +1091,8 @@ function createWindows() {
       if (win.isDestroyed()) return;
 
       if (visible) {
-        const url = win.webContents.getURL();
-        const isUserFacing = isUserFacingPage(url);
-        const shouldShowWindow =
-          (isDebugMode && showInactiveWindows) || isUserFacing;
+        // Removed isUserFacingPage: Visibility is now controlled by Preload IPC or Inactive Config
+        const shouldShowWindow = isDebugMode && showInactiveWindows;
 
         if (shouldShowWindow && !win.isVisible()) {
           win.show();
@@ -1060,44 +1116,19 @@ function createWindows() {
 
   // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
   // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
-  // [Refactored] Session Security Setup Helper
-  function setupSessionSecurity(sess: Electron.Session, partitionName: string) {
-    logger.log(
-      `[Main] Applying security policy to partition: ${partitionName}`,
-    );
-
-    sess.setPermissionRequestHandler((webContents, permission, callback) => {
-      // 1. Block defined permissions
-      if (BLOCKED_PERMISSIONS.includes(permission)) {
-        // logger.log(`[Security] Blocked permission: ${permission} (${partitionName})`);
-        return callback(false);
-      }
-
-      // 2. Allow others
-      callback(true);
-    });
-  }
+  // --- SECURITY: Block WebAuthn & Unwanted Permissions ---
+  // This prevents Windows Security popups (Passkey) and other intrusive browser behaviors.
 
   // Apply to Default Session
   setupSessionSecurity(session.defaultSession, "default");
 
-  // Apply to Kakao Partition
-  setupSessionSecurity(
-    session.fromPartition(PARTITIONS.KAKAO),
-    PARTITIONS.KAKAO,
-  );
+  // Initialize Kakao Partition (Security & Config)
+  initKakaoSession();
+
+  // Apply to GGG Partition (if exists)
   if (PARTITIONS.GGG) {
     setupSessionSecurity(session.fromPartition(PARTITIONS.GGG), PARTITIONS.GGG);
   }
-  // --- FINAL SECURITY: Block Passkey API requests ---
-  // This prevents the Kakao login page from even attempting to start the Passkey auth sequence.
-  session.defaultSession.webRequest.onBeforeRequest(
-    { urls: ["https://accounts.kakao.com/api/v2/passkey/*"] },
-    (details, callback) => {
-      logger.log(`[Security] Blocked Passkey API request: ${details.url}`);
-      callback({ cancel: true });
-    },
-  );
 
   // Initialize Global Context
   appContext = context;
@@ -1606,41 +1637,18 @@ ipcMain.on(
 );
 
 // --- Visibility Management ---
-const forcedVisibleWindows = new Set<number>();
 
-ipcMain.on("window-visibility-request", (event, visible: boolean) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed()) return;
-
-  logger.log(
-    `[Main] Window Visibility Request from ${win.getTitle()} (ID: ${win.id}): ${visible}`,
-  );
-
-  if (visible) {
-    forcedVisibleWindows.add(win.id);
-    // Force show
-    if (!win.isVisible() || win.isMinimized()) {
-      if (win.isMinimized()) win.restore();
-      win.showInactive();
-      win.moveTop();
-    }
-  } else {
-    forcedVisibleWindows.delete(win.id);
-    // Hide if config says so
-    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
-    if (!showInactive && win.isVisible()) {
-      // Don't hide Main Window or Debug Window
-      if (win !== mainWindow && win !== debugWindow) {
-        win.hide();
-      }
-    }
-  }
-});
+// Internal API Interface to avoid raw 'any'
+interface ExtendedWebContents extends Electron.WebContents {
+  getWebPreferences(): Electron.WebPreferences;
+}
 
 // Global Listener for New Windows (Popups)
 app.on("browser-window-created", (_, window) => {
   // 1. Enable recursive popup handling with Partition Inheritance
-  const webPrefs = (window.webContents as any).getWebPreferences?.();
+  // Cast to access internal getWebPreferences() method
+  const webContents = window.webContents as unknown as ExtendedWebContents;
+  const webPrefs = webContents.getWebPreferences?.();
   const currentPartition = webPrefs?.partition;
   window.webContents.setWindowOpenHandler(
     createHandleWindowOpen(currentPartition),
@@ -1659,7 +1667,7 @@ app.on("browser-window-created", (_, window) => {
           logger.log(`[Main] Popup/Window closing: "${title}" (${url})`);
         }
       }
-    } catch (err) {
+    } catch {
       // Ignore
     }
   });
@@ -1679,14 +1687,13 @@ app.on("browser-window-created", (_, window) => {
     const showInactive = getEffectiveConfig("show_inactive_windows") === true;
 
     // 1. Determine if window should be shown (Central Policy)
-    const isUserFacing = isUserFacingPage(url);
+    // Removed isUserFacingPage: Visibility is now controlled by Preload IPC or Inactive Config
     const isForcedVisible = forcedVisibleWindows.has(window.id);
 
-    // Priority: Forced > DebugEnv > InactiveConfig > UserFacing (Fallback)
+    // Priority: Forced > DebugEnv > InactiveConfig
     // Note: ForcedVisible might not be set yet during initial load (Preload not run yet)
     // But once preload runs, it will trigger the IPC and show the window.
-    const shouldShow =
-      isForcedVisible || isDebugEnv || showInactive || isUserFacing;
+    const shouldShow = isForcedVisible || isDebugEnv || showInactive;
 
     if (shouldShow) {
       if (!window.isVisible()) {
