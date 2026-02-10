@@ -26,6 +26,10 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
+  // Changelog
+  SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
+  // DevTools Sync
+  SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
 }
 
 export interface LogBackupWebRootFoundEvent {
@@ -118,7 +122,9 @@ export interface UIEvent {
 
 export interface UIUpdateCheckEvent {
   type: EventType.UI_UPDATE_CHECK;
-  payload?: void;
+  payload?: {
+    isSilent?: boolean;
+  };
   timestamp?: number;
 }
 
@@ -184,6 +190,24 @@ export interface PatchProgressEvent {
   timestamp?: number;
 }
 
+export interface SyncDevToolsVisibilityEvent {
+  type: EventType.SYNC_DEVTOOLS_VISIBILITY;
+  payload?: {
+    source?: string;
+  };
+  timestamp?: number;
+}
+
+export interface ShowChangelogEvent {
+  type: EventType.SHOW_CHANGELOG;
+  payload: {
+    changelogs: import("../../shared/types").ChangelogItem[];
+    oldVersion?: string;
+    newVersion?: string;
+  };
+  timestamp?: number;
+}
+
 // --- Discriminated Union ---
 export type AppEvent =
   | ConfigChangeEvent
@@ -201,7 +225,9 @@ export type AppEvent =
   | LogBackupWebRootFoundEvent
   | LogErrorDetectedEvent
   | PatchProgressEvent
-  | ConfigDeleteEvent;
+  | ConfigDeleteEvent
+  | SyncDevToolsVisibilityEvent
+  | ShowChangelogEvent;
 
 // --- Context & Handler Interfaces ---
 
@@ -223,8 +249,9 @@ export interface AppContext {
       criteria?: (info: { pid: number; path: string }) => boolean,
     ) => boolean;
   };
-  ensureGameWindow: () => BrowserWindow;
+  ensureGameWindow: (options?: { service: string }) => BrowserWindow;
   getConfig: (key?: string) => unknown;
+  isForcedVisible?: (windowId: number) => boolean;
 }
 
 // Generic Handler Interface

@@ -223,6 +223,16 @@
   - **State Indication**: 저해상도 지원 모드 활성화 시 타이틀바 제목에 상태 문구를 추가하여 사용자에게 가변 모드임을 인지시킴.
 - **결과**: 다양한 폼팩터(UMPC, 구형 노트북 등)에서 런처가 잘림 없이 항상 최적의 크기로 노출되며, 고성능 환경에서는 원래의 프리미엄 고정 디자인을 유지함.
 
+#### ADR-017: Advanced Scheduler Configuration (XML Import Strategy)
+
+- **상황**: `schtasks /create`의 기본 명령어로는 전원 조건(AC 전원 필수)과 중복 실행 방지(IgnoreNew) 정책을 제어할 수 없어, 노트북 사용자가 자동 실행에 실패하거나 백그라운드 프로세스 잔존 시 수동 실행이 차단되는 문제가 발생함.
+- **결정**:
+  - **XML-Based Definition**: 작업 스케줄러의 모든 속성을 제어하기 위해, CLI 플래그 대신 완전한 명세가 포함된 **XML 파일**을 동적으로 생성하여 `schtasks /create /xml`로 등록하는 방식을 채택함.
+  - **Power Condition Bypass**: `DisallowStartIfOnBatteries` 및 `StopIfGoingOnBatteries`를 `false`로 설정하여 배터리 모드에서도 안정적인 자동 실행을 보장함.
+  - **Parallel Execution Policy**: `MultipleInstancesPolicy`를 `Parallel`로 설정하여, 스케줄러가 '이미 실행 중'인 상태를 무시하고 런처를 실행하도록 허용함. (중복 방지는 런처 내부의 `SingleInstanceLock`이 담당)
+  - **Explicit Working Directory**: 실행 경로 오류를 방지하기 위해 XML 내 `<WorkingDirectory>` 태그에 앱 설치 경로를 명시적으로 주입함.
+- **결과**: 전원 상태나 이전 실행 상태와 무관하게 런처가 항상 신뢰성 있게 실행되며, 수동/자동 실행 간의 충돌 문제가 해결됨.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
@@ -236,6 +246,15 @@
   - **Option Richness**: `radio`, `select` 타입의 개별 옵션에 상세 설명을 추가하여 직관적인 UI를 제공합니다.
 - **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
+
+> [!IMPORTANT]
+> **개발 원칙 (UI Separation)**: `SettingsContent.tsx` 및 하위 아이템(Renderer)에는 특정 설정의 비즈니스 로직을 하드코딩하지 않습니다. 모든 로직은 `settings-config.ts`의 `onInit`, `onChangeListener` 훅을 통해 구현하여 렌더러의 순수성과 확장성을 유지해야 합니다.
+>
+> **설정 분류 원칙 (Categorization Rule)**:
+>
+> - **일반 (General)**: 런처 자체의 동작(실행, 표시, 닫기 등)과 관련된 설정.
+> - **자동화 (Automation)**: 게임 프로세스에 직접 개입하거나 제어하는(UAC 우회, 패치, 백업 등) 설정.
+>   _이 원칙에 따라 UAC 우회 및 레거시 모드는 '자동화' 탭에 위치해야 합니다._
 
 ## 6. Documentation Map
 

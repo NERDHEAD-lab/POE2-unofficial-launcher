@@ -19,6 +19,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 // Prevent duplicate listeners
 let isListenerAttached = false;
 let currentCheckIsSilent = false;
+let lastEmittedPercent = -1; // For throttling progress updates
 
 const sendStatus = (context: AppContext, status: UpdateStatus) => {
   const win = context.mainWindow;
@@ -61,23 +62,30 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("download-progress", (progressObj) => {
-    sendStatus(context, {
-      state: "downloading",
-      progress: progressObj.percent,
-      version: lastVersionInfo, // [Fix] Include version during download
-    });
+    // Only send updates if percent increased by at least 10%
+    // to prevent flooding the event bus and UI logs.
+    const currentPercent = Math.floor(progressObj.percent / 10) * 10;
+    if (currentPercent !== lastEmittedPercent) {
+      lastEmittedPercent = currentPercent;
+      sendStatus(context, {
+        state: "downloading",
+        progress: progressObj.percent,
+        version: lastVersionInfo,
+      });
+    }
   });
 
   autoUpdater.on("update-downloaded", (info) => {
     logger.log(`[UpdateHandler] Update downloaded: ${info.version}`);
     sendStatus(context, { state: "downloaded", version: info.version });
+    lastEmittedPercent = -1; // Reset for next time
   });
 
   isListenerAttached = true;
 };
 
 /**
- * [NEW] Starts a periodic update check in the background.
+ * Starts a periodic update check in the background.
  * Periodic checks are always 'silent' (don't show popup).
  */
 export const startUpdateCheckInterval = (context: AppContext) => {
@@ -99,6 +107,28 @@ export const startUpdateCheckInterval = (context: AppContext) => {
 };
 
 /**
+ * Triggers an update check immediately.
+ * @param context App context
+ * @param isSilent Whether to suppress UI popups if an update is found
+ */
+export const triggerUpdateCheck = async (
+  context: AppContext,
+  isSilent = false,
+) => {
+  logger.log(
+    `[UpdateHandler] Manual/Triggered update check (isSilent: ${isSilent})`,
+  );
+  currentCheckIsSilent = isSilent;
+  attachUpdateListeners(context);
+
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    logger.error("[UpdateHandler] Failed check:", e);
+  }
+};
+
+/**
  * Handler: Check for Updates
  */
 export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
@@ -107,15 +137,9 @@ export const UpdateCheckHandler: EventHandler<UIUpdateCheckEvent> = {
 
   condition: () => true,
 
-  handle: async (_event, context: AppContext) => {
-    currentCheckIsSilent = false; // Manual/Startup trigger is NOT silent
-    attachUpdateListeners(context);
-
-    try {
-      await autoUpdater.checkForUpdates();
-    } catch (e) {
-      logger.error("[UpdateHandler] Failed check:", e);
-    }
+  handle: async (event, context: AppContext) => {
+    const isSilent = event.payload?.isSilent ?? false;
+    await triggerUpdateCheck(context, isSilent);
   },
 };
 
@@ -146,7 +170,9 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
   condition: () => true,
 
   handle: async (_event, _context: AppContext) => {
-    logger.log("[UpdateHandler] Requesting install & quit...");
+    logger.log(
+      `[UpdateHandler] Requesting install & quit... (Current EXE: ${app.getPath("exe")})`,
+    );
 
     if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
       logger.log(
@@ -154,6 +180,6 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
       );
       return;
     }
-    autoUpdater.quitAndInstall(true, true); // [Fix] Enforce Silent Install (isSilent: true)
+    autoUpdater.quitAndInstall(true, true); // Enforce Silent Install (isSilent: true)
   },
 };

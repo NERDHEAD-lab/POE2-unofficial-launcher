@@ -44,6 +44,8 @@ export interface BaseSettingItem {
   icon?: string;
   /** 특정 설정이 활성화되었을 때만 항목을 표시하기 위한 부모 설정 ID (옵션) */
   dependsOn?: string;
+  /** 특정 설정들이 변경될 때 이 항목을 다시 초기화(onInit 재호출)하기 위한 설정 ID 리스트 (옵션) */
+  refreshOn?: string[];
   /** 마우스 오버 시 표시될 가이드 이미지 경로 (옵션) */
   infoImage?: string;
   /**
@@ -54,11 +56,15 @@ export interface BaseSettingItem {
   onInit?: (context: {
     setValue: (value: SettingValue) => void;
     addDescription: (text: string, variant?: DescriptionVariant) => void;
-    clearDescription: () => void;
+    resetDescription: () => void;
     setDisabled: (disabled: boolean) => void;
     setVisible: (visible: boolean) => void;
     setLabel: (label: string) => void;
-  }) => Promise<void>;
+    showToast: (
+      message: string,
+      variant?: "success" | "white" | "error" | "warning",
+    ) => void;
+  }) => Promise<void> | void;
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;
 }
@@ -76,19 +82,30 @@ export interface SettingCheck extends BaseSettingItem {
    */
   defaultValue?: boolean;
   /**
-   * 값이 변경되었을 때 실행될 리스너 (옵션)
-   * @param value 변경된 값
    * @param context 토스트 메시지 출력 등의 유틸리티를 포함한 컨텍스트
    */
   onChangeListener?: (
     value: boolean,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
+      setDisabled: (disabled: boolean) => void;
+      showConfirm: (options: {
+        title: string;
+        message: string;
+        confirmText?: string;
+        cancelText?: string;
+        variant?: "primary" | "danger";
+        onConfirm: () => void;
+        onCancel?: () => void;
+      }) => void;
     },
-  ) => void;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
@@ -109,12 +126,16 @@ export interface SettingSwitch extends BaseSettingItem {
   onChangeListener?: (
     value: boolean,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
+      setDisabled: (disabled: boolean) => void;
     },
-  ) => void;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
@@ -133,12 +154,15 @@ export interface SettingRadio extends BaseSettingItem {
   onChangeListener?: (
     value: string,
     context: {
-      showToast: (msg: string) => void;
+      showToast: (
+        msg: string,
+        variant?: "success" | "white" | "error" | "warning",
+      ) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void | boolean>;
 }
 
 /**
@@ -159,10 +183,10 @@ export interface SettingSelect extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -189,10 +213,10 @@ export interface SettingNumber extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -219,10 +243,10 @@ export interface SettingSlider extends BaseSettingItem {
     context: {
       showToast: (msg: string) => void;
       addDescription: (text: string, variant?: DescriptionVariant) => void;
-      clearDescription: () => void;
+      resetDescription: () => void;
       setLabel: (label: string) => void;
     },
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 /**
@@ -267,9 +291,10 @@ export interface SettingButton extends BaseSettingItem {
       cancelText?: string;
       variant?: "primary" | "danger";
       onConfirm: () => void;
+      onCancel?: () => void;
     }) => void;
     setValue: (value: SettingValue) => void; // 필요하다면 다른 아이템 제어 가능하도록 확장 고려
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 /**

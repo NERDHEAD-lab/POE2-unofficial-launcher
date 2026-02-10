@@ -28,7 +28,7 @@ const emitGameStatus = (
   context: AppContext,
   gameId: AppConfig["activeGame"],
   serviceId: AppConfig["serviceChannel"],
-  status: "running" | "idle" | "stopping", // [Update] Added 'stopping'
+  status: "running" | "idle" | "stopping",
 ) => {
   eventBus.emit<GameStatusChangeEvent>(EventType.GAME_STATUS_CHANGE, context, {
     gameId,
@@ -54,7 +54,18 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE2", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // If Game Client is running, ignore Launcher stop
+      const isGameRunning =
+        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+
+      if (isGameRunning) {
+        logger.log(
+          "[GameProcess] POE2 Launcher stopped, but Client is running. Status maintained.",
+        );
+        return;
+      }
+
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE2", "Kakao Games", "stopping");
       setTimeout(() => {
         emitGameStatus(context, "POE2", "Kakao Games", "idle");
@@ -73,7 +84,18 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       emitGameStatus(context, "POE1", "Kakao Games", "running");
     },
     onStop: (event, context) => {
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // If Game Client is running, ignore Launcher stop
+      const isGameRunning =
+        context.processWatcher?.isProcessRunning?.("PathOfExile_KG.exe");
+
+      if (isGameRunning) {
+        logger.log(
+          "[GameProcess] POE1 Launcher stopped, but Client is running. Status maintained.",
+        );
+        return;
+      }
+
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, "POE1", "Kakao Games", "stopping");
       setTimeout(() => {
         emitGameStatus(context, "POE1", "Kakao Games", "idle");
@@ -85,7 +107,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
   {
     processName: "PathOfExile_KG.exe",
     onStart: (event, context) => {
-      // [Context Inference] Use the last seen launcher to determine Game ID
+      // Use the last seen launcher to determine Game ID
       // because obtaining path requires Admin rights which we might not have.
       const inferredGameId = lastDetectedKakaoLauncher || "POE2"; // Default to POE2 if unknown (Safest bet for now)
 
@@ -97,6 +119,27 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
     },
     onStop: (event, context) => {
       const inferredGameId = lastDetectedKakaoLauncher || "POE2";
+
+      // [Fix] Check if any instance of PathOfExile_KG.exe is still running
+      // This handles the case where an old process terminates while a new one has started
+      // MUST exclude the PID of the process that just stopped.
+      const stoppedPid = event.payload.pid;
+      const isGameRunning = context.processWatcher?.isProcessRunning?.(
+        "PathOfExile_KG.exe",
+        (info) => info.pid !== stoppedPid,
+      );
+
+      if (isGameRunning) {
+        logger.log(
+          `[GameProcess] PathOfExile_KG.exe stopped, but another instance is running. Status maintained. (Inferred: ${inferredGameId})`,
+        );
+        return;
+      }
+
+      // [Fix] Only trigger stop if the stopping process matches the current context
+      // e.g. If we think we are playing POE1, and KG Client stops -> Stop POE1.
+      // If we think we are playing POE2, and KG Client stops -> Stop POE2.
+      // This is logical for the shared executable.
 
       emitGameStatus(context, inferredGameId, "Kakao Games", "stopping");
       setTimeout(() => {
@@ -137,7 +180,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
         return;
       }
 
-      // [Update] Transition: running -> stopping -> (3s) -> idle
+      // Transition: running -> stopping -> (3s) -> idle
       emitGameStatus(context, gameId, "GGG", "stopping");
       setTimeout(() => {
         emitGameStatus(context, gameId, "GGG", "idle");
@@ -175,8 +218,8 @@ export const GameProcessStartHandler: EventHandler<ProcessEvent> = {
       await strategy.onStart(event, context);
     }
 
-    // [New] Close/Minimize launcher on game start if configured
-    // [Fix] Retrieve 'quitOnGameStart' directly as it is a root-level config key
+    // Close/Minimize launcher on game start if configured
+    // Retrieve 'quitOnGameStart' directly as it is a root-level config key
     const quitOnGameStart = context.getConfig("quitOnGameStart") === true;
     if (
       quitOnGameStart &&

@@ -53,7 +53,7 @@ export const TextItem: React.FC<Props> = ({
             href={item.externalLink.url}
             onClick={(e) => {
               e.preventDefault();
-              window.electronAPI.openExternal(item.externalLink!.url);
+              window.open(item.externalLink!.url, "_blank");
             }}
             style={{
               color: "var(--theme-accent, #dfcf99)",

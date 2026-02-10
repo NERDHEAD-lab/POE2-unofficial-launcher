@@ -1,0 +1,62 @@
+/* SupportLinks Styling */
+
+.support-links-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.support-link {
+  display: flex;
+  align-items: center;
+  color: #ccc;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 10px;
+  transition: color 0.2s;
+  gap: 8px;
+  cursor: pointer;
+  -webkit-user-drag: none; /* [Fix] Prevent drag ghost image */
+  user-select: none; /* [Fix] Prevent text selection */
+}
+
+.support-link:hover {
+  color: var(--theme-accent, #dfcf99);
+}
+
+.support-link-icon {
+  font-size: 16px;
+  display: inline-block;
+  transition: transform 0.2s ease-in-out;
+}
+
+.support-link:hover .support-link-icon {
+  animation: support-icon-swing 0.5s ease-in-out;
+}
+
+@keyframes support-icon-swing {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(12deg);
+  }
+  75% {
+    transform: rotate(-6deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.support-separator {
+  height: 1px;
+  background-color: #333;
+  margin: 12px 10px;
+  width: calc(100% - 20px);
+}

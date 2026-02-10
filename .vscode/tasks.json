@@ -13,7 +13,7 @@
       "detail": "Installs dependencies if node_modules is missing"
     },
     {
-      "label": "dev:test",
+      "label": "dev:test(poe2-unofficial-launcher)",
       "type": "npm",
       "script": "dev:test",
       "isBackground": true,

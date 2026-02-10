@@ -9,6 +9,7 @@ import {
 } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 import { PreloadLogger } from "./utils/preload-logger";
+import { getGameName } from "../shared/naming";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
@@ -22,7 +23,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   closeWindow: () => ipcRenderer.send("window-close"),
-  getConfig: (key?: string) => ipcRenderer.invoke("config:get", key),
+  getConfig: (
+    key?: string,
+    ignoreDependencies?: boolean,
+    includeForced?: boolean,
+  ) => ipcRenderer.invoke("config:get", key, ignoreDependencies, includeForced),
+  isConfigForced: (key: string) => ipcRenderer.invoke("config:is-forced", key),
   setConfig: (key: string, value: unknown) =>
     ipcRenderer.invoke("config:set", key, value),
   getFileHash: (path: string) => ipcRenderer.invoke("file:get-hash", path),
@@ -58,6 +64,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => ipcRenderer.invoke("news:get-cache", game, service, category),
   getNewsContent: (id: string, link: string) =>
     ipcRenderer.invoke("news:get-content", id, link),
+  getNewsContentCache: (id: string) =>
+    ipcRenderer.invoke("news:get-content-cache", id),
   markNewsAsRead: (id: string) => ipcRenderer.invoke("news:mark-as-read", id),
   markMultipleNewsAsRead: (ids: string[]) =>
     ipcRenderer.invoke("news:mark-multiple-as-read", ids),
@@ -66,9 +74,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("news-updated", handler);
     return () => ipcRenderer.off("news-updated", handler);
   },
+  onWindowShow: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("app:window-show", handler);
+    return () => ipcRenderer.off("app:window-show", handler);
+  },
   sendDebugLog: (log: DebugLogEvent["payload"]) =>
     ipcRenderer.send("debug-log:send", log),
-  openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+
+  getPath: (name: string) => ipcRenderer.invoke("app:get-path", name),
+  openPath: (path: string) => ipcRenderer.invoke("shell:open-path", path),
 
   // [Update API]
   checkForUpdates: () => ipcRenderer.send("ui:update-check"),
@@ -85,8 +100,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),
   disableUACBypass: () => ipcRenderer.invoke("uac:disable"),
 
+  // [Legacy UAC]
+  isLegacyUacEnabled: () => ipcRenderer.invoke("legacy-uac:is-enabled"),
+  disableLegacyUac: () => ipcRenderer.invoke("legacy-uac:disable"),
+
   relaunchApp: () => ipcRenderer.send("app:relaunch"),
   logoutSession: () => ipcRenderer.invoke("session:logout"),
+
+  // Admin / UAC
+  isAdmin: () => ipcRenderer.invoke("admin:is-admin"),
+  relaunchAsAdmin: () => ipcRenderer.send("admin:relaunch"),
+  ensureAdminSession: () => ipcRenderer.invoke("admin:ensure-session"),
+  isAdminSessionActive: () => ipcRenderer.invoke("admin:is-session-active"),
 
   // [Patch API]
   onShowPatchFixModal: (
@@ -119,6 +144,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.send("patch:start-manual");
     }
   },
+  triggerRestoreBackup: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => {
+    ipcRenderer.send("patch:restore-local", serviceId, gameId);
+  },
   triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
@@ -132,4 +163,45 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("scaling-mode-changed", handler);
     return () => ipcRenderer.off("scaling-mode-changed", handler);
   },
+  getAllChangelogs: () => ipcRenderer.invoke("changelog:get-all"),
+  setWindowTitle: (title: string) => ipcRenderer.send("app:set-title", title),
+
+  // Changelog
+  onShowChangelog: (
+    callback: (
+      data:
+        | import("../shared/types").ChangelogItem[]
+        | {
+            changelogs: import("../shared/types").ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
+    ) => void,
+  ) => {
+    const subscription = (
+      _event: IpcRendererEvent,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: any,
+    ) => callback(data);
+    ipcRenderer.on("UI:SHOW_CHANGELOG", subscription);
+    return () => {
+      ipcRenderer.removeListener("UI:SHOW_CHANGELOG", subscription);
+    };
+  },
+  onTitleUpdated: (callback: (title: string) => void) => {
+    const handler = (_event: IpcRendererEvent, title: string) =>
+      callback(title);
+    ipcRenderer.on("app:title-updated", handler);
+    return () => ipcRenderer.off("app:title-updated", handler);
+  },
+  // [UAC Migration]
+  onUacMigrationRequest: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("uac-migration:request", handler);
+    return () => ipcRenderer.off("uac-migration:request", handler);
+  },
+  confirmUacMigration: () => ipcRenderer.send("uac-migration:confirm"),
+  initialGameName: getGameName(
+    ipcRenderer.sendSync("config:get-sync", "activeGame"),
+  ),
 });

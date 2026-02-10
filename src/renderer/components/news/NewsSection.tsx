@@ -22,7 +22,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
 }) => {
   const handleOpenForum = () => {
     if (forumUrl) {
-      window.electronAPI.openExternal(forumUrl);
+      window.open(forumUrl, "_blank");
     }
   };
 

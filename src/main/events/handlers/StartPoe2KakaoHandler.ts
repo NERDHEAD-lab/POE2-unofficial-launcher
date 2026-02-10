@@ -31,9 +31,10 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
 
   // 'event' is automatically inferred as UIGameStartEvent
   handle: async (event, context) => {
-    // Dynamically ensure game window exists (Lazy Creation)
-    const gameWindow = context.ensureGameWindow();
-
+    // Dynamically ensure game window exists
+    // 2. Ensure Game Window (Kakao)
+    const gameWindow = context.ensureGameWindow({ service: "Kakao Games" });
+    context.gameWindow = gameWindow; // Sync logic
     // 0. Notify User
     logger.log(
       `[StartPoe2KakaoHandler] Condition Met! Starting POE2 Kakao Process...`,

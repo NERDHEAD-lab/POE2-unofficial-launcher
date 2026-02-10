@@ -1,10 +1,13 @@
 import { ipcRenderer } from "electron";
 
 import { AppConfig } from "../../shared/types";
-import { isUserFacingPage } from "../../shared/visibility";
 import { logger } from "../utils/preload-logger";
 
 // --- Interfaces ---
+
+interface HandlerContext {
+  setVisible: (visible: boolean) => void;
+}
 
 interface GameSessionContext {
   gameId: AppConfig["activeGame"];
@@ -16,8 +19,10 @@ interface PageHandler {
   description: string;
   /** Condition to activate this handler */
   match: (url: URL) => boolean;
+  /** If true, this page should be forcefully shown regardless of "Inactive Window" setting */
+  visible?: boolean;
   /** Main logic execution */
-  execute: () => Promise<void> | void;
+  execute: (context: HandlerContext) => Promise<void> | void;
 }
 
 // --- DOM Selectors ---
@@ -75,6 +80,20 @@ const SELECTORS = {
 
 // --- Utils ---
 
+/**
+ * Helper to request visibility with automatic sizing
+ */
+function requestWindowVisibility(visible: boolean) {
+  if (visible) {
+    const width = document.documentElement.scrollWidth + 40; // Buffer for vertical scrollbar/border
+    const height = document.documentElement.scrollHeight + 60; // Buffer for titlebar/border
+    const options = { width, height };
+    ipcRenderer.send("window-visibility-request", true, options);
+  } else {
+    ipcRenderer.send("window-visibility-request", false);
+  }
+}
+
 function safeClick(element: HTMLElement | null) {
   if (!element) return false;
 
@@ -93,6 +112,7 @@ function safeClick(element: HTMLElement | null) {
       });
       event.preventDefault();
       element.dispatchEvent(event);
+
       return true;
     }
 
@@ -270,6 +290,7 @@ const DaumLoginHandler: PageHandler = {
   name: "DaumLoginHandler",
   description: "Daum Login Page",
   match: (url) => url.hostname === "logins.daum.net",
+  visible: true,
   execute: () => {
     logger.log(`[Handler] Executing ${DaumLoginHandler.name}`);
     observeAndInteract((obs) => {
@@ -296,6 +317,7 @@ const KakaoLoginHandler: PageHandler = {
     url.hostname === "accounts.kakao.com" &&
     url.pathname.includes("/login") &&
     !url.pathname.includes("/simple"),
+  visible: true,
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoLoginHandler.name}`);
 
@@ -442,6 +464,14 @@ const SecurityCenterHandler: PageHandler = {
     ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
 
     observeAndInteract((obs) => {
+      // [Visibility Logic] Only show window if "Designated PC" certificate UI is present
+      if (document.querySelector("div.device-cert")) {
+        logger.log(
+          "[SecurityCenter] Device Cert UI detected. Requesting visibility...",
+        );
+        requestWindowVisibility(true);
+      }
+
       // 1. Attribute Match
       if (
         safeClick(
@@ -450,8 +480,8 @@ const SecurityCenterHandler: PageHandler = {
           ) as HTMLElement,
         )
       ) {
-        if (obs) obs.disconnect();
-        return true;
+        logger.log("[SecurityCenter] Clicked PC Info Button (Attribute)");
+        // Do NOT disconnect yet - wait for device-cert UI
       }
       // 2. Class Match
       if (
@@ -461,8 +491,8 @@ const SecurityCenterHandler: PageHandler = {
           ) as HTMLElement,
         )
       ) {
-        if (obs) obs.disconnect();
-        return true;
+        logger.log("[SecurityCenter] Clicked PC Info Button (Class)");
+        // Do NOT disconnect yet - wait for device-cert UI
       }
       // 3. Generic Popup
       if (
@@ -503,7 +533,52 @@ const LauncherCompletionHandler: PageHandler = {
   },
 };
 
+const DaumStarterPopupHandler: PageHandler = {
+  name: "DaumStarterPopupHandler",
+  description: "Daum Starter Install Popup",
+  match: (url) =>
+    url.hostname === "security-center.game.daum.net" &&
+    url.pathname.includes("/popup/install_daumstarter"),
+  visible: true,
+  execute: () => {
+    logger.log(`[Handler] Executing ${DaumStarterPopupHandler.name}`);
+  },
+};
+
 // --- Handler Registry ---
+
+// --- Additional Visibility Handlers (from shared/visibility.ts) ---
+const DaumMemberCertHandler: PageHandler = {
+  name: "DaumMemberCertHandler",
+  description: "Daum Member Certification",
+  match: (url) =>
+    url.hostname === "member.game.daum.net" &&
+    url.pathname.includes("/cert/kakao/init"),
+  visible: true,
+  execute: () => {
+    logger.log(`[Handler] Executing ${DaumMemberCertHandler.name}`);
+  },
+};
+
+const KCBAuthHandler: PageHandler = {
+  name: "KCBAuthHandler",
+  description: "KCB Authentication",
+  match: (url) => url.hostname === "safe.ok-name.co.kr",
+  visible: true,
+  execute: () => {
+    logger.log(`[Handler] Executing ${KCBAuthHandler.name}`);
+  },
+};
+
+const KCBCardAuthHandler: PageHandler = {
+  name: "KCBCardAuthHandler",
+  description: "KCB Card Authentication",
+  match: (url) => url.hostname === "card.ok-name.co.kr",
+  visible: true,
+  execute: () => {
+    logger.log(`[Handler] Executing ${KCBCardAuthHandler.name}`);
+  },
+};
 
 const HANDLERS: PageHandler[] = [
   PoeMainHandler,
@@ -515,6 +590,10 @@ const HANDLERS: PageHandler[] = [
   KakaoAuthHandler,
   SecurityCenterHandler,
   LauncherCompletionHandler,
+  DaumStarterPopupHandler,
+  DaumMemberCertHandler,
+  KCBAuthHandler,
+  KCBCardAuthHandler,
 ];
 
 // --- Core Dispatcher ---
@@ -526,7 +605,30 @@ function dispatchPageLogic() {
   for (const handler of HANDLERS) {
     if (handler.match(currentUrl)) {
       logger.log(`[Game Window] Matched Handler: ${handler.name}`);
-      handler.execute();
+
+      // 1. Check Visibility Requirement
+      // Priority: Handler.visible > Config
+      const isVisibleByHandler = handler.visible === true;
+
+      if (isVisibleByHandler) {
+        logger.log(
+          `[Game Window] Visibility required (Handler: ${isVisibleByHandler}). Requesting show...`,
+        );
+        requestWindowVisibility(true);
+      } else {
+        // [Refinement] Explicitly un-force if not required
+        requestWindowVisibility(false);
+      }
+
+      // 2. Execute Handler with Context
+      const handlerContext: HandlerContext = {
+        setVisible: (visible: boolean) => {
+          logger.log(`[Game Window] Dynamic Visibility Request: ${visible}`);
+          ipcRenderer.send("window-visibility-request", visible);
+        },
+      };
+
+      handler.execute(handlerContext);
       return;
     }
   }
@@ -578,13 +680,8 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
 window.addEventListener("DOMContentLoaded", () => {
   logger.log("[Game Window] DOMContentLoaded");
 
-  const currentUrl = new URL(window.location.href);
-
   // If the page is NOT a standard user-facing page (according to main.ts policy),
   // show a debug border to indicate it's a "background/automated" window.
-  if (!isUserFacingPage(currentUrl)) {
-    document.body.style.border = "2px solid #ff00ff"; // Visual Debug (Purple)
-  }
 
   dispatchPageLogic();
 });

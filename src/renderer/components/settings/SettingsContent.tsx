@@ -27,18 +27,24 @@ import "../../settings/Settings.css";
 interface Props {
   category: SettingsCategory;
   onClose: () => void;
-  onShowToast: (msg: string) => void;
+  onShowToast: (
+    msg: string,
+    variant?: "success" | "white" | "error" | "warning",
+  ) => void;
   onRestartRequired: () => void;
 }
 
-// [GENERIC] Individual Item Renderer to manage its own initialization and dynamic state
+// Individual Item Renderer to manage its own initialization and dynamic state
 const SettingItemRenderer: React.FC<{
   item: SettingItem;
   initialValue: SettingValue | undefined;
-  config: Record<string, SettingValue>; // [New] Pass config for dependsOn check
+  config: Record<string, SettingValue>; // Pass config for dependsOn check
   onRestartRequired: () => void;
-  onShowToast: (msg: string) => void;
-  onValueChange: (id: string, value: SettingValue) => void; // [New] Real-time state local sync
+  onShowToast: (
+    msg: string,
+    variant?: "success" | "white" | "error" | "warning",
+  ) => void;
+  onValueChange: (id: string, value: SettingValue) => void; // Real-time state local sync
   onShowConfirm?: (props: ConfirmModalProps) => void;
   onHideConfirm?: () => void;
 }> = ({
@@ -52,11 +58,10 @@ const SettingItemRenderer: React.FC<{
   onHideConfirm,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
-  // [New] Dynamic Label State
+  // Dynamic Label State
   const [label, setLabel] = useState<string>(item.label);
 
-  // [Refactor] Description Blocks State
-  // [Refactor] Description Blocks State
+  // Description Blocks State
   // Initialize description blocks from prop lazily to avoid effect on mount
   const [descriptionBlocks, setDescriptionBlocks] = useState<
     DescriptionBlock[]
@@ -69,7 +74,6 @@ const SettingItemRenderer: React.FC<{
   const isFirstRender = useRef(true);
 
   // Initialize description blocks from item.description (string)
-
   useEffect(() => {
     // Skip the first run as lazy init handled it
     if (isFirstRender.current) {
@@ -78,7 +82,6 @@ const SettingItemRenderer: React.FC<{
     }
 
     if (item.description) {
-      // eslint-disable-next-line
       setDescriptionBlocks([{ text: item.description, variant: "default" }]);
     } else {
       setDescriptionBlocks([]);
@@ -94,8 +97,10 @@ const SettingItemRenderer: React.FC<{
   // Expanded State for TextItem
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // [Fix] Track if onInit has taken control to avoid store-override race conditions
+  // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
+
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Sync with prop updates (e.g. from global config change)
   const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
@@ -108,6 +113,12 @@ const SettingItemRenderer: React.FC<{
     }
   }
 
+  // Reactive dependencies for refreshOn
+  // We use stringify to create a stable dependency based on the values of the items we're watching
+  const refreshOnValues = JSON.stringify(
+    item.refreshOn?.map((id) => config[id]) || [],
+  );
+
   // Helper to add description
   const addDescription = useCallback(
     (text: string, variant: DescriptionVariant = "default") => {
@@ -116,59 +127,80 @@ const SettingItemRenderer: React.FC<{
     [],
   );
 
-  const clearDescription = useCallback(() => {
-    setDescriptionBlocks([]);
-  }, []);
+  const resetDescription = useCallback(() => {
+    // [Bug Fix] Reset should revert to the static description if it exists,
+    // rather than wiping everything to an empty array.
+    setDescriptionBlocks(
+      item.description ? [{ text: item.description, variant: "default" }] : [],
+    );
+  }, [item.description]);
 
-  // [Generic] onInit Implementation - Uses Context to allow items to update themselves
+  // onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
     if (item.onInit) {
       logger.log(`[Settings] Running onInit for ${item.id}`);
-      item
-        .onInit({
-          setValue: (newValue) => {
-            if (mounted) {
-              logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
-              setVal(newValue);
-              setAuthorityClaimed(true);
-              onValueChange(item.id, newValue); // [Fix] Sync with parent config for dependencies
-            }
-          },
-          addDescription: (text, variant) => {
-            if (mounted) addDescription(text, variant);
-          },
-          clearDescription: () => {
-            if (mounted) clearDescription();
-          },
-          setDisabled: (newDisabled) => {
-            if (mounted) setDisabled(newDisabled);
-          },
-          setVisible: (newVisible) => {
-            if (mounted) setIsVisible(newVisible);
-          },
-          setLabel: (newLabel) => {
-            if (mounted) setLabel(newLabel);
-          },
-        })
-        .catch((err) => {
+
+      // Auto-clear dynamic descriptions before re-running onInit
+      // This ensures we start with the base static description
+      resetDescription();
+
+      const result = item.onInit({
+        setValue: (newValue) => {
+          if (mounted) {
+            logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
+            setVal(newValue);
+            setAuthorityClaimed(true);
+            onValueChange(item.id, newValue); // Sync with parent config for dependencies
+          }
+        },
+        addDescription: (text, variant) => {
+          if (mounted) addDescription(text, variant);
+        },
+        resetDescription: () => {
+          if (mounted) resetDescription();
+        },
+        setDisabled: (newDisabled) => {
+          if (mounted) setDisabled(newDisabled);
+        },
+        setVisible: (newVisible) => {
+          if (mounted) setIsVisible(newVisible);
+        },
+        setLabel: (newLabel) => {
+          if (mounted) setLabel(newLabel);
+        },
+        showToast: onShowToast,
+      });
+
+      if (result instanceof Promise) {
+        result.catch((err: unknown) => {
           logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
         });
+      }
     }
     return () => {
       mounted = false;
     };
-  }, [item, onValueChange, addDescription, clearDescription]);
+    // Include refreshOnValues to re-trigger onInit when dependencies change
+  }, [
+    item,
+    onValueChange,
+    addDescription,
+    resetDescription,
+    onShowToast,
+    refreshOnValues,
+  ]);
 
   const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
   const isFinalVisible = isVisible && isDependentVisible;
 
   const handleChange = async (newValue: SettingValue) => {
+    if (isProcessing) return; // Prevent double trigger
     setVal(newValue); // Optimistic update
-    onValueChange(item.id, newValue); // [New] Sync locally immediately for dependsOn items
+    onValueChange(item.id, newValue); // Sync locally immediately for dependsOn items
 
     // Persist to Store
-    // [Updated Logic] Only persist if the item is NOT transient (i.e., NO defaultValue).
+    // Only persist if the item is NOT transient (i.e., NO defaultValue).
     // If defaultValue exists, it means it's a UI-only setting or managed elsewhere.
     const isStoreBacked =
       !("defaultValue" in item) || item.defaultValue === undefined;
@@ -181,52 +213,99 @@ const SettingItemRenderer: React.FC<{
       onRestartRequired();
     }
 
-    // Call listener
+    // Call listener with Auto-Disable
     if ("onChangeListener" in item && item.onChangeListener) {
-      // @ts-expect-error - listener signature is generic
-      item.onChangeListener(newValue, {
-        showToast: onShowToast,
-        addDescription: addDescription,
-        clearDescription: clearDescription,
-        setLabel: setLabel,
-      });
+      try {
+        setIsProcessing(true);
+        // @ts-expect-error - listener signature is generic
+        const result = await item.onChangeListener(newValue, {
+          showToast: onShowToast,
+          addDescription: addDescription,
+          resetDescription: resetDescription,
+          setLabel: setLabel,
+          setDisabled: setDisabled,
+          showConfirm: (options) => {
+            onShowConfirm?.({
+              ...options,
+              isOpen: true,
+              onCancel: () => {
+                options.onCancel?.();
+                onHideConfirm?.();
+              },
+              onConfirm: () => {
+                options.onConfirm();
+                onHideConfirm?.();
+              },
+            });
+          },
+        });
+
+        // [Improvement] If listener returns explicit false, revert the change
+        if (typeof result === "boolean" && result === false) {
+          // Revert UI to previous state (simple toggle invert for now, or use prevValue tracked)
+          // Since we updated 'val' optimistically, we need to revert it.
+          // For Check/Switch, it's boolean invert. For others, it might be tricky without tracking prev.
+          // However, 'val' state might have been updated by onInit logic too.
+          // Best effort revert:
+          if (typeof newValue === "boolean") {
+            setVal(!newValue);
+            onValueChange(item.id, !newValue);
+          }
+        }
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
-  const handleActionClick = (_actionId: string) => {
+  const handleActionClick = async (_actionId: string) => {
     // logger.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
+    if (isProcessing) return;
 
     // Priority 1: Generic listener (onClickListener)
     if ("onClickListener" in item && item.onClickListener) {
-      item.onClickListener({
-        showToast: onShowToast,
-        showConfirm: (options) => {
-          onShowConfirm?.({
-            ...options,
-            isOpen: true,
-            onCancel: () => onHideConfirm?.(),
-            onConfirm: () => {
-              options.onConfirm();
-              onHideConfirm?.();
-            },
-          });
-        },
-        setValue: (newValue) => handleChange(newValue),
-      });
+      try {
+        setIsProcessing(true);
+        await item.onClickListener({
+          showToast: onShowToast,
+          showConfirm: (options) => {
+            onShowConfirm?.({
+              ...options,
+              isOpen: true,
+              onCancel: () => {
+                options.onCancel?.();
+                onHideConfirm?.();
+              },
+              onConfirm: () => {
+                options.onConfirm();
+                onHideConfirm?.();
+              },
+            });
+          },
+          setValue: (newValue) => handleChange(newValue),
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
     // Priority 2: Standard onChangeListener (for legacy support if needed)
     else if ("onChangeListener" in item && item.onChangeListener) {
-      // @ts-expect-error - listener signature is generic
-      item.onChangeListener(true, {
-        showToast: onShowToast,
-        addDescription,
-        clearDescription,
-      });
+      try {
+        setIsProcessing(true);
+        // @ts-expect-error - listener signature is generic
+        await item.onChangeListener(true, {
+          showToast: onShowToast,
+          addDescription,
+          resetDescription,
+        });
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
   const currentVal = val;
-  const isDisabled = disabled;
+  const isDisabled = disabled || isProcessing;
 
   // Render Control based on type
   const renderControl = () => {
@@ -237,7 +316,12 @@ const SettingItemRenderer: React.FC<{
       case "check":
         return (
           <CheckItem
-            item={item}
+            item={
+              {
+                ...item,
+                disabled: isDisabled,
+              } as import("../../settings/types").SettingCheck
+            }
             value={!!val}
             onChange={(id, v) => handleChange(v)}
           />
@@ -245,7 +329,12 @@ const SettingItemRenderer: React.FC<{
       case "switch":
         return (
           <SwitchItem
-            item={item}
+            item={
+              {
+                ...item,
+                disabled: isDisabled,
+              } as import("../../settings/types").SettingSwitch
+            }
             value={!!val}
             onChange={(id, v) => handleChange(v)}
           />
@@ -422,11 +511,14 @@ export const SettingsContent: React.FC<Props> = ({
   // Global Config Sync State
   const [config, setConfig] = useState<Record<string, SettingValue>>({});
   const [restartRequired, setRestartRequired] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(false);
 
   // Load Config and Sync with Main Process
   useEffect(() => {
     const loadConfig = async () => {
-      if (!window.electronAPI) return;
+      if (!window.electronAPI) {
+        return;
+      }
       const newValues: Record<string, SettingValue> = {};
 
       for (const section of category.sections) {
@@ -436,8 +528,14 @@ export const SettingsContent: React.FC<Props> = ({
         }
       }
       setConfig((prev) => ({ ...prev, ...newValues }));
+
+      // Enable animations after a short delay to allow onInit layout shifts to settle silently
+      setTimeout(() => {
+        setAnimationsEnabled(true);
+      }, 300);
     };
 
+    // Start loading
     loadConfig();
 
     if (window.electronAPI) {
@@ -452,7 +550,7 @@ export const SettingsContent: React.FC<Props> = ({
     null,
   );
 
-  // [New] Dependency-aware sorting logic for SettingItems
+  // Dependency-aware sorting logic for SettingItems
   const sortSettingItemsByDependency = (items: SettingItem[]) => {
     const sorted: SettingItem[] = [];
     const visited = new Set<string>();
@@ -489,7 +587,10 @@ export const SettingsContent: React.FC<Props> = ({
   };
 
   return (
-    <div className="settings-content" style={{ position: "relative" }}>
+    <div
+      className={`settings-content ${animationsEnabled ? "animations-enabled" : ""}`}
+      style={{ position: "relative" }}
+    >
       <div className="content-actions-bar">
         <button className="settings-close-btn-inline" onClick={onClose}>
           <span className="material-symbols-outlined">close</span>
@@ -505,9 +606,6 @@ export const SettingsContent: React.FC<Props> = ({
 
             {sortSettingItemsByDependency(section.items as SettingItem[]).map(
               (item) => {
-                // Priority Dependency Check - Now handled in SettingItemRenderer for better reactivity
-                // and to maintain component state even when hidden.
-
                 // Resolve value for prop (falls back to default if not in config yet)
                 const defaultVal =
                   "defaultValue" in item

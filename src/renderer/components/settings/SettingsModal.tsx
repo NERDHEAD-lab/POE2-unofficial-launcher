@@ -19,6 +19,9 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   // Toast State (Lifted)
   const [toastMsg, setToastMsg] = useState("");
+  const [toastVariant, setToastVariant] = useState<
+    "default" | "success" | "warning" | "error" | "white"
+  >("default");
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -27,8 +30,12 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     null,
   );
 
-  const showToast = (msg: string) => {
+  const showToast = (
+    msg: string,
+    variant: "default" | "success" | "warning" | "error" | "white" = "default",
+  ) => {
     setToastMsg(msg);
+    setToastVariant(variant);
     setToastVisible(true);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToastVisible(false), 2000);
@@ -86,6 +93,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
           message={toastMsg}
           visible={toastVisible}
           container={modalContainer}
+          variant={toastVariant}
         />
 
         {/* Left Sidebar */}
@@ -97,6 +105,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
         {/* Right Content */}
         <SettingsContent
+          key={activeCategory.id} // Force remount on category change to reset internal state
           category={activeCategory}
           onClose={handleCloseAttempt}
           onShowToast={showToast}

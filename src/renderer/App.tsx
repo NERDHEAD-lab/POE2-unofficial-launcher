@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 
 import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
@@ -16,11 +22,15 @@ import {
   NewsItem,
   PatchProgress,
   UpdateStatus,
+  ChangelogItem,
 } from "../shared/types";
-import { OnboardingModal } from "./components/modals/OnboardingModal"; // [NEW]
+import ChangelogModal from "./components/modals/ChangelogModal";
+import MigrationModal from "./components/modals/MigrationModal";
+import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
+import OfficialLinkButtons from "./components/OfficialLinkButtons";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -44,7 +54,7 @@ const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
   authenticating: { message: "지정 PC 확인 중...", timeout: 3000 },
   ready: { message: "게임 실행 준비 완료! 잠시 후 실행됩니다.", timeout: 3000 },
   running: { message: "게임 실행 중", timeout: -1 }, // Sticky
-  stopping: { message: "게임이 종료되었습니다.", timeout: 0 }, // [New] Shown during transition
+  stopping: { message: "게임이 종료되었습니다.", timeout: 0 }, // Shown during transition
   error: { message: "실행 오류 발생", timeout: 3000 },
 };
 
@@ -93,25 +103,71 @@ function App() {
 
   const prevStatusRef = useRef<RunStatus>("idle");
 
-  // [NEW] Update State
-  // [NEW] Update State (Using object for richer metadata)
+  // Update State
+  // Update State (Using object for richer metadata)
   const [updateState, setUpdateState] = useState<UpdateStatus>({
     state: "idle",
   });
 
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [isLowResMode, setIsLowResMode] = useState(false);
+  // Changelog State
+  const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+  const [versionRange, setVersionRange] = useState<{
+    old?: string;
+    new?: string;
+  }>({});
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
-  // [NEW] Scaling Mode Listener
+  // Changelog Listener
   useEffect(() => {
-    if (window.electronAPI.onScalingModeChange) {
-      return window.electronAPI.onScalingModeChange((enabled: boolean) => {
-        setIsLowResMode(enabled);
+    if (window.electronAPI?.onShowChangelog) {
+      return window.electronAPI.onShowChangelog((data) => {
+        // Handle both old (array only) and new (object) payload for safety
+        if (Array.isArray(data)) {
+          setChangelogs(data);
+          setVersionRange({});
+        } else {
+          setChangelogs(data.changelogs);
+          setVersionRange({ old: data.oldVersion, new: data.newVersion });
+        }
+        setIsChangelogOpen(true);
       });
     }
   }, []);
 
-  // [NEW] Patch Modal State
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false); // [UAC Migration]
+
+  // [UAC Migration] Listener
+  useEffect(() => {
+    if (window.electronAPI?.onUacMigrationRequest) {
+      return window.electronAPI.onUacMigrationRequest(() => {
+        setIsMigrationModalOpen(true);
+      });
+    }
+  }, []);
+
+  const handleMigrationConfirm = () => {
+    window.electronAPI?.confirmUacMigration();
+    setIsMigrationModalOpen(false);
+  };
+
+  const handleMigrationCancel = () => {
+    setIsMigrationModalOpen(false);
+  };
+
+  // Launcher Title State (Managed by Main Process via Events)
+  const [appTitle, setAppTitle] = useState("");
+
+  useEffect(() => {
+    if (window.electronAPI?.onTitleUpdated) {
+      const cleanup = window.electronAPI.onTitleUpdated((newTitle) => {
+        setAppTitle(newTitle);
+      });
+      return cleanup;
+    }
+  }, []);
+
+  // Patch Modal State
   const [patchModalState, setPatchModalState] = useState<{
     isOpen: boolean;
     mode: "confirm" | "progress" | "done" | "error";
@@ -124,7 +180,7 @@ function App() {
     mode: "confirm",
   });
 
-  // [NEW] Patch Progress Listener
+  // Patch Progress Listener
   useEffect(() => {
     if (window.electronAPI) {
       if (window.electronAPI.onPatchProgress) {
@@ -175,7 +231,7 @@ function App() {
     }
   }, []);
 
-  const handlePatchConfirm = () => {
+  const handlePatchConfirm = useCallback(() => {
     // Trigger Manual Fix execution via Main IPC
     window.electronAPI.triggerManualPatchFix();
     setPatchModalState((prev) => ({
@@ -189,20 +245,25 @@ function App() {
         files: [],
       },
     }));
-  };
+  }, []);
 
-  const handlePatchCancel = () => {
-    if (patchModalState.mode === "progress") {
-      window.electronAPI.triggerPatchCancel();
-    }
+  const handlePatchCancel = useCallback(() => {
+    // We need to check the *current* state mode.
+    // Since this callback depends on patchModalState.mode, it will update when mode changes.
+    // However, onCancel is NOT a dependency of the auto-close effect in PatchFixModal, so this is safe.
+    setPatchModalState((prev) => {
+      if (prev.mode === "progress") {
+        window.electronAPI.triggerPatchCancel();
+      }
+      return { ...prev, isOpen: false };
+    });
+  }, []);
+
+  const handlePatchClose = useCallback(() => {
     setPatchModalState((prev) => ({ ...prev, isOpen: false }));
-  };
+  }, []);
 
-  const handlePatchClose = () => {
-    setPatchModalState((prev) => ({ ...prev, isOpen: false }));
-  };
-
-  // [NEW] Update Check Effect
+  // Update Check Effect
   useEffect(() => {
     if (window.electronAPI) {
       // Listen for update status
@@ -341,7 +402,7 @@ function App() {
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
           );
 
-        // [NEW] Load Onboarding State
+        // Load Onboarding State
         if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
           setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
         }
@@ -523,7 +584,7 @@ function App() {
       // Open Download Page using centralized URL constants
       const downloadUrl = DOWNLOAD_URLS[serviceChannel][activeGame];
       if (downloadUrl) {
-        window.electronAPI.openExternal(downloadUrl);
+        window.open(downloadUrl, "_blank");
       } else {
         logger.error(
           `[App] No download URL found for ${activeGame} / ${serviceChannel}`,
@@ -606,6 +667,21 @@ function App() {
         onFinish={handleOnboardingFinish}
       />
 
+      <MigrationModal
+        isOpen={isMigrationModalOpen}
+        onConfirm={handleMigrationConfirm}
+        onCancel={handleMigrationCancel}
+      />
+
+      {isChangelogOpen && (
+        <ChangelogModal
+          changelogs={changelogs}
+          oldVersion={versionRange.old}
+          newVersion={versionRange.new}
+          onClose={() => setIsChangelogOpen(false)}
+        />
+      )}
+
       <UpdateModal
         isOpen={isUpdateModalOpen}
         version={
@@ -673,7 +749,7 @@ function App() {
         />
         {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
         <TitleBar
-          title={`PoE Unofficial Launcher v${__APP_VERSION__}${isLowResMode ? " (저해상도 지원 모드)" : ""}`}
+          title={appTitle}
           showUpdateIcon={
             !isUpdateModalOpen && updateState.state === "available"
           }
@@ -696,7 +772,12 @@ function App() {
           }}
         >
           {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
-          <div className="frame-decoration top-center"></div>
+          <div className="frame-decoration top-center">
+            {/* Blue Fire Overlay (Localized Ripple) */}
+            <div className="top-center-blue" />
+            {/* Interactive Hit Zone for Blue Fire (Top Central Demon) */}
+            <div className="top-center-trigger" />
+          </div>
           <div className="frame-decoration top-left"></div>
           <div className="frame-decoration top-right"></div>
 
@@ -725,7 +806,13 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                <SupportLinks />
+                <SupportLinks
+                  onShowAllChangelogs={(logs) => {
+                    setChangelogs(logs);
+                    setVersionRange({ old: "", new: "" }); // Clear versions for "All" view
+                    setIsChangelogOpen(true);
+                  }}
+                />
               </div>
 
               {/* Section C: Game Start & Company Logos (Bottom) */}
@@ -737,6 +824,13 @@ function App() {
                     onSettingsClick={() => setIsSettingsOpen(true)}
                   />
                 </div>
+
+                {/* Official Links (Homepage/Trade) */}
+                <OfficialLinkButtons
+                  activeGame={activeGame}
+                  serviceChannel={serviceChannel}
+                />
+
                 <GameStartButton
                   onClick={handleGameStart}
                   label={

@@ -26,9 +26,9 @@
 
     ; [New] Run UAC cleanup script if exists (Only when user agrees to full wipe)
     ; This ensures UAC settings are kept during reinstall/update (where user usually says NO to data wipe)
-    IfFileExists "$APPDATA\${PRODUCT_FILENAME}\uac_bypass\uninstall_uac.bat" 0 skip_uac_cleanup
+    IfFileExists "$APPDATA\${PRODUCT_FILENAME}\daumgamestarter_uac\uninstall_uac.bat" 0 skip_uac_cleanup
       DetailPrint "Removing UAC Bypass settings..."
-      ExecWait '"$APPDATA\${PRODUCT_FILENAME}\uac_bypass\uninstall_uac.bat"'
+      ExecWait '"$APPDATA\${PRODUCT_FILENAME}\daumgamestarter_uac\uninstall_uac.bat"'
     skip_uac_cleanup:
 
     ; Attempt to remove actual data path

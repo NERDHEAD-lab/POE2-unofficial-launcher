@@ -176,7 +176,7 @@
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  /* gap: 12px; REMOVED to fix hidden item spacing issue */
 }
 
 .section-title {
@@ -199,7 +199,36 @@
   background: #252525;
   border-radius: 6px;
   border: 1px solid transparent;
-  transition: border-color 0.2s;
+  position: relative; /* CRITICAL: Required for tree-line positioning */
+
+  overflow: visible; /* Tree lines need to stick out */
+  max-height: 800px;
+  opacity: 1;
+  margin-bottom: 12px; /* Replaces gap for better animation control */
+
+  /* Transitions are DISABLED by default to prevent load glitches */
+  transition: none;
+}
+
+/* Disabled State */
+.setting-item.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(100%);
+}
+
+.setting-item.is-hidden {
+  display: none !important;
+}
+
+/* Enable transitions only after initial load settles */
+.settings-content.animations-enabled .setting-item {
+  transition:
+    border-color 0.2s,
+    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease,
+    margin 0.3s ease,
+    padding 0.3s ease;
 }
 
 .setting-item:hover {
@@ -300,13 +329,6 @@
   max-width: 400px;
 }
 
-.image-tooltip-popup img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-}
-
 @keyframes tooltipFadeIn {
   from {
     opacity: 0;
@@ -316,6 +338,13 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.image-tooltip-popup img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
 }
 
 .setting-description {
@@ -414,17 +443,54 @@
 }
 
 .setting-item.is-hidden {
-  display: none !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border: 0 !important; /* Hide border too */
+  pointer-events: none; /* Disable interaction */
+  visibility: hidden; /* Prevent focus */
 }
 
-/* Dependent Item Styling */
+/* Dependent Item Styling (Hierarchy Tree lines) */
 .setting-item.is-dependent {
-  margin-left: 24px;
+  margin-left: 36px;
   position: relative;
-  border-left: 2px solid #444;
-  background: #202020; /* Slightly darker to signify nested */
+  border-left: none; /* Remove legacy border */
+  background: #202020;
 }
 
+/* Vertical Spine (Trunk) */
+.setting-item.is-dependent::before {
+  content: "";
+  position: absolute;
+  top: -14px; /* Force overlap: Start 2px higher than gap (12px) */
+  left: -20px;
+  width: 2px;
+  height: calc(50% + 14px); /* Default: ㄴ shape (compensate top) */
+  background: #3d3d3d;
+  /* NO z-index: -1 here to avoid transparency issues, 
+     positioned left enough to not pierce box content */
+}
+
+/* If followed by another sibling, extend to ㅏ shape with generous overlap */
+.setting-item.is-dependent:has(+ .setting-item.is-dependent)::before {
+  height: calc(100% + 30px); /* Deep overlap to ensure connection */
+}
+
+/* Horizontal Branch (Rib) */
+.setting-item.is-dependent::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -20px;
+  width: 16px;
+  height: 2px;
+  background: #3d3d3d;
+  transform: translateY(-50%);
+}
 /* --- Radio Group Visual (for Select) --- */
 /* Now handled by generic stacked logic below */
 
@@ -957,4 +1023,25 @@
   color: #aaa;
   margin-top: 4px;
   line-height: 1.4;
+}
+
+/* --- Shared Toast Variants --- */
+.shared-toast.success {
+  border-left: 4px solid #4caf50;
+  color: #e8f5e9;
+}
+
+.shared-toast.error {
+  border-left: 4px solid #f44336;
+  color: #ffebee;
+}
+
+.shared-toast.warning {
+  border-left: 4px solid #ff9800;
+  color: #fff3e0;
+}
+
+.shared-toast.white {
+  border-left: 4px solid #fff;
+  color: #fff;
 }

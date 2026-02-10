@@ -208,7 +208,8 @@ const DebugConsole: React.FC = () => {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getConfig().then((config) => {
+      // Fetch RAW config (ignore dependencies, includeForced = false) for the viewer
+      window.electronAPI.getConfig(undefined, true, false).then((config) => {
         setCurrentConfig(config as AppConfig);
 
         // [Splash] Fade out and remove launcher splash screen from index.html (shared with App.tsx)
@@ -321,7 +322,7 @@ const DebugConsole: React.FC = () => {
       scrollToBottom("auto");
     } else if (isNewLog && isAutoScroll) {
       // Auto-scroll only if explicitly enabled (user is at bottom)
-      scrollToBottom("smooth");
+      scrollToBottom("auto");
     }
   }, [logState, filter, isAutoScroll]);
 

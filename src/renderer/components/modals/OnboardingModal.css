@@ -105,6 +105,11 @@
   margin-top: 4px !important;
 }
 
+.alert-text {
+  color: #e26a6a; /* Desaturated red */
+  font-weight: 700;
+}
+
 .notice-section.highlight {
   background: rgba(250, 82, 82, 0.05);
   border: 1px dashed rgba(250, 82, 82, 0.3);
@@ -128,6 +133,7 @@
   line-height: 1.5;
 }
 
+/* UAC Card Base - Create Stacking Context */
 .uac-card {
   background: #222;
   border: 1px solid #333;
@@ -139,6 +145,8 @@
   cursor: pointer;
   transition: all 0.2s ease;
   margin-top: 10px;
+  position: relative;
+  z-index: 2; /* Content above lines */
 }
 
 .uac-card:hover {
@@ -149,6 +157,12 @@
 .uac-card.active {
   border-color: var(--theme-accent, #dfcf99);
   background: rgba(223, 207, 153, 0.05);
+}
+
+.uac-card.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.5);
 }
 
 .uac-card-info {
@@ -174,6 +188,48 @@
   margin-top: 2px;
 }
 
+/* Hierarchical Connection lines (Tree lines) */
+.uac-card.is-dependent {
+  margin-left: 32px !important;
+  border-left: none !important;
+  position: relative;
+  margin-top: 0 !important; /* CRITICAL: Remove margin to make gap exactly equal to flex gap (20px) */
+}
+
+/* Vertical Spine */
+.uac-card.is-dependent::before {
+  content: "";
+  position: absolute;
+  top: -22px; /* Force overlap: Start 2px higher than gap (20px) */
+  left: -12px;
+  width: 2px;
+  height: calc(50% + 22px); /* Default: ㄴ shape (compensate top) */
+  background: #333;
+}
+
+/* If followed by another sibling, extend to ㅏ shape with generous overlap */
+.uac-card.is-dependent:has(+ .uac-card.is-dependent)::before {
+  height: calc(100% + 50px); /* Deep overlap to ensure connection */
+}
+
+/* Horizontal Branch */
+.uac-card.is-dependent::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  width: 12px;
+  height: 2px;
+  background: #333;
+  transform: translateY(-50%);
+}
+
+.uac-card.active.is-dependent::before,
+.uac-card.active.is-dependent::after {
+  background: var(--theme-accent, #dfcf99);
+  opacity: 0.5;
+}
+
 .uac-toggle {
   width: 40px;
   height: 20px;
@@ -181,6 +237,7 @@
   border-radius: 10px;
   position: relative;
   transition: background 0.3s;
+  flex-shrink: 0; /* CRITICAL: Prevent shrinking on long text cards */
 }
 
 .uac-toggle.is-active {
@@ -208,12 +265,13 @@
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #222;
-  height: 140px;
+  height: auto;
 }
 
 .uac-preview-img {
   width: 100%;
-  height: 100%;
+  height: auto;
+  display: block;
   object-fit: contain;
   opacity: 0.6;
 }
@@ -275,6 +333,40 @@
   color: #aaa;
   text-align: left;
   line-height: 1.5;
+}
+
+.switcher-guide-box {
+  margin-top: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #222;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.switcher-gif {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.switcher-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #eee;
+  text-align: center;
+}
+
+.switcher-text span {
+  color: var(--theme-accent, #dfcf99);
+  font-size: 20px;
 }
 
 /* Footer */

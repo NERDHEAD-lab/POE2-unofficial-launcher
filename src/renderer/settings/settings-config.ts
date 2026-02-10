@@ -7,9 +7,9 @@ import { logger } from "../utils/logger";
 const updateProcessWatchModeDescription = async (
   mode: string,
   addDescription: (text: string, variant?: DescriptionVariant) => void,
-  clearDescription: () => void,
+  resetDescription: () => void,
 ) => {
-  clearDescription();
+  resetDescription();
 
   const isAlwaysOn = mode === "always-on";
 
@@ -37,17 +37,33 @@ const updateProcessWatchModeDescription = async (
   }
 };
 
+// Helper for Aggressive Mode Description
+const updateAggressiveModeDescription = (
+  aggressiveModeEnabled: boolean,
+  uacBypassEnabled: boolean,
+  addDescription: (text: string, variant?: DescriptionVariant) => void,
+  resetDescription: () => void,
+) => {
+  resetDescription();
+  if (aggressiveModeEnabled && !uacBypassEnabled) {
+    addDescription(
+      "[주의] DaumGameStarter UAC 우회가 꺼져있을 경우, 강제 종료 시 관리자 권한 요청(UAC)이 발생할 수 있습니다.",
+      "warning",
+    );
+  }
+};
+
 const initBackupButton = async (
   {
     setValue: _setValue,
     addDescription,
-    clearDescription,
+    resetDescription,
     setDisabled: _setDisabled,
     setVisible,
   }: {
     setValue: (v: SettingValue) => void;
     addDescription: (text: string, variant?: DescriptionVariant) => void;
-    clearDescription: () => void;
+    resetDescription: () => void;
     setDisabled: (v: boolean) => void;
     setVisible: (v: boolean) => void;
   },
@@ -79,29 +95,49 @@ const initBackupButton = async (
     desc += `\n- 백업 일시: ${dateStr}`;
     if (Array.isArray(meta.files)) desc += `\n- 파일: ${meta.files.length}개`;
 
-    clearDescription();
+    resetDescription();
     addDescription(desc);
   }
 };
 
-const initDevSetting = async ({
-  setValue,
-  setDisabled,
-  addDescription: _addDescription,
-  clearDescription: _clearDescription,
-  setVisible: _setVisible,
-}: {
-  setValue: (v: SettingValue) => void;
-  addDescription: (text: string, variant?: DescriptionVariant) => void;
-  clearDescription: () => void;
-  setDisabled: (v: boolean) => void;
-  setVisible: (v: boolean) => void;
-}) => {
-  if (import.meta.env.VITE_SHOW_GAME_WINDOW === "true") {
-    setValue(true);
-    setDisabled(true);
-  }
-};
+const initDevOption =
+  (key: string) =>
+  async ({
+    setValue,
+    setDisabled,
+    addDescription,
+    resetDescription: _resetDescription,
+    setVisible: _setVisible,
+  }: {
+    setValue: (v: SettingValue) => void;
+    addDescription: (text: string, variant?: DescriptionVariant) => void;
+    resetDescription: () => void;
+    setDisabled: (v: boolean) => void;
+    setVisible: (v: boolean) => void;
+  }) => {
+    // 1. Force retrieval of raw value (ignore dependencies like dev_mode)
+    if (window.electronAPI?.getConfig) {
+      const rawValue = await window.electronAPI.getConfig(key, true);
+      if (typeof rawValue === "boolean") {
+        setValue(rawValue);
+      }
+    }
+
+    // 2. Forced Setting Check (dev:test mode)
+    if (window.electronAPI?.isConfigForced) {
+      const isForced = await window.electronAPI.isConfigForced(key);
+      if (isForced) {
+        setValue(true);
+        setDisabled(true);
+        if (key === "dev_mode") {
+          addDescription(
+            "개발자 테스트 모드로 인해 이 설정은 강제 활성화되었습니다.",
+            "info",
+          );
+        }
+      }
+    }
+  };
 
 export const SETTINGS_CONFIG: SettingsCategory[] = [
   {
@@ -221,7 +257,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               setValue,
               addDescription,
               setLabel,
-              clearDescription,
+              resetDescription,
             }) => {
               // Manual Sync: Read from actual config
               const mode = (await window.electronAPI?.getConfig(
@@ -240,12 +276,12 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               await updateProcessWatchModeDescription(
                 currentMode,
                 addDescription,
-                clearDescription,
+                resetDescription,
               );
             },
             onChangeListener: async (
               val,
-              { addDescription, clearDescription, showToast },
+              { addDescription, resetDescription, showToast },
             ) => {
               // Manual Sync: Write to actual config
               // val is already string "resource-saving" | "always-on" due to Radio type
@@ -262,7 +298,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               await updateProcessWatchModeDescription(
                 newMode,
                 addDescription,
-                clearDescription,
+                resetDescription,
               );
             },
           },
@@ -301,26 +337,35 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             icon: "logout",
             onClickListener: async ({ showToast, showConfirm }) => {
               if (!window.electronAPI) return;
-              showConfirm({
-                title: "로그아웃 확인",
-                message:
-                  "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
-                confirmText: "로그아웃",
-                variant: "danger",
-                onConfirm: async () => {
-                  try {
-                    showToast("[로그아웃] 요청 중...");
-                    const success = await window.electronAPI!.logoutSession();
-                    if (success) {
-                      showToast("[로그아웃] 완료되었습니다.");
-                    } else {
-                      showToast("[로그아웃] 실패했습니다.");
+
+              // Return a Promise that resolves ONLY after the action is fully complete (or cancelled)
+              return new Promise<void>((resolve) => {
+                showConfirm({
+                  title: "로그아웃 확인",
+                  message:
+                    "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                  confirmText: "로그아웃",
+                  variant: "danger",
+                  onConfirm: async () => {
+                    try {
+                      showToast("[로그아웃] 요청 중...");
+                      const success = await window.electronAPI!.logoutSession();
+                      if (success) {
+                        showToast("[로그아웃] 완료되었습니다.");
+                      } else {
+                        showToast("[로그아웃] 실패했습니다.");
+                      }
+                    } catch (err) {
+                      logger.error("[Settings] Logout error:", err);
+                      showToast("[로그아웃] 오류가 발생했습니다.");
+                    } finally {
+                      resolve(); // Resolve after operation
                     }
-                  } catch (err) {
-                    logger.error("[Settings] Logout error:", err);
-                    showToast("[로그아웃] 오류가 발생했습니다.");
-                  }
-                },
+                  },
+                  onCancel: () => {
+                    resolve(); // Resolve immediately if cancelled
+                  },
+                });
               });
             },
           },
@@ -344,14 +389,14 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "프로세스 관리",
         items: [
           {
-            id: "uac_bypass",
+            id: "skipDaumGameStarterUac",
             type: "check",
             label: "DaumGameStarter UAC 우회",
             description:
-              "카카오게임즈에서 게임 실행 시 매번 뜨는 UAC(사용자 계정 컨트롤) 창을 건너뜁니다.",
-            defaultValue: false,
-            icon: "verified_user",
-            infoImage: imgUacTooltip,
+              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
+            icon: "speed",
+            infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
+            // [Sync] Explicitly handle init/change as requested
             onInit: async ({ setValue }) => {
               if (window.electronAPI) {
                 const result = await window.electronAPI.isUACBypassEnabled();
@@ -362,16 +407,34 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             },
             onChangeListener: async (val, { showToast }) => {
               if (window.electronAPI) {
-                showToast(`[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`);
-                const result = val
-                  ? await window.electronAPI.enableUACBypass()
-                  : await window.electronAPI.disableUACBypass();
+                // Return Promise to trigger auto-disable in SettingsContent.tsx
+                return (async () => {
+                  try {
+                    showToast(
+                      `[UAC 우회] ${val ? "적용 중..." : "해제 중..."}`,
+                    );
+                    const result = val
+                      ? await window.electronAPI!.enableUACBypass()
+                      : await window.electronAPI!.disableUACBypass();
 
-                if (result) {
-                  showToast(`[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`);
-                } else {
-                  showToast(`[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`);
-                }
+                    if (result) {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 완료" : "해제 완료"}`,
+                        "success",
+                      );
+                      return true;
+                    } else {
+                      showToast(
+                        `[UAC 우회] ${val ? "적용 실패" : "해제 실패"}`,
+                        "error",
+                      );
+                      return false;
+                    }
+                  } catch (error) {
+                    showToast(`[UAC 우회] 오류 발생: ${error}`, "error");
+                    return false;
+                  }
+                })();
               }
             },
           },
@@ -388,6 +451,56 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             description:
               "게임 실행 로그에서 패치 오류가 감지되면, 확인 창 없이 즉시 복구를 진행합니다.",
             icon: "autorenew",
+          },
+          {
+            id: "aggressivePatchMode",
+            type: "check",
+            label: "한국인 모드 (BETA)",
+            description:
+              "단 한번이라도 다운로드에 실패하면 지체없이 강제 종료 후 복구합니다.",
+            icon: "offline_bolt",
+            dependsOn: "autoFixPatchError",
+            refreshOn: ["skipDaumGameStarterUac"],
+            onInit: async ({ addDescription, resetDescription }) => {
+              if (window.electronAPI) {
+                const aggressiveMode = await window.electronAPI.getConfig(
+                  "aggressivePatchMode",
+                );
+                const uacBypassEnabled = await window.electronAPI.getConfig(
+                  "skipDaumGameStarterUac",
+                );
+
+                updateAggressiveModeDescription(
+                  !!aggressiveMode,
+                  !!uacBypassEnabled,
+                  addDescription,
+                  resetDescription,
+                );
+              } else {
+                updateAggressiveModeDescription(
+                  false,
+                  false, // Both default to false
+                  addDescription,
+                  resetDescription,
+                );
+              }
+            },
+            onChangeListener: async (
+              val,
+              { addDescription, resetDescription },
+            ) => {
+              if (window.electronAPI) {
+                const uacBypassEnabled = await window.electronAPI.getConfig(
+                  "skipDaumGameStarterUac",
+                );
+                updateAggressiveModeDescription(
+                  val === true, // Current checkbox state
+                  !!uacBypassEnabled,
+                  addDescription,
+                  resetDescription,
+                );
+              }
+            },
           },
           {
             id: "autoGameStartAfterFix",
@@ -417,7 +530,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE1");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE1");
             },
           },
           {
@@ -431,7 +544,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             onInit: (context) =>
               initBackupButton(context, "Kakao Games", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("Kakao Games", "POE2");
+              window.electronAPI?.triggerRestoreBackup("Kakao Games", "POE2");
             },
           },
           {
@@ -444,7 +557,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE1"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE1");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE1");
             },
           },
           {
@@ -457,7 +570,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             dependsOn: "backupPatchFiles",
             onInit: (context) => initBackupButton(context, "GGG", "POE2"),
             onClickListener: () => {
-              window.electronAPI?.triggerManualPatchFix("GGG", "POE2");
+              window.electronAPI?.triggerRestoreBackup("GGG", "POE2");
             },
           },
         ],
@@ -478,8 +591,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "check",
             label: "개발자 모드 활성화",
             icon: "bug_report",
-            requiresRestart: true,
-            onInit: initDevSetting,
+            onInit: initDevOption("dev_mode"),
           },
           {
             id: "debug_console",
@@ -487,7 +599,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "디버그 콘솔 표시",
             icon: "terminal",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("debug_console"),
           },
           {
             id: "show_inactive_windows",
@@ -495,15 +607,15 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             label: "비활성 윈도우 표시",
             icon: "visibility",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_windows"),
           },
           {
             id: "show_inactive_window_console",
             type: "check",
-            label: "비활성 윈도우 콘솔 표시",
+            label: "DevTools 표시 (Show DevTools)",
             icon: "javascript",
             dependsOn: "dev_mode",
-            onInit: initDevSetting,
+            onInit: initDevOption("show_inactive_window_console"),
           },
         ],
       },
@@ -516,6 +628,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     sections: [
       {
         id: "abt_info",
+        title: "일반 정보",
         items: [
           {
             id: "version_info",
@@ -536,6 +649,62 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               url: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/blob/master/LICENSE",
             },
             icon: "description",
+          },
+        ],
+      },
+      {
+        id: "abt_paths",
+        title: "경로 정보",
+        items: [
+          {
+            id: "btn_open_install",
+            type: "button",
+            label: "런처 설치 경로",
+            buttonText: "폴더 열기",
+            icon: "folder_shared",
+            onInit: async ({ addDescription, resetDescription }) => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                resetDescription();
+                addDescription(installDir, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const exePath = await window.electronAPI.getPath("exe");
+                const installDir = exePath.substring(
+                  0,
+                  Math.max(exePath.lastIndexOf("\\"), exePath.lastIndexOf("/")),
+                );
+                await window.electronAPI.openPath(installDir);
+              }
+            },
+          },
+          {
+            id: "btn_open_config",
+            type: "button",
+            label: "설정 파일 경로",
+            buttonText: "폴더 열기",
+            icon: "settings_system_daydream",
+            onInit: async ({ addDescription, resetDescription }) => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                resetDescription();
+                addDescription(userDataPath, "info");
+              }
+            },
+            onClickListener: async () => {
+              if (window.electronAPI) {
+                const userDataPath =
+                  await window.electronAPI.getPath("userData");
+                await window.electronAPI.openPath(userDataPath);
+              }
+            },
           },
         ],
       },
