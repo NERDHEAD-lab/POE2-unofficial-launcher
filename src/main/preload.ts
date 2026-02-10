@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => ipcRenderer.invoke("news:get-cache", game, service, category),
   getNewsContent: (id: string, link: string) =>
     ipcRenderer.invoke("news:get-content", id, link),
+  getNewsContentCache: (id: string) =>
+    ipcRenderer.invoke("news:get-content-cache", id),
   markNewsAsRead: (id: string) => ipcRenderer.invoke("news:mark-as-read", id),
   markMultipleNewsAsRead: (ids: string[]) =>
     ipcRenderer.invoke("news:mark-multiple-as-read", ids),
@@ -71,6 +73,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = () => callback();
     ipcRenderer.on("news-updated", handler);
     return () => ipcRenderer.off("news-updated", handler);
+  },
+  onWindowShow: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("app:window-show", handler);
+    return () => ipcRenderer.off("app:window-show", handler);
   },
   sendDebugLog: (log: DebugLogEvent["payload"]) =>
     ipcRenderer.send("debug-log:send", log),

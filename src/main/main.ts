@@ -439,6 +439,10 @@ ipcMain.handle("news:get-content", async (_event, id: string, link: string) => {
   return newsService.fetchNewsContent(id, link);
 });
 
+ipcMain.handle("news:get-content-cache", (_event, id: string) => {
+  return newsService.getContentFromCache(id);
+});
+
 ipcMain.handle("news:mark-as-read", async (_event, id: string) => {
   return newsService.markAsRead(id);
 });
@@ -1116,7 +1120,10 @@ function createWindows() {
     triggerDevToolsSync();
   };
 
-  mainWindow.on("show", () => syncSubWindowsVisibility(true));
+  mainWindow.on("show", () => {
+    syncSubWindowsVisibility(true);
+    mainWindow?.webContents.send("app:window-show");
+  });
   mainWindow.on("hide", () => syncSubWindowsVisibility(false));
 
   // Initialize Tray

@@ -14,6 +14,7 @@ import {
   NewsItem,
   NewsCategory,
   NewsServiceState,
+  NewsContent,
   AppConfig,
 } from "../../shared/types";
 import { Logger } from "../utils/logger";
@@ -109,6 +110,7 @@ export class NewsService {
     }
 
     this.fetchLock.add(key);
+    this.logger.log(`Fetching ${category} for ${service}-${game}...`);
 
     try {
       const response = await this.fetchWithRetry(url, {
@@ -178,8 +180,15 @@ export class NewsService {
 
         // Notify UI if it was a background refresh or if we need to update
         if (this.onUpdated) this.onUpdated();
+        this.logger.log(`News updated for ${key}. (New items detected)`);
+
+        // Run garbage collection to clean up orphaned contents
+        this.garbageCollect();
       }
 
+      this.logger.log(
+        `Successfully fetched ${category} for ${service}-${game}.`,
+      );
       return items;
     } catch (error) {
       this.logger.error(`Failed to fetch news list for ${key}:`, error);
@@ -221,12 +230,14 @@ export class NewsService {
         },
       );
 
-      // Sort: Priority (!) first, then by date descending
-      return items.sort((a, b) => {
-        if (a.isSticky && !b.isSticky) return -1;
-        if (!a.isSticky && b.isSticky) return 1;
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      });
+      // Sort: Priority (!) first, then by date descending, and finally limit to MAX_NEWS_COUNT
+      return items
+        .sort((a, b) => {
+          if (a.isSticky && !b.isSticky) return -1;
+          if (!a.isSticky && b.isSticky) return 1;
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        })
+        .slice(0, MAX_NEWS_COUNT);
     } catch (error) {
       this.logger.error("Failed to fetch dev notices:", error);
       return [];
@@ -234,6 +245,7 @@ export class NewsService {
   }
 
   async fetchNewsContent(id: string, link: string): Promise<string> {
+    this.logger.log(`Fetching content for post ${id}...`);
     try {
       const response = await this.fetchWithRetry(link, {
         headers: {
@@ -274,12 +286,19 @@ export class NewsService {
       const cleanHtml = content.innerHTML.trim();
 
       const contents = this.store.get("contents");
+      const isChanged = contents[id]?.content !== cleanHtml;
+
       contents[id] = {
         id,
         content: cleanHtml,
         lastUpdated: Date.now(),
       };
       this.store.set("contents", contents);
+
+      if (isChanged) {
+        this.logger.log(`Content updated for post ${id}.`);
+      }
+      this.logger.log(`Successfully fetched content for post ${id}.`);
 
       return cleanHtml;
     } catch (error) {
@@ -331,6 +350,40 @@ export class NewsService {
         ? keyOrConfig
         : `${keyOrConfig.service}-${keyOrConfig.game}-${keyOrConfig.category}`;
     return this.store.get("items")[key] || [];
+  }
+
+  private garbageCollect() {
+    try {
+      const itemsMap = this.store.get("items") || {};
+      const activeIds = new Set<string>();
+
+      Object.values(itemsMap).forEach((items) => {
+        if (Array.isArray(items)) {
+          items.forEach((item: NewsItem) => activeIds.add(item.id));
+        }
+      });
+
+      const contentsMap = this.store.get("contents") || {};
+      const nextContents: Record<string, NewsContent> = {};
+      let removedCount = 0;
+
+      Object.keys(contentsMap).forEach((id) => {
+        if (activeIds.has(id)) {
+          nextContents[id] = contentsMap[id];
+        } else {
+          removedCount++;
+        }
+      });
+
+      if (removedCount > 0) {
+        this.store.set("contents", nextContents);
+        this.logger.log(
+          `Garbage collection finished. Removed ${removedCount} orphaned contents.`,
+        );
+      }
+    } catch (e) {
+      this.logger.error("Failed to run news garbage collection:", e);
+    }
   }
 }
 

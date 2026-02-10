@@ -19,23 +19,37 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
     const nextExpanded = !isExpanded;
     setIsExpanded(nextExpanded);
 
-    if (nextExpanded && !content) {
+    if (nextExpanded) {
+      // 1. Try to load from cache first for instant feedback
+      let currentContent = content;
+      if (!currentContent) {
+        const cached = await window.electronAPI.getNewsContentCache(item.id);
+        if (cached) {
+          currentContent = cached;
+          setContent(cached);
+        }
+      }
+
+      // 2. Fetch live content in background to ensure it's up to date
       setIsLoading(true);
       try {
         const result = await window.electronAPI.getNewsContent(
           item.id,
           item.link,
         );
-        setContent(result);
+        // Update ONLY if content actually changed from what we have (cached or previous)
+        if (result !== currentContent) {
+          setContent(result);
+        }
         onRead(item.id);
       } catch (error) {
         logger.error("Failed to load news content:", error);
-        setContent("내용을 불러오는 데 실패했습니다.");
+        if (!currentContent) {
+          setContent("내용을 불러오는 데 실패했습니다.");
+        }
       } finally {
         setIsLoading(false);
       }
-    } else if (nextExpanded) {
-      onRead(item.id);
     }
   };
 
@@ -66,7 +80,7 @@ const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
           </button>
 
           <div className="news-scroll-view">
-            {isLoading ? (
+            {isLoading && !content ? (
               <div className="news-content-loading">Loading content...</div>
             ) : (
               <div

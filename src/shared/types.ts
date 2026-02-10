@@ -175,9 +175,11 @@ export interface ElectronAPI {
     category: NewsCategory,
   ) => Promise<NewsItem[]>;
   getNewsContent: (id: string, link: string) => Promise<string>;
+  getNewsContentCache: (id: string) => Promise<string | null>;
   markNewsAsRead: (id: string) => Promise<void>;
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
   onNewsUpdated: (callback: () => void) => () => void;
+  onWindowShow: (callback: () => void) => () => void;
   sendDebugLog: (log: DebugLogPayload) => void;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download
