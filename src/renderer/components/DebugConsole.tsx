@@ -5,6 +5,7 @@ import { mergeLog } from "./debug/helpers";
 import { LogModule, ConfigModule } from "./debug/modules";
 import { LogEntry, DebugModule } from "./debug/types";
 import { AppConfig } from "../../shared/types";
+import "./DebugConsole.css";
 
 const DebugConsole: React.FC = () => {
   const [currentConfig, setCurrentConfig] = useState<Partial<AppConfig>>({});
@@ -79,6 +80,8 @@ const DebugConsole: React.FC = () => {
 
       const handleMouseUpGlobal = () => {
         setIsTabDragging(false);
+        // Reset hasMoved after a short delay to allow onClick to fire with current state
+        setTimeout(() => setHasMoved(false), 50);
       };
 
       window.addEventListener("mousemove", handleMouseMoveGlobal);
@@ -331,142 +334,27 @@ const DebugConsole: React.FC = () => {
   );
 
   return (
-    <div
-      style={{
-        backgroundColor: "#1e1e1e",
-        color: "#d4d4d4",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontSize: "12px",
-        height: "100vh",
-        width: "100vw",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        boxSizing: "border-box",
-      }}
-    >
-      <style>
-        {`
-          @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-          
-          .new-log-button {
-            background-color: rgba(0, 122, 204, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 5px 12px;
-            border-radius: 14px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 11px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            animation: slideUp 0.3s ease-out;
-          }
-
-          .new-log-button:hover {
-            background-color: rgba(0, 122, 204, 0.9);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-          }
-
-          .new-log-button:active {
-            transform: translateY(0);
-            background-color: #007acc;
-          }
-
-          @keyframes blink {
-            0% { opacity: 1; }
-            50% { opacity: 0.4; }
-            100% { opacity: 1; }
-          }
-          
-          /* Hide Scrollbar for Tabs Area */
-          .tabs-scroll-area::-webkit-scrollbar {
-            display: none;
-          }
-          .tabs-scroll-area {
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-          }
-          
-          /* Custom Slim Scrollbar for Debug Console */
-          *::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          *::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          *::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            transition: background 0.2s ease;
-          }
-          *::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-          }
-          
-          /* Firefox Support */
-          * {
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-          }
-        `}
-      </style>
+    <div className="debug-console-container">
       <div
-        style={{
-          borderBottom: "1px solid #333",
-          padding: "10px",
-          backgroundColor: "#1e1e1e",
-          fontWeight: "bold",
-          userSelect: "none",
-          flexShrink: 0,
-          zIndex: 10,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
+        className="console-titlebar"
+        style={{ ...({ WebkitAppRegion: "drag" } as any) }}
       >
-        <div>POE2 Launcher Debug Console</div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div className="console-title-text">POE2 Launcher Debug Console</div>
+        <div
+          className="console-controls"
+          style={{ ...({ WebkitAppRegion: "no-drag" } as any) }}
+        >
           <button
             onClick={() => setShowExportModal(true)}
             title="Export Logs & Config"
-            style={{
-              background: "#333",
-              color: "#fff",
-              border: "none",
-              padding: "4px 8px",
-              borderRadius: "3px",
-              cursor: "pointer",
-              fontSize: "11px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
+            className="btn-export"
           >
             💾 Export
           </button>
           <button
             onClick={() => window.electronAPI.closeWindow()}
             title="Close"
-            style={{
-              background: "transparent",
-              color: "#888",
-              border: "none",
-              padding: "4px 8px",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
+            className="btn-close"
           >
             ✕
           </button>
@@ -476,11 +364,9 @@ const DebugConsole: React.FC = () => {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
+        className="panel-container"
         style={{
-          flex: 1,
-          overflowY: "auto",
           whiteSpace: filter === "RAW CONFIGS" ? "normal" : "pre-wrap",
-          position: "relative",
         }}
       >
         {activeModule?.renderPanel(filter, getModuleProps(filter))}
@@ -490,12 +376,6 @@ const DebugConsole: React.FC = () => {
           <button
             onClick={() => scrollToBottom("smooth")}
             className="new-log-button"
-            style={{
-              position: "fixed",
-              bottom: "55px",
-              right: "25px",
-              zIndex: 100,
-            }}
           >
             <span style={{ fontSize: "12px" }}>⬇</span> 새 로그 보기
           </button>
@@ -503,29 +383,14 @@ const DebugConsole: React.FC = () => {
       </div>
 
       {/* Footer Container */}
-      <div
-        style={{
-          borderTop: "1px solid #333",
-          backgroundColor: "#252526",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          height: "35px",
-          overflow: "hidden",
-        }}
-      >
+      <div className="console-footer">
         {/* Left: Scrollable Tabs Area */}
         <div
           ref={tabsRef}
           onMouseDown={handleTabMouseDown}
           className="tabs-scroll-area"
           style={{
-            flex: 1,
-            display: "flex",
-            overflowX: "auto",
             cursor: isTabDragging ? "grabbing" : "pointer",
-            userSelect: "none",
-            height: "100%",
           }}
         >
           {modules
@@ -542,20 +407,14 @@ const DebugConsole: React.FC = () => {
                   onClick={() => {
                     if (!hasMoved) setFilter(tab.id);
                   }}
+                  className="console-tab"
                   style={{
                     background: isActive ? "#3e3e42" : "transparent",
                     color: isActive ? "#fff" : tab.color || "#ccc",
-                    border: "none",
-                    padding: "0 16px",
-                    height: "100%",
                     cursor: isTabDragging ? "grabbing" : "pointer",
-                    fontSize: "12px",
-                    fontFamily: "inherit",
-                    borderRight: "1px solid #333",
                     borderTop: isActive
                       ? `2px solid ${tabColor}`
                       : "2px solid transparent",
-                    whiteSpace: "nowrap",
                     opacity: isActive ? 1 : 0.7,
                   }}
                 >
@@ -566,16 +425,7 @@ const DebugConsole: React.FC = () => {
         </div>
 
         {/* Right: Pinned Config Button Area */}
-        <div
-          style={{
-            display: "flex",
-            height: "100%",
-            flexShrink: 0,
-            borderLeft: "1px solid #333",
-            backgroundColor: "#252526", // Ensure it's opaque during scroll
-            zIndex: 11,
-          }}
-        >
+        <div className="pinned-area">
           {modules
             .filter((m) => m.position === "right")
             .sort((a, b) => a.order - b.order)
@@ -587,26 +437,16 @@ const DebugConsole: React.FC = () => {
               return (
                 <button
                   key={tab.id}
+                  onMouseDown={() => setHasMoved(false)}
                   onClick={() => {
                     if (!hasMoved) setFilter(tab.id);
                   }}
+                  className="pinned-tab"
                   style={{
                     background: isActive ? tabColor : "#333",
-                    color: "#fff",
-                    border: "none",
-                    padding: "0 20px",
-                    height: "100%",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                    fontFamily: "inherit",
                     borderTop: isActive
                       ? "2px solid #fff"
                       : "2px solid transparent",
-                    whiteSpace: "nowrap",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
                   }}
                 >
                   {tab.label.toUpperCase()}

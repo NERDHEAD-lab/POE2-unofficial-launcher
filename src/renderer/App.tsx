@@ -727,7 +727,7 @@ function App() {
           position: "relative",
           zIndex: 10,
           flexShrink: 0,
-          backgroundColor: "#000", // Background of the UI frame itself
+          backgroundColor: "#000",
         }}
       >
         {/* Background Layer (Now inside Scaler to create Letterbox effect) */}

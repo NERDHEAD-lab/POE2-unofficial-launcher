@@ -131,7 +131,7 @@ async function checkLauncherVersionUpdate(context: AppContext) {
     // Emit Config Change Event manually to trigger ChangelogHandler
     // We only trigger if there WAS a previous version (not fresh install)
     if (storedVersion) {
-      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
+      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
         key: "launcherVersion",
         oldValue: storedVersion,
         newValue: currentVersion,
@@ -816,6 +816,7 @@ const handlers = [
         if (changed) {
           eventBus.emit(EventType.UPDATE_WINDOW_TITLE, context, undefined);
         }
+        syncDebugWindow("ConfigChange");
       }
     },
   },
@@ -886,6 +887,7 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (changed && appContext) {
     eventBus.emit(EventType.UPDATE_WINDOW_TITLE, appContext, undefined);
   }
+  syncDebugWindow("IntelligentConstraints");
 }
 
 // Global Context
@@ -988,32 +990,6 @@ function createWindows() {
     applyIntelligentConstraints(mainWindow);
   });
 
-  // Utility: Debounce
-  function debounce<T extends (...args: unknown[]) => void>(
-    func: T,
-    wait: number,
-  ): (...args: Parameters<T>) => void {
-    let timeout: NodeJS.Timeout | null = null;
-    return function (...args: Parameters<T>) {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        func(...args);
-      }, wait);
-    };
-  }
-
-  // Also update when window is moved (to handle multi-monitor scaling)
-  // [Optimize] Debounce move event to prevent IPC flooding (Performance)
-  mainWindow.on(
-    "move",
-    debounce(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        const config = getConfig() as AppConfig;
-        enforceConstraints(mainWindow, config);
-      }
-    }, 100),
-  );
-
   // Reveal window when ready-to-show
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1101,8 +1077,47 @@ function createWindows() {
   mainWindow.on("show", () => {
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
+    syncDebugWindow("MainShow");
   });
   mainWindow.on("hide", () => syncSubWindowsVisibility(false));
+
+  mainWindow.on("enter-full-screen", () => syncDebugWindow("FullScreenEnter"));
+  mainWindow.on("leave-full-screen", () => syncDebugWindow("FullScreenLeave"));
+  mainWindow.on("maximize", () => syncDebugWindow("Maximize"));
+  mainWindow.on("unmaximize", () => syncDebugWindow("Unmaximize"));
+  mainWindow.on("resize", () => syncDebugWindow("Resize"));
+  mainWindow.on("move", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const config = getConfig() as AppConfig;
+      enforceConstraints(mainWindow, config);
+      syncDebugWindow("MainMove");
+    }
+  });
+
+  // [Z-Order Sync] Keep debug console above launcher only when launcher is focused
+  mainWindow.on("focus", () => {
+    const win = mainWindow;
+    if (
+      win &&
+      !win.isDestroyed() &&
+      debugWindow &&
+      !debugWindow.isDestroyed()
+    ) {
+      // In fullscreen/maximized, we need setAlwaysOnTop to stay above the host
+      if (win.isFullScreen() || win.isMaximized()) {
+        debugWindow.setAlwaysOnTop(true, "screen-saver");
+        debugWindow.showInactive(); // Ensure visible without stealing focus
+        debugWindow.moveTop();
+      }
+    }
+  });
+
+  mainWindow.on("blur", () => {
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      // Release always-on-top so it can go behind other apps with the launcher
+      debugWindow.setAlwaysOnTop(false);
+    }
+  });
 
   // Initialize Tray
   trayManager.init(mainWindow, context);
@@ -1218,6 +1233,93 @@ function createWindows() {
   });
 }
 
+/**
+ * Synchronizes the debug window's docking state, position, and height with the main window.
+ */
+function syncDebugWindow(triggerSource: string = "Dynamic") {
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !debugWindow ||
+    debugWindow.isDestroyed()
+  ) {
+    return;
+  }
+
+  const isFullScreen = mainWindow.isFullScreen();
+  const isMaximized = mainWindow.isMaximized();
+  const isDocked = !isFullScreen && !isMaximized;
+
+  // Reduced logging during high-frequency move events
+  if (triggerSource !== "MainMove") {
+    logger.log(
+      `[Main][${triggerSource}] Syncing Debug Window. Docked: ${isDocked}`,
+    );
+  }
+
+  if (isDocked) {
+    const mainBounds = mainWindow.getBounds();
+    const debugBounds = debugWindow.getBounds();
+    const targetX = mainBounds.x + mainBounds.width;
+
+    // 1. Enforce Parent & Movability (Only if changed)
+    if (debugWindow.getParentWindow() !== mainWindow) {
+      debugWindow.setParentWindow(mainWindow);
+    }
+    if (debugWindow.isMovable()) {
+      debugWindow.setMovable(false);
+    }
+
+    // 2. Sync Bounds (Position + Height)
+    // We only update if there's a meaningful difference to avoid event loops
+    if (
+      debugBounds.x !== targetX ||
+      debugBounds.y !== mainBounds.y ||
+      debugBounds.height !== mainBounds.height
+    ) {
+      debugWindow.setBounds({
+        x: targetX,
+        y: mainBounds.y,
+        height: mainBounds.height,
+        width: debugBounds.width, // Preserve user-defined width
+      });
+    }
+
+    // 3. Keep constraints (Only if changed)
+    const [minW, minH] = debugWindow.getMinimumSize();
+    if (minW !== 400 || minH !== mainBounds.height) {
+      debugWindow.setMinimumSize(400, mainBounds.height);
+    }
+    const [maxW, maxH] = debugWindow.getMaximumSize();
+    if (maxW !== 1000 || maxH !== mainBounds.height) {
+      debugWindow.setMaximumSize(1000, mainBounds.height);
+    }
+  } else {
+    // Detached Mode (Fullscreen or Flexible/Maximized)
+    // 1. Release Parent & Allow movement (Only if changed)
+    if (debugWindow.getParentWindow() !== null) {
+      debugWindow.setParentWindow(null);
+    }
+    if (!debugWindow.isMovable()) {
+      debugWindow.setMovable(true);
+    }
+
+    // 2. Remove height/size constraints (Only if changed)
+    const [minW, minH] = debugWindow.getMinimumSize();
+    if (minW !== 400 || minH !== 300) {
+      debugWindow.setMinimumSize(400, 300);
+    }
+    const [maxW, maxH] = debugWindow.getMaximumSize();
+    if (maxW !== 2000 || maxH !== 2000) {
+      debugWindow.setMaximumSize(2000, 2000);
+    }
+
+    // 3. Move forward if it was behind (Optional UX)
+    // [Fix] Removed moveTop() to prevent focus-stealing during state transitions (Fullscreen/Maximize)
+    // which caused the "stuck in top-left" regression on Windows.
+  }
+}
+
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
 
 /**
@@ -1254,21 +1356,11 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
   if (shouldShow && (!debugWindow || debugWindow.isDestroyed())) {
     isInitInProgress = true;
     try {
-      // Check bounds
       const mainBounds = mainWindow.getBounds();
-      const targetX = mainBounds.x + mainBounds.width;
-      const targetY = mainBounds.y;
-
-      logger.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
-        targetX,
-        targetY,
-      });
 
       debugWindow = new BrowserWindow({
         width: 900,
         height: mainBounds.height,
-        x: targetX,
-        y: targetY,
         parent: mainWindow,
         title: DEBUG_APP_CONFIG.TITLE,
         frame: false,
@@ -1277,7 +1369,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         minimizable: true,
         closable: true,
         autoHideMenuBar: true,
-        show: false, // [Fix] Start hidden to prevent white flash & ensure ready-to-show logic
+        show: false,
         webPreferences: {
           preload: path.join(__dirname, "preload.js"),
         },
@@ -1287,15 +1379,12 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       debugWindow.once("ready-to-show", () => {
         if (debugWindow && !debugWindow.isDestroyed()) {
           debugWindow.show();
+          syncDebugWindow("ReadyToShow");
         }
       });
 
       // Update Context
       context.debugWindow = debugWindow;
-
-      // Lock Height to match Main Window
-      debugWindow.setMinimumSize(400, mainBounds.height);
-      debugWindow.setMaximumSize(1000, mainBounds.height);
 
       const debugUrl = VITE_DEV_SERVER_URL
         ? `${VITE_DEV_SERVER_URL}${DEBUG_APP_CONFIG.HASH}`
@@ -1316,43 +1405,27 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         }
       });
 
-      const updateDebugPosition = () => {
-        if (
-          mainWindow &&
-          !mainWindow.isDestroyed() &&
-          debugWindow &&
-          !debugWindow.isDestroyed()
-        ) {
-          const bounds = mainWindow.getBounds();
-          debugWindow.setPosition(bounds.x + bounds.width, bounds.y);
-        }
-      };
-
-      mainWindow.on("move", updateDebugPosition);
-
-      // Enforce docking during resize
+      // Enforce docking during debug window resize (only if docked)
       debugWindow.on("resize", () => {
         if (
           mainWindow &&
           !mainWindow.isDestroyed() &&
           debugWindow &&
-          !debugWindow.isDestroyed()
+          !debugWindow.isDestroyed() &&
+          !mainWindow.isFullScreen() &&
+          !mainWindow.isMaximized()
         ) {
           const mainBounds = mainWindow.getBounds();
           const debugBounds = debugWindow.getBounds();
           const targetX = mainBounds.x + mainBounds.width;
 
-          if (
-            debugBounds.x !== targetX ||
-            debugBounds.y !== mainBounds.y ||
-            debugBounds.height !== mainBounds.height
-          ) {
-            debugWindow.setBounds({
-              x: targetX,
-              y: mainBounds.y,
-              height: mainBounds.height,
-              width: debugBounds.width + (debugBounds.x - targetX),
-            });
+          // If X or Y drifted during resize, snap back
+          if (debugBounds.x !== targetX || debugBounds.y !== mainBounds.y) {
+            debugWindow.setPosition(targetX, mainBounds.y);
+          }
+          // Height MUST match
+          if (debugBounds.height !== mainBounds.height) {
+            debugWindow.setSize(debugBounds.width, mainBounds.height);
           }
         }
       });
@@ -1361,9 +1434,6 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         logger.log("[Main] Debug Window Closed event fired.");
         debugWindow = null;
         context.debugWindow = null;
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.off("move", updateDebugPosition);
-        }
       });
 
       logger.log("[Main] Debug Console Creation Finalized.");

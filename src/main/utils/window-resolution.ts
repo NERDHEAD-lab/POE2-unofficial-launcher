@@ -85,10 +85,16 @@ export const enforceConstraints = (
 
   const autoResolution = config.autoResolution ?? true;
   const resolutionMode = config.resolutionMode ?? "1440x960";
-  // [Debug] Log passive check (throttled by caller)
-  logger.log(
-    `[Enforce] Checking constraints. Auto: ${autoResolution}, Mode: ${resolutionMode}`,
-  );
+
+  // [Fix] Log suppression: only log if state changed to prevent move-event spam
+  const winAny = win as any;
+  const currentKey = `${autoResolution}:${resolutionMode}`;
+  if (winAny._lastEnforceKey !== currentKey) {
+    logger.log(
+      `[Enforce] Checking constraints. Auto: ${autoResolution}, Mode: ${resolutionMode}`,
+    );
+    winAny._lastEnforceKey = currentKey;
+  }
 
   // Logic to determine if we are in a fixed mode
   // ... (Simplified: If not Tier 3 or Fullscreen, it's fixed)
@@ -162,6 +168,10 @@ const applyFlexibleMode = (win: BrowserWindow): boolean => {
 const applyFullscreenMode = (win: BrowserWindow): boolean => {
   let changed = false;
   if (!win.isFullScreen()) {
+    // [Fix] Windows needs the window to be resizable to transition to fullscreen correctly in some cases.
+    if (!win.isResizable()) win.setResizable(true);
+    if (!win.isMaximizable()) win.setMaximizable(true);
+
     win.setFullScreen(true);
     changed = true;
   }
