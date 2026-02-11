@@ -51,6 +51,8 @@
   - React Component: `PascalCase.tsx`
   - Logic/Utils: `camelCase.ts`
 - **Linting**: ESLint + Prettier (Strict 모드 권장)
+- **Styling**:
+  - **Dynamic Theme**: 상호작용 요소 및 포인트 컬러에는 하드코딩된 색상 대신 반드시 CSS 변수(`var(--theme-accent)`)를 사용합니다 (ADR-018 참고).
 
 ## 4. Architecture Decision Records (ADR)
 
@@ -232,6 +234,18 @@
   - **Parallel Execution Policy**: `MultipleInstancesPolicy`를 `Parallel`로 설정하여, 스케줄러가 '이미 실행 중'인 상태를 무시하고 런처를 실행하도록 허용함. (중복 방지는 런처 내부의 `SingleInstanceLock`이 담당)
   - **Explicit Working Directory**: 실행 경로 오류를 방지하기 위해 XML 내 `<WorkingDirectory>` 태그에 앱 설치 경로를 명시적으로 주입함.
 - **결과**: 전원 상태나 이전 실행 상태와 무관하게 런처가 항상 신뢰성 있게 실행되며, 수동/자동 실행 간의 충돌 문제가 해결됨.
+
+#### ADR-018: Background-Driven Dynamic Theme System (Mandatory)
+
+- **상황**: 각 게임(POE1, POE2)의 배경화면이 다르고, 이에 어울리는 테마 색상(포인트 컬러)이 필요함. 하드코딩된 색상을 사용할 경우 특정 배경에서 가독성이 떨어지거나 미관을 해칠 수 있음.
+- **결정**:
+  - **Auto-Extraction**: 런처가 배경 이미지를 로드할 때, `extractThemeColors` 유틸리티를 통해 이미지에서 평균색 및 액센트 색상을 자동으로 추출함.
+  - **CSS Variables Standard**: 추출된 색상은 반드시 다음 CSS 변수를 통해 UI 전반에 적용되어야 함.
+    - `--theme-accent`: 버튼, 테두리, 하이라이트 등 포인트 컬러 전용.
+    - `--theme-text`: 배경색에 최적화된 메인 텍스트 색상.
+    - `--theme-footer-bg`: 하단 푸터 및 오버레이용 어두운 배경색.
+  - **Golden Rule (Anti-Hardcoding)**: **상호작용 요소나 강조색에 하드코딩된 특정 색상(예: #dfcf99)을 절대 사용하지 않음.** 모든 포인트 컬러는 `var(--theme-accent)`를 참조해야 함.
+- **결과**: 배경화면이 바뀌어도 전체 UI가 즉시 해당 톤에 맞춰 조화롭게 조정되어, 항상 프리미엄하고 일관된 디자인 퀄리티를 유지함.
 
 ## 5. Settings System
 

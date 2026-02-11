@@ -137,6 +137,10 @@ function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false); // [UAC Migration]
 
+  // Debug States
+  const [devMode, setDevMode] = useState(false);
+  const [debugConsole, setDebugConsole] = useState(false);
+
   // [UAC Migration] Listener
   useEffect(() => {
     if (window.electronAPI?.onUacMigrationRequest) {
@@ -402,6 +406,10 @@ function App() {
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
           );
 
+        // Load Debug States (using getEffectiveConfig parity via initial load)
+        setDevMode(config[CONFIG_KEYS.DEV_MODE] as boolean);
+        setDebugConsole(config[CONFIG_KEYS.DEBUG_CONSOLE] as boolean);
+
         // Load Onboarding State
         if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
           setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
@@ -445,6 +453,12 @@ function App() {
               ? (value as AppConfig["themeCache"])
               : prev,
           );
+        }
+        if (key === CONFIG_KEYS.DEV_MODE) {
+          setDevMode(value as boolean);
+        }
+        if (key === CONFIG_KEYS.DEBUG_CONSOLE) {
+          setDebugConsole(value as boolean);
         }
       });
 
@@ -749,10 +763,10 @@ function App() {
         {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
         <TitleBar
           title={appTitle}
-          showUpdateIcon={
-            !isUpdateModalOpen && updateState.state === "available"
-          }
+          showUpdateIcon={updateState.state === "downloaded"}
           onUpdateClick={() => setIsUpdateModalOpen(true)}
+          devMode={devMode}
+          debugConsole={debugConsole}
         />
 
         {/* 2. Main Content Frame */}

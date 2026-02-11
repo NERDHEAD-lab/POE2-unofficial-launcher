@@ -352,7 +352,7 @@ const DebugConsole: React.FC = () => {
             💾 Export
           </button>
           <button
-            onClick={() => window.electronAPI.closeWindow()}
+            onClick={() => window.electronAPI.setConfig("debug_console", false)}
             title="Close"
             className="btn-close"
           >
