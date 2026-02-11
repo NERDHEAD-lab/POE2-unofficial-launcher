@@ -118,7 +118,7 @@ import {
  * Checks if the launcher version has changed since the last run.
  * If changed, triggers the Changelog check sequence.
  */
-async function checkLauncherVersionUpdate(context: AppContext) {
+async function checkLauncherVersionUpdate(_context: AppContext) {
   const currentVersion = app.getVersion();
   const storedVersion = getConfig("launcherVersion") as string;
 

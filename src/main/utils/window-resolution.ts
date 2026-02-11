@@ -87,13 +87,13 @@ export const enforceConstraints = (
   const resolutionMode = config.resolutionMode ?? "1440x960";
 
   // [Fix] Log suppression: only log if state changed to prevent move-event spam
-  const winAny = win as any;
+  const winExtended = win as BrowserWindow & { _lastEnforceKey?: string };
   const currentKey = `${autoResolution}:${resolutionMode}`;
-  if (winAny._lastEnforceKey !== currentKey) {
+  if (winExtended._lastEnforceKey !== currentKey) {
     logger.log(
       `[Enforce] Checking constraints. Auto: ${autoResolution}, Mode: ${resolutionMode}`,
     );
-    winAny._lastEnforceKey = currentKey;
+    winExtended._lastEnforceKey = currentKey;
   }
 
   // Logic to determine if we are in a fixed mode

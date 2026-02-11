@@ -337,12 +337,12 @@ const DebugConsole: React.FC = () => {
     <div className="debug-console-container">
       <div
         className="console-titlebar"
-        style={{ ...({ WebkitAppRegion: "drag" } as any) }}
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       >
         <div className="console-title-text">POE2 Launcher Debug Console</div>
         <div
           className="console-controls"
-          style={{ ...({ WebkitAppRegion: "no-drag" } as any) }}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           <button
             onClick={() => setShowExportModal(true)}
