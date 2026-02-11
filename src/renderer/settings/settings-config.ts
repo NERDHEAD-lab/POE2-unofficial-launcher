@@ -432,46 +432,121 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "Kakao 계정 연동",
         items: [
           {
-            id: "btn_logout",
+            id: "kakaoAccountId",
             type: "button",
-            label: "로그아웃",
-            buttonText: "연동 해제",
-            variant: "danger",
-            description: "저장된 카카오 계정 세션 정보를 삭제합니다.",
-            icon: "logout",
-            onClickListener: async ({ showToast, showConfirm }) => {
+            label: "카카오 계정",
+            buttonText: "확인 중...",
+            variant: "default",
+            description: "저장된 카카오 계정 정보를 확인합니다.",
+            icon: "manage_accounts",
+            onInit: async ({
+              addDescription,
+              resetDescription,
+              setButtonText,
+              setVariant,
+              setDisabled,
+            }) => {
               if (!window.electronAPI) return;
 
-              // Return a Promise that resolves ONLY after the action is fully complete (or cancelled)
-              return new Promise<void>((resolve) => {
-                showConfirm({
-                  title: "로그아웃 확인",
-                  message:
-                    "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
-                  confirmText: "로그아웃",
-                  variant: "danger",
-                  onConfirm: async () => {
-                    try {
-                      showToast("[로그아웃] 요청 중...");
-                      const success = await window.electronAPI!.logoutSession();
-                      if (success) {
-                        showToast("[로그아웃] 완료되었습니다.");
-                      } else {
-                        showToast("[로그아웃] 실패했습니다.");
-                      }
-                    } catch (err) {
-                      logger.error("[Settings] Logout error:", err);
-                      showToast("[로그아웃] 오류가 발생했습니다.");
-                    } finally {
-                      resolve(); // Resolve after operation
-                    }
-                  },
-                  onCancel: () => {
-                    resolve(); // Resolve immediately if cancelled
-                  },
-                });
+              // 1. Initial State from Cache (Immediate Display)
+              const cachedId =
+                await window.electronAPI.getConfig("kakaoAccountId");
+              if (cachedId) {
+                resetDescription();
+                addDescription(`접속 계정: ${cachedId}`);
+                setButtonText("연동 해제");
+                setVariant("danger");
+              }
+
+              // 2. Register Callback for Real-time Updates
+              const cleanup = window.electronAPI.onAccountUpdate((data) => {
+                setDisabled(false);
+                resetDescription();
+
+                if (data.id) {
+                  addDescription(`접속 계정: ${data.id}`);
+                  setButtonText("연동 해제");
+                  setVariant("danger");
+                } else if (data.loginRequired) {
+                  addDescription(
+                    "계정 정보 확인을 위해 로그인이 필요합니다.",
+                    "warning",
+                  );
+                  setButtonText("로그인");
+                  setVariant("primary");
+                }
               });
+
+              // 3. Trigger Background Validation (Silent Sync)
+              setDisabled(true);
+              setButtonText("확인 중...");
+              window.electronAPI.triggerAccountValidation("Kakao Games");
+
+              return cleanup;
             },
+            onClickListener: async ({
+              showToast,
+              showConfirm,
+              getButtonText,
+            }) => {
+              if (!window.electronAPI) return;
+
+              const mode = getButtonText();
+
+              if (mode === "로그인") {
+                showToast("로그인 화면을 불러옵니다...");
+                window.electronAPI.showLoginWindow("Kakao Games");
+              } else if (mode === "연동 해제") {
+                return new Promise<void>((resolve) => {
+                  showConfirm({
+                    title: "로그아웃 확인",
+                    message:
+                      "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                    confirmText: "로그아웃",
+                    variant: "danger",
+                    onConfirm: async () => {
+                      try {
+                        showToast("[로그아웃] 요청 중...");
+                        const success =
+                          await window.electronAPI!.logoutSession();
+                        if (success) {
+                          showToast("[로그아웃] 완료되었습니다.");
+                          // Note: Main process will likely trigger a reload or UI update if needed,
+                          // or we can manually reset state here if desired.
+                          // But logoutSession usually closes the window which clears things.
+                        } else {
+                          showToast("[로그아웃] 실패했습니다.");
+                        }
+                      } catch (err) {
+                        logger.error("[Settings] Logout error:", err);
+                        showToast("[로그아웃] 오류가 발생했습니다.");
+                      } finally {
+                        resolve();
+                      }
+                    },
+                    onCancel: () => {
+                      resolve();
+                    },
+                  });
+                });
+              }
+            },
+          },
+        ],
+      },
+      {
+        id: "acc_ggg",
+        title: "GGG 계정 연동",
+        items: [
+          {
+            id: "gggAccountId",
+            type: "button",
+            label: "GGG 계정",
+            buttonText: "준비 중",
+            variant: "default",
+            disabled: true,
+            description: "GGG(Global) 계정 연동 기능은 추후 지원 예정입니다.",
+            icon: "public",
           },
         ],
       },

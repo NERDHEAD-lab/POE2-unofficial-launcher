@@ -21,6 +21,8 @@ interface PageHandler {
   match: (url: URL) => boolean;
   /** If true, this page should be forcefully shown regardless of "Inactive Window" setting */
   visible?: boolean;
+  /** List of trigger contexts this handler is active for. If undefined, active for all. */
+  triggeredBy?: string[];
   /** Main logic execution */
   execute: (context: HandlerContext) => Promise<void> | void;
 }
@@ -76,14 +78,33 @@ const SELECTORS = {
     // Select first account in list (target a[role="button"] for semantic click)
     FIRST_ACCOUNT: ".list_easy li:first-child a[role='button']",
   },
+  ACCOUNT: {
+    // Stage 1: GGB (Global Gate Bar) - Daum Game Login
+    GGB_NICKNAME: "#a_kg_ggb_nickname",
+    GGB_LOGIN_BTN: ".ggb-user a.btn-login:not(#a_kg_ggb_logout)", // Logout button also has btn-login class, exclude it
+    // Stage 2: StatusBar - POE Profile Link
+    STATUS_NICKNAME: "#statusBar .statusItem.loggedInStatus .profile-link a",
+    STATUS_LOGIN_BTN: "#statusBar .row2.loggedOut a.statusItem", // "로그인" text link
+  },
 };
 
 // --- Utils ---
+
+// --- Global State ---
+let isValidationMode = false;
 
 /**
  * Helper to request visibility with automatic sizing
  */
 function requestWindowVisibility(visible: boolean) {
+  // Suppress visibility requests if in validation mode and window is not already shown
+  if (isValidationMode && visible) {
+    logger.log(
+      "[Game Window] Background validation mode, auto-show suppressed.",
+    );
+    return;
+  }
+
   if (visible) {
     const width = document.documentElement.scrollWidth + 40; // Buffer for vertical scrollbar/border
     const height = document.documentElement.scrollHeight + 60; // Buffer for titlebar/border
@@ -94,10 +115,21 @@ function requestWindowVisibility(visible: boolean) {
   }
 }
 
-function safeClick(element: HTMLElement | null) {
+function safeClick(
+  element: HTMLElement | null,
+  description: string = "element",
+) {
   if (!element) return false;
 
+  const identity = element.id
+    ? `#${element.id}`
+    : element.className
+      ? `.${element.className.split(" ").join(".")}`
+      : "unknown";
+
   try {
+    logger.log(`[SafeClick] Attempting click on ${description} (${identity})`);
+
     // 1. Handle javascript: protocol
     if (
       element instanceof HTMLAnchorElement &&
@@ -132,7 +164,7 @@ function safeClick(element: HTMLElement | null) {
     element.dispatchEvent(event);
     return true;
   } catch (err) {
-    logger.error("[Game Window] safeClick failed:", err);
+    logger.error(`[Game Window] safeClick failed on ${description}:`, err);
     return false;
   }
 }
@@ -174,6 +206,7 @@ const PoeMainHandler: PageHandler = {
   description: "POE1 Homepage - Game Start",
   match: (url) =>
     url.hostname === "poe.game.daum.net" && url.hash.includes("autoStart"),
+  triggeredBy: ["GAME_START_POE1"],
   execute: async () => {
     logger.log(`[Handler] Executing ${PoeMainHandler.name}`);
 
@@ -190,6 +223,79 @@ const PoeMainHandler: PageHandler = {
 };
 
 /**
+ * Account Validation Handler
+ * Scans POE1/POE2 homepage for Account ID or Login requirement
+ */
+const AccountValidationHandler: PageHandler = {
+  name: "AccountValidationHandler",
+  description: "Account Verification (Hidden Background)",
+  match: (url) =>
+    (url.hostname === "poe.game.daum.net" ||
+      url.hostname === "pathofexile2.game.daum.net") &&
+    isValidationMode,
+  triggeredBy: ["ACCOUNT_VALIDATION"],
+  execute: async () => {
+    logger.log(`[Handler] Executing ${AccountValidationHandler.name}`);
+
+    observeAndInteract((obs) => {
+      // --- Tier 1: GGB Check (Daum Auth) ---
+      const ggbNickname = document.querySelector(
+        SELECTORS.ACCOUNT.GGB_NICKNAME,
+      );
+      const ggbLoginBtn = document.querySelector(
+        SELECTORS.ACCOUNT.GGB_LOGIN_BTN,
+      );
+
+      if (!ggbNickname) {
+        if (ggbLoginBtn) {
+          logger.log(
+            "[AccountValidationHandler] Tier 1 Error: Not logged in to GGB. Clicking Login.",
+          );
+          safeClick(ggbLoginBtn as HTMLElement, "GGB Login Button");
+          return false; // Wait for navigation
+        }
+        // If neither, maybe page is still loading or DOM changed significantly
+        return false;
+      }
+
+      // --- Tier 2: StatusBar Check (POE Session Sync) ---
+      logger.log(
+        `[AccountValidationHandler] Tier 1 Success: GGB Logged in (${ggbNickname.textContent?.trim()})`,
+      );
+
+      const statusBarNickname = document.querySelector(
+        SELECTORS.ACCOUNT.STATUS_NICKNAME,
+      );
+      const statusBarLoginBtn = document.querySelector(
+        SELECTORS.ACCOUNT.STATUS_LOGIN_BTN,
+      );
+
+      // Found POE Account ID!
+      if (statusBarNickname && statusBarNickname.textContent?.trim()) {
+        const accountId = statusBarNickname.textContent.trim();
+        logger.log(
+          `[AccountValidationHandler] Tier 2 Success: Found POE Account ID: ${accountId}`,
+        );
+        ipcRenderer.send("kakao:account-id-fetched", accountId);
+        if (obs) obs.disconnect();
+        return true;
+      }
+
+      // GGB is logged in, but StatusBar isn't. Need to sync.
+      if (statusBarLoginBtn) {
+        logger.log(
+          "[AccountValidationHandler] Tier 2 Error: StatusBar needs sync. Clicking Login Link.",
+        );
+        safeClick(statusBarLoginBtn as HTMLElement, "StatusBar Login Link");
+        return false; // Wait for navigation
+      }
+
+      return false;
+    });
+  },
+};
+
+/**
  * POE2 Main Page Handler
  * Matches: pathofexile2.game.daum.net
  * Handles Intro Modal & Game Start Button
@@ -200,6 +306,7 @@ const Poe2MainHandler: PageHandler = {
   match: (url) =>
     url.hostname === "pathofexile2.game.daum.net" &&
     url.hash.includes("autoStart"),
+  triggeredBy: ["GAME_START_POE2"],
   execute: async () => {
     logger.log(`[Handler] Executing ${Poe2MainHandler.name}`);
 
@@ -267,6 +374,7 @@ const LauncherCheckHandler: PageHandler = {
         url.pathname.includes("/gamestart/poe2.html"))
     );
   },
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${LauncherCheckHandler.name}`);
     observeAndInteract((obs) => {
@@ -295,6 +403,7 @@ const DaumLoginHandler: PageHandler = {
   description: "Daum Login Page",
   match: (url) => url.hostname === "logins.daum.net",
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_VALIDATION"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumLoginHandler.name}`);
     observeAndInteract((obs) => {
@@ -322,6 +431,7 @@ const KakaoLoginHandler: PageHandler = {
     url.pathname.includes("/login") &&
     !url.pathname.includes("/simple"),
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_MANUAL_LOGIN"],
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoLoginHandler.name}`);
 
@@ -422,6 +532,7 @@ const KakaoSimpleLoginHandler: PageHandler = {
   match: (url) =>
     url.hostname === "accounts.kakao.com" &&
     url.pathname.includes("/login/simple"),
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_VALIDATION"],
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoSimpleLoginHandler.name}`);
     observeAndInteract((obs) => {
@@ -446,6 +557,7 @@ const KakaoAuthHandler: PageHandler = {
   match: (url) =>
     url.hostname === "kauth.kakao.com" &&
     url.pathname.includes("/oauth/authorize"),
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_MANUAL_LOGIN"],
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoAuthHandler.name}`);
     observeAndInteract((obs) => {
@@ -463,6 +575,7 @@ const SecurityCenterHandler: PageHandler = {
   name: "SecurityCenterHandler",
   description: "Security Center / Designated PC",
   match: (url) => url.hostname === "security-center.game.daum.net",
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
     ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
@@ -520,6 +633,7 @@ const LauncherCompletionHandler: PageHandler = {
   match: (url) =>
     url.hostname === "pubsvc.game.daum.net" &&
     url.pathname.includes("/completed.html"),
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${LauncherCompletionHandler.name}`);
     ipcRenderer.send("game-status-update", "ready", activeGameContext);
@@ -544,6 +658,7 @@ const DaumStarterPopupHandler: PageHandler = {
     url.hostname === "security-center.game.daum.net" &&
     url.pathname.includes("/popup/install_daumstarter"),
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumStarterPopupHandler.name}`);
   },
@@ -559,6 +674,7 @@ const DaumMemberCertHandler: PageHandler = {
     url.hostname === "member.game.daum.net" &&
     url.pathname.includes("/cert/kakao/init"),
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumMemberCertHandler.name}`);
   },
@@ -569,6 +685,7 @@ const KCBAuthHandler: PageHandler = {
   description: "KCB Authentication",
   match: (url) => url.hostname === "safe.ok-name.co.kr",
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${KCBAuthHandler.name}`);
   },
@@ -579,19 +696,75 @@ const KCBCardAuthHandler: PageHandler = {
   description: "KCB Card Authentication",
   match: (url) => url.hostname === "card.ok-name.co.kr",
   visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${KCBCardAuthHandler.name}`);
   },
 };
 
+/**
+ * KakaoLoginValidationHandler
+ * Handles the login page redirect during background validation.
+ * It prevents the window from showing and signals 'Login Required' with the current URL.
+ */
+const KakaoLoginValidationHandler: PageHandler = {
+  name: "KakaoLoginValidationHandler",
+  description: "Kakao Login Page (Validation Mode) - Capture URL & Disconnect",
+  match: (url) =>
+    url.hostname === "accounts.kakao.com" && url.pathname.includes("/login"),
+  triggeredBy: ["ACCOUNT_VALIDATION"],
+  execute: (ctx) => {
+    logger.log(
+      `[Validator] Detected Login Redirect during validation: ${window.location.href}`,
+    );
+
+    // Explicitly hide just in case
+    ctx.setVisible(false);
+
+    // Notify main process: Login is required, here is the context URL to resume later
+    ipcRenderer.send("kakao:login-required", { url: window.location.href });
+
+    // Stop validation since user interaction is needed
+    logger.log("[Validator] Validation stuck at Login. Signalling failure.");
+  },
+};
+
+/**
+ * KakaoManualValidationHandler
+ * Detects login success on homepage during manual login and hides window.
+ */
+const KakaoManualValidationHandler: PageHandler = {
+  name: "KakaoManualValidationHandler",
+  description: "Manual Login Success Detector",
+  match: (url) =>
+    (url.hostname === "poe.game.daum.net" ||
+      url.hostname === "pathofexile2.game.daum.net") &&
+    !url.hash.includes("autoStart"),
+  triggeredBy: ["ACCOUNT_MANUAL_LOGIN"],
+  execute: (ctx) => {
+    logger.log(
+      "[ManualLogin] Successfully reached homepage. Assuming login success.",
+    );
+    // 1. Hide Window
+    ctx.setVisible(false);
+    // 2. Clear Context so we don't accidentally match this again
+    ipcRenderer.send("account:clear-trigger");
+    // 3. Trigger immediate re-validation to refresh Account ID in UI
+    ipcRenderer.send("account:trigger-validation", "Kakao Games");
+  },
+};
+
 const HANDLERS: PageHandler[] = [
+  KakaoSimpleLoginHandler, // Priority 1: Automated account selection (matches /login/simple)
+  KakaoAuthHandler, // Priority 2: Automated OAuth consent
+  KakaoLoginValidationHandler, // Priority 3: Roadblock/Failure capture for other /login pages
+  KakaoManualValidationHandler, // Success Detector for manual mode
+  AccountValidationHandler,
   PoeMainHandler,
   Poe2MainHandler,
   LauncherCheckHandler,
   DaumLoginHandler,
   KakaoLoginHandler,
-  KakaoSimpleLoginHandler,
-  KakaoAuthHandler,
   SecurityCenterHandler,
   LauncherCompletionHandler,
   DaumStarterPopupHandler,
@@ -602,12 +775,35 @@ const HANDLERS: PageHandler[] = [
 
 // --- Core Dispatcher ---
 
-function dispatchPageLogic() {
+async function dispatchPageLogic() {
   const currentUrl = new URL(window.location.href);
   logger.log(`[Game Window] Logic Dispatcher: ${currentUrl.href}`);
 
+  // Fetch navigation purpose from Main process
+  const triggerContext = await ipcRenderer.invoke(
+    "account:get-trigger-context",
+  );
+  logger.log(`[Game Window] Trigger Context: ${triggerContext || "NONE"}`);
+
   for (const handler of HANDLERS) {
     if (handler.match(currentUrl)) {
+      // 0. Filter by Trigger Context (Isolation)
+      if (handler.triggeredBy && triggerContext) {
+        if (!handler.triggeredBy.includes(triggerContext)) {
+          logger.log(
+            `[Game Window] Handler ${handler.name} skipped: Context mismatch (${triggerContext}).`,
+          );
+          continue;
+        }
+      } else if (handler.triggeredBy && !triggerContext) {
+        // Handler requires a context, but none provided
+        logger.log(
+          `[Game Window] Handler ${handler.name} skipped: Missing required context.`,
+        );
+        continue;
+      }
+      // Note: If handler.triggeredBy is undefined, it's global.
+
       logger.log(`[Game Window] Matched Handler: ${handler.name}`);
 
       // 1. Check Visibility Requirement
@@ -681,11 +877,18 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
 
 // --- Initialization ---
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   logger.log("[Game Window] DOMContentLoaded");
 
-  // If the page is NOT a standard user-facing page (according to main.ts policy),
-  // show a debug border to indicate it's a "background/automated" window.
+  // Query validation mode from Main process (Sync state via IPC)
+  try {
+    isValidationMode = await ipcRenderer.invoke("account:is-validation-mode");
+    if (isValidationMode) {
+      logger.log("[Game Window] Background validation mode ACTIVE.");
+    }
+  } catch (e) {
+    logger.error("[Game Window] Failed to query validation mode:", e);
+  }
 
   dispatchPageLogic();
 });

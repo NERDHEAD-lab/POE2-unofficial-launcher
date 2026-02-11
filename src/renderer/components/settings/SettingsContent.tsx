@@ -97,6 +97,18 @@ const SettingItemRenderer: React.FC<{
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   // Expanded State for TextItem
   const [isExpanded, setIsExpanded] = useState(false);
+  // Dynamic Button Properties
+  const [buttonText, setButtonText] = useState<string>(
+    (item as SettingButton).buttonText || "",
+  );
+  const [variant, setVariant] = useState<"default" | "primary" | "danger">(
+    (item as SettingButton).variant || "default",
+  );
+
+  const buttonTextRef = useRef(buttonText);
+  buttonTextRef.current = buttonText;
+  const variantRef = useRef(variant);
+  variantRef.current = variant;
 
   // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
@@ -139,6 +151,8 @@ const SettingItemRenderer: React.FC<{
   // onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
+    let cleanup: (() => void) | void;
+
     if (item.onInit) {
       logger.log(`[Settings] Running onInit for ${item.id}`);
 
@@ -146,7 +160,7 @@ const SettingItemRenderer: React.FC<{
       // This ensures we start with the base static description
       resetDescription();
 
-      const result = item.onInit({
+      const initResult = item.onInit({
         setValue: (newValue) => {
           if (mounted) {
             logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
@@ -170,17 +184,35 @@ const SettingItemRenderer: React.FC<{
         setLabel: (newLabel) => {
           if (mounted) setLabel(newLabel);
         },
+        setButtonText: (newText) => {
+          if (mounted) setButtonText(newText);
+        },
+        setVariant: (newVariant) => {
+          if (mounted) setVariant(newVariant);
+        },
+        getButtonText: () => buttonTextRef.current,
+        getVariant: () => variantRef.current,
         showToast: onShowToast,
       });
 
-      if (result instanceof Promise) {
-        result.catch((err: unknown) => {
-          logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
-        });
+      if (initResult instanceof Promise) {
+        initResult
+          .then((resolved) => {
+            cleanup = resolved;
+          })
+          .catch((err: unknown) => {
+            logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
+          });
+      } else {
+        cleanup = initResult;
       }
     }
+
     return () => {
       mounted = false;
+      if (typeof cleanup === "function") {
+        cleanup();
+      }
     };
     // Include refreshOnValues to re-trigger onInit when dependencies change
   }, [
@@ -249,6 +281,10 @@ const SettingItemRenderer: React.FC<{
       setValue: (v) => {
         handleChange(v);
       },
+      setButtonText: (v) => setButtonText(v),
+      setVariant: (v) => setVariant(v),
+      getButtonText: () => buttonText,
+      getVariant: () => variant,
     };
 
     if ("onChangeListener" in item && item.onChangeListener) {
@@ -300,6 +336,10 @@ const SettingItemRenderer: React.FC<{
         });
       },
       setValue: (v) => handleChange(v),
+      setButtonText: (v) => setButtonText(v),
+      setVariant: (v) => setVariant(v),
+      getButtonText: () => buttonText,
+      getVariant: () => variant,
     };
 
     // Priority 1: Generic listener (onClickListener)
@@ -402,7 +442,12 @@ const SettingItemRenderer: React.FC<{
         const i = item as SettingButton;
         return (
           <ButtonItem
-            item={{ ...i, disabled: isDisabled }}
+            item={{
+              ...i,
+              disabled: isDisabled,
+              buttonText: buttonText,
+              variant: variant,
+            }}
             onClick={(actionId) => handleActionClick(actionId)}
           />
         );

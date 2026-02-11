@@ -49,6 +49,11 @@ export interface SettingChangeContext {
   setVisible: (visible: boolean) => void;
   showConfirm: (options: ConfirmOptions) => void;
   setValue: (value: SettingValue) => void;
+  // Dynamic Button Properties
+  setButtonText: (text: string) => void;
+  setVariant: (variant: "default" | "primary" | "danger") => void;
+  getButtonText: () => string;
+  getVariant: () => "default" | "primary" | "danger";
 }
 
 /**
@@ -93,7 +98,12 @@ export interface BaseSettingItem {
       message: string,
       variant?: "success" | "white" | "error" | "warning",
     ) => void;
-  }) => Promise<void> | void;
+    // Dynamic Button Properties
+    setButtonText: (text: string) => void;
+    setVariant: (variant: "default" | "primary" | "danger") => void;
+    getButtonText: () => string;
+    getVariant: () => "default" | "primary" | "danger";
+  }) => void | Promise<void | (() => void)> | (() => void);
   /** 변경 시 애플리케이션 재시작이 필요한지 여부 (옵션) */
   requiresRestart?: boolean;
 }

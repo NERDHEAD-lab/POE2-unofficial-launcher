@@ -247,6 +247,16 @@
   - **Golden Rule (Anti-Hardcoding)**: **상호작용 요소나 강조색에 하드코딩된 특정 색상(예: #dfcf99)을 절대 사용하지 않음.** 모든 포인트 컬러는 `var(--theme-accent)`를 참조해야 함.
 - **결과**: 배경화면이 바뀌어도 전체 UI가 즉시 해당 톤에 맞춰 조화롭게 조정되어, 항상 프리미엄하고 일관된 디자인 퀄리티를 유지함.
 
+#### ADR-019: Background Account Validation & UI Transformation
+
+- **상황**: 사용자가 설정 페이지에 진입했을 때, 현재 로그인된 계정 ID를 즉시 보여주어야 함. 또한 로그인 여부에 따라 단일 버튼이 '로그인' 또는 '연동 해제(로그아웃)'으로 동적으로 변해야 하며, 검증 과정 중에는 사용자 조작을 방지해야 함.
+- **결정**:
+  - **Silent Background Validation**: 설정 페이지 진입 시, 메인 프로세스는 보이지 않는 배경 윈도우(Hidden Window)를 통해 카카오 게임즈 홈페이지를 로드하고 계정 정보를 추출함.
+  - **Visibility Suppression Logic**: 백그라운드 검증 모드(`validationModeActive`)인 경우, 프리로드 스크립트에서 자동 사이즈 조정 및 창 노출(`requestWindowVisibility`)을 강제로 억제함.
+  - **Reactive UI Proxy**: `SettingsContent`의 `onInit` 및 `onClickListener` 컨텍스트를 확장하여 버튼의 텍스트(`setButtonText`)와 스타일(`setVariant`)을 실시간으로 변경할 수 있도록 설계함.
+  - **Account ID Caching**: 추출된 계정 ID는 `AppConfig`에 캐싱되어 다음 진입 시 배경 검증이 완료되기 전에도 즉시 표시됨 (낙관적 UI).
+- **결과**: 사용자는 별도의 창 팝업 없이 설정 페이지에서 자신의 로그인 상태와 계정 ID를 즉시 확인할 수 있으며, 필요 시 원클릭으로 로그인 또는 로그아웃이 가능함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
@@ -259,6 +269,7 @@
   - **Semantic Feedback**: `addDescription`을 통한 `info`, `warning`, `error` 시각적 피드백 시스템을 갖추고 있습니다.
   - **Option Richness**: `radio`, `select` 타입의 개별 옵션에 상세 설명을 추가하여 직관적인 UI를 제공합니다.
 - **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
+- **계정 검증 메커니즘**: `Account` 카테고리에서는 백그라운드 로그인을 통해 계정 ID를 실시간 추출하며, 결과에 따라 버튼의 성격(Login/Logout)을 동적으로 변경합니다 (ADR-019 참고).
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
 
 > [!IMPORTANT]
