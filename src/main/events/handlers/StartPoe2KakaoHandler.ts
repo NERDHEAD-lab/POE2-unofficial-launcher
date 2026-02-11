@@ -64,7 +64,7 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     // This prevents flashing of hidden pages before login.
 
     // 2. Load Target URL
-    const targetUrl = `${BASE_URLS["Kakao Games"].POE2}/main`;
+    const targetUrl = `${BASE_URLS["Kakao Games"].POE2}/main#autoStart`;
     logger.log(`[StartPoe2KakaoHandler] Loading URL: ${targetUrl}`);
 
     try {

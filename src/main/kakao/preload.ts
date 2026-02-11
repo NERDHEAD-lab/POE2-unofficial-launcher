@@ -172,9 +172,11 @@ function observeAndInteract(
 const PoeMainHandler: PageHandler = {
   name: "PoeMainHandler",
   description: "POE1 Homepage - Game Start",
-  match: (url) => url.hostname === "poe.game.daum.net",
+  match: (url) =>
+    url.hostname === "poe.game.daum.net" && url.hash.includes("autoStart"),
   execute: async () => {
     logger.log(`[Handler] Executing ${PoeMainHandler.name}`);
+
     observeAndInteract((obs) => {
       const startBtn = document.querySelector(SELECTORS.POE1.BTN_GAME_START);
       if (safeClick(startBtn as HTMLElement)) {
@@ -195,7 +197,9 @@ const PoeMainHandler: PageHandler = {
 const Poe2MainHandler: PageHandler = {
   name: "Poe2MainHandler",
   description: "POE2 Homepage - Intro Modal & Game Start",
-  match: (url) => url.hostname === "pathofexile2.game.daum.net",
+  match: (url) =>
+    url.hostname === "pathofexile2.game.daum.net" &&
+    url.hash.includes("autoStart"),
   execute: async () => {
     logger.log(`[Handler] Executing ${Poe2MainHandler.name}`);
 
