@@ -224,6 +224,110 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     ],
   },
   {
+    id: "Display",
+    label: "화면",
+    icon: "monitor",
+    sections: [
+      {
+        id: "resolution",
+        title: "해상도 및 창 크기",
+        items: [
+          {
+            id: "autoResolution",
+            type: "switch",
+            label: "해상도 자동 조정 (권장)",
+            description:
+              "모니터 크기에 맞춰 최적의 해상도(1440x960, 1080x720) 또는 전체 화면(저해상도)을 자동으로 적용합니다.",
+            onChangeListener: (val, { showToast }) => {
+              if (val === false) {
+                // Auto -> Manual: Sync current state
+                const width = window.outerWidth;
+                const height = window.outerHeight;
+                const isFullscreen =
+                  window.matchMedia("(display-mode: fullscreen)").matches ||
+                  (window.innerWidth === screen.width &&
+                    window.innerHeight === screen.height); // Simplified check
+
+                let matchedMode = "1440x960";
+                if (isFullscreen) {
+                  matchedMode = "fullscreen";
+                } else if (
+                  Math.abs(width - 1080) < 10 &&
+                  Math.abs(height - 720) < 10
+                ) {
+                  matchedMode = "1080x720";
+                } else if (
+                  Math.abs(width - 1440) < 10 &&
+                  Math.abs(height - 960) < 10
+                ) {
+                  matchedMode = "1440x960";
+                }
+
+                // Update resolutionMode without triggering window resize (passive sync)
+                // We use electronAPI to update config silently if possible?
+                // Or just setConfig. Main process handles config change.
+                // If main process sees resolutionMode change, it might re-apply.
+                // But since it matches current, re-apply is no-op.
+                if (window.electronAPI) {
+                  window.electronAPI.setConfig("resolutionMode", matchedMode);
+                  showToast(
+                    `현재 해상도(${matchedMode})가 수동 설정으로 유지됩니다.`,
+                  );
+                }
+              }
+            },
+          },
+          {
+            id: "resolutionMode",
+            type: "select",
+            label: "수동 해상도 선택",
+            description: "원하는 창 크기 또는 모드를 선택합니다.",
+            dependsOn: { key: "autoResolution", value: false },
+            options: [
+              { label: "창모드 (1440x960) - 기본", value: "1440x960" },
+              {
+                label: "창모드 (1080x720) - 소형 (노트북 등)",
+                value: "1080x720",
+              },
+              { label: "전체창 (3:2 비율 고정)", value: "fullscreen" },
+            ],
+            onChangeListener: async (val, { showToast, showConfirm }) => {
+              const labelMap: Record<string, string> = {
+                "1440x960": "창모드 (1440x960)",
+                "1080x720": "창모드 (1080x720)",
+                fullscreen: "전체창 (3:2 비율)",
+              };
+
+              // 1. Show Toast for immediate feedback
+              showToast(`[해상도 변경] ${labelMap[val as string] || val}`);
+
+              // 2. Safe Revert Logic (Timer)
+              return new Promise<boolean>((resolve) => {
+                showConfirm({
+                  title: "해상도 변경 확인",
+                  message:
+                    "변경된 해상도를 유지하시겠습니까?\n(10초 내에 확인하지 않으면 이전 설정으로 복구됩니다.)",
+                  confirmText: "유지",
+                  cancelText: "복구",
+                  variant: "primary",
+                  timeoutSeconds: 10,
+                  onConfirm: () => {
+                    showToast("해상도 설정이 저장되었습니다.", "success");
+                    resolve(true);
+                  },
+                  onCancel: () => {
+                    showToast("이전 해상도로 복구되었습니다.", "warning");
+                    resolve(false); // Triggers auto-revert in SettingsContent
+                  },
+                });
+              });
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "performance",
     label: "성능",
     icon: "speed",

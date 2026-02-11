@@ -75,6 +75,7 @@ import {
   UIUpdateCheckEvent,
   UIUpdateDownloadEvent,
   UIUpdateInstallEvent,
+  UpdateWindowTitleEvent,
   DebugLogEvent,
 } from "./events/types";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
@@ -108,6 +109,10 @@ import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
 import { LegacyUacManager, SimpleUacBypass } from "./utils/uac/uac-migration";
+import {
+  applyResolutionRules,
+  enforceConstraints,
+} from "./utils/window-resolution";
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -786,6 +791,34 @@ const handlers = [
   ChangelogUISyncHandler,
   UacHandler, // Added
   InactiveWindowVisibilityHandler, // [New] Dynamic Visibility
+  {
+    id: "UpdateWindowTitleHandler",
+    targetEvent: EventType.UPDATE_WINDOW_TITLE,
+    handle: async (_event: UpdateWindowTitleEvent, _context: AppContext) => {
+      broadcastTitleUpdate();
+    },
+  },
+  {
+    id: "DisplaySettingsHandler",
+    targetEvent: EventType.CONFIG_CHANGE,
+    condition: (event: ConfigChangeEvent) =>
+      event.payload.key === "autoResolution" ||
+      event.payload.key === "resolutionMode",
+    handle: async (event: ConfigChangeEvent, context: AppContext) => {
+      // Typed
+      const { mainWindow } = context;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const config = getConfig() as AppConfig;
+        logger.log(
+          `[Main] Display Config Changed: ${event.payload.key} -> ${event.payload.newValue}`,
+        );
+        const changed = applyResolutionRules(mainWindow, config);
+        if (changed) {
+          eventBus.emit(EventType.UPDATE_WINDOW_TITLE, context, undefined);
+        }
+      }
+    },
+  },
 ];
 
 // --- Patch IPC ---
@@ -843,71 +876,15 @@ let isQuitting = false;
 const BASE_WIDTH = 1440;
 const BASE_HEIGHT = 960;
 
-let lastLoggedContext = "";
-
 /**
  * Dynamically adjusts window constraints (resizable, size, etc.) based on the current display environment.
  */
 function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
-
-  // Use the display where the window is currently located
-  const currentDisplay = screen.getDisplayNearestPoint(win.getBounds());
-  const { width: screenWidth, height: screenHeight } =
-    currentDisplay.workAreaSize;
-
-  const needsScaling =
-    screenWidth < BASE_WIDTH + 10 || screenHeight < BASE_HEIGHT + 10;
-
-  // [Fix] Prevent log spam: Only log when the display or resolution actually changes
-  const contextKey = `${currentDisplay.id}-${screenWidth}x${screenHeight}`;
-  if (contextKey !== lastLoggedContext) {
-    logger.log(
-      `[Main] UI Context Update: Display [${currentDisplay.id}] (${screenWidth}x${screenHeight}), ScalingRequired: ${needsScaling}`,
-    );
-    lastLoggedContext = contextKey;
-  }
-
-  if (needsScaling) {
-    // Small Screen / High DPI: Enable flexibility
-    if (!win.isResizable()) win.setResizable(true);
-    if (!win.isMaximizable()) win.setMaximizable(true);
-
-    // Initial fill: If window is currently too large for the work area, maximize it
-    const [currW, currH] = win.getSize();
-    if (currW > screenWidth || currH > screenHeight) {
-      if (!win.isMaximized()) {
-        win.maximize();
-      }
-    }
-
-    // Update Window Title for Status Indication via Centralized Broadcast
-    broadcastTitleUpdate();
-    win.webContents.send("scaling-mode-changed", true);
-  } else {
-    // Large Screen: Force fixed UX for stability as requested
-    // [Fix] Order of operations: We must allow resizing/maximizing before we can unmaximize and set the size.
-    if (!win.isResizable()) win.setResizable(true);
-    if (!win.isMaximizable()) win.setMaximizable(true);
-
-    if (win.isMaximized()) {
-      win.unmaximize();
-    }
-
-    // Ensure it's exactly the base size
-    const [currW, currH] = win.getSize();
-    if (currW !== BASE_WIDTH || currH !== BASE_HEIGHT) {
-      win.setSize(BASE_WIDTH, BASE_HEIGHT);
-      win.center();
-    }
-
-    // [Fix] LOCK constraints AFTER the transformation is complete
-    win.setResizable(false);
-    win.setMaximizable(false);
-
-    // Restore Window Title via Centralized Broadcast
-    broadcastTitleUpdate();
-    win.webContents.send("scaling-mode-changed", false);
+  const config = getConfig() as AppConfig;
+  const changed = applyResolutionRules(win, config);
+  if (changed && appContext) {
+    eventBus.emit(EventType.UPDATE_WINDOW_TITLE, appContext, undefined);
   }
 }
 
@@ -1031,7 +1008,8 @@ function createWindows() {
     "move",
     debounce(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        applyIntelligentConstraints(mainWindow);
+        const config = getConfig() as AppConfig;
+        enforceConstraints(mainWindow, config);
       }
     }, 100),
   );

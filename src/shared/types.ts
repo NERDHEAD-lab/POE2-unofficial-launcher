@@ -6,6 +6,7 @@ export const CONFIG_CATEGORIES = [
   "Patch",
   "Debug",
   "Performance",
+  "Display",
 ] as const;
 
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
@@ -45,6 +46,8 @@ export interface AppConfig {
   runAsAdmin: boolean;
   aggressivePatchMode: boolean;
   skipDaumGameStarterUac: boolean;
+  autoResolution: boolean;
+  resolutionMode: "1440x960" | "1080x720" | "fullscreen";
 }
 
 // Granular Status Codes for granular UI feedback

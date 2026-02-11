@@ -175,6 +175,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   runAsAdmin: false,
   aggressivePatchMode: false,
   skipDaumGameStarterUac: false,
+  autoResolution: true,
+  resolutionMode: "1440x960",
 };
 
 export const DEBUG_APP_CONFIG = {

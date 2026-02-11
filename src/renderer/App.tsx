@@ -638,8 +638,7 @@ function App() {
       const heightRatio = windowHeight / BASE_HEIGHT;
 
       // Use the smaller ratio to ensure UI fits within the window
-      // [Fix] Cap scale at 1.0 to prevent scaling-up (oversizing) on high-res monitors
-      const newScale = Math.min(widthRatio, heightRatio, 1.0);
+      const newScale = Math.min(widthRatio, heightRatio);
       setScale(newScale);
     };
 
