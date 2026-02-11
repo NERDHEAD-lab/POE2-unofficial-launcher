@@ -1,3 +1,4 @@
+import axios from "axios";
 import { app } from "electron";
 import { autoUpdater } from "electron-updater";
 
@@ -85,6 +86,67 @@ const attachUpdateListeners = (context: AppContext) => {
 };
 
 /**
+ * Checks for updates smartly by verifying the tag first via GitHub API.
+ * This prevents unnecessary downloads of `latest.yml` which inflates download counts.
+ */
+const checkForUpdatesSmart = async () => {
+  try {
+    const repo = "NERDHEAD-lab/POE2-unofficial-launcher";
+    const url = `https://api.github.com/repos/${repo}/releases/latest`;
+
+    logger.log(
+      `[UpdateHandler] Smart Check: Fetching latest release from ${url}`,
+    );
+    const response = await axios.get(url, { timeout: 5000 });
+
+    if (response.status === 200 && response.data?.tag_name) {
+      const latestTag = response.data.tag_name; // e.g., "v0.7.0" or "0.7.0"
+      const currentVersion = app.getVersion();
+
+      // Remove 'v' prefix for comparison if present
+      const cleanLatest = latestTag.replace(/^v/, "");
+      const cleanCurrent = currentVersion.replace(/^v/, "");
+
+      logger.log(
+        `[UpdateHandler] Smart Check: Latest=${cleanLatest}, Current=${cleanCurrent}`,
+      );
+
+      // Simple string comparison for now as versions are strictly numeric + dots
+      // In a real semver scenario, we'd use 'semver' package, but let's assume standard format.
+      // Actually, simple string comparison "0.7.0" vs "0.6.3" works, but "0.10.0" < "0.9.0" in string.
+      // We should be careful. Let's split and compare numbers.
+      const parseVersion = (v: string) => v.split(".").map(Number);
+      const [lMa, lMi, lPa] = parseVersion(cleanLatest);
+      const [cMa, cMi, cPa] = parseVersion(cleanCurrent);
+
+      let isNewer = false;
+      if (lMa > cMa) isNewer = true;
+      else if (lMa === cMa && lMi > cMi) isNewer = true;
+      else if (lMa === cMa && lMi === cMi && lPa > cPa) isNewer = true;
+
+      if (!isNewer) {
+        logger.log(
+          "[UpdateHandler] Smart Check: App is up to date (or newer). Skipping autoUpdater.",
+        );
+        return; // EXIT: Do not trigger autoUpdater
+      }
+
+      logger.log(
+        "[UpdateHandler] Smart Check: New version detected. Triggering autoUpdater...",
+      );
+    }
+  } catch (e) {
+    logger.error(
+      "[UpdateHandler] Smart Check failed (API Error/Rate Limit). Falling back to standard check.",
+      e,
+    );
+  }
+
+  // Fallback or explicit update required
+  await autoUpdater.checkForUpdates();
+};
+
+/**
  * Starts a periodic update check in the background.
  * Periodic checks are always 'silent' (don't show popup).
  */
@@ -99,7 +161,7 @@ export const startUpdateCheckInterval = (context: AppContext) => {
     currentCheckIsSilent = true; // Background checks are silent
     attachUpdateListeners(context);
     try {
-      await autoUpdater.checkForUpdates();
+      await checkForUpdatesSmart();
     } catch (e) {
       logger.error("[UpdateHandler] Background check failed:", e);
     }
@@ -122,7 +184,7 @@ export const triggerUpdateCheck = async (
   attachUpdateListeners(context);
 
   try {
-    await autoUpdater.checkForUpdates();
+    await checkForUpdatesSmart();
   } catch (e) {
     logger.error("[UpdateHandler] Failed check:", e);
   }
