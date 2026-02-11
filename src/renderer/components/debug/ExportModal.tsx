@@ -169,11 +169,17 @@ const ExportModal: React.FC<ExportModalProps> = ({
                         : "transparent")
                     }
                   >
-                    <td style={{ padding: "8px", textAlign: "center" }}>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "center",
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={(e) => {
+                        onChange={() => {}} // Controlled component - state handled by onClick
+                        onClick={(e) => {
                           e.stopPropagation();
                           toggleSource(source.id);
                         }}
