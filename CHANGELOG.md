@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.7.0...0.8.0) (2026-02-12)
+
+
+### Features
+
+* 개발자 공지사항 기능 추가 ([5a52eee](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5a52eee9ba626f2be783916d6b01d63a3c63a8b3))
+* 디버그 콘솔 접근성 개선 ([91293f5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/91293f5f23672ce4ab66f8ba42c8969d380f2c10))
+* 카카오게임즈 로그인 세션 관리 기능 고도화 및 계정 설정에서 카카오 계정 표시 추가 ([bb6853b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bb6853bd3830b8984fe73a64f115a6c5525dc6f9))
+* 해상도 변경 기능 개선 및 설정 추가 ([f1fc359](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f1fc359d57d814371c4c65fd89e0b62195db7680))
+* 해상도 변경 기능 개선 및 설정 추가 - 2 ([03d5357](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/03d53572af3a49c57184779cd5e9b2fa48e06b7a))
+* 해상도 변경 기능 개선 및 설정 추가 - 3 ([f880e70](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f880e70a3818e2f21d4650d364762aba3e0ffdd0))
+
+
+### Bug Fixes
+
+* update 체크가 다운로드 통계에 추가되는 문제 수정 ([bdd5103](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bdd510369908bcf0b71f425abf37aeae81ba9811))
+* 디버그 콘솔의 로그 내보내기 기능의 상호작용이 자연스럽지 못하던 문제 수정 ([70b7fda](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/70b7fda617674e53f00df51c6ff347fbb52af23d))
+* 윈도우에서 125%, 150% 스케일링을 사용할 때 발생 할 수 있는 화면떨림 현상 개선 ([4c2e133](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4c2e133f56b68c349f93d5b7355a04fd7b77b2b2))
+
 ## [0.7.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.6.3...0.7.0) (2026-02-10)
 
 
