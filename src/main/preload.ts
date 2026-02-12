@@ -6,6 +6,7 @@ import {
   NewsCategory,
   UpdateStatus,
   PatchProgress,
+  AccountUpdateData,
 } from "../shared/types";
 import { DebugLogEvent } from "./events/types";
 import { PreloadLogger } from "./utils/preload-logger";
@@ -194,14 +195,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:title-updated", handler);
     return () => ipcRenderer.off("app:title-updated", handler);
   },
-  // [UAC Migration]
-  onUacMigrationRequest: (callback: () => void) => {
-    const handler = () => callback();
-    ipcRenderer.on("uac-migration:request", handler);
-    return () => ipcRenderer.off("uac-migration:request", handler);
-  },
   confirmUacMigration: () => ipcRenderer.send("uac-migration:confirm"),
   initialGameName: getGameName(
     ipcRenderer.sendSync("config:get-sync", "activeGame"),
   ),
+
+  // [Account ID & Validation]
+  triggerAccountValidation: (serviceId: AppConfig["serviceChannel"]) =>
+    ipcRenderer.send("account:trigger-validation", serviceId),
+  showLoginWindow: (serviceId: AppConfig["serviceChannel"]) =>
+    ipcRenderer.send("account:show-login-window", serviceId),
+  onAccountUpdate: (callback: (data: AccountUpdateData) => void) => {
+    const handler = (_event: IpcRendererEvent, data: AccountUpdateData) =>
+      callback(data);
+    ipcRenderer.on("account:updated", handler);
+    return () => ipcRenderer.off("account:updated", handler);
+  },
 });

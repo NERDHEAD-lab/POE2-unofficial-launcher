@@ -63,7 +63,16 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
     // This prevents flashing of hidden pages before login.
 
     // 2. Load Target URL
-    const targetUrl = BASE_URLS["Kakao Games"].POE1;
+    const targetUrl = `${BASE_URLS["Kakao Games"].POE1}#autoStart`;
+
+    // Mark as Game Start context BEFORE loading URL (to avoid race with preload.ts)
+    if (typeof (global as any).setNavigationTrigger === "function") {
+      (global as any).setNavigationTrigger(
+        gameWindow.webContents.id,
+        "GAME_START_POE1",
+      );
+    }
+
     logger.log(`[StartPoe1KakaoHandler] Loading URL: ${targetUrl}`);
 
     try {

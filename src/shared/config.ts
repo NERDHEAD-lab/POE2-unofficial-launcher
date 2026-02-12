@@ -87,13 +87,14 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     name: "Show Inactive Windows",
     category: "Debug",
     description:
-      "숨겨진 윈도우(백그라운드 작업 등)를 화면에 표시할지 설정합니다.",
+      "숨겨진 윈도우(백그라운드 작업 등)를 화면에 표시할지 설정합니다 (개발자 모드 필요).",
   },
   SHOW_INACTIVE_WINDOW_CONSOLE: {
     key: "show_inactive_window_console",
     name: "Show Inactive Window Console",
     category: "Debug",
-    description: "숨겨진 윈도우의 개발자 도구(콘솔)를 표시할지 설정합니다.",
+    description:
+      "숨겨진 윈도우의 개발자 도구(콘솔)를 표시할지 설정합니다 (개발자 모드 필요).",
   },
   SHOW_ONBOARDING: {
     key: "showOnboarding",
@@ -108,27 +109,43 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "런처가 백그라운드 상태일 때 감시 모드를 설정합니다. ('resource-saving' | 'always-on')",
   },
-  RUN_AS_ADMIN: {
-    key: "runAsAdmin",
-    name: "Run as Administrator",
-    category: "General",
-    description:
-      "런처를 관리자 권한으로 실행합니다 (한국인 모드 사용 시 권장).",
-  },
   AGGRESSIVE_PATCH_MODE: {
     key: "aggressivePatchMode",
     name: "Aggressive Patch Mode",
     category: "Patch",
     description:
-      "강력한 패치 감지 모드를 활성화합니다 (문제가 발생할 경우 사용).",
+      "한국인 모드 (BETA): 패치 오류 발생 시 재시도 대기를 생략하고 즉시 대응합니다. 오류 탐지 시 프로세스를 강제 종료하여 즉각적인 자동 복구 단계를 시작합니다.",
   },
-
   SKIP_DAUM_GAME_STARTER_UAC: {
     key: "skipDaumGameStarterUac",
     name: "Skip Daum Game Starter UAC",
     category: "General",
     description:
       "Daum Game Starter가 관리자 권한을 요구하지 않도록 레지스트리를 수정하여 실행합니다. (권장)",
+  },
+  AUTO_RESOLUTION: {
+    key: "autoResolution",
+    name: "Automatic Resolution",
+    category: "Display",
+    description: "게임 실행 시 화면 해상도를 자동으로 조정할지 설정합니다.",
+  },
+  RESOLUTION_MODE: {
+    key: "resolutionMode",
+    name: "Resolution Mode",
+    category: "Display",
+    description: "자동 해상도 조정 시 사용할 해상도를 선택합니다.",
+  },
+  KAKAO_ACCOUNT_ID: {
+    key: "kakaoAccountId",
+    name: "Kakao Account ID",
+    category: "Info",
+    description: "마지막으로 로드된 카카오 계정 ID를 캐싱합니다. (자동 관리)",
+  },
+  GGG_ACCOUNT_ID: {
+    key: "gggAccountId",
+    name: "GGG Account ID",
+    category: "Info",
+    description: "마지막으로 로드된 GGG 계정 ID를 캐싱합니다. (자동 관리)",
   },
 };
 
@@ -149,9 +166,12 @@ export const CONFIG_KEYS = {
   QUIT_ON_GAME_START: CONFIG_METADATA.QUIT_ON_GAME_START.key,
   SHOW_ONBOARDING: CONFIG_METADATA.SHOW_ONBOARDING.key,
   PROCESS_WATCH_MODE: CONFIG_METADATA.PROCESS_WATCH_MODE.key,
-  RUN_AS_ADMIN: CONFIG_METADATA.RUN_AS_ADMIN.key,
   AGGRESSIVE_PATCH_MODE: CONFIG_METADATA.AGGRESSIVE_PATCH_MODE.key,
   SKIP_DAUM_GAME_STARTER_UAC: CONFIG_METADATA.SKIP_DAUM_GAME_STARTER_UAC.key,
+  AUTO_RESOLUTION: CONFIG_METADATA.AUTO_RESOLUTION.key,
+  RESOLUTION_MODE: CONFIG_METADATA.RESOLUTION_MODE.key,
+  KAKAO_ACCOUNT_ID: CONFIG_METADATA.KAKAO_ACCOUNT_ID.key,
+  GGG_ACCOUNT_ID: CONFIG_METADATA.GGG_ACCOUNT_ID.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -172,9 +192,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   quitOnGameStart: false,
   showOnboarding: true,
   processWatchMode: "resource-saving",
-  runAsAdmin: false,
   aggressivePatchMode: false,
   skipDaumGameStarterUac: false,
+  autoResolution: true,
+  resolutionMode: "1440x960",
 };
 
 export const DEBUG_APP_CONFIG = {

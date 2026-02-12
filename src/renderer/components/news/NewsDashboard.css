@@ -201,6 +201,21 @@
   flex-shrink: 0;
 }
 
+/* Developer Notice Customization (Wider area needs more spacing) */
+.dev-section .news-item-header {
+  padding: 10px 24px; /* Increased left/right padding */
+}
+
+.dev-section .news-item-title {
+  font-size: 15px; /* Increased from 13px */
+  font-weight: 500;
+}
+
+.dev-section .news-item-date {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
 /* Wrapper acts as the relative positioning context */
 .news-item-content-wrapper {
   position: relative;

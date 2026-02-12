@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import "../../settings/Settings.css";
 import SettingsContent from "./SettingsContent";
@@ -30,16 +30,24 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     null,
   );
 
-  const showToast = (
-    msg: string,
-    variant: "default" | "success" | "warning" | "error" | "white" = "default",
-  ) => {
-    setToastMsg(msg);
-    setToastVariant(variant);
-    setToastVisible(true);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastVisible(false), 2000);
-  };
+  const showToast = useCallback(
+    (
+      msg: string,
+      variant:
+        | "default"
+        | "success"
+        | "warning"
+        | "error"
+        | "white" = "default",
+    ) => {
+      setToastMsg(msg);
+      setToastVariant(variant);
+      setToastVisible(true);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToastVisible(false), 2000);
+    },
+    [],
+  );
 
   // Animation Logic
   useEffect(() => {
@@ -53,23 +61,23 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  if (!isVisible && !isOpen) return null;
-
-  const activeCategory =
-    SETTINGS_CONFIG.find((c) => c.id === activeCatId) || SETTINGS_CONFIG[0];
-
   // Prevent click propagation from modal to overlay
   const handleModalClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
-  const handleCloseAttempt = () => {
+  const handleCloseAttempt = useCallback(() => {
     if (isRestartNeeded) {
       setShowRestartConfirm(true);
     } else {
       onClose();
     }
-  };
+  }, [isRestartNeeded, onClose]);
+
+  if (!isVisible && !isOpen) return null;
+
+  const activeCategory =
+    SETTINGS_CONFIG.find((c) => c.id === activeCatId) || SETTINGS_CONFIG[0];
 
   const handleRelaunch = () => {
     if (window.electronAPI) {

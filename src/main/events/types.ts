@@ -30,6 +30,13 @@ export enum EventType {
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
   // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
+  UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
+}
+
+export interface UpdateWindowTitleEvent {
+  type: EventType.UPDATE_WINDOW_TITLE;
+  payload?: void;
+  timestamp?: number;
 }
 
 export interface LogBackupWebRootFoundEvent {
@@ -227,6 +234,7 @@ export type AppEvent =
   | PatchProgressEvent
   | ConfigDeleteEvent
   | SyncDevToolsVisibilityEvent
+  | UpdateWindowTitleEvent
   | ShowChangelogEvent;
 
 // --- Context & Handler Interfaces ---

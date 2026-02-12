@@ -51,6 +51,8 @@
   - React Component: `PascalCase.tsx`
   - Logic/Utils: `camelCase.ts`
 - **Linting**: ESLint + Prettier (Strict 모드 권장)
+- **Styling**:
+  - **Dynamic Theme**: 상호작용 요소 및 포인트 컬러에는 하드코딩된 색상 대신 반드시 CSS 변수(`var(--theme-accent)`)를 사용합니다 (ADR-018 참고).
 
 ## 4. Architecture Decision Records (ADR)
 
@@ -233,6 +235,38 @@
   - **Explicit Working Directory**: 실행 경로 오류를 방지하기 위해 XML 내 `<WorkingDirectory>` 태그에 앱 설치 경로를 명시적으로 주입함.
 - **결과**: 전원 상태나 이전 실행 상태와 무관하게 런처가 항상 신뢰성 있게 실행되며, 수동/자동 실행 간의 충돌 문제가 해결됨.
 
+#### ADR-018: Background-Driven Dynamic Theme System (Mandatory)
+
+- **상황**: 각 게임(POE1, POE2)의 배경화면이 다르고, 이에 어울리는 테마 색상(포인트 컬러)이 필요함. 하드코딩된 색상을 사용할 경우 특정 배경에서 가독성이 떨어지거나 미관을 해칠 수 있음.
+- **결정**:
+  - **Auto-Extraction**: 런처가 배경 이미지를 로드할 때, `extractThemeColors` 유틸리티를 통해 이미지에서 평균색 및 액센트 색상을 자동으로 추출함.
+  - **CSS Variables Standard**: 추출된 색상은 반드시 다음 CSS 변수를 통해 UI 전반에 적용되어야 함.
+    - `--theme-accent`: 버튼, 테두리, 하이라이트 등 포인트 컬러 전용.
+    - `--theme-text`: 배경색에 최적화된 메인 텍스트 색상.
+    - `--theme-footer-bg`: 하단 푸터 및 오버레이용 어두운 배경색.
+  - **Golden Rule (Anti-Hardcoding)**: **상호작용 요소나 강조색에 하드코딩된 특정 색상(예: #dfcf99)을 절대 사용하지 않음.** 모든 포인트 컬러는 `var(--theme-accent)`를 참조해야 함.
+- **결과**: 배경화면이 바뀌어도 전체 UI가 즉시 해당 톤에 맞춰 조화롭게 조정되어, 항상 프리미엄하고 일관된 디자인 퀄리티를 유지함.
+
+#### ADR-019: Background Account Validation & UI Transformation
+
+- **상황**: 사용자가 설정 페이지에 진입했을 때, 현재 로그인된 계정 ID를 즉시 보여주어야 함. 또한 로그인 여부에 따라 단일 버튼이 '로그인' 또는 '연동 해제(로그아웃)'으로 동적으로 변해야 하며, 검증 과정 중에는 사용자 조작을 방지해야 함.
+- **결정**:
+  - **Silent Background Validation**: 설정 페이지 진입 시, 메인 프로세스는 보이지 않는 배경 윈도우(Hidden Window)를 통해 카카오 게임즈 홈페이지를 로드하고 계정 정보를 추출함.
+  - **Visibility Suppression Logic**: 백그라운드 검증 모드(`validationModeActive`)인 경우, 프리로드 스크립트에서 자동 사이즈 조정 및 창 노출(`requestWindowVisibility`)을 강제로 억제함.
+  - **Reactive UI Proxy**: `SettingsContent`의 `onInit` 및 `onClickListener` 컨텍스트를 확장하여 버튼의 텍스트(`setButtonText`)와 스타일(`setVariant`)을 실시간으로 변경할 수 있도록 설계함.
+  - **Account ID Caching**: 추출된 계정 ID는 `AppConfig`에 캐싱되어 다음 진입 시 배경 검증이 완료되기 전에도 즉시 표시됨 (낙관적 UI).
+- **결과**: 사용자는 별도의 창 팝업 없이 설정 페이지에서 자신의 로그인 상태와 계정 ID를 즉시 확인할 수 있으며, 필요 시 원클릭으로 로그인 또는 로그아웃이 가능함.
+
+#### ADR-020: Markdown Notice System (gh-pages Source & Automation)
+
+- **상황**: 런처 자체의 공지사항이나 개발자 노트를 포럼 외부(GitHub 등)에서 Markdown 형식으로 가져와 보여줄 때, 기존의 인라인 아코디언 방식은 레이아웃이 깨지거나 가독성이 떨어지는 이슈가 있음. 또한 `list.json` 인덱스 파일을 수동으로 관리하는 것은 번거롭고 오류 발생 가능성이 높음.
+- **결정**:
+  - **Popup Modal Structure**: Markdown 콘텐츠 전용 대형 모달(`NoticeModal`)을 도입하여 포커스된 읽기 환경을 제공함.
+  - **Marked & DOMPurify**: `marked`를 사용하여 Markdown을 HTML로 변환하고, `DOMPurify`를 통해 보안 계층을 적용함.
+  - **gh-pages Branch as Source**: 개발자가 공지사항(`.md`)을 `gh-pages` 브랜치의 `notice/` 폴더에 직접 업로드하는 모델을 채택함.
+  - **Hybrid GitHub Actions**: `.github/workflows/automate-notice-list.yml`이 `gh-pages` 브랜치에 푸시될 때 트리거되도록 설정함. 액션은 `master` 브랜치에서 최신 생성 스크립트를 가져와 `gh-pages` 브랜치 상의 `list.json`을 자동 갱신함.
+- **결과**: 개발자는 배포 브랜치(`gh-pages`)에 파일만 올리면 자동으로 인덱싱되어 런처에 반영되는 완전 자동화된 공지사항 파이프라인을 확보함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.
@@ -245,6 +279,7 @@
   - **Semantic Feedback**: `addDescription`을 통한 `info`, `warning`, `error` 시각적 피드백 시스템을 갖추고 있습니다.
   - **Option Richness**: `radio`, `select` 타입의 개별 옵션에 상세 설명을 추가하여 직관적인 UI를 제공합니다.
 - **무결성 검증**: 빌드 시 `config-integrity.test.ts`를 통해 기본값과 설정 UI의 정합성(ID 일치 여부 등)을 검증합니다.
+- **계정 검증 메커니즘**: `Account` 카테고리에서는 백그라운드 로그인을 통해 계정 ID를 실시간 추출하며, 결과에 따라 버튼의 성격(Login/Logout)을 동적으로 변경합니다 (ADR-019 참고).
 - **상세 가이드**: 영속성 모델(Persistence Model) 및 타입별 구현 예제는 **[SETTINGS_GUIDE.md](./SETTINGS_GUIDE.md)**를 참고하세요.
 
 > [!IMPORTANT]

@@ -26,6 +26,7 @@ import {
 } from "../shared/types";
 import ChangelogModal from "./components/modals/ChangelogModal";
 import MigrationModal from "./components/modals/MigrationModal";
+import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
@@ -136,6 +137,10 @@ function App() {
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false); // [UAC Migration]
+
+  // Debug States
+  const [devMode, setDevMode] = useState(false);
+  const [debugConsole, setDebugConsole] = useState(false);
 
   // [UAC Migration] Listener
   useEffect(() => {
@@ -402,6 +407,10 @@ function App() {
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
           );
 
+        // Load Debug States (using getEffectiveConfig parity via initial load)
+        setDevMode(config[CONFIG_KEYS.DEV_MODE] as boolean);
+        setDebugConsole(config[CONFIG_KEYS.DEBUG_CONSOLE] as boolean);
+
         // Load Onboarding State
         if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
           setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
@@ -445,6 +454,12 @@ function App() {
               ? (value as AppConfig["themeCache"])
               : prev,
           );
+        }
+        if (key === CONFIG_KEYS.DEV_MODE) {
+          setDevMode(value as boolean);
+        }
+        if (key === CONFIG_KEYS.DEBUG_CONSOLE) {
+          setDebugConsole(value as boolean);
         }
       });
 
@@ -599,6 +614,11 @@ function App() {
 
   // Developer Notices State
   const [devNotices, setDevNotices] = useState<NewsItem[]>([]);
+  const [selectedNotice, setSelectedNotice] = useState<NewsItem | null>(null);
+
+  const handleNoticeClick = useCallback((item: NewsItem) => {
+    setSelectedNotice(item);
+  }, []);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -638,8 +658,7 @@ function App() {
       const heightRatio = windowHeight / BASE_HEIGHT;
 
       // Use the smaller ratio to ensure UI fits within the window
-      // [Fix] Cap scale at 1.0 to prevent scaling-up (oversizing) on high-res monitors
-      const newScale = Math.min(widthRatio, heightRatio, 1.0);
+      const newScale = Math.min(widthRatio, heightRatio);
       setScale(newScale);
     };
 
@@ -728,7 +747,7 @@ function App() {
           position: "relative",
           zIndex: 10,
           flexShrink: 0,
-          backgroundColor: "#000", // Background of the UI frame itself
+          backgroundColor: "#000",
         }}
       >
         {/* Background Layer (Now inside Scaler to create Letterbox effect) */}
@@ -750,10 +769,10 @@ function App() {
         {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
         <TitleBar
           title={appTitle}
-          showUpdateIcon={
-            !isUpdateModalOpen && updateState.state === "available"
-          }
+          showUpdateIcon={updateState.state === "downloaded"}
           onUpdateClick={() => setIsUpdateModalOpen(true)}
+          devMode={devMode}
+          debugConsole={debugConsole}
         />
 
         {/* 2. Main Content Frame */}
@@ -883,6 +902,7 @@ function App() {
                   items={devNotices}
                   forumUrl=""
                   onRead={handleDevRead}
+                  onShowModal={handleNoticeClick}
                   isDevSection={true}
                   headerVariant="long"
                 />
@@ -890,9 +910,15 @@ function App() {
               <NewsDashboard
                 activeGame={activeGame}
                 serviceChannel={serviceChannel}
+                onItemClick={handleNoticeClick}
               />
             </div>
           </div>
+
+          <NoticeModal
+            item={selectedNotice}
+            onClose={() => setSelectedNotice(null)}
+          />
 
           {/* Footer Section (Button + Image Separation) */}
           <div className="footer-section">

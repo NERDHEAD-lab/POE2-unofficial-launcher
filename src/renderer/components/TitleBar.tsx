@@ -7,12 +7,16 @@ interface TitleBarProps {
   title?: string;
   showUpdateIcon?: boolean;
   onUpdateClick?: () => void;
+  devMode?: boolean;
+  debugConsole?: boolean;
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({
   title = `PoE Unofficial Launcher v${__APP_VERSION__}`,
   showUpdateIcon = false,
   onUpdateClick,
+  devMode = false,
+  debugConsole = false,
 }) => {
   return (
     <div className="title-bar">
@@ -29,12 +33,13 @@ const TitleBar: React.FC<TitleBarProps> = ({
             style={{
               marginRight: "15px",
               padding: "4px 12px",
-              color: "#dfcf99", // PoE Gold Color
+              color: "var(--theme-accent)",
               background: "rgba(0, 0, 0, 0.6)",
-              border: "1px solid #7e6c42", // Muted Gold Border
-              borderRadius: "2px", // Slight rounding, almost sharp
+              border: "1px solid var(--theme-accent)",
+              opacity: 0.8,
+              borderRadius: "2px",
               cursor: "pointer",
-              fontFamily: "Fontin-SmallCaps, sans-serif", // Try to use game font if available
+              fontFamily: "Fontin-SmallCaps, sans-serif",
               fontSize: "13px",
               letterSpacing: "1px",
               textTransform: "uppercase",
@@ -45,13 +50,13 @@ const TitleBar: React.FC<TitleBarProps> = ({
               transition: "all 0.2s ease",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#af944f";
+              e.currentTarget.style.opacity = "1";
               e.currentTarget.style.color = "#fff";
-              e.currentTarget.style.boxShadow = "0 0 10px #af944f";
+              e.currentTarget.style.boxShadow = "0 0 10px var(--theme-accent)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#7e6c42";
-              e.currentTarget.style.color = "#dfcf99";
+              e.currentTarget.style.opacity = "0.8";
+              e.currentTarget.style.color = "var(--theme-accent)";
               e.currentTarget.style.boxShadow = "0 0 5px rgba(0, 0, 0, 0.5)";
             }}
           >
@@ -64,7 +69,7 @@ const TitleBar: React.FC<TitleBarProps> = ({
             UPDATE
           </button>
         )}
-        <WindowControls />
+        <WindowControls devMode={devMode} debugConsole={debugConsole} />
       </div>
     </div>
   );

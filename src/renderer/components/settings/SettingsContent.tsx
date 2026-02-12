@@ -20,6 +20,7 @@ import {
   SettingButton,
   DescriptionBlock,
   DescriptionVariant,
+  SettingChangeContext,
 } from "../../settings/types";
 import { logger } from "../../utils/logger";
 import "../../settings/Settings.css";
@@ -96,6 +97,18 @@ const SettingItemRenderer: React.FC<{
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   // Expanded State for TextItem
   const [isExpanded, setIsExpanded] = useState(false);
+  // Dynamic Button Properties
+  const [buttonText, setButtonText] = useState<string>(
+    (item as SettingButton).buttonText || "",
+  );
+  const [variant, setVariant] = useState<"default" | "primary" | "danger">(
+    (item as SettingButton).variant || "default",
+  );
+
+  const buttonTextRef = useRef(buttonText);
+  buttonTextRef.current = buttonText;
+  const variantRef = useRef(variant);
+  variantRef.current = variant;
 
   // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
@@ -138,6 +151,8 @@ const SettingItemRenderer: React.FC<{
   // onInit Implementation - Uses Context to allow items to update themselves
   useEffect(() => {
     let mounted = true;
+    let cleanup: (() => void) | void;
+
     if (item.onInit) {
       logger.log(`[Settings] Running onInit for ${item.id}`);
 
@@ -145,7 +160,7 @@ const SettingItemRenderer: React.FC<{
       // This ensures we start with the base static description
       resetDescription();
 
-      const result = item.onInit({
+      const initResult = item.onInit({
         setValue: (newValue) => {
           if (mounted) {
             logger.log(`[Settings] onInit ${item.id} -> ${newValue}`);
@@ -169,17 +184,35 @@ const SettingItemRenderer: React.FC<{
         setLabel: (newLabel) => {
           if (mounted) setLabel(newLabel);
         },
+        setButtonText: (newText) => {
+          if (mounted) setButtonText(newText);
+        },
+        setVariant: (newVariant) => {
+          if (mounted) setVariant(newVariant);
+        },
+        getButtonText: () => buttonTextRef.current,
+        getVariant: () => variantRef.current,
         showToast: onShowToast,
       });
 
-      if (result instanceof Promise) {
-        result.catch((err: unknown) => {
-          logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
-        });
+      if (initResult instanceof Promise) {
+        initResult
+          .then((resolved) => {
+            cleanup = resolved;
+          })
+          .catch((err: unknown) => {
+            logger.error(`[Settings] Failed to init setting ${item.id}:`, err);
+          });
+      } else {
+        cleanup = initResult;
       }
     }
+
     return () => {
       mounted = false;
+      if (typeof cleanup === "function") {
+        cleanup();
+      }
     };
     // Include refreshOnValues to re-trigger onInit when dependencies change
   }, [
@@ -191,17 +224,25 @@ const SettingItemRenderer: React.FC<{
     refreshOnValues,
   ]);
 
-  const isDependentVisible = !item.dependsOn || config[item.dependsOn] === true;
+  const isDependentVisible = (() => {
+    if (!item.dependsOn) return true;
+    if (typeof item.dependsOn === "string") {
+      return config[item.dependsOn] === true;
+    }
+    const { key, value } = item.dependsOn;
+    return config[key] === value;
+  })();
   const isFinalVisible = isVisible && isDependentVisible;
 
   const handleChange = async (newValue: SettingValue) => {
     if (isProcessing) return; // Prevent double trigger
+    if (newValue === val) return; // Optimization: Skip if value hasn't changed
+
+    const previousValue = val;
     setVal(newValue); // Optimistic update
     onValueChange(item.id, newValue); // Sync locally immediately for dependsOn items
 
     // Persist to Store
-    // Only persist if the item is NOT transient (i.e., NO defaultValue).
-    // If defaultValue exists, it means it's a UI-only setting or managed elsewhere.
     const isStoreBacked =
       !("defaultValue" in item) || item.defaultValue === undefined;
 
@@ -213,43 +254,53 @@ const SettingItemRenderer: React.FC<{
       onRestartRequired();
     }
 
-    // Call listener with Auto-Disable
+    // Create full context for listeners
+    const fullContext: SettingChangeContext = {
+      showToast: onShowToast,
+      addDescription,
+      resetDescription,
+      setLabel,
+      setDisabled,
+      setVisible: setIsVisible,
+      showConfirm: (options) => {
+        onShowConfirm?.({
+          ...options,
+          isOpen: true,
+          timeoutSeconds: options.timeoutSeconds,
+          onCancel: () => {
+            options.onCancel?.();
+            onHideConfirm?.();
+          },
+          onConfirm: () => {
+            options.onConfirm();
+            onHideConfirm?.();
+          },
+        });
+      },
+      // Note: setValue works for THIS item. To update others, use electronAPI directly in listener.
+      setValue: (v) => {
+        handleChange(v);
+      },
+      setButtonText: (v) => setButtonText(v),
+      setVariant: (v) => setVariant(v),
+      getButtonText: () => buttonText,
+      getVariant: () => variant,
+    };
+
     if ("onChangeListener" in item && item.onChangeListener) {
       try {
         setIsProcessing(true);
-        // @ts-expect-error - listener signature is generic
-        const result = await item.onChangeListener(newValue, {
-          showToast: onShowToast,
-          addDescription: addDescription,
-          resetDescription: resetDescription,
-          setLabel: setLabel,
-          setDisabled: setDisabled,
-          showConfirm: (options) => {
-            onShowConfirm?.({
-              ...options,
-              isOpen: true,
-              onCancel: () => {
-                options.onCancel?.();
-                onHideConfirm?.();
-              },
-              onConfirm: () => {
-                options.onConfirm();
-                onHideConfirm?.();
-              },
-            });
-          },
-        });
+        // @ts-expect-error - listener signature is generic but compatible with SettingChangeContext
+        const result = await item.onChangeListener(newValue, fullContext);
 
         // [Improvement] If listener returns explicit false, revert the change
-        if (typeof result === "boolean" && result === false) {
-          // Revert UI to previous state (simple toggle invert for now, or use prevValue tracked)
-          // Since we updated 'val' optimistically, we need to revert it.
-          // For Check/Switch, it's boolean invert. For others, it might be tricky without tracking prev.
-          // However, 'val' state might have been updated by onInit logic too.
-          // Best effort revert:
-          if (typeof newValue === "boolean") {
-            setVal(!newValue);
-            onValueChange(item.id, !newValue);
+        if (result === false) {
+          setVal(previousValue);
+          if (previousValue !== undefined) {
+            onValueChange(item.id, previousValue);
+            if (isStoreBacked && window.electronAPI) {
+              await window.electronAPI.setConfig(item.id, previousValue);
+            }
           }
         }
       } finally {
@@ -259,31 +310,43 @@ const SettingItemRenderer: React.FC<{
   };
 
   const handleActionClick = async (_actionId: string) => {
-    // logger.log(`[Settings] Action Clicked: ${item.id} (${actionId})`);
     if (isProcessing) return;
+
+    // Create full context (same as above, could be memoized)
+    const fullContext: SettingChangeContext = {
+      showToast: onShowToast,
+      addDescription,
+      resetDescription,
+      setLabel,
+      setDisabled,
+      setVisible: setIsVisible,
+      showConfirm: (options) => {
+        onShowConfirm?.({
+          ...options,
+          isOpen: true,
+          timeoutSeconds: options.timeoutSeconds,
+          onCancel: () => {
+            options.onCancel?.();
+            onHideConfirm?.();
+          },
+          onConfirm: () => {
+            options.onConfirm();
+            onHideConfirm?.();
+          },
+        });
+      },
+      setValue: (v) => handleChange(v),
+      setButtonText: (v) => setButtonText(v),
+      setVariant: (v) => setVariant(v),
+      getButtonText: () => buttonText,
+      getVariant: () => variant,
+    };
 
     // Priority 1: Generic listener (onClickListener)
     if ("onClickListener" in item && item.onClickListener) {
       try {
         setIsProcessing(true);
-        await item.onClickListener({
-          showToast: onShowToast,
-          showConfirm: (options) => {
-            onShowConfirm?.({
-              ...options,
-              isOpen: true,
-              onCancel: () => {
-                options.onCancel?.();
-                onHideConfirm?.();
-              },
-              onConfirm: () => {
-                options.onConfirm();
-                onHideConfirm?.();
-              },
-            });
-          },
-          setValue: (newValue) => handleChange(newValue),
-        });
+        await item.onClickListener(fullContext);
       } finally {
         setIsProcessing(false);
       }
@@ -292,12 +355,8 @@ const SettingItemRenderer: React.FC<{
     else if ("onChangeListener" in item && item.onChangeListener) {
       try {
         setIsProcessing(true);
-        // @ts-expect-error - listener signature is generic
-        await item.onChangeListener(true, {
-          showToast: onShowToast,
-          addDescription,
-          resetDescription,
-        });
+        // @ts-expect-error - listener signature uses full context now
+        await item.onChangeListener(true, fullContext);
       } finally {
         setIsProcessing(false);
       }
@@ -383,7 +442,12 @@ const SettingItemRenderer: React.FC<{
         const i = item as SettingButton;
         return (
           <ButtonItem
-            item={{ ...i, disabled: isDisabled }}
+            item={{
+              ...i,
+              disabled: isDisabled,
+              buttonText: buttonText,
+              variant: variant,
+            }}
             onClick={(actionId) => handleActionClick(actionId)}
           />
         );

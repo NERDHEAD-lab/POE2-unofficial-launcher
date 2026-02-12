@@ -8,6 +8,7 @@ import { FORUM_URLS } from "../../../shared/urls";
 interface NewsDashboardProps {
   activeGame: AppConfig["activeGame"];
   serviceChannel: AppConfig["serviceChannel"];
+  onItemClick?: (item: NewsItem) => void;
 }
 
 const combinations = [
@@ -25,6 +26,7 @@ interface NewsViewState {
 const NewsDashboard: React.FC<NewsDashboardProps> = ({
   activeGame,
   serviceChannel,
+  onItemClick,
 }) => {
   // Store news for all 4 combinations to allow instant switching
   const [allNews, setAllNews] = useState<Record<string, NewsViewState>>({
@@ -315,6 +317,7 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
                 items={data.notices}
                 forumUrl={urls.notice}
                 onRead={handleRead}
+                onShowModal={onItemClick}
                 headerVariant="short"
               />
               <div className="divider"></div>
@@ -323,6 +326,7 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
                 items={data.patchNotes}
                 forumUrl={urls.patchNotes}
                 onRead={handleRead}
+                onShowModal={onItemClick}
                 headerVariant="short"
               />
             </div>

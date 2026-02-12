@@ -202,35 +202,48 @@ export class NewsService {
     const url = NEWS_URL_MAP["dev-notice"];
     if (!url) return [];
 
+    this.logger.log("Fetching developer notices...");
+
     try {
       const response = await this.fetchWithRetry(url, {
         headers: { "Cache-Control": "no-cache" },
       });
       const data = await response.json();
 
-      if (!Array.isArray(data)) return [];
+      if (!Array.isArray(data)) {
+        this.logger.warn("Dev notices data is not an array.");
+        return [];
+      }
 
       const items: NewsItem[] = data.map(
-        (file: { name?: string; id?: string; url?: string; date?: string }) => {
-          // Filename based extraction
-          const name = file.name || "Untitled";
-          const isPriority = name.startsWith("!");
-          const title = isPriority ? name.substring(1) : name;
-          const id = file.id || name;
+        (file: {
+          title?: string;
+          url?: string;
+          date?: string;
+          priority?: boolean;
+        }) => {
+          const title = file.title || "Untitled";
+          const link = file.url || "";
+          // Use link or title as ID
+          const id = link || `dev-notice-${title}`;
 
           return {
             id,
             title,
-            link: file.url || "",
-            date: file.date || new Date().toLocaleDateString(),
+            link,
+            date: file.date || new Date().toISOString().split("T")[0],
             type: "dev-notice" as NewsCategory,
-            isNew: false, // Dev notices don't use 'N' per user request yet
-            isSticky: isPriority,
+            isNew: false,
+            isSticky: !!file.priority,
           };
         },
       );
 
-      // Sort: Priority (!) first, then by date descending, and finally limit to MAX_NEWS_COUNT
+      this.logger.log(
+        `Successfully fetched ${items.length} developer notices.`,
+      );
+
+      // Sort: Priority (Sticky) first, then by date descending
       return items
         .sort((a, b) => {
           if (a.isSticky && !b.isSticky) return -1;
@@ -241,6 +254,22 @@ export class NewsService {
     } catch (error) {
       this.logger.error("Failed to fetch dev notices:", error);
       return [];
+    }
+  }
+
+  private updateCache(id: string, cleanHtml: string) {
+    const contents = this.store.get("contents");
+    const isChanged = contents[id]?.content !== cleanHtml;
+
+    contents[id] = {
+      id,
+      content: cleanHtml,
+      lastUpdated: Date.now(),
+    };
+    this.store.set("contents", contents);
+
+    if (isChanged) {
+      this.logger.log(`Content updated for post ${id}.`);
     }
   }
 
@@ -255,6 +284,28 @@ export class NewsService {
       });
 
       const html = await response.text();
+      const isMarkdown =
+        link.toLowerCase().endsWith(".md") ||
+        id.startsWith("dev-notice-") ||
+        !link.includes("forum/view-thread");
+
+      if (isMarkdown) {
+        // For Markdown files, we return the raw content without HTML parsing
+        this.logger.log(`Detected Markdown content for ${id}. Processing...`);
+
+        let processedContent = html.trim();
+        const lines = processedContent.split("\n");
+
+        // If first line is a title (# ), remove it to avoid redundancy with the modal title
+        if (lines[0] && lines[0].startsWith("# ")) {
+          this.logger.log(`Stripping redundant H1 title from ${id}`);
+          processedContent = lines.slice(1).join("\n").trim();
+        }
+
+        this.updateCache(id, processedContent);
+        return processedContent;
+      }
+
       const root = parse(html);
 
       const content =
@@ -278,26 +329,9 @@ export class NewsService {
         content.querySelectorAll(sel).forEach((el) => el.remove());
       });
 
-      // Special handling for Kakao: sometimes author info is within a sibling or specific div
-      // Based on user feedback, we strictly need the content only.
-      // If we used root.querySelector(".content"), it might include too much.
-      // We already narrowed it down to 'content' variable.
-
       const cleanHtml = content.innerHTML.trim();
+      this.updateCache(id, cleanHtml);
 
-      const contents = this.store.get("contents");
-      const isChanged = contents[id]?.content !== cleanHtml;
-
-      contents[id] = {
-        id,
-        content: cleanHtml,
-        lastUpdated: Date.now(),
-      };
-      this.store.set("contents", contents);
-
-      if (isChanged) {
-        this.logger.log(`Content updated for post ${id}.`);
-      }
       this.logger.log(`Successfully fetched content for post ${id}.`);
 
       return cleanHtml;

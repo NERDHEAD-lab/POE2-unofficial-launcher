@@ -224,6 +224,81 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     ],
   },
   {
+    id: "Display",
+    label: "화면",
+    icon: "monitor",
+    sections: [
+      {
+        id: "resolution",
+        title: "해상도 및 창 크기",
+        items: [
+          {
+            id: "autoResolution",
+            type: "switch",
+            label: "해상도 자동 조정 (권장)",
+            description:
+              "모니터 크기에 맞춰 최적의 해상도(1440x960, 1080x720) 또는 전체 화면(저해상도)을 자동으로 적용합니다.",
+            onChangeListener: (val, { showToast }) => {
+              if (val === false) {
+                showToast("현재 해상도가 수동 설정으로 유지됩니다.", "success");
+              } else {
+                showToast(
+                  "모니터 환경에 맞춰 최적의 해상도가 자동으로 적용됩니다.",
+                );
+              }
+            },
+          },
+          {
+            id: "resolutionMode",
+            type: "select",
+            label: "수동 해상도 선택",
+            description: "원하는 창 크기 또는 모드를 선택합니다.",
+            dependsOn: { key: "autoResolution", value: false },
+            options: [
+              { label: "창모드 (1440x960) - 기본", value: "1440x960" },
+              {
+                label: "창모드 (1080x720) - 소형 (노트북 등)",
+                value: "1080x720",
+              },
+              { label: "전체창 (3:2 비율 고정)", value: "fullscreen" },
+            ],
+            onChangeListener: async (val, { showToast, showConfirm }) => {
+              const labelMap: Record<string, string> = {
+                "1440x960": "창모드 (1440x960)",
+                "1080x720": "창모드 (1080x720)",
+                fullscreen: "전체창 (3:2 비율)",
+              };
+
+              // 1. Show Toast for immediate feedback
+              showToast(`[해상도 변경] ${labelMap[val as string] || val}`);
+
+              // 2. Safe Revert Logic (Timer)
+              return new Promise<boolean>((resolve) => {
+                showConfirm({
+                  title: "해상도 변경 확인",
+                  message:
+                    "변경된 해상도를 유지하시겠습니까?\n(10초 내에 확인하지 않으면 이전 설정으로 복구됩니다.)",
+                  confirmText: "유지",
+                  cancelText: "복구",
+                  variant: "primary",
+                  timeoutSeconds: 10,
+                  onConfirm: () => {
+                    showToast("해상도 설정이 저장되었습니다.", "success");
+                    resolve(true);
+                  },
+                  onCancel: () => {
+                    showToast("이전 해상도로 복구되었습니다.", "warning");
+                    resolve(false); // Triggers auto-revert in SettingsContent
+                  },
+                });
+              });
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "performance",
     label: "성능",
     icon: "speed",
@@ -328,46 +403,121 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
         title: "Kakao 계정 연동",
         items: [
           {
-            id: "btn_logout",
+            id: "kakaoAccountId",
             type: "button",
-            label: "로그아웃",
-            buttonText: "연동 해제",
-            variant: "danger",
-            description: "저장된 카카오 계정 세션 정보를 삭제합니다.",
-            icon: "logout",
-            onClickListener: async ({ showToast, showConfirm }) => {
+            label: "카카오 계정",
+            buttonText: "확인 중...",
+            variant: "default",
+            description: "저장된 카카오 계정 정보를 확인합니다.",
+            icon: "manage_accounts",
+            onInit: async ({
+              addDescription,
+              resetDescription,
+              setButtonText,
+              setVariant,
+              setDisabled,
+            }) => {
               if (!window.electronAPI) return;
 
-              // Return a Promise that resolves ONLY after the action is fully complete (or cancelled)
-              return new Promise<void>((resolve) => {
-                showConfirm({
-                  title: "로그아웃 확인",
-                  message:
-                    "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
-                  confirmText: "로그아웃",
-                  variant: "danger",
-                  onConfirm: async () => {
-                    try {
-                      showToast("[로그아웃] 요청 중...");
-                      const success = await window.electronAPI!.logoutSession();
-                      if (success) {
-                        showToast("[로그아웃] 완료되었습니다.");
-                      } else {
-                        showToast("[로그아웃] 실패했습니다.");
-                      }
-                    } catch (err) {
-                      logger.error("[Settings] Logout error:", err);
-                      showToast("[로그아웃] 오류가 발생했습니다.");
-                    } finally {
-                      resolve(); // Resolve after operation
-                    }
-                  },
-                  onCancel: () => {
-                    resolve(); // Resolve immediately if cancelled
-                  },
-                });
+              // 1. Initial State from Cache (Immediate Display)
+              const cachedId =
+                await window.electronAPI.getConfig("kakaoAccountId");
+              if (cachedId) {
+                resetDescription();
+                addDescription(`접속 계정: ${cachedId}`);
+                setButtonText("연동 해제");
+                setVariant("danger");
+              }
+
+              // 2. Register Callback for Real-time Updates
+              const cleanup = window.electronAPI.onAccountUpdate((data) => {
+                setDisabled(false);
+                resetDescription();
+
+                if (data.id) {
+                  addDescription(`접속 계정: ${data.id}`);
+                  setButtonText("연동 해제");
+                  setVariant("danger");
+                } else if (data.loginRequired) {
+                  addDescription(
+                    "계정 정보 확인을 위해 로그인이 필요합니다.",
+                    "warning",
+                  );
+                  setButtonText("로그인");
+                  setVariant("primary");
+                }
               });
+
+              // 3. Trigger Background Validation (Silent Sync)
+              setDisabled(true);
+              setButtonText("확인 중...");
+              window.electronAPI.triggerAccountValidation("Kakao Games");
+
+              return cleanup;
             },
+            onClickListener: async ({
+              showToast,
+              showConfirm,
+              getButtonText,
+            }) => {
+              if (!window.electronAPI) return;
+
+              const mode = getButtonText();
+
+              if (mode === "로그인") {
+                showToast("로그인 화면을 불러옵니다...");
+                window.electronAPI.showLoginWindow("Kakao Games");
+              } else if (mode === "연동 해제") {
+                return new Promise<void>((resolve) => {
+                  showConfirm({
+                    title: "로그아웃 확인",
+                    message:
+                      "카카오 계정 세션 정보를 삭제하고 로그아웃 하시겠습니까?",
+                    confirmText: "로그아웃",
+                    variant: "danger",
+                    onConfirm: async () => {
+                      try {
+                        showToast("[로그아웃] 요청 중...");
+                        const success =
+                          await window.electronAPI!.logoutSession();
+                        if (success) {
+                          showToast("[로그아웃] 완료되었습니다.");
+                          // Note: Main process will likely trigger a reload or UI update if needed,
+                          // or we can manually reset state here if desired.
+                          // But logoutSession usually closes the window which clears things.
+                        } else {
+                          showToast("[로그아웃] 실패했습니다.");
+                        }
+                      } catch (err) {
+                        logger.error("[Settings] Logout error:", err);
+                        showToast("[로그아웃] 오류가 발생했습니다.");
+                      } finally {
+                        resolve();
+                      }
+                    },
+                    onCancel: () => {
+                      resolve();
+                    },
+                  });
+                });
+              }
+            },
+          },
+        ],
+      },
+      {
+        id: "acc_ggg",
+        title: "GGG 계정 연동",
+        items: [
+          {
+            id: "gggAccountId",
+            type: "button",
+            label: "GGG 계정",
+            buttonText: "준비 중",
+            variant: "default",
+            disabled: true,
+            description: "GGG(Global) 계정 연동 기능은 추후 지원 예정입니다.",
+            icon: "public",
           },
         ],
       },

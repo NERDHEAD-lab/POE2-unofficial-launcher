@@ -8,14 +8,21 @@ import { logger } from "../../utils/logger";
 interface NewsItemProps {
   item: NewsItemType;
   onRead: (id: string) => void;
+  onShowModal?: (item: NewsItemType) => void;
 }
 
-const NewsItem: React.FC<NewsItemProps> = ({ item, onRead }) => {
+const NewsItem: React.FC<NewsItemProps> = ({ item, onRead, onShowModal }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleToggle = async () => {
+    if (item.type === "dev-notice" && onShowModal) {
+      onShowModal(item);
+      onRead(item.id);
+      return;
+    }
+
     const nextExpanded = !isExpanded;
     setIsExpanded(nextExpanded);
 

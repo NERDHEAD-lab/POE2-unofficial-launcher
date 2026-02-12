@@ -6,6 +6,7 @@ export const CONFIG_CATEGORIES = [
   "Patch",
   "Debug",
   "Performance",
+  "Display",
 ] as const;
 
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
@@ -42,9 +43,13 @@ export interface AppConfig {
    */
   processWatchMode: "resource-saving" | "always-on";
   launcherVersion: string;
-  runAsAdmin: boolean;
   aggressivePatchMode: boolean;
   skipDaumGameStarterUac: boolean;
+  autoResolution: boolean;
+  resolutionMode: "1440x960" | "1080x720" | "fullscreen";
+  // Account Caching
+  kakaoAccountId?: string;
+  gggAccountId?: string;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -108,6 +113,11 @@ export interface ChangelogItem {
   date: string;
   body: string;
   htmlUrl: string;
+}
+
+export interface AccountUpdateData {
+  id?: string;
+  loginRequired?: boolean;
 }
 
 export interface ElectronAPI {
@@ -214,6 +224,11 @@ export interface ElectronAPI {
   setWindowTitle: (title: string) => void;
   onTitleUpdated: (callback: (title: string) => void) => () => void;
   initialGameName: string;
+
+  // [Account ID & Validation]
+  triggerAccountValidation: (serviceId: AppConfig["serviceChannel"]) => void;
+  showLoginWindow: (serviceId: AppConfig["serviceChannel"]) => void;
+  onAccountUpdate: (callback: (data: AccountUpdateData) => void) => () => void;
 
   // [UAC Migration]
   onUacMigrationRequest: (callback: () => void) => () => void;

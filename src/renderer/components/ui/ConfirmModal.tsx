@@ -10,6 +10,7 @@ export interface ConfirmModalProps {
   variant?: "primary" | "danger";
   onConfirm: () => void;
   onCancel: () => void;
+  timeoutSeconds?: number;
 }
 
 const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -21,7 +22,30 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   variant = "primary",
   onConfirm,
   onCancel,
+  timeoutSeconds,
 }) => {
+  const [timeLeft, setTimeLeft] = React.useState<number | undefined>(
+    timeoutSeconds,
+  );
+
+  React.useEffect(() => {
+    if (!isOpen || timeoutSeconds === undefined) return;
+
+    setTimeLeft(timeoutSeconds);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev !== undefined && prev <= 1) {
+          clearInterval(timer);
+          onCancel(); // Auto-cancel on timeout
+          return 0;
+        }
+        return prev !== undefined ? prev - 1 : undefined;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, timeoutSeconds, onCancel]);
+
   if (!isOpen) return null;
 
   return (
@@ -39,6 +63,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="confirm-modal-actions">
           <button className="btn-confirm-secondary" onClick={onCancel}>
             {cancelText}
+            {timeLeft !== undefined ? ` (${timeLeft}s)` : ""}
           </button>
           <button
             className={`btn-confirm-primary btn-${variant}`}

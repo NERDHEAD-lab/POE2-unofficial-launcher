@@ -23,6 +23,7 @@ import {
   NewsCategory,
   DebugLogPayload,
 } from "../shared/types";
+import { BASE_URLS } from "../shared/urls";
 import {
   AutoLaunchHandler,
   syncAutoLaunch,
@@ -75,6 +76,7 @@ import {
   UIUpdateCheckEvent,
   UIUpdateDownloadEvent,
   UIUpdateInstallEvent,
+  UpdateWindowTitleEvent,
   DebugLogEvent,
 } from "./events/types";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
@@ -108,12 +110,16 @@ import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
 import { LegacyUacManager, SimpleUacBypass } from "./utils/uac/uac-migration";
+import {
+  applyResolutionRules,
+  enforceConstraints,
+} from "./utils/window-resolution";
 
 /**
  * Checks if the launcher version has changed since the last run.
  * If changed, triggers the Changelog check sequence.
  */
-async function checkLauncherVersionUpdate(context: AppContext) {
+async function checkLauncherVersionUpdate(_context: AppContext) {
   const currentVersion = app.getVersion();
   const storedVersion = getConfig("launcherVersion") as string;
 
@@ -126,7 +132,7 @@ async function checkLauncherVersionUpdate(context: AppContext) {
     // Emit Config Change Event manually to trigger ChangelogHandler
     // We only trigger if there WAS a previous version (not fresh install)
     if (storedVersion) {
-      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, context, {
+      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
         key: "launcherVersion",
         oldValue: storedVersion,
         newValue: currentVersion,
@@ -154,6 +160,29 @@ process.env.VITE_PUBLIC = app.isPackaged
 let mainWindow: BrowserWindow | null;
 let gameWindow: BrowserWindow | null;
 let debugWindow: BrowserWindow | null = null; // Debug Window Reference
+
+// --- Account Validation State ---
+let validationModeActive = false;
+let validationTimeout: NodeJS.Timeout | null = null;
+const VALIDATION_TIMEOUT_MS = 30000; // 30s
+
+function setValidationMode(active: boolean) {
+  validationModeActive = active;
+  if (validationTimeout) {
+    clearTimeout(validationTimeout);
+    validationTimeout = null;
+  }
+
+  if (active) {
+    validationTimeout = setTimeout(() => {
+      logger.warn("[Account] Validation timed out.");
+      setValidationMode(false);
+      if (gameWindow && !gameWindow.isDestroyed()) {
+        gameWindow.close();
+      }
+    }, VALIDATION_TIMEOUT_MS);
+  }
+}
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 
@@ -419,6 +448,9 @@ ipcMain.handle(
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => {
+    if (category === "dev-notice") {
+      return newsService.fetchDevNotices();
+    }
     return newsService.fetchNewsList(game, service, category);
   },
 );
@@ -431,6 +463,9 @@ ipcMain.handle(
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => {
+    if (category === "dev-notice") {
+      return newsService.getCacheItems("dev-notice");
+    }
     return newsService.getCacheItems({ game, service, category });
   },
 );
@@ -532,6 +567,7 @@ ipcMain.handle("session:logout", async () => {
   try {
     // 1. Reset Context
     activeSessionContext = null;
+    pendingLoginUrls.delete("Kakao Games"); // Clear pending redirects for this service
 
     // 2. Close Game Window if exists (Prevents Auth Popups/Reloads)
     if (gameWindow && !gameWindow.isDestroyed()) {
@@ -555,6 +591,23 @@ ipcMain.handle("session:logout", async () => {
     logger.log(
       `[Main] Session storage cleared for partition: ${PARTITIONS.KAKAO}`,
     );
+
+    // 4. Clear Account Cache & Notify Renderer
+    setConfig("kakaoAccountId", null);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("account:updated", {
+        id: null,
+        loginRequired: true,
+      });
+    }
+
+    // 5. SECURE NEW LOGIN URL: Trigger validation immediately after logout
+    // This ensures a fresh login redirect is available when the user clicks "Login".
+    logger.log(
+      "[Account] Post-logout validation triggered to secure login URL.",
+    );
+    runAccountValidation("Kakao Games").catch(logger.error);
+
     return true;
   } catch (error) {
     logger.error("[Main] Failed to clear session storage:", error);
@@ -562,40 +615,240 @@ ipcMain.handle("session:logout", async () => {
   }
 });
 
+// --- Navigation Trigger Context Registry ---
+// Maps webContentsId to its trigger (e.g., 'ACCOUNT_VALIDATION', 'GAME_START_POE2')
+const navigationTriggerContexts = new Map<number, string>();
+
+/**
+ * Sets the navigation context for a specific webContents
+ */
+function setNavigationTrigger(
+  webContentsId: number,
+  trigger: string | null | undefined,
+) {
+  if (trigger) {
+    logger.log(`[Context] WebContents ${webContentsId} marked as: ${trigger}`);
+    navigationTriggerContexts.set(webContentsId, trigger);
+  } else {
+    navigationTriggerContexts.delete(webContentsId);
+  }
+}
+
+// Expose to global for access by handlers
+(global as any).setNavigationTrigger = setNavigationTrigger;
+
+/**
+ * Gets the navigation context, inheriting from opener if not set directly
+ */
+function getNavigationTrigger(webContentsId: number): string | null {
+  return navigationTriggerContexts.get(webContentsId) || null;
+}
+
+// IPC Handlers for Context
+ipcMain.handle("account:get-trigger-context", (event) => {
+  const context = getNavigationTrigger(event.sender.id);
+  logger.log(
+    `[Context] Preload queried context for ${event.sender.id}: ${context}`,
+  );
+  return context;
+});
+
+// Cache for specific login URLs encountered during validation
+const pendingLoginUrls = new Map<string, string>(); // ServiceId -> URL
+
+ipcMain.on("account:clear-pending-login", (_event, serviceId?: string) => {
+  if (serviceId) {
+    logger.log(`[Account] Clearing pending login URL for ${serviceId}`);
+    pendingLoginUrls.delete(serviceId);
+  } else {
+    logger.log("[Account] Clearing ALL pending login URLs");
+    pendingLoginUrls.clear();
+  }
+});
+
+ipcMain.handle("account:is-validation-mode", () => validationModeActive);
+
+ipcMain.on("account:clear-trigger", (event) => {
+  logger.log(`[Context] Clearing trigger context for ${event.sender.id}`);
+  navigationTriggerContexts.delete(event.sender.id);
+});
+
+// Track navigation status for each service to prevent concurrent loadURL calls
+const isNavigating = new Set<string>();
+
+// --- Account Validation Engine ---
+
+async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
+  if (serviceId !== "Kakao Games") return; // GGG not implemented yet
+
+  if (isNavigating.has(serviceId)) {
+    logger.log(
+      `[Account] Validation already in progress for ${serviceId}. Ignoring.`,
+    );
+    return;
+  }
+
+  logger.log(`[Account] Triggering validation for ${serviceId}...`);
+  isNavigating.add(serviceId);
+  setValidationMode(true);
+
+  if (!appContext) {
+    isNavigating.delete(serviceId);
+    return;
+  }
+
+  // Clear stale redirect URL before starting new validation
+  pendingLoginUrls.delete(serviceId);
+
+  const targetUrl = `${BASE_URLS["Kakao Games"].POE1}#validateLogin`;
+  const gw = appContext.ensureGameWindow({ service: "Kakao Games" });
+
+  // Mark the game window for validation
+  if (gw && !gw.isDestroyed()) {
+    setNavigationTrigger(gw.webContents.id, "ACCOUNT_VALIDATION");
+
+    try {
+      // DO NOT show window yet
+      await gw.loadURL(targetUrl);
+    } catch (error: any) {
+      // Error code -3 is ERR_ABORTED, -2 is ERR_FAILED
+      if (
+        error.code === "ERR_ABORTED" ||
+        error.errno === -3 ||
+        error.code === "ERR_FAILED" ||
+        error.errno === -2
+      ) {
+        logger.log(
+          `[Account] Navigation interrupted for ${serviceId} (expected during background automation).`,
+        );
+      } else {
+        logger.error(`[Account] Failed to load validation URL:`, error);
+      }
+    } finally {
+      isNavigating.delete(serviceId);
+    }
+  } else {
+    isNavigating.delete(serviceId);
+  }
+}
+
+ipcMain.on(
+  "account:trigger-validation",
+  (_event, serviceId: AppConfig["serviceChannel"]) => {
+    runAccountValidation(serviceId).catch((err) =>
+      logger.error("[Account] Error running validation:", err),
+    );
+  },
+);
+
+ipcMain.on(
+  "account:show-login-window",
+  (_event, serviceId: AppConfig["serviceChannel"]) => {
+    if (serviceId !== "Kakao Games") return;
+
+    logger.log("[Account] Explicitly showing login window by user request.");
+    setValidationMode(false); // Switch to manual mode so preload stops suppressing visibility
+
+    // Ensure window exists (recreate if closed during logout)
+    const gw = appContext.ensureGameWindow({ service: serviceId });
+
+    if (gw && !gw.isDestroyed()) {
+      // Mark as Manual Login context so preload knows to show it
+      setNavigationTrigger(gw.webContents.id, "ACCOUNT_MANUAL_LOGIN");
+
+      // Check if we have a 'kept' URL for this context
+      const pendingUrl = pendingLoginUrls.get(serviceId);
+      if (pendingUrl) {
+        logger.log(`[Account] Loading kept redirect URL: ${pendingUrl}`);
+        gw.loadURL(pendingUrl).catch(logger.error);
+        // Clear immediately after use (One-time use)
+        pendingLoginUrls.delete(serviceId);
+      } else {
+        // Standard fallback: POE Home
+        const homeUrl = BASE_URLS[serviceId].POE1;
+        logger.log(
+          `[Account] No pending URL, loading standard home: ${homeUrl}`,
+        );
+        gw.loadURL(homeUrl).catch(logger.error);
+      }
+
+      gw.show();
+      gw.focus();
+    }
+  },
+);
+
+ipcMain.on("kakao:account-id-fetched", (_event, id: string) => {
+  logger.log(`[Account] Fetched ID for Kakao: ${id}`);
+  setValidationMode(false);
+
+  // Update Config Cache
+  const config = getConfig() as AppConfig;
+  config.kakaoAccountId = id;
+  setConfig("kakaoAccountId", id);
+
+  // Notify Renderer
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("account:updated", { id });
+  }
+
+  // Close hidden window if successful
+  if (gameWindow && !gameWindow.isDestroyed()) {
+    gameWindow.close();
+  }
+});
+
+ipcMain.on("kakao:login-required", (event, data?: { url?: string }) => {
+  logger.log("[Account] Login required for Kakao.");
+
+  // If URL is provided during validation failure, 'keep' it for later
+  if (data?.url) {
+    logger.log(`[Account] Caching redirect URL for sync login: ${data.url}`);
+    pendingLoginUrls.set("Kakao Games", data.url);
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("account:updated", { loginRequired: true });
+  }
+});
+
 // --- Shared Window Open Handler Factory ---
 const createHandleWindowOpen =
-  (parentPartition?: string) =>
-  ({ url }: { url: string }) => {
+  (parentWebContentsId: number, parentPartition?: string) =>
+  (details: Electron.HandlerDetails) => {
     logger.log(
-      `[Main] Window Open Request: ${url} (Partition: ${parentPartition || "default"})`,
+      `[Main] Window Open Request: ${details.url} (ParentWC: ${parentWebContentsId}, Partition: ${parentPartition || "default"})`,
     );
 
     const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
     const showInactive = getEffectiveConfig("show_inactive_windows") === true;
-
-    // Checking forced visibility if creating a popup?
-    // Usually popups start hidden until navigation, but if parent is forced, maybe popup should be?
-    // For now, keep flash prevention logic.
     const shouldShowAtInit = isDebugEnv || showInactive;
 
-    // Always Allow creation + Always Inject Preload (for automation)
-    const result = {
-      action: "allow",
+    // [Trigger Context Inheritance Preparation]
+    // The actual setNavigationTrigger happens in 'web-contents-created' -> 'did-create-window'
+    // but we can pass the parent context through if needed.
+    const parentContext = getNavigationTrigger(parentWebContentsId);
+    if (parentContext) {
+      logger.log(
+        `[Context] Window open triggered by parent with context: ${parentContext}`,
+      );
+    }
+
+    return {
+      action: "allow" as const,
       overrideBrowserWindowOptions: {
         width: 800,
         height: 600,
         autoHideMenuBar: true,
-        show: shouldShowAtInit, // Visibility Control (Default Hidden unless Debug)
+        show: shouldShowAtInit,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: false,
-          preload: path.join(__dirname, "kakao/preload.js"), // Always inject
-          partition: parentPartition, // Inherit Partition
+          preload: path.join(__dirname, "kakao/preload.js"),
+          partition: parentPartition,
         },
       },
-    } as const;
-
-    return result;
+    };
   };
 
 // --- Visibility Control State ---
@@ -707,6 +960,11 @@ const context: AppContext = {
         },
       });
 
+      // [Context Support] Register Window Open Handler with Opener Context
+      gameWindow.webContents.setWindowOpenHandler(
+        createHandleWindowOpen(gameWindow.webContents.id, partition),
+      );
+
       // Update Context
       context.gameWindow = gameWindow;
 
@@ -786,6 +1044,47 @@ const handlers = [
   ChangelogUISyncHandler,
   UacHandler, // Added
   InactiveWindowVisibilityHandler, // [New] Dynamic Visibility
+  {
+    id: "UpdateWindowTitleHandler",
+    targetEvent: EventType.UPDATE_WINDOW_TITLE,
+    handle: async (_event: UpdateWindowTitleEvent, _context: AppContext) => {
+      broadcastTitleUpdate();
+    },
+  },
+  {
+    id: "DisplaySettingsHandler",
+    targetEvent: EventType.CONFIG_CHANGE,
+    condition: (event: ConfigChangeEvent) =>
+      event.payload.key === "autoResolution" ||
+      event.payload.key === "resolutionMode",
+    handle: async (event: ConfigChangeEvent, context: AppContext) => {
+      // Typed
+      const { mainWindow } = context;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const config = getConfig() as AppConfig;
+        logger.log(
+          `[Main] Display Config Changed: ${event.payload.key} -> ${event.payload.newValue}`,
+        );
+        const changed = applyResolutionRules(mainWindow, config, (mode) => {
+          // Sync back to config if auto-resolution is ON and mode changed
+          if (config.autoResolution && config.resolutionMode !== mode) {
+            logger.log(`[Main] Syncing auto-determined resolution: ${mode}`);
+            setConfig("resolutionMode", mode);
+            // Optional: Emit event to sync UI (Renderer needs to know to update the select box value)
+            eventBus.emit(EventType.CONFIG_CHANGE, context, {
+              key: "resolutionMode",
+              oldValue: config.resolutionMode,
+              newValue: mode,
+            });
+          }
+        });
+        if (changed) {
+          eventBus.emit(EventType.UPDATE_WINDOW_TITLE, context, undefined);
+        }
+        syncDebugWindow("ConfigChange");
+      }
+    },
+  },
 ];
 
 // --- Patch IPC ---
@@ -843,72 +1142,30 @@ let isQuitting = false;
 const BASE_WIDTH = 1440;
 const BASE_HEIGHT = 960;
 
-let lastLoggedContext = "";
-
 /**
  * Dynamically adjusts window constraints (resizable, size, etc.) based on the current display environment.
  */
 function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
-
-  // Use the display where the window is currently located
-  const currentDisplay = screen.getDisplayNearestPoint(win.getBounds());
-  const { width: screenWidth, height: screenHeight } =
-    currentDisplay.workAreaSize;
-
-  const needsScaling =
-    screenWidth < BASE_WIDTH + 10 || screenHeight < BASE_HEIGHT + 10;
-
-  // [Fix] Prevent log spam: Only log when the display or resolution actually changes
-  const contextKey = `${currentDisplay.id}-${screenWidth}x${screenHeight}`;
-  if (contextKey !== lastLoggedContext) {
-    logger.log(
-      `[Main] UI Context Update: Display [${currentDisplay.id}] (${screenWidth}x${screenHeight}), ScalingRequired: ${needsScaling}`,
-    );
-    lastLoggedContext = contextKey;
-  }
-
-  if (needsScaling) {
-    // Small Screen / High DPI: Enable flexibility
-    if (!win.isResizable()) win.setResizable(true);
-    if (!win.isMaximizable()) win.setMaximizable(true);
-
-    // Initial fill: If window is currently too large for the work area, maximize it
-    const [currW, currH] = win.getSize();
-    if (currW > screenWidth || currH > screenHeight) {
-      if (!win.isMaximized()) {
-        win.maximize();
+  const config = getConfig() as AppConfig;
+  const changed = applyResolutionRules(win, config, (mode) => {
+    // Sync back to config if auto-resolution is ON and mode changed
+    if (config.autoResolution && config.resolutionMode !== mode) {
+      logger.log(`[Main] Syncing auto-determined resolution (Intell): ${mode}`);
+      setConfig("resolutionMode", mode);
+      if (appContext) {
+        eventBus.emit(EventType.CONFIG_CHANGE, appContext, {
+          key: "resolutionMode",
+          oldValue: config.resolutionMode,
+          newValue: mode,
+        });
       }
     }
-
-    // Update Window Title for Status Indication via Centralized Broadcast
-    broadcastTitleUpdate();
-    win.webContents.send("scaling-mode-changed", true);
-  } else {
-    // Large Screen: Force fixed UX for stability as requested
-    // [Fix] Order of operations: We must allow resizing/maximizing before we can unmaximize and set the size.
-    if (!win.isResizable()) win.setResizable(true);
-    if (!win.isMaximizable()) win.setMaximizable(true);
-
-    if (win.isMaximized()) {
-      win.unmaximize();
-    }
-
-    // Ensure it's exactly the base size
-    const [currW, currH] = win.getSize();
-    if (currW !== BASE_WIDTH || currH !== BASE_HEIGHT) {
-      win.setSize(BASE_WIDTH, BASE_HEIGHT);
-      win.center();
-    }
-
-    // [Fix] LOCK constraints AFTER the transformation is complete
-    win.setResizable(false);
-    win.setMaximizable(false);
-
-    // Restore Window Title via Centralized Broadcast
-    broadcastTitleUpdate();
-    win.webContents.send("scaling-mode-changed", false);
+  });
+  if (changed && appContext) {
+    eventBus.emit(EventType.UPDATE_WINDOW_TITLE, appContext, undefined);
   }
+  syncDebugWindow("IntelligentConstraints");
 }
 
 // Global Context
@@ -1011,31 +1268,6 @@ function createWindows() {
     applyIntelligentConstraints(mainWindow);
   });
 
-  // Utility: Debounce
-  function debounce<T extends (...args: unknown[]) => void>(
-    func: T,
-    wait: number,
-  ): (...args: Parameters<T>) => void {
-    let timeout: NodeJS.Timeout | null = null;
-    return function (...args: Parameters<T>) {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        func(...args);
-      }, wait);
-    };
-  }
-
-  // Also update when window is moved (to handle multi-monitor scaling)
-  // [Optimize] Debounce move event to prevent IPC flooding (Performance)
-  mainWindow.on(
-    "move",
-    debounce(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        applyIntelligentConstraints(mainWindow);
-      }
-    }, 100),
-  );
-
   // Reveal window when ready-to-show
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1123,8 +1355,47 @@ function createWindows() {
   mainWindow.on("show", () => {
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
+    syncDebugWindow("MainShow");
   });
   mainWindow.on("hide", () => syncSubWindowsVisibility(false));
+
+  mainWindow.on("enter-full-screen", () => syncDebugWindow("FullScreenEnter"));
+  mainWindow.on("leave-full-screen", () => syncDebugWindow("FullScreenLeave"));
+  mainWindow.on("maximize", () => syncDebugWindow("Maximize"));
+  mainWindow.on("unmaximize", () => syncDebugWindow("Unmaximize"));
+  mainWindow.on("resize", () => syncDebugWindow("Resize"));
+  mainWindow.on("move", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const config = getConfig() as AppConfig;
+      enforceConstraints(mainWindow, config);
+      syncDebugWindow("MainMove");
+    }
+  });
+
+  // [Z-Order Sync] Keep debug console above launcher only when launcher is focused
+  mainWindow.on("focus", () => {
+    const win = mainWindow;
+    if (
+      win &&
+      !win.isDestroyed() &&
+      debugWindow &&
+      !debugWindow.isDestroyed()
+    ) {
+      // In fullscreen/maximized, we need setAlwaysOnTop to stay above the host
+      if (win.isFullScreen() || win.isMaximized()) {
+        debugWindow.setAlwaysOnTop(true, "screen-saver");
+        debugWindow.showInactive(); // Ensure visible without stealing focus
+        debugWindow.moveTop();
+      }
+    }
+  });
+
+  mainWindow.on("blur", () => {
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      // Release always-on-top so it can go behind other apps with the launcher
+      debugWindow.setAlwaysOnTop(false);
+    }
+  });
 
   // Initialize Tray
   trayManager.init(mainWindow, context);
@@ -1240,6 +1511,93 @@ function createWindows() {
   });
 }
 
+/**
+ * Synchronizes the debug window's docking state, position, and height with the main window.
+ */
+function syncDebugWindow(triggerSource: string = "Dynamic") {
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !debugWindow ||
+    debugWindow.isDestroyed()
+  ) {
+    return;
+  }
+
+  const isFullScreen = mainWindow.isFullScreen();
+  const isMaximized = mainWindow.isMaximized();
+  const isDocked = !isFullScreen && !isMaximized;
+
+  // Reduced logging during high-frequency move events
+  if (triggerSource !== "MainMove") {
+    logger.log(
+      `[Main][${triggerSource}] Syncing Debug Window. Docked: ${isDocked}`,
+    );
+  }
+
+  if (isDocked) {
+    const mainBounds = mainWindow.getBounds();
+    const debugBounds = debugWindow.getBounds();
+    const targetX = mainBounds.x + mainBounds.width;
+
+    // 1. Enforce Parent & Movability (Only if changed)
+    if (debugWindow.getParentWindow() !== mainWindow) {
+      debugWindow.setParentWindow(mainWindow);
+    }
+    if (debugWindow.isMovable()) {
+      debugWindow.setMovable(false);
+    }
+
+    // 2. Sync Bounds (Position + Height)
+    // We only update if there's a meaningful difference to avoid event loops
+    if (
+      debugBounds.x !== targetX ||
+      debugBounds.y !== mainBounds.y ||
+      debugBounds.height !== mainBounds.height
+    ) {
+      debugWindow.setBounds({
+        x: targetX,
+        y: mainBounds.y,
+        height: mainBounds.height,
+        width: debugBounds.width, // Preserve user-defined width
+      });
+    }
+
+    // 3. Keep constraints (Only if changed)
+    const [minW, minH] = debugWindow.getMinimumSize();
+    if (minW !== 400 || minH !== mainBounds.height) {
+      debugWindow.setMinimumSize(400, mainBounds.height);
+    }
+    const [maxW, maxH] = debugWindow.getMaximumSize();
+    if (maxW !== 1000 || maxH !== mainBounds.height) {
+      debugWindow.setMaximumSize(1000, mainBounds.height);
+    }
+  } else {
+    // Detached Mode (Fullscreen or Flexible/Maximized)
+    // 1. Release Parent & Allow movement (Only if changed)
+    if (debugWindow.getParentWindow() !== null) {
+      debugWindow.setParentWindow(null);
+    }
+    if (!debugWindow.isMovable()) {
+      debugWindow.setMovable(true);
+    }
+
+    // 2. Remove height/size constraints (Only if changed)
+    const [minW, minH] = debugWindow.getMinimumSize();
+    if (minW !== 400 || minH !== 300) {
+      debugWindow.setMinimumSize(400, 300);
+    }
+    const [maxW, maxH] = debugWindow.getMaximumSize();
+    if (maxW !== 2000 || maxH !== 2000) {
+      debugWindow.setMaximumSize(2000, 2000);
+    }
+
+    // 3. Move forward if it was behind (Optional UX)
+    // [Fix] Removed moveTop() to prevent focus-stealing during state transitions (Fullscreen/Maximize)
+    // which caused the "stuck in top-left" regression on Windows.
+  }
+}
+
 let isInitInProgress = false; // Guard against recursive/redundant calls during creation
 
 /**
@@ -1276,21 +1634,11 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
   if (shouldShow && (!debugWindow || debugWindow.isDestroyed())) {
     isInitInProgress = true;
     try {
-      // Check bounds
       const mainBounds = mainWindow.getBounds();
-      const targetX = mainBounds.x + mainBounds.width;
-      const targetY = mainBounds.y;
-
-      logger.log(`[Main][${triggerSource}] Creating Debug Window at:`, {
-        targetX,
-        targetY,
-      });
 
       debugWindow = new BrowserWindow({
         width: 900,
         height: mainBounds.height,
-        x: targetX,
-        y: targetY,
         parent: mainWindow,
         title: DEBUG_APP_CONFIG.TITLE,
         frame: false,
@@ -1299,7 +1647,7 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         minimizable: true,
         closable: true,
         autoHideMenuBar: true,
-        show: false, // [Fix] Start hidden to prevent white flash & ensure ready-to-show logic
+        show: false,
         webPreferences: {
           preload: path.join(__dirname, "preload.js"),
         },
@@ -1309,15 +1657,12 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
       debugWindow.once("ready-to-show", () => {
         if (debugWindow && !debugWindow.isDestroyed()) {
           debugWindow.show();
+          syncDebugWindow("ReadyToShow");
         }
       });
 
       // Update Context
       context.debugWindow = debugWindow;
-
-      // Lock Height to match Main Window
-      debugWindow.setMinimumSize(400, mainBounds.height);
-      debugWindow.setMaximumSize(1000, mainBounds.height);
 
       const debugUrl = VITE_DEV_SERVER_URL
         ? `${VITE_DEV_SERVER_URL}${DEBUG_APP_CONFIG.HASH}`
@@ -1338,43 +1683,27 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         }
       });
 
-      const updateDebugPosition = () => {
-        if (
-          mainWindow &&
-          !mainWindow.isDestroyed() &&
-          debugWindow &&
-          !debugWindow.isDestroyed()
-        ) {
-          const bounds = mainWindow.getBounds();
-          debugWindow.setPosition(bounds.x + bounds.width, bounds.y);
-        }
-      };
-
-      mainWindow.on("move", updateDebugPosition);
-
-      // Enforce docking during resize
+      // Enforce docking during debug window resize (only if docked)
       debugWindow.on("resize", () => {
         if (
           mainWindow &&
           !mainWindow.isDestroyed() &&
           debugWindow &&
-          !debugWindow.isDestroyed()
+          !debugWindow.isDestroyed() &&
+          !mainWindow.isFullScreen() &&
+          !mainWindow.isMaximized()
         ) {
           const mainBounds = mainWindow.getBounds();
           const debugBounds = debugWindow.getBounds();
           const targetX = mainBounds.x + mainBounds.width;
 
-          if (
-            debugBounds.x !== targetX ||
-            debugBounds.y !== mainBounds.y ||
-            debugBounds.height !== mainBounds.height
-          ) {
-            debugWindow.setBounds({
-              x: targetX,
-              y: mainBounds.y,
-              height: mainBounds.height,
-              width: debugBounds.width + (debugBounds.x - targetX),
-            });
+          // If X or Y drifted during resize, snap back
+          if (debugBounds.x !== targetX || debugBounds.y !== mainBounds.y) {
+            debugWindow.setPosition(targetX, mainBounds.y);
+          }
+          // Height MUST match
+          if (debugBounds.height !== mainBounds.height) {
+            debugWindow.setSize(debugBounds.width, mainBounds.height);
           }
         }
       });
@@ -1383,9 +1712,6 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
         logger.log("[Main] Debug Window Closed event fired.");
         debugWindow = null;
         context.debugWindow = null;
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.off("move", updateDebugPosition);
-        }
       });
 
       logger.log("[Main] Debug Console Creation Finalized.");
@@ -1665,8 +1991,10 @@ app.on("browser-window-created", (_, window) => {
   const webContents = window.webContents as unknown as ExtendedWebContents;
   const webPrefs = webContents.getWebPreferences?.();
   const currentPartition = webPrefs?.partition;
+
+  // Propagate the trigger context from opener to the new window
   window.webContents.setWindowOpenHandler(
-    createHandleWindowOpen(currentPartition),
+    createHandleWindowOpen(window.webContents.id, currentPartition),
   );
   // [Log] Monitor Popup Closing
   window.on("close", () => {
@@ -1758,6 +2086,21 @@ app.on("browser-window-created", (_, window) => {
   window.on("closed", () => {
     resetGameStatusIfInterrupted(window);
     windowContextMap.delete(wcId);
+  });
+});
+
+// [Trigger Context Inheritance]
+// Automatically propagate the purpose of navigation to new windows
+app.on("web-contents-created", (_, wc) => {
+  wc.on("did-create-window", (window) => {
+    // Reference by 'wc.id' as the parent that triggered the window creation
+    const parentContext = getNavigationTrigger(wc.id);
+    if (parentContext) {
+      logger.log(
+        `[Context] Propagating trigger '${parentContext}' from ${wc.id} -> ${window.webContents.id}`,
+      );
+      setNavigationTrigger(window.webContents.id, parentContext);
+    }
   });
 });
 
