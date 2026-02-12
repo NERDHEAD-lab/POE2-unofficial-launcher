@@ -240,40 +240,11 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               "모니터 크기에 맞춰 최적의 해상도(1440x960, 1080x720) 또는 전체 화면(저해상도)을 자동으로 적용합니다.",
             onChangeListener: (val, { showToast }) => {
               if (val === false) {
-                // Auto -> Manual: Sync current state
-                const width = window.outerWidth;
-                const height = window.outerHeight;
-                const isFullscreen =
-                  window.matchMedia("(display-mode: fullscreen)").matches ||
-                  (window.innerWidth === screen.width &&
-                    window.innerHeight === screen.height); // Simplified check
-
-                let matchedMode = "1440x960";
-                if (isFullscreen) {
-                  matchedMode = "fullscreen";
-                } else if (
-                  Math.abs(width - 1080) < 10 &&
-                  Math.abs(height - 720) < 10
-                ) {
-                  matchedMode = "1080x720";
-                } else if (
-                  Math.abs(width - 1440) < 10 &&
-                  Math.abs(height - 960) < 10
-                ) {
-                  matchedMode = "1440x960";
-                }
-
-                // Update resolutionMode without triggering window resize (passive sync)
-                // We use electronAPI to update config silently if possible?
-                // Or just setConfig. Main process handles config change.
-                // If main process sees resolutionMode change, it might re-apply.
-                // But since it matches current, re-apply is no-op.
-                if (window.electronAPI) {
-                  window.electronAPI.setConfig("resolutionMode", matchedMode);
-                  showToast(
-                    `현재 해상도(${matchedMode})가 수동 설정으로 유지됩니다.`,
-                  );
-                }
+                showToast("현재 해상도가 수동 설정으로 유지됩니다.", "success");
+              } else {
+                showToast(
+                  "모니터 환경에 맞춰 최적의 해상도가 자동으로 적용됩니다.",
+                );
               }
             },
           },

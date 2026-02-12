@@ -1065,7 +1065,19 @@ const handlers = [
         logger.log(
           `[Main] Display Config Changed: ${event.payload.key} -> ${event.payload.newValue}`,
         );
-        const changed = applyResolutionRules(mainWindow, config);
+        const changed = applyResolutionRules(mainWindow, config, (mode) => {
+          // Sync back to config if auto-resolution is ON and mode changed
+          if (config.autoResolution && config.resolutionMode !== mode) {
+            logger.log(`[Main] Syncing auto-determined resolution: ${mode}`);
+            setConfig("resolutionMode", mode);
+            // Optional: Emit event to sync UI (Renderer needs to know to update the select box value)
+            eventBus.emit(EventType.CONFIG_CHANGE, context, {
+              key: "resolutionMode",
+              oldValue: config.resolutionMode,
+              newValue: mode,
+            });
+          }
+        });
         if (changed) {
           eventBus.emit(EventType.UPDATE_WINDOW_TITLE, context, undefined);
         }
@@ -1136,7 +1148,20 @@ const BASE_HEIGHT = 960;
 function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
   const config = getConfig() as AppConfig;
-  const changed = applyResolutionRules(win, config);
+  const changed = applyResolutionRules(win, config, (mode) => {
+    // Sync back to config if auto-resolution is ON and mode changed
+    if (config.autoResolution && config.resolutionMode !== mode) {
+      logger.log(`[Main] Syncing auto-determined resolution (Intell): ${mode}`);
+      setConfig("resolutionMode", mode);
+      if (appContext) {
+        eventBus.emit(EventType.CONFIG_CHANGE, appContext, {
+          key: "resolutionMode",
+          oldValue: config.resolutionMode,
+          newValue: mode,
+        });
+      }
+    }
+  });
   if (changed && appContext) {
     eventBus.emit(EventType.UPDATE_WINDOW_TITLE, appContext, undefined);
   }

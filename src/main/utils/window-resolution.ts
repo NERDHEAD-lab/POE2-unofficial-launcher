@@ -20,6 +20,7 @@ const isCloseTo = (val: number, target: number, tolerance = 4) =>
 export const applyResolutionRules = (
   win: BrowserWindow,
   config: Partial<AppConfig>,
+  onModeDetermined?: (mode: string) => void,
 ): boolean => {
   if (!win || win.isDestroyed()) return false;
 
@@ -38,10 +39,13 @@ export const applyResolutionRules = (
   if (autoResolution) {
     if (workW >= BASE_WIDTH + 10 && workH >= BASE_HEIGHT + 10) {
       changed = applyFixedSize(win, BASE_WIDTH, BASE_HEIGHT);
+      onModeDetermined?.("1440x960");
     } else if (workW >= MEDIUM_WIDTH + 10 && workH >= MEDIUM_HEIGHT + 10) {
       changed = applyFixedSize(win, MEDIUM_WIDTH, MEDIUM_HEIGHT);
+      onModeDetermined?.("1080x720");
     } else {
       changed = applyFlexibleMode(win);
+      onModeDetermined?.("fullscreen");
     }
   }
   // 2. Manual Resolution Logic
