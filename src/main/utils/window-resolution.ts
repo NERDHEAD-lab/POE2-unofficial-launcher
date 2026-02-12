@@ -9,7 +9,7 @@ const MEDIUM_WIDTH = 1080;
 const MEDIUM_HEIGHT = 720;
 
 // Helper for approximate comparison
-const isCloseTo = (val: number, target: number, tolerance = 4) =>
+const isCloseTo = (val: number, target: number, tolerance = 10) =>
   Math.abs(val - target) < tolerance;
 
 /**
