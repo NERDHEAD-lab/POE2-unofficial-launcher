@@ -43,7 +43,6 @@ export interface AppConfig {
    */
   processWatchMode: "resource-saving" | "always-on";
   launcherVersion: string;
-  runAsAdmin: boolean;
   aggressivePatchMode: boolean;
   skipDaumGameStarterUac: boolean;
   autoResolution: boolean;
