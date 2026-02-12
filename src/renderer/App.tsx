@@ -26,6 +26,7 @@ import {
 } from "../shared/types";
 import ChangelogModal from "./components/modals/ChangelogModal";
 import MigrationModal from "./components/modals/MigrationModal";
+import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
@@ -613,6 +614,11 @@ function App() {
 
   // Developer Notices State
   const [devNotices, setDevNotices] = useState<NewsItem[]>([]);
+  const [selectedNotice, setSelectedNotice] = useState<NewsItem | null>(null);
+
+  const handleNoticeClick = useCallback((item: NewsItem) => {
+    setSelectedNotice(item);
+  }, []);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -896,6 +902,7 @@ function App() {
                   items={devNotices}
                   forumUrl=""
                   onRead={handleDevRead}
+                  onShowModal={handleNoticeClick}
                   isDevSection={true}
                   headerVariant="long"
                 />
@@ -903,9 +910,15 @@ function App() {
               <NewsDashboard
                 activeGame={activeGame}
                 serviceChannel={serviceChannel}
+                onItemClick={handleNoticeClick}
               />
             </div>
           </div>
+
+          <NoticeModal
+            item={selectedNotice}
+            onClose={() => setSelectedNotice(null)}
+          />
 
           {/* Footer Section (Button + Image Separation) */}
           <div className="footer-section">

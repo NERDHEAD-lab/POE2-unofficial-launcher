@@ -448,6 +448,9 @@ ipcMain.handle(
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => {
+    if (category === "dev-notice") {
+      return newsService.fetchDevNotices();
+    }
     return newsService.fetchNewsList(game, service, category);
   },
 );
@@ -460,6 +463,9 @@ ipcMain.handle(
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => {
+    if (category === "dev-notice") {
+      return newsService.getCacheItems("dev-notice");
+    }
     return newsService.getCacheItems({ game, service, category });
   },
 );

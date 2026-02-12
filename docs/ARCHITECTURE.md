@@ -257,6 +257,16 @@
   - **Account ID Caching**: 추출된 계정 ID는 `AppConfig`에 캐싱되어 다음 진입 시 배경 검증이 완료되기 전에도 즉시 표시됨 (낙관적 UI).
 - **결과**: 사용자는 별도의 창 팝업 없이 설정 페이지에서 자신의 로그인 상태와 계정 ID를 즉시 확인할 수 있으며, 필요 시 원클릭으로 로그인 또는 로그아웃이 가능함.
 
+#### ADR-020: Markdown Notice System (gh-pages Source & Automation)
+
+- **상황**: 런처 자체의 공지사항이나 개발자 노트를 포럼 외부(GitHub 등)에서 Markdown 형식으로 가져와 보여줄 때, 기존의 인라인 아코디언 방식은 레이아웃이 깨지거나 가독성이 떨어지는 이슈가 있음. 또한 `list.json` 인덱스 파일을 수동으로 관리하는 것은 번거롭고 오류 발생 가능성이 높음.
+- **결정**:
+  - **Popup Modal Structure**: Markdown 콘텐츠 전용 대형 모달(`NoticeModal`)을 도입하여 포커스된 읽기 환경을 제공함.
+  - **Marked & DOMPurify**: `marked`를 사용하여 Markdown을 HTML로 변환하고, `DOMPurify`를 통해 보안 계층을 적용함.
+  - **gh-pages Branch as Source**: 개발자가 공지사항(`.md`)을 `gh-pages` 브랜치의 `notice/` 폴더에 직접 업로드하는 모델을 채택함.
+  - **Hybrid GitHub Actions**: `.github/workflows/automate-notice-list.yml`이 `gh-pages` 브랜치에 푸시될 때 트리거되도록 설정함. 액션은 `master` 브랜치에서 최신 생성 스크립트를 가져와 `gh-pages` 브랜치 상의 `list.json`을 자동 갱신함.
+- **결과**: 개발자는 배포 브랜치(`gh-pages`)에 파일만 올리면 자동으로 인덱싱되어 런처에 반영되는 완전 자동화된 공지사항 파이프라인을 확보함.
+
 ## 5. Settings System
 
 런처의 설정 화면은 `src/renderer/settings/types.ts` 인터페이스를 기반으로 선언적으로 구축됩니다.

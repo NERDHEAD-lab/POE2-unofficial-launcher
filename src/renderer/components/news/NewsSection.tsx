@@ -8,6 +8,7 @@ interface NewsSectionProps {
   items: NewsItemType[];
   forumUrl: string;
   onRead: (id: string) => void;
+  onShowModal?: (item: NewsItemType) => void;
   isDevSection?: boolean;
   headerVariant?: "long" | "short";
 }
@@ -17,6 +18,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
   items,
   forumUrl,
   onRead,
+  onShowModal,
   isDevSection,
   headerVariant,
 }) => {
@@ -40,7 +42,12 @@ const NewsSection: React.FC<NewsSectionProps> = ({
       <div className="news-list">
         {items.length > 0 ? (
           items.map((item) => (
-            <NewsItem key={item.id} item={item} onRead={onRead} />
+            <NewsItem
+              key={item.id}
+              item={item}
+              onRead={onRead}
+              onShowModal={onShowModal}
+            />
           ))
         ) : (
           <div className="no-news">게시글이 없습니다-</div>
