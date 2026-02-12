@@ -1,5 +1,11 @@
 [
   {
+    "title": "중요한 개발자 공지사항 테스트용 게시글입니다.",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/공지 테스트-notice.md",
+    "date": "2026-02-12",
+    "priority": true
+  },
+  {
     "title": "개발자 공지사항 테스트용 게시글입니다.",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/테스트.md",
     "date": "2026-02-12",
