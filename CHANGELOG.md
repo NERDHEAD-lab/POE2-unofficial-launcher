@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.8.0...0.9.0) (2026-02-15)
+
+
+### Features
+
+* 개발환경에서 업데이트를 확인하지 않도록 개선 ([b4cc03d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b4cc03d651aae98929a5343219c90b228abfddb8))
+* 설치 버전 기준 패치를 강제로 새로 받는 기능 추가 ([725c0da](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/725c0da39f8fe676cbc5edafbc8dc9b92c218750))
+* 설치 버전 기준 패치를 강제로 새로 받는 기능 추가 - 2 ([a3cac4e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a3cac4eeac4fdb9fc910a979e6be48e175f738ec))
+* 오류 패치 진행도 표시 간소화 ( 1% -&gt; 10% 마다 표시 ) ([821d3cb](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/821d3cb76ae7e384e0f1bf8de6c952e60b924034))
+
 ## [0.8.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.7.0...0.8.0) (2026-02-12)
 
 
