@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import { DebugLogEvent } from "./events/types";
 import { PreloadLogger } from "./utils/preload-logger";
 import { getGameName } from "../shared/naming";
+import { ChangelogItem } from "../shared/types";
 import {
   GameStatusState,
   AppConfig,
@@ -181,9 +182,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onShowChangelog: (
     callback: (
       data:
-        | import("../shared/types").ChangelogItem[]
+        | ChangelogItem[]
         | {
-            changelogs: import("../shared/types").ChangelogItem[];
+            changelogs: ChangelogItem[];
             oldVersion?: string;
             newVersion?: string;
           },

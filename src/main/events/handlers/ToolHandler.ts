@@ -1,6 +1,12 @@
 import { PatchManager } from "../../services/PatchManager";
 import { eventBus } from "../EventBus";
-import { AppContext, DebugLogEvent, EventHandler, EventType } from "../types";
+import {
+  AppContext,
+  DebugLogEvent,
+  EventHandler,
+  EventType,
+  ToolForceRepairEvent,
+} from "../types";
 
 // --- Helper for UI Logging ---
 function emitLog(
@@ -18,9 +24,7 @@ function emitLog(
   });
 }
 
-export const ToolForceRepairHandler: EventHandler<
-  import("../types").ToolForceRepairEvent
-> = {
+export const ToolForceRepairHandler: EventHandler<ToolForceRepairEvent> = {
   id: "ToolForceRepairHandler",
   targetEvent: EventType.TOOL_FORCE_REPAIR,
   handle: async (event, context) => {

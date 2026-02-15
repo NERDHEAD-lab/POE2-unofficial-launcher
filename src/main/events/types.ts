@@ -5,6 +5,7 @@ import {
   AppConfig,
   GameStatusState,
   DebugLogPayload,
+  ChangelogItem,
 } from "../../shared/types";
 
 // Event Enums
@@ -41,7 +42,7 @@ export interface ToolForceRepairEvent {
   type: EventType.TOOL_FORCE_REPAIR;
   payload: {
     installPath: string;
-    serviceId: import("../../shared/types").AppConfig["serviceChannel"];
+    serviceId: AppConfig["serviceChannel"];
     webRoot: string;
   };
   timestamp?: number;
@@ -222,7 +223,7 @@ export interface SyncDevToolsVisibilityEvent {
 export interface ShowChangelogEvent {
   type: EventType.SHOW_CHANGELOG;
   payload: {
-    changelogs: import("../../shared/types").ChangelogItem[];
+    changelogs: ChangelogItem[];
     oldVersion?: string;
     newVersion?: string;
   };
