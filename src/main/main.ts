@@ -88,6 +88,7 @@ import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { trayManager } from "./managers/TrayManager"; // Added
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
+import { GameVersionScanner } from "./services/GameVersionScanner";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
@@ -1431,6 +1432,32 @@ function createWindows() {
 
   printBanner();
   logger.log("[Main] Main Logger initialized.");
+
+  // [New] Initial Game Version Scan: Recover if knownGameVersions is empty
+  const runInitialGameVersionScan = async () => {
+    const config = getConfig() as AppConfig;
+    const knownVersions = config.knownGameVersions || {};
+
+    if (Object.keys(knownVersions).length === 0) {
+      logger.log(
+        "[Main] knownGameVersions is empty. Scanning logs for recovery...",
+      );
+      const scannedResults = await GameVersionScanner.scanAll();
+
+      if (Object.keys(scannedResults).length > 0) {
+        logger.log(
+          `[Main] Recovery scan successful. Found ${Object.keys(scannedResults).length} versions.`,
+        );
+        setConfigWithEvent("knownGameVersions", scannedResults);
+      } else {
+        logger.log("[Main] Recovery scan finished with no results.");
+      }
+    }
+  };
+
+  runInitialGameVersionScan().catch((e) =>
+    logger.error("[Main] Failed during initial game version scan:", e),
+  );
 
   // Perform initial installation check for ALL contexts
   // const initialConfig = getConfig() as AppConfig; (Removed: unused)

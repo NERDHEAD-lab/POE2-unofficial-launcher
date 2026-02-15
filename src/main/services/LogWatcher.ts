@@ -11,6 +11,7 @@ import {
   LogErrorDetectedEvent,
 } from "../events/types";
 import { Logger } from "../utils/logger";
+import { LogParser } from "../utils/LogParser";
 import { getGameInstallPath } from "../utils/registry";
 
 const ERROR_PATTERN = "Transferred a partial file";
@@ -121,12 +122,10 @@ export class LogWatcher {
       this.lastCheckedServiceId = serviceId;
       this.currentPid = pid || null;
 
-      const stats = await fs.promises.stat(logPath);
-
-      const offset = await this.findMarkerOffset(
+      const offset = await LogParser.findLastMarkerOffset(
         logPath,
         config.logStartMarker,
-        stats.size,
+        2 * 1024 * 1024,
       );
       this.lastSize = offset;
 
@@ -157,39 +156,6 @@ export class LogWatcher {
     this.currentLogPath = null;
     this.currentPid = null;
     this.emitLog("Monitoring stopped.");
-  }
-
-  private async findMarkerOffset(
-    logPath: string,
-    marker: string,
-    totalSize: number,
-  ): Promise<number> {
-    const READ_SIZE = 2 * 1024 * 1024; // 2MB
-    const startPos = Math.max(0, totalSize - READ_SIZE);
-    const length = totalSize - startPos;
-
-    if (length <= 0) return 0;
-
-    try {
-      const buffer = Buffer.alloc(length);
-      const fd = await fs.promises.open(logPath, "r");
-      await fd.read(buffer, 0, length, startPos);
-      await fd.close();
-
-      const markerBuf = Buffer.from(marker, "utf8");
-      const bufIndex = buffer.lastIndexOf(markerBuf);
-
-      if (bufIndex !== -1) {
-        this.emitLog(`Found session marker at offset ${startPos + bufIndex}`);
-        return startPos + bufIndex;
-      }
-
-      return totalSize;
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.emitLog(`Failed to seek marker: ${msg}`, true);
-      return totalSize;
-    }
   }
 
   private async checkLog() {
@@ -243,31 +209,27 @@ export class LogWatcher {
           }
 
           // Check for Backup Web Root
-          if (line.includes("Backup Web root:")) {
-            const match = line.match(/Backup Web root: (https?:\/\/[^\s]+)/);
-            if (match && this.currentPid) {
-              const url = match[1];
-              this.emitLog(`Backup Web Root Found: ${url}`);
-              eventBus.emit(EventType.LOG_BACKUP_WEB_ROOT_FOUND, this.context, {
-                gameId: this.lastCheckedGameId!,
-                serviceId: this.lastCheckedServiceId!,
-                pid: this.currentPid,
-                backupWebRoot: url,
-                timestamp: Date.now(),
-              });
-            }
+          const backupWebRoot = LogParser.extractBackupWebRoot(line);
+          if (backupWebRoot && this.currentPid) {
+            this.emitLog(`Backup Web Root Found: ${backupWebRoot}`);
+            eventBus.emit(EventType.LOG_BACKUP_WEB_ROOT_FOUND, this.context, {
+              gameId: this.lastCheckedGameId!,
+              serviceId: this.lastCheckedServiceId!,
+              pid: this.currentPid,
+              backupWebRoot,
+              timestamp: Date.now(),
+            });
           }
           // Check for Web Root (Exclusive)
-          else if (line.includes("Web root:")) {
-            const match = line.match(/Web root: (https?:\/\/[^\s]+)/);
-            if (match && this.currentPid) {
-              const url = match[1];
-              this.emitLog(`Web Root Found: ${url}`);
+          else {
+            const webRoot = LogParser.extractWebRoot(line);
+            if (webRoot && this.currentPid) {
+              this.emitLog(`Web Root Found: ${webRoot}`);
               eventBus.emit(EventType.LOG_WEB_ROOT_FOUND, this.context, {
                 gameId: this.lastCheckedGameId!,
                 serviceId: this.lastCheckedServiceId!,
                 pid: this.currentPid,
-                webRoot: url,
+                webRoot,
                 timestamp: Date.now(),
               });
             }

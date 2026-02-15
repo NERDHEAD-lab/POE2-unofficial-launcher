@@ -8,6 +8,7 @@ import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
 import { AppContext, EventType, PatchProgressEvent } from "../events/types";
 import { Logger } from "../utils/logger";
+import { LogParser } from "../utils/LogParser";
 
 interface ParsedLogInfo {
   webRoot: string | null;
@@ -211,20 +212,7 @@ export class PatchManager {
     const profile = GAME_SERVICE_PROFILES[serviceId];
     if (!profile) throw new Error("Unknown Service ID");
 
-    const stats = await fs.promises.stat(logPath);
-    const size = stats.size;
-    const READ_SIZE = 2 * 1024 * 1024; // 2MB
-
-    let content = "";
-    if (size <= READ_SIZE) {
-      content = await fs.promises.readFile(logPath, "utf-8");
-    } else {
-      const buffer = Buffer.alloc(READ_SIZE);
-      const fd = await fs.promises.open(logPath, "r");
-      await fd.read(buffer, 0, READ_SIZE, size - READ_SIZE);
-      await fd.close();
-      content = buffer.toString("utf8");
-    }
+    const content = await LogParser.readLastPart(logPath, 2 * 1024 * 1024);
 
     const lines = content.split("\n");
     let webRoot: string | null = null;
@@ -243,11 +231,10 @@ export class PatchManager {
     if (lastIndex === -1) lastIndex = 0;
 
     const recentLines = lines.slice(lastIndex);
-    const pidRegex = /\[(?:INFO|WARN|ERROR)\s+Client\s+(\d+)\]/;
     for (const line of recentLines) {
-      const match = line.match(pidRegex);
-      if (match) {
-        currentPid = match[1];
+      const pid = LogParser.extractPid(line);
+      if (pid) {
+        currentPid = pid;
         break;
       }
     }
@@ -255,30 +242,16 @@ export class PatchManager {
     for (const line of recentLines) {
       if (currentPid && !line.includes(`Client ${currentPid}`)) continue;
       if (line.includes("Transferred a partial file")) hasError = true;
-      if (line.includes("Web root:")) {
-        const match = line.match(/Web root: (https?:\/\/[^\s]+)/);
-        if (match) webRoot = match[1];
-      } else if (line.includes("Backup Web root:")) {
-        const match = line.match(/Backup Web root: (https?:\/\/[^\s]+)/);
-        if (match) backupWebRoot = match[1];
-      }
-      const queuePattern = "Queue file to download:";
-      if (line.includes(queuePattern)) {
-        const parts = line.split(queuePattern);
-        if (parts.length > 1) {
-          const f = parts[1].trim();
-          if (f && !f.includes(" ")) {
-            const isExtMatch =
-              f.endsWith(".exe") ||
-              f.endsWith(".dat") ||
-              f.endsWith(".bundle") ||
-              f.endsWith(".dll");
-            const isEssential = profile.essentialExecutables.includes(f);
-            if (isExtMatch || isEssential) {
-              if (!files.includes(f)) files.push(f);
-            }
-          }
-        }
+
+      const webRootMatch = LogParser.extractWebRoot(line);
+      const backupWebRootMatch = LogParser.extractBackupWebRoot(line);
+
+      if (webRootMatch) webRoot = webRootMatch;
+      if (backupWebRootMatch) backupWebRoot = backupWebRootMatch;
+
+      const file = LogParser.extractFileToDownload(line, profile);
+      if (file && !files.includes(file)) {
+        files.push(file);
       }
     }
 
@@ -334,15 +307,7 @@ export class PatchManager {
     const backedUpFiles: string[] = [];
 
     // Extract version from Web Root (e.g. .../patch/4.4.0.5.2/)
-    let currentVersion = "unknown";
-    try {
-      const versionMatch = webRoot.match(/\/patch\/([\d.]+)\/?/);
-      if (versionMatch && versionMatch[1]) {
-        currentVersion = versionMatch[1];
-      }
-    } catch {
-      // Ignore extraction error
-    }
+    const currentVersion = LogParser.extractVersion(webRoot);
 
     const processFile = async (file: string) => {
       if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");

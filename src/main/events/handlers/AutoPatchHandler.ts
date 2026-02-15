@@ -1,6 +1,7 @@
 import { AppConfig } from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
 import { setConfigWithEvent } from "../../utils/config-utils";
+import { LogParser } from "../../utils/LogParser";
 import { PowerShellManager } from "../../utils/powershell";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
@@ -194,11 +195,7 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
       const key = `${gameId}_${serviceId}`;
 
       // Extract Version
-      let version = "unknown";
-      const match = webRoot.match(/\/patch\/([\d.]+)\/?/);
-      if (match && match[1]) {
-        version = match[1];
-      }
+      const version = LogParser.extractVersion(webRoot);
 
       const config = context.getConfig() as AppConfig;
       const knownVersions = config.knownGameVersions || {};
