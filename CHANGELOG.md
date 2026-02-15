@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.0...0.9.1) (2026-02-15)
+
+
+### Bug Fixes
+
+* 개발자 공지사항 이미지가 정상적으로 표시되지 않는 문제 수정 ([277f94a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/277f94aea28a1a06af9900d0156434ed06c9d168))
+
 ## [0.9.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.8.0...0.9.0) (2026-02-15)
 
 
