@@ -65,6 +65,9 @@
     "vite-plugin-electron-renderer": "^0.14.5",
     "vitest": "^4.0.17"
   },
+  "overrides": {
+    "eslint": "$eslint"
+  },
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix",
