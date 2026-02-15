@@ -175,13 +175,14 @@ function App() {
   };
 
   // Launcher Title State (Managed by Main Process via Events)
-  const [appTitle, setAppTitle] = useState("");
+  const [appTitle, setAppTitle] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (window.electronAPI?.onTitleUpdated) {
       const cleanup = window.electronAPI.onTitleUpdated((newTitle) => {
         setAppTitle(newTitle);
       });
+      window.electronAPI.requestTitleUpdate();
       return cleanup;
     }
   }, []);
