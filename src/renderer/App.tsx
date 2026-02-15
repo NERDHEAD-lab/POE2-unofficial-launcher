@@ -102,14 +102,6 @@ function App() {
 
   const isFirstMount = useRef(true);
 
-  const prevStatusRef = useRef<RunStatus>("idle");
-
-  // Update State
-  // Update State (Using object for richer metadata)
-  const [updateState, setUpdateState] = useState<UpdateStatus>({
-    state: "idle",
-  });
-
   // Changelog State
   const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
   const [versionRange, setVersionRange] = useState<{
@@ -117,6 +109,14 @@ function App() {
     new?: string;
   }>({});
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+
+  const prevStatusRef = useRef<RunStatus>("idle");
+
+  // Update State
+  // Update State (Using object for richer metadata)
+  const [updateState, setUpdateState] = useState<UpdateStatus>({
+    state: "idle",
+  });
 
   // Changelog Listener
   useEffect(() => {

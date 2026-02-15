@@ -14,7 +14,12 @@ import {
 } from "electron";
 import JSZip from "jszip";
 
+import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
+import {
+  setConfigWithEvent,
+  deleteConfigWithEvent,
+} from "./utils/config-utils";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { getGameName, getLauncherTitle } from "../shared/naming";
 import {
@@ -68,7 +73,6 @@ import {
 import {
   AppContext,
   ConfigChangeEvent,
-  ConfigDeleteEvent,
   EventType,
   GameStatusChangeEvent,
   EventHandler,
@@ -87,13 +91,7 @@ import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { ProcessWatcher } from "./services/ProcessWatcher";
-import {
-  getConfig,
-  setConfig,
-  deleteConfig,
-  setupStoreObservers,
-  default as store,
-} from "./store";
+import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
   isAdmin,
   relaunchAsAdmin,
@@ -119,7 +117,7 @@ import {
  * Checks if the launcher version has changed since the last run.
  * If changed, triggers the Changelog check sequence.
  */
-async function checkLauncherVersionUpdate(_context: AppContext) {
+async function checkLauncherVersionUpdate() {
   const currentVersion = app.getVersion();
   const storedVersion = getConfig("launcherVersion") as string;
 
@@ -127,17 +125,9 @@ async function checkLauncherVersionUpdate(_context: AppContext) {
     logger.log(
       `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
     );
-    setConfig("launcherVersion", currentVersion);
 
-    // Emit Config Change Event manually to trigger ChangelogHandler
-    // We only trigger if there WAS a previous version (not fresh install)
-    if (storedVersion) {
-      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-        key: "launcherVersion",
-        oldValue: storedVersion,
-        newValue: currentVersion,
-      });
-    }
+    // Use setConfigWithEvent (broadcasts change automatically)
+    setConfigWithEvent("launcherVersion", currentVersion);
   }
 }
 
@@ -313,29 +303,14 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
     return;
   }
 
-  setConfig(key, value);
-
-  // Dispatch Config Change Event (Sync Handler will handle UI broadcast)
-  if (appContext) {
-    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-      key,
-      oldValue,
-      newValue: value,
-    });
-  }
+  // Use shared utility to Set & Broadcast
+  // It handles context checking internally
+  setConfigWithEvent(key, value);
 });
 
 ipcMain.handle("config:delete", (_event, key: string) => {
-  const oldValue = getConfig(key);
-  deleteConfig(key);
-
-  // Dispatch Config Delete Event (Sync Handler will handle UI broadcast)
-  if (appContext) {
-    eventBus.emit<ConfigDeleteEvent>(EventType.CONFIG_DELETE, appContext, {
-      key,
-      oldValue,
-    });
-  }
+  // Use shared utility to Delete & Broadcast
+  deleteConfigWithEvent(key);
 });
 
 ipcMain.handle(
@@ -507,20 +482,10 @@ ipcMain.on("uac-migration:confirm", async () => {
   await LegacyUacManager.cleanupLegacy();
 
   const key = "skipDaumGameStarterUac";
-  const oldValue = getConfig(key);
   const newValue = true;
 
-  // 1. Update Store
-  setConfig(key, newValue);
-
-  // 2. Emit Event to trigger UacHandler & UI Sync
-  if (appContext) {
-    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-      key,
-      oldValue,
-      newValue,
-    });
-  }
+  // Use setConfigWithEvent
+  setConfigWithEvent(key, newValue);
 });
 
 // [Fix] Register Missing UAC Handlers
@@ -530,13 +495,13 @@ ipcMain.handle("uac:is-enabled", async () => {
 
 ipcMain.handle("uac:enable", async () => {
   // Logic moved to UacHandler (triggered by setConfig)
-  setConfig("skipDaumGameStarterUac", true);
+  setConfigWithEvent("skipDaumGameStarterUac", true);
   return true; // Optimistic success (Handler will log error if fails)
 });
 
 ipcMain.handle("uac:disable", async () => {
   // Logic moved to UacHandler (triggered by setConfig)
-  setConfig("skipDaumGameStarterUac", false);
+  setConfigWithEvent("skipDaumGameStarterUac", false);
   return true; // Optimistic success
 });
 
@@ -593,7 +558,7 @@ ipcMain.handle("session:logout", async () => {
     );
 
     // 4. Clear Account Cache & Notify Renderer
-    setConfig("kakaoAccountId", null);
+    setConfigWithEvent("kakaoAccountId", null);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("account:updated", {
         id: null,
@@ -635,7 +600,7 @@ function setNavigationTrigger(
 }
 
 // Expose to global for access by handlers
-(global as any).setNavigationTrigger = setNavigationTrigger;
+global.setNavigationTrigger = setNavigationTrigger;
 
 /**
  * Gets the navigation context, inheriting from opener if not set directly
@@ -710,6 +675,7 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
     try {
       // DO NOT show window yet
       await gw.loadURL(targetUrl);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       // Error code -3 is ERR_ABORTED, -2 is ERR_FAILED
       if (
@@ -785,7 +751,7 @@ ipcMain.on("kakao:account-id-fetched", (_event, id: string) => {
   // Update Config Cache
   const config = getConfig() as AppConfig;
   config.kakaoAccountId = id;
-  setConfig("kakaoAccountId", id);
+  setConfigWithEvent("kakaoAccountId", id);
 
   // Notify Renderer
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1069,7 +1035,7 @@ const handlers = [
           // Sync back to config if auto-resolution is ON and mode changed
           if (config.autoResolution && config.resolutionMode !== mode) {
             logger.log(`[Main] Syncing auto-determined resolution: ${mode}`);
-            setConfig("resolutionMode", mode);
+            setConfigWithEvent("resolutionMode", mode);
             // Optional: Emit event to sync UI (Renderer needs to know to update the select box value)
             eventBus.emit(EventType.CONFIG_CHANGE, context, {
               key: "resolutionMode",
@@ -1149,17 +1115,9 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
   const config = getConfig() as AppConfig;
   const changed = applyResolutionRules(win, config, (mode) => {
-    // Sync back to config if auto-resolution is ON and mode changed
     if (config.autoResolution && config.resolutionMode !== mode) {
       logger.log(`[Main] Syncing auto-determined resolution (Intell): ${mode}`);
-      setConfig("resolutionMode", mode);
-      if (appContext) {
-        eventBus.emit(EventType.CONFIG_CHANGE, appContext, {
-          key: "resolutionMode",
-          oldValue: config.resolutionMode,
-          newValue: mode,
-        });
-      }
+      setConfigWithEvent("resolutionMode", mode);
     }
   });
   if (changed && appContext) {
@@ -1284,9 +1242,8 @@ function createWindows() {
       // [Fix] Defer Version Check/Changelog until Window is Ready
       // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
       setTimeout(async () => {
-        if (appContext) {
-          checkLauncherVersionUpdate(appContext);
-        }
+        // Check for launcher update (version change)
+        await checkLauncherVersionUpdate();
 
         // [UAC Migration] Trigger In-App Modal if Legacy Detected
         if (await LegacyUacManager.detectLegacy()) {
@@ -1418,6 +1375,7 @@ function createWindows() {
 
   // Initialize Global Context
   appContext = context;
+  ContextProvider.set(appContext); // [New] Set Global Context Provider
   appContext.mainWindow = mainWindow;
   setupMainLogger(appContext, (event) => {
     eventBus.emit(event.type, appContext, event.payload);

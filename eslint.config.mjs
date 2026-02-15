@@ -79,6 +79,31 @@ export default [
             "Direct access to this.context.store is restricted. Use this.context.getConfig() instead.",
         },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+            {
+              name: "../../store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+            {
+              name: "./store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+          ],
+        },
+      ],
     },
   },
   {
