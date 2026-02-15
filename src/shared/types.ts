@@ -233,6 +233,7 @@ export interface ElectronAPI {
   openPath: (path: string) => Promise<void>;
   setWindowTitle: (title: string) => void;
   onTitleUpdated: (callback: (title: string) => void) => () => void;
+  requestTitleUpdate: () => void;
   initialGameName: string;
 
   // [Account ID & Validation]

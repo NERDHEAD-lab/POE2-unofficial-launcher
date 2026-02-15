@@ -1537,6 +1537,12 @@ function createWindows() {
     broadcastTitleUpdate();
   });
 
+  // [New] Renderer explicitly requests title update when ready
+  ipcMain.on("app:request-title", () => {
+    logger.log("[Main] Renderer requested title update. Broadcasting...");
+    broadcastTitleUpdate();
+  });
+
   // Ensure app quits when main UI window is closed
   mainWindow.on("closed", () => {
     mainWindow = null;

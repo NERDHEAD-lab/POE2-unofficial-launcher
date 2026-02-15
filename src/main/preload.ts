@@ -211,6 +211,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:title-updated", handler);
     return () => ipcRenderer.off("app:title-updated", handler);
   },
+  requestTitleUpdate: () => ipcRenderer.send("app:request-title"),
   confirmUacMigration: () => ipcRenderer.send("uac-migration:confirm"),
   initialGameName: getGameName(
     ipcRenderer.sendSync("config:get-sync", "activeGame"),
