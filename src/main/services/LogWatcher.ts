@@ -245,10 +245,11 @@ export class LogWatcher {
         }
 
         // [Korean Mode] Aggressive Patch Logic
-        // If aggressive mode is enabled, we trigger immediately on the FIRST error (Threshold = 1).
+        // If aggressive mode is enabled AND auto-fix is on, we trigger immediately on the FIRST error (Threshold = 1).
         // Otherwise, we use the standard threshold (10) to avoid false positives.
         const aggressiveMode =
-          this.context.getConfig("aggressivePatchMode") === true;
+          this.context.getConfig("aggressivePatchMode") === true &&
+          this.context.getConfig("autoFixPatchError") === true;
         const effectiveThreshold = aggressiveMode ? 1 : ERROR_THRESHOLD;
 
         // [Improved] Emit only on change to avoid EventBus spam,
