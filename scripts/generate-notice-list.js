@@ -15,7 +15,9 @@ const NOTICE_DIR = path.join(__dirname, "../notice");
 const OUTPUT_FILE = path.join(NOTICE_DIR, "list.json");
 
 function getHash(content) {
-  return crypto.createHash("md5").update(content).digest("hex");
+  // Normalize line endings to LF to ensure consistent hashes across OSes
+  const normalizedContent = content.replace(/\r\n/g, "\n");
+  return crypto.createHash("md5").update(normalizedContent).digest("hex");
 }
 
 function generateList() {
@@ -39,6 +41,12 @@ function generateList() {
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Find max ID from existing notices for new entries
+  let maxId = 0;
+  existingNotices.forEach((n) => {
+    if (n.id && n.id > maxId) maxId = n.id;
+  });
+
   const notices = mdFiles.map((filename) => {
     const filePath = path.join(NOTICE_DIR, filename);
     const content = fs.readFileSync(filePath, "utf8");
@@ -56,19 +64,24 @@ function generateList() {
     }
 
     let date = today;
+    let id = existing?.id;
 
     // Logic: If file exists and hash matches, keep original date.
     // Otherwise (new file or changed content), use today's date.
     if (existing && existing.hash === currentHash) {
       date = existing.date;
     } else if (existing && !existing.hash) {
-      // Migration: If existing entry doesn't have a hash, we might want to keep the date
-      // but this is the first run with hashing, so we'll assume it's same if title/filename matches?
-      // For safety during migration, if title matches and we don't have a hash, let's keep it.
       date = existing.date;
     }
 
+    // Assign new ID if not exists
+    if (!id) {
+      maxId += 1;
+      id = maxId;
+    }
+
     return {
+      id: id,
       title: title,
       url: url,
       date: date,
@@ -77,8 +90,8 @@ function generateList() {
     };
   });
 
-  // Sort by date descending
-  notices.sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Sort: Simple ID ascending (1, 2, 3...)
+  notices.sort((a, b) => a.id - b.id);
 
   const jsonContent = JSON.stringify(notices, null, 2);
   fs.writeFileSync(OUTPUT_FILE, jsonContent, "utf8");
