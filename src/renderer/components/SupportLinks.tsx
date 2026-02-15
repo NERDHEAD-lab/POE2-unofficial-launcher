@@ -17,7 +17,6 @@ interface SupportLinkItemDef {
   type: "link" | "separator";
   defaultLabel?: string;
   icon?: string;
-  url?: string;
   defaultDisabled?: boolean;
   defaultVisible?: boolean;
   // Dynamic Initialization Logic
@@ -95,19 +94,20 @@ const SupportLinkItemRenderer: React.FC<{
   };
 
   return (
-    <a
-      href={item.url || "#"}
-      target={item.url ? "_blank" : undefined}
-      rel={item.url ? "noreferrer" : undefined}
+    <div
       onClick={handleClick}
       className={`support-link ${disabled ? "disabled" : ""}`}
-      style={disabled ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+      style={
+        disabled
+          ? { opacity: 0.5, cursor: "not-allowed" }
+          : { cursor: "pointer" }
+      }
     >
       <span className="material-symbols-outlined support-link-icon">
         {item.icon}
       </span>
       {label}
-    </a>
+    </div>
   );
 };
 
@@ -178,7 +178,9 @@ const SupportLinks: React.FC = () => {
         type: "link",
         defaultLabel: "기능 건의/버그 제보",
         icon: "bug_report",
-        url: SUPPORT_URLS.ISSUES,
+        onClick: () => {
+          window.open(SUPPORT_URLS.ISSUES, "_blank");
+        },
       },
       { id: "sep_2", type: "separator" },
       {
@@ -186,7 +188,9 @@ const SupportLinks: React.FC = () => {
         type: "link",
         defaultLabel: "후원하기",
         icon: "local_cafe",
-        url: SUPPORT_URLS.DONATION,
+        onClick: () => {
+          window.open(SUPPORT_URLS.DONATION, "_blank");
+        },
       },
     ],
     [],
