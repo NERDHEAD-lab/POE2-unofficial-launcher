@@ -294,6 +294,39 @@ export class NewsService {
         this.logger.log(`Detected Markdown content for ${id}. Processing...`);
 
         let processedContent = html.trim();
+
+        // Path transformation for relative images (Issue fix)
+        // Extract base directory from the link (e.g., https://.../notice/file.md -> https://.../notice/)
+        const baseUrl = link.substring(0, link.lastIndexOf("/") + 1);
+
+        // 1. Transform Markdown image syntax: ![alt](relative-path)
+        processedContent = processedContent.replace(
+          /(!\[.*?\]\()((?!(?:http|https|data):).*?)(\))/g,
+          (_, prefix, path, suffix) => {
+            const absolutePath = path.startsWith("/")
+              ? new URL(path, new URL(link).origin).toString()
+              : baseUrl + path;
+            this.logger
+              .silent()
+              .log(`Transforming image path: ${path} -> ${absolutePath}`);
+            return `${prefix}${absolutePath}${suffix}`;
+          },
+        );
+
+        // 2. Transform HTML img tags: <img src="relative-path">
+        processedContent = processedContent.replace(
+          /(<img\s+[^>]*src=["'])((?!(?:http|https|data):).*?)(["'][^>]*>)/gi,
+          (_, prefix, path, suffix) => {
+            const absolutePath = path.startsWith("/")
+              ? new URL(path, new URL(link).origin).toString()
+              : baseUrl + path;
+            this.logger
+              .silent()
+              .log(`Transforming img tag src: ${path} -> ${absolutePath}`);
+            return `${prefix}${absolutePath}${suffix}`;
+          },
+        );
+
         const lines = processedContent.split("\n");
 
         // If first line is a title (# ), remove it to avoid redundancy with the modal title
