@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
@@ -13,33 +14,66 @@ const path = require("path");
 const NOTICE_DIR = path.join(__dirname, "../notice");
 const OUTPUT_FILE = path.join(NOTICE_DIR, "list.json");
 
+function getHash(content) {
+  return crypto.createHash("md5").update(content).digest("hex");
+}
+
 function generateList() {
   if (!fs.existsSync(NOTICE_DIR)) {
     console.error(`Error: Notice directory not found at ${NOTICE_DIR}`);
     process.exit(1);
   }
 
+  // Load existing list to preserve dates for unchanged files
+  let existingNotices = [];
+  if (fs.existsSync(OUTPUT_FILE)) {
+    try {
+      existingNotices = JSON.parse(fs.readFileSync(OUTPUT_FILE, "utf8"));
+    } catch {
+      console.warn("Could not parse existing list.json, starting fresh.");
+    }
+  }
+
   const files = fs.readdirSync(NOTICE_DIR);
   const mdFiles = files.filter((f) => f.endsWith(".md") && f !== "README.md");
 
+  const today = new Date().toISOString().split("T")[0];
+
   const notices = mdFiles.map((filename) => {
     const filePath = path.join(NOTICE_DIR, filename);
-    const stats = fs.statSync(filePath);
-
-    // Extract title from filename (e.g., "v1.0.0-release.md" -> "v1.0.0-release")
-    // You can also read the first line of the file if it starts with "# "
-    let title = filename.replace(/\.md$/, "");
     const content = fs.readFileSync(filePath, "utf8");
+    const currentHash = getHash(content);
+
+    // Find existing entry by URL (which includes filename)
+    const url = `https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/${filename}`;
+    const existing = existingNotices.find((n) => n.url === url);
+
+    // Extract title from filename or first line
+    let title = filename.replace(/\.md$/, "");
     const firstLine = content.split("\n")[0];
     if (firstLine.startsWith("# ")) {
       title = firstLine.replace("# ", "").trim();
     }
 
+    let date = today;
+
+    // Logic: If file exists and hash matches, keep original date.
+    // Otherwise (new file or changed content), use today's date.
+    if (existing && existing.hash === currentHash) {
+      date = existing.date;
+    } else if (existing && !existing.hash) {
+      // Migration: If existing entry doesn't have a hash, we might want to keep the date
+      // but this is the first run with hashing, so we'll assume it's same if title/filename matches?
+      // For safety during migration, if title matches and we don't have a hash, let's keep it.
+      date = existing.date;
+    }
+
     return {
       title: title,
-      url: `https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/${filename}`,
-      date: stats.mtime.toISOString().split("T")[0], // YYYY-MM-DD
+      url: url,
+      date: date,
       priority: filename.includes("priority") || filename.includes("notice"),
+      hash: currentHash, // Store hash for next comparison
     };
   });
 
