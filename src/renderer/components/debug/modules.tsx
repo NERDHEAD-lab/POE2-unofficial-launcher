@@ -4,7 +4,10 @@ import ConfigViewer, { ConfigViewerProps } from "./ConfigViewer";
 import LogViewer, { LogViewerProps } from "./LogViewer";
 import { DebugModule } from "./types";
 
-export const LogModule: DebugModule<LogViewerProps> = {
+export const LogModule: DebugModule<
+  { logState: LogViewerProps["logState"] },
+  LogViewerProps
+> = {
   id: "log-module",
   order: 1,
   position: "left",
@@ -76,7 +79,10 @@ export const LogModule: DebugModule<LogViewerProps> = {
   },
 };
 
-export const ConfigModule: DebugModule<ConfigViewerProps> = {
+export const ConfigModule: DebugModule<
+  { currentConfig: ConfigViewerProps["currentConfig"] },
+  ConfigViewerProps
+> = {
   id: "config-module",
   order: 100,
   position: "right",

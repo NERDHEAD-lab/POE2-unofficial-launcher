@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
+import { DebugLogEvent } from "./events/types";
+import { PreloadLogger } from "./utils/preload-logger";
+import { getGameName } from "../shared/naming";
 import {
   GameStatusState,
   AppConfig,
@@ -8,9 +11,6 @@ import {
   PatchProgress,
   AccountUpdateData,
 } from "../shared/types";
-import { DebugLogEvent } from "./events/types";
-import { PreloadLogger } from "./utils/preload-logger";
-import { getGameName } from "../shared/naming";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
@@ -122,8 +122,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       gameId?: string;
     }) => void,
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = (_event: IpcRendererEvent, data: any) => callback(data);
+    const handler = (
+      _event: IpcRendererEvent,
+      data: {
+        autoStart: boolean;
+        serviceId?: string;
+        gameId?: string;
+      },
+    ) => callback(data);
     ipcRenderer.on("UI:SHOW_PATCH_MODAL", handler);
     return () => ipcRenderer.off("UI:SHOW_PATCH_MODAL", handler);
   },
@@ -185,8 +191,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => {
     const subscription = (
       _event: IpcRendererEvent,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: any,
+      data:
+        | ChangelogItem[]
+        | {
+            changelogs: ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
     ) => callback(data);
     ipcRenderer.on("UI:SHOW_CHANGELOG", subscription);
     return () => {

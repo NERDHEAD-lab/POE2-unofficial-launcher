@@ -720,14 +720,14 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
     try {
       // DO NOT show window yet
       await gw.loadURL(targetUrl);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as NodeJS.ErrnoException;
       // Error code -3 is ERR_ABORTED, -2 is ERR_FAILED
       if (
-        error.code === "ERR_ABORTED" ||
-        error.errno === -3 ||
-        error.code === "ERR_FAILED" ||
-        error.errno === -2
+        err.code === "ERR_ABORTED" ||
+        err.errno === -3 ||
+        err.code === "ERR_FAILED" ||
+        err.errno === -2
       ) {
         logger.log(
           `[Account] Navigation interrupted for ${serviceId} (expected during background automation).`,
@@ -1748,8 +1748,7 @@ ipcMain.on("trigger-game-start", () => {
 
 // --- Patch Management IPC ---
 // Keep track of the active patch manager for cancellation
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let activeManualPatchManager: any = null;
+let activeManualPatchManager: PatchManager | null = null;
 
 ipcMain.on(
   "patch:trigger-manual",
