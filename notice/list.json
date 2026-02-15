@@ -1,5 +1,14 @@
 [
   {
+    "id": 1,
+    "title": "설날 인사 겸 첫 개발자 공지사항입니다.",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/Welcome.md",
+    "date": "2026-02-12",
+    "priority": false,
+    "hash": "324abaf49dd16649f577ff6681c31ee4"
+  },
+  {
+    "id": 2,
     "title": "Unable to start PathOfExile_KG.exe 조치 가이드 (임시)",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] Unable to start PathOfExile_KG.exe 조치 가이드 (임시).md",
     "date": "2026-02-15",
@@ -7,17 +16,11 @@
     "hash": "e3d85316b9b01b8536c35fcd027e6e29"
   },
   {
+    "id": 3,
     "title": "PoE & PoE 2 Unofficial Launcher 로드맵 공지",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]PoE & PoE 2 Unofficial Launcher 로드맵 공지.md",
     "date": "2026-02-15",
     "priority": true,
     "hash": "849b84b8c5de9d5d43d8274e32d835b6"
-  },
-  {
-    "title": "설날 인사 겸 첫 개발자 공지사항입니다.",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/Welcome.md",
-    "date": "2026-02-12",
-    "priority": false,
-    "hash": "324abaf49dd16649f577ff6681c31ee4"
   }
 ]
