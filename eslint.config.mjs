@@ -7,6 +7,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default [
+  {
+    ignores: ["CHANGELOG.md", "dist-electron/**", "dist/**", "release/**"],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
