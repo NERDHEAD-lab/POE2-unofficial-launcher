@@ -483,19 +483,19 @@ export class PatchManager {
     let transferred = 0;
 
     // Throttle progress updates (per file)
-    let lastUpdate = 0;
+    let lastEmittedPct = 0;
 
     response.data.on("data", (chunk: Buffer) => {
       transferred += chunk.length;
-      const now = Date.now();
-      if (now - lastUpdate > 100) {
-        // 100ms throttle
-        lastUpdate = now;
-        const pct =
-          totalLength > 0 ? Math.floor((transferred / totalLength) * 100) : 0;
-        // Update state silently, rely on throttled emit?
-        // Implementing per-chunk emit might be too spammy if we emit full list.
-        // We can update the map, and implementation of throttled GLOBAL emit is safer.
+
+      const pct =
+        totalLength > 0 ? Math.floor((transferred / totalLength) * 100) : 0;
+
+      // Throttle to 10% steps
+      const currentStep = Math.floor(pct / 10) * 10;
+
+      if (currentStep > lastEmittedPct) {
+        lastEmittedPct = currentStep;
         this.updateFileStatus(fileName, "downloading", pct);
         this.emitCurrentState("downloading", true); // throttled
       }
