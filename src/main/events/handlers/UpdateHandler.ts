@@ -135,11 +135,18 @@ const checkForUpdatesSmart = async () => {
         "[UpdateHandler] Smart Check: New version detected. Triggering autoUpdater...",
       );
     }
-  } catch (e) {
-    logger.error(
-      "[UpdateHandler] Smart Check failed (API Error/Rate Limit). Falling back to standard check.",
-      e,
-    );
+  } catch (e: unknown) {
+    if (axios.isAxiosError(e) && e.response?.status === 403) {
+      logger.warn(
+        "[UpdateHandler] GitHub API Rate Limit exceeded (403). Falling back to standard check.",
+      );
+    } else {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.error(
+        "[UpdateHandler] Smart Check failed. Falling back to standard check.",
+        message,
+      );
+    }
   }
 
   // Fallback or explicit update required
@@ -157,6 +164,10 @@ export const startUpdateCheckInterval = (context: AppContext) => {
   logger.log("[UpdateHandler] Initializing background update scheduler.");
 
   setInterval(async () => {
+    if (!app.isPackaged || process.env.VITE_DEV_SERVER_URL) {
+      return;
+    }
+
     logger.log("[UpdateHandler] Background update check triggered.");
     currentCheckIsSilent = true; // Background checks are silent
     attachUpdateListeners(context);
@@ -177,6 +188,11 @@ export const triggerUpdateCheck = async (
   context: AppContext,
   isSilent = false,
 ) => {
+  if (!app.isPackaged || process.env.VITE_DEV_SERVER_URL) {
+    logger.log(`[UpdateHandler] Skipping update check in development mode.`);
+    return;
+  }
+
   logger.log(
     `[UpdateHandler] Manual/Triggered update check (isSilent: ${isSilent})`,
   );
