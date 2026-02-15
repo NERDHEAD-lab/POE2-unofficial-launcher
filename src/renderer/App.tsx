@@ -110,6 +110,20 @@ function App() {
   }>({});
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
+  // [New] Global Event Listener for Changelog
+  useEffect(() => {
+    const handleShowChangelogs = (event: Event) => {
+      const customEvent = event as CustomEvent<ChangelogItem[]>;
+      setChangelogs(customEvent.detail);
+      setVersionRange({}); // Clear version range for generic changelog display
+      setIsChangelogOpen(true);
+    };
+
+    window.addEventListener("SHOW_CHANGELOGS", handleShowChangelogs);
+    return () => {
+      window.removeEventListener("SHOW_CHANGELOGS", handleShowChangelogs);
+    };
+  }, []);
   const prevStatusRef = useRef<RunStatus>("idle");
 
   // Update State
@@ -825,13 +839,7 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                <SupportLinks
-                  onShowAllChangelogs={(logs) => {
-                    setChangelogs(logs);
-                    setVersionRange({ old: "", new: "" }); // Clear versions for "All" view
-                    setIsChangelogOpen(true);
-                  }}
-                />
+                <SupportLinks />
               </div>
 
               {/* Section C: Game Start & Company Logos (Bottom) */}
