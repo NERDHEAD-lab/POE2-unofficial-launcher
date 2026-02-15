@@ -33,7 +33,7 @@ export const applyResolutionRules = (
     `[WindowResolution] Applying rules. Auto: ${autoResolution}, Mode: ${resolutionMode}, WorkArea: ${workW}x${workH}`,
   );
 
-  let changed = false;
+  let changed: boolean;
 
   // 1. Auto Resolution Logic
   if (autoResolution) {

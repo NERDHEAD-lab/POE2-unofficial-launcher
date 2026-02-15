@@ -40,7 +40,7 @@ export const GameInstallCheckHandler: EventHandler<ConfigChangeEvent> = {
     // This prevents POE1 activity from falsely reporting POE2 as running (and vice versa).
     // Previously, we relied on generic 'GameServiceProfiles' which mapped both to 'PathOfExile_KG.exe', causing cross-talk.
 
-    let targetProcessName = "";
+    let targetProcessName: string;
     let criteria:
       | ((info: { pid: number; path: string }) => boolean)
       | undefined;

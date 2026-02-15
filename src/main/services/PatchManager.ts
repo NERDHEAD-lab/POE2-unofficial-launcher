@@ -366,7 +366,7 @@ export class PatchManager {
 
         const msg = e instanceof Error ? e.message : String(e);
         this.updateFileStatus(file, "error", 0, msg);
-        throw new Error(`${file} 처리 실패: ${msg}`);
+        throw new Error(`${file} 처리 실패: ${msg}`, { cause: e });
       }
     };
 

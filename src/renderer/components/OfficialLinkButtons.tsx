@@ -15,7 +15,7 @@ const OfficialLinkButtons: React.FC<OfficialLinkButtonsProps> = ({
   const handleOpenLink = (type: "home" | "trade") => {
     if (!window.electronAPI) return;
 
-    let url = "";
+    let url: string;
     if (type === "home") {
       url = BASE_URLS[serviceChannel][activeGame];
     } else {
