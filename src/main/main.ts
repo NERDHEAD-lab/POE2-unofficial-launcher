@@ -62,6 +62,7 @@ import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
+import { ToolForceRepairHandler } from "./events/handlers/ToolHandler";
 import { UacHandler } from "./events/handlers/UacHandler";
 import {
   UpdateCheckHandler,
@@ -579,6 +580,50 @@ ipcMain.handle("session:logout", async () => {
     return false;
   }
 });
+
+// --- Support Tools IPC ---
+ipcMain.handle(
+  "tool:force-repair-executable",
+  async (
+    _event,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => {
+    logger.log(`[Tool] Force Repair requested for ${gameId}/${serviceId}`);
+
+    const config = getConfig() as AppConfig;
+    const key = `${gameId}_${serviceId}`;
+    const versionInfo = config.knownGameVersions?.[key];
+
+    if (!versionInfo || !versionInfo.webRoot) {
+      logger.error("[Tool] No known web root found for this context.");
+      return false;
+    }
+
+    const installPath = await getGameInstallPath(serviceId, gameId);
+    if (!installPath) {
+      logger.error("[Tool] Install path not found.");
+      return false;
+    }
+
+    // Trigger Patch Fix Modal in Progress Mode
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("UI:SHOW_PATCH_MODAL", {
+        autoStart: true,
+        serviceId,
+        gameId,
+      });
+    }
+
+    eventBus.emit(EventType.TOOL_FORCE_REPAIR, appContext, {
+      installPath,
+      serviceId,
+      webRoot: versionInfo.webRoot,
+    });
+
+    return true;
+  },
+);
 
 // --- Navigation Trigger Context Registry ---
 // Maps webContentsId to its trigger (e.g., 'ACCOUNT_VALIDATION', 'GAME_START_POE2')
@@ -1380,6 +1425,9 @@ function createWindows() {
   setupMainLogger(appContext, (event) => {
     eventBus.emit(event.type, appContext, event.payload);
   });
+
+  // Register Tool Handlers
+  eventBus.register(ToolForceRepairHandler);
 
   printBanner();
   logger.log("[Main] Main Logger initialized.");

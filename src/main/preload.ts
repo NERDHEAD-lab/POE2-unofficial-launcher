@@ -152,6 +152,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("patch:restore-local", serviceId, gameId);
   },
   triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
+  triggerForceRepair: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => ipcRenderer.invoke("tool:force-repair-executable", serviceId, gameId),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],

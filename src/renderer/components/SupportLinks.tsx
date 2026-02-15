@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 
 import "./SupportLinks.css";
+import { AppConfig } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
 
 // [New] Extensible Link Item Definition
@@ -114,6 +115,49 @@ const SupportLinks: React.FC = () => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
     () => [
+      {
+        id: "force_restore",
+        type: "link",
+        icon: "build",
+        defaultLabel: "실행 파일 강제 복구 ( 확인 중... )",
+        defaultDisabled: true,
+        refreshOn: ["activeGame", "serviceChannel", "knownGameVersions"],
+        onInit: async ({ setLabel, setDisabled, setOnClick }) => {
+          const config = (await window.electronAPI.getConfig()) as AppConfig;
+          const gameId = config.activeGame;
+          const serviceId = config.serviceChannel;
+          const key = `${gameId}_${serviceId}`;
+          const versionInfo = config.knownGameVersions?.[key];
+
+          if (versionInfo && versionInfo.webRoot) {
+            setLabel(
+              `실행 파일 강제 복구 ( ${versionInfo.version || "Unknown"} )`,
+            );
+            setDisabled(false);
+            setOnClick(() => {
+              const confirmed = confirm(
+                `[${gameId}/${serviceId}] 실행 파일을 강제 복구하시겠습니까?\n\n버전: ${
+                  versionInfo.version || "Unknown"
+                }\n(마지막 감지: ${new Date(
+                  versionInfo.timestamp,
+                ).toLocaleString()})`,
+              );
+              if (confirmed) {
+                window.electronAPI.triggerForceRepair(serviceId, gameId);
+              }
+            });
+          } else {
+            setLabel("실행 파일 강제 복구 ( 알 수 없음 )");
+            setDisabled(false);
+            setOnClick(() => {
+              alert(
+                "복구 가능한 버전 정보가 없습니다.\n\n게임을 최소 1회 실행하여 패치 로그가 생성되어야 복구 기능을 사용할 수 있습니다.",
+              );
+            });
+          }
+        },
+      },
+      { id: "sep_1", type: "separator" },
       {
         id: "patch_notes",
         type: "link",

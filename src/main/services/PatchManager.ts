@@ -142,6 +142,63 @@ export class PatchManager {
     }
   }
 
+  public async forceRestoration(
+    installPath: string,
+    serviceId: AppConfig["serviceChannel"],
+    webRoot: string,
+  ): Promise<boolean> {
+    if (this.isPatching) {
+      this.logger.error("Patch ALREADY in progress. Ignoring force request.");
+      return false;
+    }
+
+    try {
+      this.isPatching = true;
+      this.shouldStop = false;
+      this.abortController = new AbortController();
+      this.fileStates.clear();
+      this.completedFilesCount = 0;
+
+      const profile = GAME_SERVICE_PROFILES[serviceId];
+      if (!profile) throw new Error(`Unknown service: ${serviceId}`);
+
+      // Force Target: Essential Executables Only
+      const targetFiles = [...profile.essentialExecutables];
+      this.totalFilesCount = targetFiles.length;
+
+      // Initialize State
+      targetFiles.forEach((f) => {
+        this.fileStates.set(f, {
+          fileName: f,
+          status: "waiting",
+          progress: 0,
+        });
+      });
+
+      this.emitGlobalStatus(
+        "waiting",
+        `강제 복구 시작: ${this.totalFilesCount}개 파일`,
+        0,
+      );
+
+      // Verify WebRoot availability roughly (optional, processDownloads handles 404s)
+      this.logger.log(`Starting Force Restoration from ${webRoot}`);
+
+      await this.processDownloads(installPath, webRoot, targetFiles, null);
+
+      this.emitGlobalStatus("done", "강제 복구 완료", 100);
+      return true;
+    } catch (e: unknown) {
+      this.logger.error("Error during force restoration:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      this.emitGlobalStatus("error", msg || "강제 복구 실패", 0, msg);
+      return false;
+    } finally {
+      this.isPatching = false;
+      this.shouldStop = false;
+    }
+  }
+
   private async analyzeLog(
     serviceId: AppConfig["serviceChannel"],
     logPath: string,

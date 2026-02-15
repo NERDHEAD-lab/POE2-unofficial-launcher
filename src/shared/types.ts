@@ -50,6 +50,12 @@ export interface AppConfig {
   // Account Caching
   kakaoAccountId?: string;
   gggAccountId?: string;
+
+  // Version Tracking
+  knownGameVersions: Record<
+    string, // Key: "${gameId}_${serviceId}"
+    { version: string; webRoot: string; timestamp: number }
+  >;
 }
 
 // Granular Status Codes for granular UI feedback
@@ -168,6 +174,10 @@ export interface ElectronAPI {
     gameId: AppConfig["activeGame"],
   ) => void; // New
   triggerPatchCancel: () => void; // New
+  triggerForceRepair: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => Promise<boolean>; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],

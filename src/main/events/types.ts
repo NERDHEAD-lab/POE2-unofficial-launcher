@@ -29,8 +29,22 @@ export enum EventType {
   // Changelog
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
   UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
+
+  // Tool Events
+  TOOL_FORCE_REPAIR = "TOOL:FORCE_REPAIR",
+
   // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
+}
+
+export interface ToolForceRepairEvent {
+  type: EventType.TOOL_FORCE_REPAIR;
+  payload: {
+    installPath: string;
+    serviceId: import("../../shared/types").AppConfig["serviceChannel"];
+    webRoot: string;
+  };
+  timestamp?: number;
 }
 
 export interface UpdateWindowTitleEvent {
@@ -235,7 +249,8 @@ export type AppEvent =
   | ConfigDeleteEvent
   | SyncDevToolsVisibilityEvent
   | UpdateWindowTitleEvent
-  | ShowChangelogEvent;
+  | ShowChangelogEvent
+  | ToolForceRepairEvent;
 
 // --- Context & Handler Interfaces ---
 

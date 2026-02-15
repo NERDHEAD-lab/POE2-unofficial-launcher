@@ -147,6 +147,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "Info",
     description: "마지막으로 로드된 GGG 계정 ID를 캐싱합니다. (자동 관리)",
   },
+  KNOWN_GAME_VERSIONS: {
+    key: "knownGameVersions",
+    name: "Known Game Versions",
+    category: "Info",
+    description:
+      "각 게임 및 서비스별 마지막으로 감지된 버전과 WebRoot 정보를 저장합니다. (자동 관리)",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -172,6 +179,7 @@ export const CONFIG_KEYS = {
   RESOLUTION_MODE: CONFIG_METADATA.RESOLUTION_MODE.key,
   KAKAO_ACCOUNT_ID: CONFIG_METADATA.KAKAO_ACCOUNT_ID.key,
   GGG_ACCOUNT_ID: CONFIG_METADATA.GGG_ACCOUNT_ID.key,
+  KNOWN_GAME_VERSIONS: CONFIG_METADATA.KNOWN_GAME_VERSIONS.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -196,6 +204,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   skipDaumGameStarterUac: false,
   autoResolution: true,
   resolutionMode: "1440x960",
+  knownGameVersions: {},
 };
 
 export const DEBUG_APP_CONFIG = {
