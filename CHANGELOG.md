@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.1...0.9.2) (2026-02-15)
+
+
+### Bug Fixes
+
+* 패치 오류 자동 수정을 끄더라도, 한국인 모드 (BETA)를 켠 상태라면 패치 오류 발생 시 게임을 종료하는 문제 수정 ([b4f1ddf](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b4f1ddf1778e24d4873d1f33474f6f6e8da7c9b7))
+
 ## [0.9.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.0...0.9.1) (2026-02-15)
 
 
