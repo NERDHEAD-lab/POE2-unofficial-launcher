@@ -177,6 +177,7 @@ export interface ElectronAPI {
   triggerForceRepair: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
+    manualVersion?: string,
   ) => Promise<boolean>; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],

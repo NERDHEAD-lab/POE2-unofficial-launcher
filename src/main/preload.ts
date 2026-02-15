@@ -162,7 +162,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   triggerForceRepair: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ) => ipcRenderer.invoke("tool:force-repair-executable", serviceId, gameId),
+    manualVersion?: string,
+  ) =>
+    ipcRenderer.invoke(
+      "tool:force-repair-executable",
+      serviceId,
+      gameId,
+      manualVersion,
+    ),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],

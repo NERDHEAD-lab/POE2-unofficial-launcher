@@ -106,6 +106,7 @@ import {
   getLogHistory,
   printBanner,
 } from "./utils/logger";
+import { LogParser } from "./utils/LogParser";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
@@ -589,8 +590,11 @@ ipcMain.handle(
     _event,
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
+    manualVersion?: string,
   ) => {
-    logger.log(`[Tool] Force Repair requested for ${gameId}/${serviceId}`);
+    logger.log(
+      `[Tool] Force Repair requested for ${gameId}/${serviceId} (ManualVersion: ${manualVersion || "N/A"})`,
+    );
 
     const config = getConfig() as AppConfig;
     const key = `${gameId}_${serviceId}`;
@@ -607,6 +611,13 @@ ipcMain.handle(
       return false;
     }
 
+    // Determine target webRoot
+    let targetWebRoot = versionInfo.webRoot;
+    if (manualVersion) {
+      targetWebRoot = LogParser.replaceVersion(targetWebRoot, manualVersion);
+      logger.log(`[Tool] WebRoot overridden to: ${targetWebRoot}`);
+    }
+
     // Trigger Patch Fix Modal in Progress Mode
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("UI:SHOW_PATCH_MODAL", {
@@ -619,7 +630,7 @@ ipcMain.handle(
     eventBus.emit(EventType.TOOL_FORCE_REPAIR, appContext, {
       installPath,
       serviceId,
-      webRoot: versionInfo.webRoot,
+      webRoot: targetWebRoot,
     });
 
     return true;

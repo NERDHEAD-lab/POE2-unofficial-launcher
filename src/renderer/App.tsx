@@ -25,6 +25,7 @@ import {
   ChangelogItem,
 } from "../shared/types";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
@@ -155,6 +156,39 @@ function App() {
   // Debug States
   const [devMode, setDevMode] = useState(false);
   const [debugConsole, setDebugConsole] = useState(false);
+
+  // Forced Repair Modal State
+  const [isForcedRepairOpen, setIsForcedRepairOpen] = useState(false);
+  const [repairVersionInfo, setRepairVersionInfo] = useState<{
+    version: string;
+    webRoot: string;
+    timestamp: string | number;
+  } | null>(null);
+
+  // Handle Manual Force Repair Request (from SupportLinks)
+  const handleForcedRepairRequest = useCallback(
+    (versionInfo: {
+      version: string;
+      webRoot: string;
+      timestamp: string | number;
+    }) => {
+      setRepairVersionInfo(versionInfo);
+      setIsForcedRepairOpen(true);
+    },
+    [],
+  );
+
+  const handleForcedRepairConfirm = useCallback(
+    (manualVersion: string) => {
+      setIsForcedRepairOpen(false);
+      window.electronAPI.triggerForceRepair(
+        serviceChannel,
+        activeGame,
+        manualVersion,
+      );
+    },
+    [serviceChannel, activeGame],
+  );
 
   // [UAC Migration] Listener
   useEffect(() => {
@@ -840,7 +874,9 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                <SupportLinks />
+                <SupportLinks
+                  onForcedRepairRequest={handleForcedRepairRequest}
+                />
               </div>
 
               {/* Section C: Game Start & Company Logos (Bottom) */}
@@ -928,6 +964,18 @@ function App() {
             item={selectedNotice}
             onClose={() => setSelectedNotice(null)}
           />
+
+          {repairVersionInfo && (
+            <ForcedRepairModal
+              isOpen={isForcedRepairOpen}
+              gameId={activeGame}
+              serviceId={serviceChannel}
+              initialVersion={repairVersionInfo.version}
+              lastDetected={repairVersionInfo.timestamp}
+              onCancel={() => setIsForcedRepairOpen(false)}
+              onConfirm={handleForcedRepairConfirm}
+            />
+          )}
 
           {/* Footer Section (Button + Image Separation) */}
           <div className="footer-section">

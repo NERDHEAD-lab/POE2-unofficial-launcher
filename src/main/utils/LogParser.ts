@@ -128,4 +128,17 @@ export class LogParser {
 
     return isExtMatch || isEssential ? f : null;
   }
+
+  /**
+   * Replaces the version part in a Web Root URL with a new version
+   */
+  public static replaceVersion(webRoot: string, newVersion: string): string {
+    if (!newVersion) return webRoot;
+    // Find /patch/XXXX/ or /patch/XXXX
+    const regex = /(\/patch\/)([\d.]+)(\/?)/;
+    if (regex.test(webRoot)) {
+      return webRoot.replace(regex, `$1${newVersion}$3`);
+    }
+    return webRoot;
+  }
 }

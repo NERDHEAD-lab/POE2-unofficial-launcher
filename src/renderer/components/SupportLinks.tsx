@@ -111,7 +111,19 @@ const SupportLinkItemRenderer: React.FC<{
   );
 };
 
-const SupportLinks: React.FC = () => {
+interface SupportLinksProps {
+  onForcedRepairRequest?: (versionInfo: {
+    version: string;
+    webRoot: string;
+    timestamp: string | number;
+  }) => void;
+  onVersionMissing?: () => void;
+}
+
+const SupportLinks: React.FC<SupportLinksProps> = ({
+  onForcedRepairRequest,
+  onVersionMissing,
+}) => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
     () => [
@@ -135,24 +147,21 @@ const SupportLinks: React.FC = () => {
             );
             setDisabled(false);
             setOnClick(() => {
-              const confirmed = confirm(
-                `[${gameId}/${serviceId}] 실행 파일을 강제 복구하시겠습니까?\n\n버전: ${
-                  versionInfo.version || "Unknown"
-                }\n(마지막 감지: ${new Date(
-                  versionInfo.timestamp,
-                ).toLocaleString()})`,
-              );
-              if (confirmed) {
-                window.electronAPI.triggerForceRepair(serviceId, gameId);
+              if (onForcedRepairRequest) {
+                onForcedRepairRequest(versionInfo);
               }
             });
           } else {
             setLabel("실행 파일 강제 복구 ( 알 수 없음 )");
             setDisabled(false);
             setOnClick(() => {
-              alert(
-                "복구 가능한 버전 정보가 없습니다.\n\n게임을 최소 1회 실행하여 패치 로그가 생성되어야 복구 기능을 사용할 수 있습니다.",
-              );
+              if (onVersionMissing) {
+                onVersionMissing();
+              } else {
+                alert(
+                  "복구 가능한 버전 정보가 없습니다.\n\n게임을 최소 1회 실행하여 패치 로그가 생성되어야 복구 기능을 사용할 수 있습니다.",
+                );
+              }
             });
           }
         },
@@ -193,7 +202,7 @@ const SupportLinks: React.FC = () => {
         },
       },
     ],
-    [],
+    [onForcedRepairRequest, onVersionMissing],
   );
 
   return (
