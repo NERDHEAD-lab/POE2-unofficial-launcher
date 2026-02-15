@@ -249,7 +249,9 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
 
     const session = stateManager.getSession(pid);
 
-    const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+    const aggressiveMode =
+      context.getConfig("aggressivePatchMode") === true &&
+      context.getConfig("autoFixPatchError") === true;
     const effectiveThreshold = aggressiveMode ? 1 : 10;
 
     if (errorCount >= effectiveThreshold && session && !session.alerted) {
@@ -295,7 +297,9 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
         `[AutoPatch] Process ${pid} stop detected. Checking session state...`,
       );
 
-      const aggressiveMode = context.getConfig("aggressivePatchMode") === true;
+      const aggressiveMode =
+        context.getConfig("aggressivePatchMode") === true &&
+        context.getConfig("autoFixPatchError") === true;
       const THRESHOLD = aggressiveMode ? 1 : 10;
 
       if (session.errorCount >= THRESHOLD) {
