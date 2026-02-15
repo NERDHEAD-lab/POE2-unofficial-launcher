@@ -18,6 +18,8 @@ import {
   SettingNumber,
   SettingSlider,
   SettingButton,
+  SettingCheck,
+  SettingSwitch,
   DescriptionBlock,
   DescriptionVariant,
   SettingChangeContext,
@@ -379,7 +381,7 @@ const SettingItemRenderer: React.FC<{
               {
                 ...item,
                 disabled: isDisabled,
-              } as import("../../settings/types").SettingCheck
+              } as SettingCheck
             }
             value={!!val}
             onChange={(id, v) => handleChange(v)}
@@ -392,7 +394,7 @@ const SettingItemRenderer: React.FC<{
               {
                 ...item,
                 disabled: isDisabled,
-              } as import("../../settings/types").SettingSwitch
+              } as SettingSwitch
             }
             value={!!val}
             onChange={(id, v) => handleChange(v)}

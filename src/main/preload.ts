@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
+import { DebugLogEvent } from "./events/types";
+import { PreloadLogger } from "./utils/preload-logger";
+import { getGameName } from "../shared/naming";
+import { ChangelogItem } from "../shared/types";
 import {
   GameStatusState,
   AppConfig,
@@ -8,9 +12,6 @@ import {
   PatchProgress,
   AccountUpdateData,
 } from "../shared/types";
-import { DebugLogEvent } from "./events/types";
-import { PreloadLogger } from "./utils/preload-logger";
-import { getGameName } from "../shared/naming";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
@@ -122,8 +123,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       gameId?: string;
     }) => void,
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = (_event: IpcRendererEvent, data: any) => callback(data);
+    const handler = (
+      _event: IpcRendererEvent,
+      data: {
+        autoStart: boolean;
+        serviceId?: string;
+        gameId?: string;
+      },
+    ) => callback(data);
     ipcRenderer.on("UI:SHOW_PATCH_MODAL", handler);
     return () => ipcRenderer.off("UI:SHOW_PATCH_MODAL", handler);
   },
@@ -152,6 +159,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("patch:restore-local", serviceId, gameId);
   },
   triggerPatchCancel: () => ipcRenderer.send("patch:cancel"),
+  triggerForceRepair: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => ipcRenderer.invoke("tool:force-repair-executable", serviceId, gameId),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
@@ -171,9 +182,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onShowChangelog: (
     callback: (
       data:
-        | import("../shared/types").ChangelogItem[]
+        | ChangelogItem[]
         | {
-            changelogs: import("../shared/types").ChangelogItem[];
+            changelogs: ChangelogItem[];
             oldVersion?: string;
             newVersion?: string;
           },
@@ -181,8 +192,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => {
     const subscription = (
       _event: IpcRendererEvent,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: any,
+      data:
+        | ChangelogItem[]
+        | {
+            changelogs: ChangelogItem[];
+            oldVersion?: string;
+            newVersion?: string;
+          },
     ) => callback(data);
     ipcRenderer.on("UI:SHOW_CHANGELOG", subscription);
     return () => {

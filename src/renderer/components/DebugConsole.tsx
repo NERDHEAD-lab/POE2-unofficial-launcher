@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 
+import { ConfigViewerProps } from "./debug/ConfigViewer";
 import ExportModal from "./debug/ExportModal";
 import { mergeLog } from "./debug/helpers";
+import { LogViewerProps } from "./debug/LogViewer";
 import { LogModule, ConfigModule } from "./debug/modules";
 import { LogEntry, DebugModule } from "./debug/types";
 import { AppConfig } from "../../shared/types";
@@ -14,8 +16,10 @@ const DebugConsole: React.FC = () => {
     byType: { [key: string]: LogEntry[] };
   }>({ all: [], byType: {} });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const modules: DebugModule<any>[] = [LogModule, ConfigModule];
+  const modules: (
+    | DebugModule<LogViewerProps>
+    | DebugModule<ConfigViewerProps>
+  )[] = [LogModule, ConfigModule];
   const [filter, setFilter] = useState<string>("ALL");
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -114,44 +118,42 @@ const DebugConsole: React.FC = () => {
     }
   };
 
-  const getModuleContext = (moduleId: string) => {
-    if (moduleId === "log-module") return { logState };
-    if (moduleId === "config-module") return { currentConfig };
-    return {};
-  };
+  // Specific helpers to get typed props
+  const getLogViewerProps = (tabId: string): LogViewerProps => ({
+    logState,
+    filter: tabId,
+    bottomRef: bottomRef as React.RefObject<HTMLDivElement>,
+  });
 
-  const getModuleProps = (tabId: string) => {
-    const module = modules.find((m) =>
-      m.getTabs(getModuleContext(m.id)).some((t) => t.id === tabId),
-    );
-    if (!module) return {};
-
-    if (module.id === "log-module") {
-      return { logState, filter: tabId, bottomRef };
-    }
-    if (module.id === "config-module") {
-      return {
-        currentConfig,
-        editingKey,
-        initialValue,
-        editValue,
-        saveError,
-        editorRef,
-        startEditing,
-        cancelEditing,
-        saveConfig,
-        deleteConfig,
-        setEditValue,
-        setSaveError,
-      };
-    }
-    return {};
-  };
+  const getConfigViewerProps = (/* tabId unused */): ConfigViewerProps => ({
+    currentConfig,
+    editingKey,
+    initialValue,
+    editValue,
+    saveError,
+    editorRef: editorRef as React.RefObject<HTMLTextAreaElement>,
+    startEditing,
+    cancelEditing,
+    saveConfig,
+    deleteConfig,
+    setEditValue,
+    setSaveError,
+  });
 
   const handleExport = async (selectedIds: string[]) => {
-    const allSources = modules.flatMap((m) =>
-      m.getExportSources(getModuleContext(m.id)),
-    );
+    const allSources = modules.flatMap((m) => {
+      if (m.id === "log-module") {
+        return (m as typeof LogModule).getExportSources({
+          logState,
+        });
+      }
+      if (m.id === "config-module") {
+        return (m as typeof ConfigModule).getExportSources({
+          currentConfig,
+        });
+      }
+      return [];
+    });
 
     const files: { name: string; content: string }[] = [];
     allSources.forEach((source) => {
@@ -329,9 +331,19 @@ const DebugConsole: React.FC = () => {
     }
   }, [logState, filter, isAutoScroll]);
 
-  const activeModule = modules.find((m) =>
-    m.getTabs(getModuleContext(m.id)).some((t) => t.id === filter),
-  );
+  const activeModule = modules.find((m) => {
+    if (m.id === "log-module") {
+      return (m as typeof LogModule)
+        .getTabs({ logState })
+        .some((t) => t.id === filter);
+    }
+    if (m.id === "config-module") {
+      return (m as typeof ConfigModule)
+        .getTabs({ currentConfig })
+        .some((t) => t.id === filter);
+    }
+    return false;
+  });
 
   return (
     <div className="debug-console-container">
@@ -369,7 +381,20 @@ const DebugConsole: React.FC = () => {
           whiteSpace: filter === "RAW CONFIGS" ? "normal" : "pre-wrap",
         }}
       >
-        {activeModule?.renderPanel(filter, getModuleProps(filter))}
+        {activeModule && (
+          <>
+            {activeModule.id === "log-module" &&
+              (activeModule as typeof LogModule).renderPanel(
+                filter,
+                getLogViewerProps(filter),
+              )}
+            {activeModule.id === "config-module" &&
+              (activeModule as typeof ConfigModule).renderPanel(
+                filter,
+                getConfigViewerProps(),
+              )}
+          </>
+        )}
 
         {/* New Log Badge / Scroll to Bottom Button */}
         {!isAutoScroll && filter !== "RAW CONFIGS" && (
@@ -396,7 +421,17 @@ const DebugConsole: React.FC = () => {
           {modules
             .filter((m) => m.position === "left")
             .sort((a, b) => a.order - b.order)
-            .flatMap((m) => m.getTabs(getModuleContext(m.id)))
+            .flatMap((m) => {
+              if (m.id === "log-module") {
+                return (m as typeof LogModule).getTabs({ logState });
+              }
+              if (m.id === "config-module") {
+                return (m as typeof ConfigModule).getTabs({
+                  currentConfig,
+                });
+              }
+              return [];
+            })
             .map((tab) => {
               const isActive = filter === tab.id;
               const tabColor = tab.color || "#007acc";
@@ -429,7 +464,17 @@ const DebugConsole: React.FC = () => {
           {modules
             .filter((m) => m.position === "right")
             .sort((a, b) => a.order - b.order)
-            .flatMap((m) => m.getTabs(getModuleContext(m.id)))
+            .flatMap((m) => {
+              if (m.id === "log-module") {
+                return (m as typeof LogModule).getTabs({ logState });
+              }
+              if (m.id === "config-module") {
+                return (m as typeof ConfigModule).getTabs({
+                  currentConfig,
+                });
+              }
+              return [];
+            })
             .map((tab) => {
               const isActive = filter === tab.id;
               const tabColor = tab.color || "#007acc";
@@ -458,9 +503,19 @@ const DebugConsole: React.FC = () => {
       {/* Export Modal */}
       {showExportModal && (
         <ExportModal
-          sources={modules.flatMap((m) =>
-            m.getExportSources(getModuleContext(m.id)),
-          )}
+          sources={modules.flatMap((m) => {
+            if (m.id === "log-module") {
+              return (m as typeof LogModule).getExportSources({
+                logState,
+              });
+            }
+            if (m.id === "config-module") {
+              return (m as typeof ConfigModule).getExportSources({
+                currentConfig,
+              });
+            }
+            return [];
+          })}
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
         />

@@ -54,36 +54,34 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
     allNewsRef.current = allNews;
   }, [allNews]);
 
-  const fetchCurrentNews = useCallback(
-    async (force = false) => {
-      // Use refs if we want to ensure we get the ABSOLUTE latest values in async/listener contexts
-      const currentService = serviceRef.current;
-      const currentGame = gameRef.current;
-      const key = `${currentService}-${currentGame}`;
+  const fetchedKeysRef = useRef(fetchedKeys);
+  useEffect(() => {
+    fetchedKeysRef.current = fetchedKeys;
+  }, [fetchedKeys]);
 
-      if (!force && fetchedKeys.has(key)) return;
+  const fetchCurrentNews = useCallback(async (force = false) => {
+    // Use refs if we want to ensure we get the ABSOLUTE latest values in async/listener contexts
+    const currentService = serviceRef.current;
+    const currentGame = gameRef.current;
+    const key = `${currentService}-${currentGame}`;
 
-      try {
-        const [notices, patchNotes] = await Promise.all([
-          window.electronAPI.getNews(currentGame, currentService, "notice"),
-          window.electronAPI.getNews(
-            currentGame,
-            currentService,
-            "patch-notes",
-          ),
-        ]);
+    if (!force && fetchedKeysRef.current.has(key)) return;
 
-        setAllNews((prev) => ({
-          ...prev,
-          [key]: { notices, patchNotes },
-        }));
-        setFetchedKeys((prev) => new Set([...prev, key]));
-      } catch (e) {
-        console.error(`Failed to live fetch news for ${key}:`, e);
-      }
-    },
-    [fetchedKeys],
-  );
+    try {
+      const [notices, patchNotes] = await Promise.all([
+        window.electronAPI.getNews(currentGame, currentService, "notice"),
+        window.electronAPI.getNews(currentGame, currentService, "patch-notes"),
+      ]);
+
+      setAllNews((prev) => ({
+        ...prev,
+        [key]: { notices, patchNotes },
+      }));
+      setFetchedKeys((prev) => new Set([...prev, key]));
+    } catch (e) {
+      console.error(`Failed to live fetch news for ${key}:`, e);
+    }
+  }, []);
 
   const loadAllCaches = useCallback(async () => {
     const results = await Promise.all(
@@ -108,14 +106,14 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
       }),
     );
 
-    const nextNews = { ...allNews };
+    const nextNews = { ...allNewsRef.current };
     results.forEach((r) => {
       nextNews[r.key] = { notices: r.notices, patchNotes: r.patchNotes };
     });
 
     setAllNews(nextNews);
     return nextNews;
-  }, [allNews]);
+  }, []);
 
   const markAllViewsAsRead = useCallback(
     (targetNews?: Record<string, NewsViewState>) => {
@@ -197,8 +195,7 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
       unlistenNews();
       unlistenShow();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run ONLY once on mount
+  }, [loadAllCaches, markAllViewsAsRead, fetchCurrentNews]);
 
   // Lazy Loading: Trigger live fetch when tab changes IF not already fetched
   // Handle Lazy Loading & Tab Transitions

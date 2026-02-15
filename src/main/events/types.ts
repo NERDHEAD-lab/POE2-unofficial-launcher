@@ -5,6 +5,7 @@ import {
   AppConfig,
   GameStatusState,
   DebugLogPayload,
+  ChangelogItem,
 } from "../../shared/types";
 
 // Event Enums
@@ -28,9 +29,23 @@ export enum EventType {
   CONFIG_DELETE = "CONFIG:DELETE",
   // Changelog
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
+  UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
+
+  // Tool Events
+  TOOL_FORCE_REPAIR = "TOOL:FORCE_REPAIR",
+
   // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
-  UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
+}
+
+export interface ToolForceRepairEvent {
+  type: EventType.TOOL_FORCE_REPAIR;
+  payload: {
+    installPath: string;
+    serviceId: AppConfig["serviceChannel"];
+    webRoot: string;
+  };
+  timestamp?: number;
 }
 
 export interface UpdateWindowTitleEvent {
@@ -208,7 +223,7 @@ export interface SyncDevToolsVisibilityEvent {
 export interface ShowChangelogEvent {
   type: EventType.SHOW_CHANGELOG;
   payload: {
-    changelogs: import("../../shared/types").ChangelogItem[];
+    changelogs: ChangelogItem[];
     oldVersion?: string;
     newVersion?: string;
   };
@@ -235,7 +250,8 @@ export type AppEvent =
   | ConfigDeleteEvent
   | SyncDevToolsVisibilityEvent
   | UpdateWindowTitleEvent
-  | ShowChangelogEvent;
+  | ShowChangelogEvent
+  | ToolForceRepairEvent;
 
 // --- Context & Handler Interfaces ---
 

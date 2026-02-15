@@ -1,5 +1,7 @@
 import { AppConfig } from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
+import { setConfigWithEvent } from "../../utils/config-utils";
+import { LogParser } from "../../utils/LogParser";
 import { PowerShellManager } from "../../utils/powershell";
 import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
@@ -182,9 +184,44 @@ export const LogSessionHandler: EventHandler<LogSessionStartEvent> = {
 export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
   id: "LogWebRootHandler",
   targetEvent: EventType.LOG_WEB_ROOT_FOUND,
-  handle: async (event, _context) => {
+  handle: async (event, context) => {
     const { pid, webRoot } = event.payload;
     stateManager.setWebRoot(pid, webRoot);
+
+    // [New] Persist Version Info
+    const session = stateManager.getSession(pid);
+    if (session) {
+      const { gameId, serviceId } = session;
+      const key = `${gameId}_${serviceId}`;
+
+      // Extract Version
+      const version = LogParser.extractVersion(webRoot);
+
+      const config = context.getConfig() as AppConfig;
+      const knownVersions = config.knownGameVersions || {};
+
+      // Only update if changed or new
+      if (
+        !knownVersions[key] ||
+        knownVersions[key].webRoot !== webRoot ||
+        knownVersions[key].version !== version
+      ) {
+        emitLog(
+          context,
+          `[AutoPatch] New Version Detected: ${version} (${key})`,
+        );
+        const updated = {
+          ...knownVersions,
+          [key]: {
+            version,
+            webRoot,
+            timestamp: Date.now(),
+          },
+        };
+        // Use setConfigWithEvent to ensure UI updates
+        setConfigWithEvent("knownGameVersions", updated);
+      }
+    }
   },
 };
 

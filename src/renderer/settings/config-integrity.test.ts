@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { SettingItem } from "./types";
+
 // Mocking BEFORE imports
 vi.stubGlobal("import", { meta: { env: { VITE_SHOW_GAME_WINDOW: "false" } } });
 vi.stubGlobal("window", { electronAPI: {} });
@@ -10,7 +12,6 @@ vi.stubGlobal("__APP_HASH__", "test-hash");
 // BEFORE the module is evaluated.
 const { SETTINGS_CONFIG } = await import("./settings-config");
 const { DEFAULT_CONFIG } = await import("../../shared/config");
-import { SettingItem } from "./types";
 
 describe("Settings Configuration Integrity", () => {
   // Flatten all items from categories -> sections -> items

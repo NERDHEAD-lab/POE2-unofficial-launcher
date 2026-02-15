@@ -54,6 +54,7 @@ export default [
           },
         },
       ],
+      "import/first": "error",
       "import/newline-after-import": ["error", { count: 1 }],
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -77,6 +78,36 @@ export default [
             "MemberExpression[property.name='store'][object.property.name='context'][object.object.type='ThisExpression']",
           message:
             "Direct access to this.context.store is restricted. Use this.context.getConfig() instead.",
+        },
+        {
+          selector: "TSImportType",
+          message:
+            "Don't use inline import(...).Type. Import the type at the top of the file instead.",
+        },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+            {
+              name: "../../store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+            {
+              name: "./store",
+              importNames: ["setConfig", "deleteConfig"],
+              message:
+                "CONFIRMED: Use 'setConfigWithEvent' or 'deleteConfigWithEvent' from 'utils/config-utils' to ensure UI updates.",
+            },
+          ],
         },
       ],
     },

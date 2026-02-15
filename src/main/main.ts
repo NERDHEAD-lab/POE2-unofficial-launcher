@@ -14,7 +14,12 @@ import {
 } from "electron";
 import JSZip from "jszip";
 
+import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
+import {
+  setConfigWithEvent,
+  deleteConfigWithEvent,
+} from "./utils/config-utils";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { getGameName, getLauncherTitle } from "../shared/naming";
 import {
@@ -57,6 +62,7 @@ import { StartPoe1KakaoHandler } from "./events/handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./events/handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./events/handlers/StartPoeGggHandler";
 import { SystemWakeUpHandler } from "./events/handlers/SystemWakeUpHandler";
+import { ToolForceRepairHandler } from "./events/handlers/ToolHandler";
 import { UacHandler } from "./events/handlers/UacHandler";
 import {
   UpdateCheckHandler,
@@ -68,7 +74,6 @@ import {
 import {
   AppContext,
   ConfigChangeEvent,
-  ConfigDeleteEvent,
   EventType,
   GameStatusChangeEvent,
   EventHandler,
@@ -83,17 +88,12 @@ import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { trayManager } from "./managers/TrayManager"; // Added
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
+import { GameVersionScanner } from "./services/GameVersionScanner";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { ProcessWatcher } from "./services/ProcessWatcher";
-import {
-  getConfig,
-  setConfig,
-  deleteConfig,
-  setupStoreObservers,
-  default as store,
-} from "./store";
+import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
   isAdmin,
   relaunchAsAdmin,
@@ -119,7 +119,7 @@ import {
  * Checks if the launcher version has changed since the last run.
  * If changed, triggers the Changelog check sequence.
  */
-async function checkLauncherVersionUpdate(_context: AppContext) {
+async function checkLauncherVersionUpdate() {
   const currentVersion = app.getVersion();
   const storedVersion = getConfig("launcherVersion") as string;
 
@@ -127,17 +127,9 @@ async function checkLauncherVersionUpdate(_context: AppContext) {
     logger.log(
       `[Main] Version changed: ${storedVersion || "none"} -> ${currentVersion}. Updating config.`,
     );
-    setConfig("launcherVersion", currentVersion);
 
-    // Emit Config Change Event manually to trigger ChangelogHandler
-    // We only trigger if there WAS a previous version (not fresh install)
-    if (storedVersion) {
-      eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-        key: "launcherVersion",
-        oldValue: storedVersion,
-        newValue: currentVersion,
-      });
-    }
+    // Use setConfigWithEvent (broadcasts change automatically)
+    setConfigWithEvent("launcherVersion", currentVersion);
   }
 }
 
@@ -313,29 +305,14 @@ ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
     return;
   }
 
-  setConfig(key, value);
-
-  // Dispatch Config Change Event (Sync Handler will handle UI broadcast)
-  if (appContext) {
-    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-      key,
-      oldValue,
-      newValue: value,
-    });
-  }
+  // Use shared utility to Set & Broadcast
+  // It handles context checking internally
+  setConfigWithEvent(key, value);
 });
 
 ipcMain.handle("config:delete", (_event, key: string) => {
-  const oldValue = getConfig(key);
-  deleteConfig(key);
-
-  // Dispatch Config Delete Event (Sync Handler will handle UI broadcast)
-  if (appContext) {
-    eventBus.emit<ConfigDeleteEvent>(EventType.CONFIG_DELETE, appContext, {
-      key,
-      oldValue,
-    });
-  }
+  // Use shared utility to Delete & Broadcast
+  deleteConfigWithEvent(key);
 });
 
 ipcMain.handle(
@@ -507,20 +484,10 @@ ipcMain.on("uac-migration:confirm", async () => {
   await LegacyUacManager.cleanupLegacy();
 
   const key = "skipDaumGameStarterUac";
-  const oldValue = getConfig(key);
   const newValue = true;
 
-  // 1. Update Store
-  setConfig(key, newValue);
-
-  // 2. Emit Event to trigger UacHandler & UI Sync
-  if (appContext) {
-    eventBus.emit<ConfigChangeEvent>(EventType.CONFIG_CHANGE, appContext, {
-      key,
-      oldValue,
-      newValue,
-    });
-  }
+  // Use setConfigWithEvent
+  setConfigWithEvent(key, newValue);
 });
 
 // [Fix] Register Missing UAC Handlers
@@ -530,13 +497,13 @@ ipcMain.handle("uac:is-enabled", async () => {
 
 ipcMain.handle("uac:enable", async () => {
   // Logic moved to UacHandler (triggered by setConfig)
-  setConfig("skipDaumGameStarterUac", true);
+  setConfigWithEvent("skipDaumGameStarterUac", true);
   return true; // Optimistic success (Handler will log error if fails)
 });
 
 ipcMain.handle("uac:disable", async () => {
   // Logic moved to UacHandler (triggered by setConfig)
-  setConfig("skipDaumGameStarterUac", false);
+  setConfigWithEvent("skipDaumGameStarterUac", false);
   return true; // Optimistic success
 });
 
@@ -593,7 +560,7 @@ ipcMain.handle("session:logout", async () => {
     );
 
     // 4. Clear Account Cache & Notify Renderer
-    setConfig("kakaoAccountId", null);
+    setConfigWithEvent("kakaoAccountId", null);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("account:updated", {
         id: null,
@@ -615,6 +582,50 @@ ipcMain.handle("session:logout", async () => {
   }
 });
 
+// --- Support Tools IPC ---
+ipcMain.handle(
+  "tool:force-repair-executable",
+  async (
+    _event,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) => {
+    logger.log(`[Tool] Force Repair requested for ${gameId}/${serviceId}`);
+
+    const config = getConfig() as AppConfig;
+    const key = `${gameId}_${serviceId}`;
+    const versionInfo = config.knownGameVersions?.[key];
+
+    if (!versionInfo || !versionInfo.webRoot) {
+      logger.error("[Tool] No known web root found for this context.");
+      return false;
+    }
+
+    const installPath = await getGameInstallPath(serviceId, gameId);
+    if (!installPath) {
+      logger.error("[Tool] Install path not found.");
+      return false;
+    }
+
+    // Trigger Patch Fix Modal in Progress Mode
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("UI:SHOW_PATCH_MODAL", {
+        autoStart: true,
+        serviceId,
+        gameId,
+      });
+    }
+
+    eventBus.emit(EventType.TOOL_FORCE_REPAIR, appContext, {
+      installPath,
+      serviceId,
+      webRoot: versionInfo.webRoot,
+    });
+
+    return true;
+  },
+);
+
 // --- Navigation Trigger Context Registry ---
 // Maps webContentsId to its trigger (e.g., 'ACCOUNT_VALIDATION', 'GAME_START_POE2')
 const navigationTriggerContexts = new Map<number, string>();
@@ -635,7 +646,7 @@ function setNavigationTrigger(
 }
 
 // Expose to global for access by handlers
-(global as any).setNavigationTrigger = setNavigationTrigger;
+global.setNavigationTrigger = setNavigationTrigger;
 
 /**
  * Gets the navigation context, inheriting from opener if not set directly
@@ -710,13 +721,14 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
     try {
       // DO NOT show window yet
       await gw.loadURL(targetUrl);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as NodeJS.ErrnoException;
       // Error code -3 is ERR_ABORTED, -2 is ERR_FAILED
       if (
-        error.code === "ERR_ABORTED" ||
-        error.errno === -3 ||
-        error.code === "ERR_FAILED" ||
-        error.errno === -2
+        err.code === "ERR_ABORTED" ||
+        err.errno === -3 ||
+        err.code === "ERR_FAILED" ||
+        err.errno === -2
       ) {
         logger.log(
           `[Account] Navigation interrupted for ${serviceId} (expected during background automation).`,
@@ -785,7 +797,7 @@ ipcMain.on("kakao:account-id-fetched", (_event, id: string) => {
   // Update Config Cache
   const config = getConfig() as AppConfig;
   config.kakaoAccountId = id;
-  setConfig("kakaoAccountId", id);
+  setConfigWithEvent("kakaoAccountId", id);
 
   // Notify Renderer
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1069,7 +1081,7 @@ const handlers = [
           // Sync back to config if auto-resolution is ON and mode changed
           if (config.autoResolution && config.resolutionMode !== mode) {
             logger.log(`[Main] Syncing auto-determined resolution: ${mode}`);
-            setConfig("resolutionMode", mode);
+            setConfigWithEvent("resolutionMode", mode);
             // Optional: Emit event to sync UI (Renderer needs to know to update the select box value)
             eventBus.emit(EventType.CONFIG_CHANGE, context, {
               key: "resolutionMode",
@@ -1149,17 +1161,9 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
   const config = getConfig() as AppConfig;
   const changed = applyResolutionRules(win, config, (mode) => {
-    // Sync back to config if auto-resolution is ON and mode changed
     if (config.autoResolution && config.resolutionMode !== mode) {
       logger.log(`[Main] Syncing auto-determined resolution (Intell): ${mode}`);
-      setConfig("resolutionMode", mode);
-      if (appContext) {
-        eventBus.emit(EventType.CONFIG_CHANGE, appContext, {
-          key: "resolutionMode",
-          oldValue: config.resolutionMode,
-          newValue: mode,
-        });
-      }
+      setConfigWithEvent("resolutionMode", mode);
     }
   });
   if (changed && appContext) {
@@ -1284,9 +1288,8 @@ function createWindows() {
       // [Fix] Defer Version Check/Changelog until Window is Ready
       // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
       setTimeout(async () => {
-        if (appContext) {
-          checkLauncherVersionUpdate(appContext);
-        }
+        // Check for launcher update (version change)
+        await checkLauncherVersionUpdate();
 
         // [UAC Migration] Trigger In-App Modal if Legacy Detected
         if (await LegacyUacManager.detectLegacy()) {
@@ -1418,13 +1421,43 @@ function createWindows() {
 
   // Initialize Global Context
   appContext = context;
+  ContextProvider.set(appContext); // [New] Set Global Context Provider
   appContext.mainWindow = mainWindow;
   setupMainLogger(appContext, (event) => {
     eventBus.emit(event.type, appContext, event.payload);
   });
 
+  // Register Tool Handlers
+  eventBus.register(ToolForceRepairHandler);
+
   printBanner();
   logger.log("[Main] Main Logger initialized.");
+
+  // [New] Initial Game Version Scan: Recover if knownGameVersions is empty
+  const runInitialGameVersionScan = async () => {
+    const config = getConfig() as AppConfig;
+    const knownVersions = config.knownGameVersions || {};
+
+    if (Object.keys(knownVersions).length === 0) {
+      logger.log(
+        "[Main] knownGameVersions is empty. Scanning logs for recovery...",
+      );
+      const scannedResults = await GameVersionScanner.scanAll();
+
+      if (Object.keys(scannedResults).length > 0) {
+        logger.log(
+          `[Main] Recovery scan successful. Found ${Object.keys(scannedResults).length} versions.`,
+        );
+        setConfigWithEvent("knownGameVersions", scannedResults);
+      } else {
+        logger.log("[Main] Recovery scan finished with no results.");
+      }
+    }
+  };
+
+  runInitialGameVersionScan().catch((e) =>
+    logger.error("[Main] Failed during initial game version scan:", e),
+  );
 
   // Perform initial installation check for ALL contexts
   // const initialConfig = getConfig() as AppConfig; (Removed: unused)
@@ -1742,8 +1775,7 @@ ipcMain.on("trigger-game-start", () => {
 
 // --- Patch Management IPC ---
 // Keep track of the active patch manager for cancellation
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let activeManualPatchManager: any = null;
+let activeManualPatchManager: PatchManager | null = null;
 
 ipcMain.on(
   "patch:trigger-manual",
