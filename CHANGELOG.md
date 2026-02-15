@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.2...0.9.3) (2026-02-15)
+
+
+### Bug Fixes
+
+* 간헐적으로 실행 직후 런쳐의 타이틀이 표시 되지않는 문제 수정 ([b643da4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b643da48459f7c95320219676c60ee461c444e5a))
+
 ## [0.9.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.1...0.9.2) (2026-02-15)
 
 
