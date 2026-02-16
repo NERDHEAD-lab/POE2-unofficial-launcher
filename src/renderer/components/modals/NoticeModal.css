@@ -33,12 +33,13 @@
   position: relative;
   overflow: hidden;
   border-radius: 4px;
-  transform: translateY(20px);
+  transform: scale(var(--app-scale, 1)) translateY(20px);
+  transform-origin: center center;
   transition: transform 0.3s ease;
 }
 
 .notice-overlay.visible .notice-modal {
-  transform: translateY(0);
+  transform: scale(var(--app-scale, 1)) translateY(0);
 }
 
 .notice-header {

@@ -21,6 +21,8 @@
   width: 400px;
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
   animation: slideUp 0.3s ease-out;
 }
 
@@ -86,11 +88,11 @@
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: scale(var(--app-scale, 1)) translateY(20px);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: scale(var(--app-scale, 1)) translateY(0);
     opacity: 1;
   }
 }

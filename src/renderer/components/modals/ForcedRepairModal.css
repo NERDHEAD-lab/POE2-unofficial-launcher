@@ -10,7 +10,7 @@
   justify-content: center;
   z-index: 2000;
   backdrop-filter: blur(4px);
-  animation: modal-fade-in 0.3s ease-out;
+  animation: overlay-fade-in 0.3s ease-out;
 }
 
 .forced-repair-content {
@@ -24,6 +24,9 @@
   color: #d4d4d4;
   position: relative;
   overflow: hidden;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
+  animation: content-slide-down 0.3s ease-out;
 }
 
 /* Accent top border derived from theme */
@@ -154,13 +157,22 @@
   transform: scale(0.98);
 }
 
-@keyframes modal-fade-in {
+@keyframes overlay-fade-in {
   from {
     opacity: 0;
-    transform: translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+  }
+}
+
+@keyframes content-slide-down {
+  from {
+    opacity: 0;
+    transform: scale(var(--app-scale, 1)) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(var(--app-scale, 1)) translateY(0);
   }
 }

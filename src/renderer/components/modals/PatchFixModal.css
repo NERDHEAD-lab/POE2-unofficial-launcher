@@ -10,7 +10,7 @@
   align-items: center;
   z-index: 10000;
   backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease-out;
+  animation: overlayFadeIn 0.2s ease-out;
 }
 
 .patch-fix-modal-content {
@@ -22,6 +22,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
+  animation: contentFadeIn 0.2s ease-out;
 }
 
 .patch-header {
@@ -201,14 +204,23 @@
   transform: translateY(-1px);
 }
 
-@keyframes fadeIn {
+@keyframes overlayFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+  }
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(calc(var(--app-scale, 1) * 0.95));
+  }
+  to {
+    opacity: 1;
+    transform: scale(var(--app-scale, 1));
   }
 }
 

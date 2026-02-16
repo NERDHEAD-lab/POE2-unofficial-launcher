@@ -28,13 +28,14 @@
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  transform: scale(0.95);
+  transform: scale(calc(var(--app-scale, 1) * 0.95));
+  transform-origin: center center;
   transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
   border: 1px solid #333;
 }
 
 .changelog-overlay.visible .changelog-modal {
-  transform: scale(1);
+  transform: scale(var(--app-scale, 1));
 }
 
 /* Header */

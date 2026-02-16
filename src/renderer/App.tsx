@@ -718,7 +718,14 @@ function App() {
   // --- Auto Scaling Logic (Scale-to-Fit) ---
   const BASE_WIDTH = 1440;
   const BASE_HEIGHT = 960;
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(() => {
+    // Initial calculation to prevent 1.0 -> actual_scale flicker
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    const widthRatio = windowWidth / BASE_WIDTH;
+    const heightRatio = windowHeight / BASE_HEIGHT;
+    return Math.min(widthRatio, heightRatio);
+  });
 
   useEffect(() => {
     const updateScale = () => {
@@ -743,15 +750,18 @@ function App() {
     <div
       id="app-container"
       className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
-      style={{
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#000",
-        overflow: "hidden",
-      }}
+      style={
+        {
+          width: "100vw",
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#000",
+          overflow: "hidden",
+          "--app-scale": scale,
+        } as React.CSSProperties
+      }
     >
       <OnboardingModal
         isOpen={showOnboarding}
@@ -806,6 +816,24 @@ function App() {
         onClose={handlePatchClose}
       />
 
+      <NoticeModal
+        item={selectedNotice}
+        onClose={() => setSelectedNotice(null)}
+      />
+
+      {isForcedRepairOpen && repairVersionInfo && (
+        <ForcedRepairModal
+          key={`${activeGame}-${repairVersionInfo.version}`}
+          isOpen={isForcedRepairOpen}
+          gameId={activeGame}
+          serviceId={serviceChannel}
+          versionInfo={repairVersionInfo}
+          remoteVersion={remoteVersions?.[activeGame]?.version}
+          onCancel={() => setIsForcedRepairOpen(false)}
+          onConfirm={handleForcedRepairConfirm}
+        />
+      )}
+
       {/* Scalable UI Content */}
       <div
         className="app-scaler"
@@ -823,6 +851,7 @@ function App() {
         }}
       >
         {/* Background Layer (Now inside Scaler to create Letterbox effect) */}
+
         <div
           id="app-background"
           style={{
@@ -983,24 +1012,6 @@ function App() {
               />
             </div>
           </div>
-
-          <NoticeModal
-            item={selectedNotice}
-            onClose={() => setSelectedNotice(null)}
-          />
-
-          {isForcedRepairOpen && repairVersionInfo && (
-            <ForcedRepairModal
-              key={`${activeGame}-${repairVersionInfo.version}`}
-              isOpen={isForcedRepairOpen}
-              gameId={activeGame}
-              serviceId={serviceChannel}
-              versionInfo={repairVersionInfo}
-              remoteVersion={remoteVersions?.[activeGame]?.version}
-              onCancel={() => setIsForcedRepairOpen(false)}
-              onConfirm={handleForcedRepairConfirm}
-            />
-          )}
 
           {/* Footer Section (Button + Image Separation) */}
           <div className="footer-section">
