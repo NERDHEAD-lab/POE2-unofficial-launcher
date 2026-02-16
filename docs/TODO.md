@@ -53,3 +53,7 @@
   - `dev_mode` 및 `debug_console` 설정값에 따른 초기 필터링(Early return) 강화.
   - 로그 전송 전 창의 유효성(`isDestroyed`)을 철저히 검증.
   - 메인 윈도우로의 백업 로그 전송(Redundancy) 검토.
+
+- [ ] **[Update]** UpdateHandler.ts: `VITE_FORCE_UPDATE_CHECK` 환경 변수를 통한 개발 환경 내 업데이트 체크 강제 허용 로직 추가. (Reason: 개발 모드에서의 업데이트 흐름 검증 편의성 확보)
+- [ ] **[Update]** UpdateHandler.ts & App.tsx: 백그라운드 업데이트 발견 시(isSilent: true) 타이틀 바의 업데이트 버튼을 즉시 활성화하여 가시성 확보. (Reason: 사일런트 체크 시 업데이트 발견 사실을 사용자가 인지하지 못하는 문제 해결)
+- [ ] **[Update]** App.tsx: `available` 또는 `downloaded` 상태일 때 공통적으로 타이틀 바 업데이트 아이콘 노출. (Reason: `autoDownload` 지연 상태에서도 업데이트 버튼을 통해 상세 정보 접근 가능하도록 개선)

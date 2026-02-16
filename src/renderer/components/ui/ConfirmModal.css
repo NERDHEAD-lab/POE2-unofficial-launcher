@@ -27,18 +27,19 @@
   border: 1px solid #333;
   width: 440px;
   border-radius: 8px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
   animation: slideUp 0.2s ease-out;
   overflow: hidden;
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: scale(var(--app-scale, 1)) translateY(20px);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: scale(var(--app-scale, 1)) translateY(0);
     opacity: 1;
   }
 }

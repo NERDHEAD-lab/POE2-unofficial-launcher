@@ -57,6 +57,8 @@
   overflow: hidden;
   border: 1px solid #333;
   position: relative; /* For Close Button */
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
 }
 
 /* Sidebar (Left) */
