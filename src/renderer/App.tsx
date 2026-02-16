@@ -38,6 +38,7 @@ import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
+import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
@@ -164,6 +165,20 @@ function App() {
     webRoot: string;
     timestamp: string | number;
   } | null>(null);
+
+  // === Remote Version State ===
+  const [remoteVersions, setRemoteVersions] = useState<RemoteVersions | null>(
+    null,
+  );
+
+  useEffect(() => {
+    VersionService.fetchRemoteVersions().then((versions) => {
+      if (versions) {
+        setRemoteVersions(versions);
+        logger.log("[App] Remote versions loaded:", Object.keys(versions));
+      }
+    });
+  }, []);
 
   // Handle Manual Force Repair Request (from SupportLinks)
   const handleForcedRepairRequest = useCallback(
@@ -875,6 +890,7 @@ function App() {
                 }}
               >
                 <SupportLinks
+                  remoteVersions={remoteVersions}
                   onForcedRepairRequest={handleForcedRepairRequest}
                 />
               </div>
@@ -971,6 +987,12 @@ function App() {
               gameId={activeGame}
               serviceId={serviceChannel}
               initialVersion={repairVersionInfo.version}
+              remoteVersion={
+                VersionService.getRemoteVersionForGame(
+                  remoteVersions,
+                  activeGame,
+                )?.version
+              }
               lastDetected={repairVersionInfo.timestamp}
               onCancel={() => setIsForcedRepairOpen(false)}
               onConfirm={handleForcedRepairConfirm}

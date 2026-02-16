@@ -43,6 +43,8 @@ export const SUPPORT_URLS = {
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher?docs=SUPPORT_KR.md",
   ISSUES: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues",
   GITHUB_REPO: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher",
+  LATEST_VERSIONS_JSON:
+    "https://nerdhead-lab.github.io/POE2-unofficial-launcher/latest-versions.json",
 };
 
 // 5. Trade Site URLs

@@ -6,6 +6,7 @@ interface ForcedRepairModalProps {
   gameId: string;
   serviceId: string;
   initialVersion: string;
+  remoteVersion?: string;
   lastDetected?: number | string;
   onCancel: () => void;
   onConfirm: (manualVersion: string) => void;
@@ -16,17 +17,20 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
   gameId,
   serviceId,
   initialVersion,
+  remoteVersion,
   lastDetected,
   onCancel,
   onConfirm,
 }) => {
-  const [version, setVersion] = useState(initialVersion);
-  const [prevInitialVersion, setPrevInitialVersion] = useState(initialVersion);
+  // Use remote version as default if available, otherwise fallback to local initialVersion
+  const defaultVersion = remoteVersion || initialVersion;
+  const [version, setVersion] = useState(defaultVersion);
+  const [prevDefaultVersion, setPrevDefaultVersion] = useState(defaultVersion);
 
-  // Sync version state when initialVersion prop changes (during rendering as per React docs)
-  if (initialVersion !== prevInitialVersion) {
-    setVersion(initialVersion);
-    setPrevInitialVersion(initialVersion);
+  // Sync version state when defaultVersion (prop-derived) changes
+  if (defaultVersion !== prevDefaultVersion) {
+    setVersion(defaultVersion);
+    setPrevDefaultVersion(defaultVersion);
   }
 
   if (!isOpen) return null;
@@ -71,7 +75,47 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
                 placeholder="예: 3.25.1.0"
               />
               <div className="version-info-sub">
-                {lastDetected ? (
+                {remoteVersion && (
+                  <div
+                    style={{
+                      color: "var(--theme-accent)",
+                      marginBottom: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: "14px" }}
+                    >
+                      info
+                    </span>
+                    <span>원격 서버의 최신 권장 버전으로 설정되었습니다.</span>
+                  </div>
+                )}
+                {!remoteVersion && !initialVersion && (
+                  <div
+                    style={{
+                      color: "#ff6b6b",
+                      marginBottom: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: "14px" }}
+                    >
+                      warning
+                    </span>
+                    <span>
+                      외부 서버 및 로그에서 최신 버전을 가져오는데 실패했습니다.
+                    </span>
+                  </div>
+                )}
+                {lastDetected && lastDetected !== 0 ? (
                   <span>
                     마지막 감지:{" "}
                     {(() => {
