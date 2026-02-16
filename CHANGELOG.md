@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.5...0.9.6) (2026-02-16)
+
+
+### Bug Fixes
+
+* 낮은 해상도에서 첫 실행 시 표시되는 온보딩 가이드가 짤리는 문제 수정 ([ab9b26d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ab9b26dbe5f12339b07356ceeb3f1e32507161be))
+
 ## [0.9.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.4...0.9.5) (2026-02-16)
 
 
