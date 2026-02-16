@@ -591,16 +591,38 @@ ipcMain.handle(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
+    remoteWebRoot?: string,
   ) => {
     logger.log(
-      `[Tool] Force Repair requested for ${gameId}/${serviceId} (ManualVersion: ${manualVersion || "N/A"})`,
+      `[Tool] Force Repair requested for ${gameId}/${serviceId} (ManualVersion: ${manualVersion || "N/A"}, RemoteWebRoot: ${!!remoteWebRoot})`,
     );
 
     const config = getConfig() as AppConfig;
     const key = `${gameId}_${serviceId}`;
     const versionInfo = config.knownGameVersions?.[key];
 
-    if (!versionInfo || !versionInfo.webRoot) {
+    let baseWebRoot: string;
+    if (remoteWebRoot && versionInfo?.webRoot) {
+      const remoteVer = LogParser.extractVersion(remoteWebRoot);
+      const localVer = LogParser.extractVersion(versionInfo.webRoot);
+      const cmp = LogParser.compareVersions(remoteVer, localVer);
+
+      if (cmp >= 0) {
+        logger.log(
+          `[Tool] Using Remote WebRoot (Ver: ${remoteVer} >= Local: ${localVer})`,
+        );
+        baseWebRoot = remoteWebRoot;
+      } else {
+        logger.log(
+          `[Tool] Using Local WebRoot (Ver: ${localVer} > Remote: ${remoteVer})`,
+        );
+        baseWebRoot = versionInfo.webRoot;
+      }
+    } else {
+      baseWebRoot = remoteWebRoot || versionInfo?.webRoot || "";
+    }
+
+    if (!baseWebRoot) {
       logger.error("[Tool] No known web root found for this context.");
       return false;
     }
@@ -612,7 +634,7 @@ ipcMain.handle(
     }
 
     // Determine target webRoot
-    let targetWebRoot = versionInfo.webRoot;
+    let targetWebRoot = baseWebRoot;
     if (manualVersion) {
       targetWebRoot = LogParser.replaceVersion(targetWebRoot, manualVersion);
       logger.log(`[Tool] WebRoot overridden to: ${targetWebRoot}`);

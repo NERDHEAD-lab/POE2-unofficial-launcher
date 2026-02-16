@@ -119,13 +119,11 @@ interface SupportLinksProps {
     webRoot: string;
     timestamp: string | number;
   }) => void;
-  onVersionMissing?: () => void;
 }
 
 const SupportLinks: React.FC<SupportLinksProps> = ({
   remoteVersions,
   onForcedRepairRequest,
-  onVersionMissing,
 }) => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
@@ -151,7 +149,16 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
             gameId,
           );
 
-          const activeInfo = localInfo || remoteInfo;
+          // Decision logic: Which one is "Best"?
+          let activeInfo = localInfo || remoteInfo;
+          if (localInfo && remoteInfo) {
+            const cmp = VersionService.compareVersions(
+              remoteInfo.version,
+              localInfo.version,
+            );
+            // If remote is newer or equal, use remote. Otherwise use local.
+            activeInfo = cmp >= 0 ? remoteInfo : localInfo;
+          }
 
           if (activeInfo && activeInfo.webRoot) {
             setLabel(
@@ -219,7 +226,7 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
     ],
-    [onForcedRepairRequest, onVersionMissing, remoteVersions],
+    [onForcedRepairRequest, remoteVersions],
   );
 
   return (

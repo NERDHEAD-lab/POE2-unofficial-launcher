@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 
+import { compareVersions } from "../../shared/version";
 import { GameServiceProfile } from "../config/GameServiceProfiles";
 
 export class LogParser {
@@ -141,4 +142,6 @@ export class LogParser {
     }
     return webRoot;
   }
+
+  public static compareVersions = compareVersions;
 }
