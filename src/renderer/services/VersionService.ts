@@ -1,4 +1,5 @@
 import { SUPPORT_URLS } from "../../shared/urls";
+import { compareVersions } from "../../shared/version";
 
 export interface RemoteVersionInfo {
   version: string;
@@ -38,4 +39,6 @@ export class VersionService {
     if (!versions) return null;
     return versions[gameId] || null;
   }
+
+  public static compareVersions = compareVersions;
 }

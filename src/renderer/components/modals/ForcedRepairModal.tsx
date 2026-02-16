@@ -1,13 +1,20 @@
 import React, { useState } from "react";
-import "./ForcedRepairModal.css";
 
-interface ForcedRepairModalProps {
+import "./ForcedRepairModal.css";
+import { VersionService } from "../../services/VersionService";
+
+export interface VersionInfo {
+  version: string;
+  webRoot: string;
+  timestamp: string | number;
+}
+
+export interface ForcedRepairModalProps {
   isOpen: boolean;
   gameId: string;
   serviceId: string;
-  initialVersion: string;
+  versionInfo: VersionInfo;
   remoteVersion?: string;
-  lastDetected?: number | string;
   onCancel: () => void;
   onConfirm: (manualVersion: string) => void;
 }
@@ -16,28 +23,20 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
   isOpen,
   gameId,
   serviceId,
-  initialVersion,
+  versionInfo,
   remoteVersion,
-  lastDetected,
   onCancel,
   onConfirm,
 }) => {
-  // Use remote version as default if available, otherwise fallback to local initialVersion
-  const defaultVersion = remoteVersion || initialVersion;
-  const [version, setVersion] = useState(defaultVersion);
-  const [prevDefaultVersion, setPrevDefaultVersion] = useState(defaultVersion);
-
-  // Sync version state when defaultVersion (prop-derived) changes
-  if (defaultVersion !== prevDefaultVersion) {
-    setVersion(defaultVersion);
-    setPrevDefaultVersion(defaultVersion);
-  }
+  const [version, setVersion] = useState(versionInfo.version);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
     onConfirm(version);
   };
+
+  const lastDetected = versionInfo.timestamp;
 
   return (
     <div className="forced-repair-overlay" onClick={onCancel}>
@@ -52,9 +51,10 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
 
         <div className="forced-body">
           <p>
-            로그상에서 마지막으로 확인된 정보를 기반으로 실행 파일을 강제
-            복구합니다. 기존 파일이 손상된 경우 최신 실행 파일을 다시
-            다운로드하여 덮어씌웁니다.
+            원격 서버 정보와 로컬 로그를 비교하여 확인된 최신 버전을 기반으로
+            실행 파일을 강제 복구합니다. 기존 파일이 손상되었거나 실행되지 않는
+            경우, 해당 버전의 최신 파일을 다시 다운로드하여 원본 상태로
+            복구합니다.
           </p>
 
           <div
@@ -75,7 +75,12 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
                 placeholder="예: 3.25.1.0"
               />
               <div className="version-info-sub">
-                {remoteVersion && (
+                {remoteVersion &&
+                versionInfo.version &&
+                VersionService.compareVersions(
+                  remoteVersion,
+                  versionInfo.version,
+                ) >= 0 ? (
                   <div
                     style={{
                       color: "var(--theme-accent)",
@@ -91,10 +96,27 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
                     >
                       info
                     </span>
-                    <span>원격 서버의 최신 권장 버전으로 설정되었습니다.</span>
+                    <span>원격 서버에서 확인된 최신 권장 버전입니다.</span>
                   </div>
-                )}
-                {!remoteVersion && !initialVersion && (
+                ) : versionInfo.version ? (
+                  <div
+                    style={{
+                      color: "#aaa",
+                      marginBottom: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: "14px" }}
+                    >
+                      history
+                    </span>
+                    <span>로컬 로그에서 마지막으로 감지된 버전입니다.</span>
+                  </div>
+                ) : (
                   <div
                     style={{
                       color: "#ff6b6b",
@@ -115,6 +137,7 @@ export const ForcedRepairModal: React.FC<ForcedRepairModalProps> = ({
                     </span>
                   </div>
                 )}
+
                 {lastDetected && lastDetected !== 0 ? (
                   <span>
                     마지막 감지:{" "}

@@ -178,6 +178,7 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
+    remoteWebRoot?: string, // [Hotfix] 원격/수동 웹 루트 전달용
   ) => Promise<boolean>; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],

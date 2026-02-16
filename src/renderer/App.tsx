@@ -196,13 +196,21 @@ function App() {
   const handleForcedRepairConfirm = useCallback(
     (manualVersion: string) => {
       setIsForcedRepairOpen(false);
+
+      // Try to get remote web root for this game to help main process
+      const remoteInfo = VersionService.getRemoteVersionForGame(
+        remoteVersions,
+        activeGame,
+      );
+
       window.electronAPI.triggerForceRepair(
         serviceChannel,
         activeGame,
         manualVersion,
+        remoteInfo?.webRoot,
       );
     },
-    [serviceChannel, activeGame],
+    [serviceChannel, activeGame, remoteVersions],
   );
 
   // [UAC Migration] Listener
@@ -981,19 +989,14 @@ function App() {
             onClose={() => setSelectedNotice(null)}
           />
 
-          {repairVersionInfo && (
+          {isForcedRepairOpen && repairVersionInfo && (
             <ForcedRepairModal
+              key={`${activeGame}-${repairVersionInfo.version}`}
               isOpen={isForcedRepairOpen}
               gameId={activeGame}
               serviceId={serviceChannel}
-              initialVersion={repairVersionInfo.version}
-              remoteVersion={
-                VersionService.getRemoteVersionForGame(
-                  remoteVersions,
-                  activeGame,
-                )?.version
-              }
-              lastDetected={repairVersionInfo.timestamp}
+              versionInfo={repairVersionInfo}
+              remoteVersion={remoteVersions?.[activeGame]?.version}
               onCancel={() => setIsForcedRepairOpen(false)}
               onConfirm={handleForcedRepairConfirm}
             />
