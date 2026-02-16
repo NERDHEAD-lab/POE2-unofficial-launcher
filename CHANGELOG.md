@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.3...0.9.4) (2026-02-16)
+
+
+### Bug Fixes
+
+* 로그 파일이 존재 하지 않는 경우에 설치 오류가 발생할 경우 "실행 파일 강제 복구" 기능에서 버전을 추정하지 못하는 문제 개선 ([e373cd4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e373cd4dd7b755651124d5a3209d74b945d270ea))
+* 설치 실패 이슈 발생 시 로그를 확인 할 수 없어 직접 입력 받을 수 있도록 개선 ([de147fd](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/de147fd6120c9aeb420d5fda63097538cd10a335))
+
 ## [0.9.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.2...0.9.3) (2026-02-15)
 
 
