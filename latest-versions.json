@@ -1,0 +1,12 @@
+{
+  "POE1": {
+    "version": "3.27.0.8.2",
+    "webRoot": "https://poe.gdn.gamecdn.net/live/patch/3.27.0.8.2/",
+    "timestamp": 1771174928120
+  },
+  "POE2": {
+    "version": "4.4.0.6.6",
+    "webRoot": "https://patch.poe2.kakaogames.com/production/patch/4.4.0.6.6/",
+    "timestamp": 1771171239746.8518
+  }
+}
