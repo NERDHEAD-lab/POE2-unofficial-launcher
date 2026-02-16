@@ -25,6 +25,7 @@ import {
   ChangelogItem,
 } from "../shared/types";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
@@ -37,6 +38,7 @@ import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
+import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
 
@@ -155,6 +157,53 @@ function App() {
   // Debug States
   const [devMode, setDevMode] = useState(false);
   const [debugConsole, setDebugConsole] = useState(false);
+
+  // Forced Repair Modal State
+  const [isForcedRepairOpen, setIsForcedRepairOpen] = useState(false);
+  const [repairVersionInfo, setRepairVersionInfo] = useState<{
+    version: string;
+    webRoot: string;
+    timestamp: string | number;
+  } | null>(null);
+
+  // === Remote Version State ===
+  const [remoteVersions, setRemoteVersions] = useState<RemoteVersions | null>(
+    null,
+  );
+
+  useEffect(() => {
+    VersionService.fetchRemoteVersions().then((versions) => {
+      if (versions) {
+        setRemoteVersions(versions);
+        logger.log("[App] Remote versions loaded:", Object.keys(versions));
+      }
+    });
+  }, []);
+
+  // Handle Manual Force Repair Request (from SupportLinks)
+  const handleForcedRepairRequest = useCallback(
+    (versionInfo: {
+      version: string;
+      webRoot: string;
+      timestamp: string | number;
+    }) => {
+      setRepairVersionInfo(versionInfo);
+      setIsForcedRepairOpen(true);
+    },
+    [],
+  );
+
+  const handleForcedRepairConfirm = useCallback(
+    (manualVersion: string) => {
+      setIsForcedRepairOpen(false);
+      window.electronAPI.triggerForceRepair(
+        serviceChannel,
+        activeGame,
+        manualVersion,
+      );
+    },
+    [serviceChannel, activeGame],
+  );
 
   // [UAC Migration] Listener
   useEffect(() => {
@@ -840,7 +889,10 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
-                <SupportLinks />
+                <SupportLinks
+                  remoteVersions={remoteVersions}
+                  onForcedRepairRequest={handleForcedRepairRequest}
+                />
               </div>
 
               {/* Section C: Game Start & Company Logos (Bottom) */}
@@ -928,6 +980,24 @@ function App() {
             item={selectedNotice}
             onClose={() => setSelectedNotice(null)}
           />
+
+          {repairVersionInfo && (
+            <ForcedRepairModal
+              isOpen={isForcedRepairOpen}
+              gameId={activeGame}
+              serviceId={serviceChannel}
+              initialVersion={repairVersionInfo.version}
+              remoteVersion={
+                VersionService.getRemoteVersionForGame(
+                  remoteVersions,
+                  activeGame,
+                )?.version
+              }
+              lastDetected={repairVersionInfo.timestamp}
+              onCancel={() => setIsForcedRepairOpen(false)}
+              onConfirm={handleForcedRepairConfirm}
+            />
+          )}
 
           {/* Footer Section (Button + Image Separation) */}
           <div className="footer-section">

@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import "./SupportLinks.css";
 import { AppConfig } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
+import { VersionService, RemoteVersions } from "../services/VersionService";
 
 // [New] Extensible Link Item Definition
 interface SupportLinkContext {
@@ -111,7 +112,21 @@ const SupportLinkItemRenderer: React.FC<{
   );
 };
 
-const SupportLinks: React.FC = () => {
+interface SupportLinksProps {
+  remoteVersions?: RemoteVersions | null;
+  onForcedRepairRequest?: (versionInfo: {
+    version: string;
+    webRoot: string;
+    timestamp: string | number;
+  }) => void;
+  onVersionMissing?: () => void;
+}
+
+const SupportLinks: React.FC<SupportLinksProps> = ({
+  remoteVersions,
+  onForcedRepairRequest,
+  onVersionMissing,
+}) => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
     () => [
@@ -127,32 +142,43 @@ const SupportLinks: React.FC = () => {
           const gameId = config.activeGame;
           const serviceId = config.serviceChannel;
           const key = `${gameId}_${serviceId}`;
-          const versionInfo = config.knownGameVersions?.[key];
 
-          if (versionInfo && versionInfo.webRoot) {
+          // Priority 1: Local Version (knownGameVersions)
+          const localInfo = config.knownGameVersions?.[key];
+          // Priority 2: Remote Version (latest-versions.json)
+          const remoteInfo = VersionService.getRemoteVersionForGame(
+            remoteVersions || null,
+            gameId,
+          );
+
+          const activeInfo = localInfo || remoteInfo;
+
+          if (activeInfo && activeInfo.webRoot) {
             setLabel(
-              `실행 파일 강제 복구 ( ${versionInfo.version || "Unknown"} )`,
+              `실행 파일 강제 복구 ( ${activeInfo.version || "Unknown"} )`,
             );
             setDisabled(false);
             setOnClick(() => {
-              const confirmed = confirm(
-                `[${gameId}/${serviceId}] 실행 파일을 강제 복구하시겠습니까?\n\n버전: ${
-                  versionInfo.version || "Unknown"
-                }\n(마지막 감지: ${new Date(
-                  versionInfo.timestamp,
-                ).toLocaleString()})`,
-              );
-              if (confirmed) {
-                window.electronAPI.triggerForceRepair(serviceId, gameId);
+              if (onForcedRepairRequest) {
+                onForcedRepairRequest({
+                  version: activeInfo.version,
+                  webRoot: activeInfo.webRoot,
+                  timestamp: activeInfo.timestamp,
+                });
               }
             });
           } else {
             setLabel("실행 파일 강제 복구 ( 알 수 없음 )");
             setDisabled(false);
             setOnClick(() => {
-              alert(
-                "복구 가능한 버전 정보가 없습니다.\n\n게임을 최소 1회 실행하여 패치 로그가 생성되어야 복구 기능을 사용할 수 있습니다.",
-              );
+              if (onForcedRepairRequest) {
+                // Open modal even if info is missing
+                onForcedRepairRequest({
+                  version: "",
+                  webRoot: "",
+                  timestamp: 0,
+                });
+              }
             });
           }
         },
@@ -193,7 +219,7 @@ const SupportLinks: React.FC = () => {
         },
       },
     ],
-    [],
+    [onForcedRepairRequest, onVersionMissing, remoteVersions],
   );
 
   return (
