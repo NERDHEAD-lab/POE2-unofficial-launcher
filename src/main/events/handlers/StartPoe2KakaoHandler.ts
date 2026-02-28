@@ -35,10 +35,11 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     // 2. Ensure Game Window (Kakao)
     const gameWindow = context.ensureGameWindow({ service: "Kakao Games" });
     context.gameWindow = gameWindow; // Sync logic
-    // 0. Notify User
+    // 0. Notify User & Interrupt background validation if active
     logger.log(
       `[StartPoe2KakaoHandler] Condition Met! Starting POE2 Kakao Process...`,
     );
+    context.disableValidationMode();
 
     eventBus.emit<GameStatusChangeEvent>(
       EventType.GAME_STATUS_CHANGE,
