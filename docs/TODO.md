@@ -57,3 +57,21 @@
 - [ ] **[Update]** UpdateHandler.ts: `VITE_FORCE_UPDATE_CHECK` 환경 변수를 통한 개발 환경 내 업데이트 체크 강제 허용 로직 추가. (Reason: 개발 모드에서의 업데이트 흐름 검증 편의성 확보)
 - [ ] **[Update]** UpdateHandler.ts & App.tsx: 백그라운드 업데이트 발견 시(isSilent: true) 타이틀 바의 업데이트 버튼을 즉시 활성화하여 가시성 확보. (Reason: 사일런트 체크 시 업데이트 발견 사실을 사용자가 인지하지 못하는 문제 해결)
 - [ ] **[Update]** App.tsx: `available` 또는 `downloaded` 상태일 때 공통적으로 타이틀 바 업데이트 아이콘 노출. (Reason: `autoDownload` 지연 상태에서도 업데이트 버튼을 통해 상세 정보 접근 가능하도록 개선)
+
+## 4. 렌더링 성능 최적화 (GPU & Background)
+
+### [ ] ProcessWatcher 폴링 간격 최적화
+
+- **현상**: `ProcessWatcher`가 일정 시간(1분) 동안은 3초마다 프로세스 목록 전체를 스캔하므로, 이 타이밍에 CPU 스파이크가 발생하여 게임 프레임 드랍(Stuttering)을 유발할 수 있음.
+  - **추가 사례**: 일부 사용자 환경에서 `conhost.exe` 오류(0xc0000409) 발생 확인. 잦은 PowerShell 호출 또는 파이프 통신 부하가 원인으로 추정됨.
+- **개선안**:
+  - 게임 실행이 감지되면 폴링 간격을 대폭 늘리거나(예: 3초 -> 30초) 일시 중단하는 'Game Mode' 도입.
+  - WMI 쿼리 대신 더 가벼운 네이티브 API(`ps-list` 등) 호출 방식 도입 (우선순위 상향).
+
+### [ ] 백그라운드 전환 시 애니메이션 일시 정지 (Low Priority)
+
+- **현상**: 런처가 백그라운드에 있거나 최소화된 상태에서도 CSS 애니메이션 및 WebGL 렌더링이 계속되어 GPU 자원을 점유함.
+- **개선안**:
+  - `window.onblur` 이벤트 시 `document.body`에 `paused` 클래스를 추가.
+  - CSS 전역 변수나 특정 클래스 하위의 `animation-play-state: paused` 적용.
+  - 고비용 컴포넌트(비디오 배경 등)의 렌더링 일시 중단 처리.

@@ -710,7 +710,21 @@ ipcMain.on("account:clear-pending-login", (_event, serviceId?: string) => {
   }
 });
 
-ipcMain.handle("account:is-validation-mode", () => validationModeActive);
+ipcMain.handle("account:is-validation-mode", (event) => {
+  if (!validationModeActive) return false;
+
+  // Isolation: Only return true if the requester window is actually in ACCOUNT_VALIDATION context.
+  // This prevents manual game launches from being suppressed by a background validation flag.
+  const trigger = getNavigationTrigger(event.sender.id);
+  const isMatch = trigger === "ACCOUNT_VALIDATION";
+
+  if (isMatch) {
+    logger.log(
+      `[Account] Validation mode confirmed for window ${event.sender.id}`,
+    );
+  }
+  return isMatch;
+});
 
 ipcMain.on("account:clear-trigger", (event) => {
   logger.log(`[Context] Clearing trigger context for ${event.sender.id}`);
@@ -1023,6 +1037,10 @@ const context: AppContext = {
     return gameWindow!;
   },
   getConfig: (key?: string) => getEffectiveConfig(key),
+  disableValidationMode: () => {
+    logger.log("[Account] Explicitly disabling validation mode.");
+    setValidationMode(false);
+  },
 };
 
 /**

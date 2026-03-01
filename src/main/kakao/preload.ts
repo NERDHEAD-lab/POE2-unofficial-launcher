@@ -71,6 +71,8 @@ const SELECTORS = {
   },
   KAKAO_LOGIN: {
     CHECKBOX_SAVE: 'input[name="saveSignedIn"]',
+    QR_CHECKBOX: "#label-staySignedIn",
+    QR_INPUT: 'input[name="staySignedIn"]',
     CONTAINER_CHOICE: ".item_choice",
     BTN_LOGIN: 'button[type="submit"], .btn_g',
   },
@@ -526,6 +528,129 @@ const KakaoLoginHandler: PageHandler = {
   },
 };
 
+const KakaoQRLoginHandler: PageHandler = {
+  name: "KakaoQRLoginHandler",
+  description: "Kakao QR Login Page - Auto Check 'Stay Signed In'",
+  match: (url) =>
+    url.hostname === "accounts.kakao.com" && url.pathname.includes("/qr_login"),
+  visible: true,
+  triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_MANUAL_LOGIN"],
+  execute: () => {
+    logger.log(`[Handler] Executing ${KakaoQRLoginHandler.name}`);
+
+    let hasAutoChecked = false;
+
+    observeAndInteract((_obs) => {
+      const checkboxLabel = document.querySelector(
+        SELECTORS.KAKAO_LOGIN.QR_CHECKBOX,
+      ) as HTMLElement;
+      // In QR login, the checkbox is often an input inside or linked to a label
+      const checkboxInput = document.querySelector(
+        SELECTORS.KAKAO_LOGIN.QR_INPUT,
+      ) as HTMLInputElement;
+
+      if (checkboxLabel && checkboxInput) {
+        // 1. Initial Auto-check - Must click the LABEL (#label-staySignedIn) as requested
+        if (!hasAutoChecked) {
+          if (!checkboxInput.checked) {
+            logger.log(
+              "[KakaoQRLoginHandler] Performing initial auto-check on label.",
+            );
+            checkboxLabel.click();
+          }
+          hasAutoChecked = true;
+        }
+
+        // 2. Setup Warning UI (Reuse style from KakaoLoginHandler)
+        const container = checkboxLabel.closest(".item_choice") as HTMLElement;
+
+        if (
+          container &&
+          !container.nextElementSibling?.classList.contains(
+            "launcher-warning-msg",
+          )
+        ) {
+          const warningMsg = document.createElement("div");
+          warningMsg.className = "launcher-warning-msg";
+          warningMsg.style.display = checkboxInput.checked ? "none" : "block";
+          warningMsg.style.width = "100%";
+          warningMsg.style.marginTop = "10px";
+          warningMsg.style.boxSizing = "border-box";
+          warningMsg.style.clear = "both"; // Force down as parent has flex
+
+          const alertBox = document.createElement("div");
+          alertBox.style.border = "1px solid #7e6c42";
+          alertBox.style.borderRadius = "6px";
+          alertBox.style.padding = "12px";
+          alertBox.style.backgroundColor = "rgba(126, 108, 66, 0.05)";
+          alertBox.style.display = "flex";
+          alertBox.style.flexDirection = "column";
+          alertBox.style.gap = "6px";
+          alertBox.style.minWidth = "280px"; // Ensure enough width isn't squeezed
+
+          const sourceLabel = document.createElement("div");
+          sourceLabel.innerText = "POE UNOFFICIAL LAUNCHER";
+          sourceLabel.style.fontSize = "10px";
+          sourceLabel.style.fontWeight = "bold";
+          sourceLabel.style.color = "#7e6c42";
+          sourceLabel.style.letterSpacing = "0.5px";
+          sourceLabel.style.opacity = "0.8";
+
+          const textWrapper = document.createElement("div");
+          textWrapper.style.display = "flex";
+          textWrapper.style.alignItems = "flex-start";
+          textWrapper.style.gap = "8px";
+
+          const warningIcon = document.createElement("span");
+          warningIcon.style.display = "flex";
+          warningIcon.style.alignItems = "center";
+          warningIcon.style.marginTop = "2px";
+          warningIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="14px" viewBox="0 -960 960 960" width="14px" fill="#ff4d4f"><path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm302-40q17 0 28.5-11.5T520-280q0-17-11.5-28.5T480-320q-17 0-28.5 11.5T440-280q0 17 11.5 28.5T480-240Zm-40-120h80v-200h-80v200Zm40-100Z"/></svg>`;
+
+          const text = document.createElement("span");
+          text.innerText =
+            "간편로그인을 저장하지 않으면 매번 아이디와 패스워드 입력이 필요합니다.";
+          text.style.color = "#ff4d4f";
+          text.style.fontSize = "12px";
+          text.style.lineHeight = "1.5";
+
+          textWrapper.appendChild(warningIcon);
+          textWrapper.appendChild(text);
+          alertBox.appendChild(sourceLabel);
+          alertBox.appendChild(textWrapper);
+          warningMsg.appendChild(alertBox);
+
+          // Layout optimization: check if parent is flex
+          const parent = container.parentElement;
+          if (parent && window.getComputedStyle(parent).display === "flex") {
+            // If parent is horizontal flex, we need to handle layout
+            warningMsg.style.flexBasis = "100%";
+          }
+
+          container.insertAdjacentElement("afterend", warningMsg);
+
+          checkboxInput.addEventListener("change", () => {
+            warningMsg.style.display = checkboxInput.checked ? "none" : "block";
+          });
+
+          // Also listen for clicks on label since that's how it's often toggled
+          checkboxLabel.addEventListener("click", () => {
+            // Delay to let the input state update
+            setTimeout(() => {
+              warningMsg.style.display = checkboxInput.checked
+                ? "none"
+                : "block";
+            }, 100);
+          });
+        }
+
+        return true;
+      }
+      return false;
+    });
+  },
+};
+
 const KakaoSimpleLoginHandler: PageHandler = {
   name: "KakaoSimpleLoginHandler",
   description: "Kakao Simple Login Page - Auto Click First Account",
@@ -756,7 +881,8 @@ const KakaoManualValidationHandler: PageHandler = {
 
 const HANDLERS: PageHandler[] = [
   KakaoSimpleLoginHandler, // Priority 1: Automated account selection (matches /login/simple)
-  KakaoAuthHandler, // Priority 2: Automated OAuth consent
+  KakaoQRLoginHandler, // Priority 2: QR Login auto-check
+  KakaoAuthHandler, // Priority 3: Automated OAuth consent
   KakaoLoginValidationHandler, // Priority 3: Roadblock/Failure capture for other /login pages
   KakaoManualValidationHandler, // Success Detector for manual mode
   AccountValidationHandler,
@@ -831,6 +957,22 @@ async function dispatchPageLogic() {
       handler.execute(handlerContext);
       return;
     }
+  }
+
+  // [New] Exceptional UI capture: Force show and log error if no handler matches during game start.
+  // This ensures that unexpected pages (maintenance, extra redirects) are visible to the user.
+  const isAutomatedGameStart =
+    triggerContext === "GAME_START_POE1" ||
+    triggerContext === "GAME_START_POE2";
+
+  const isAboutBlank = currentUrl.href === "about:blank";
+
+  if (isAutomatedGameStart && !isAboutBlank) {
+    logger.error(
+      `[Game Window] UNHANDLED PAGE DETECTED during automated flow: ${currentUrl.href}`,
+    );
+    // Explicitly bypass local visibility helpers and force main process to show
+    ipcRenderer.send("window-visibility-request", true);
   }
 }
 

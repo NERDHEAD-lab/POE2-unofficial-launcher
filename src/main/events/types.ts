@@ -276,6 +276,7 @@ export interface AppContext {
   ensureGameWindow: (options?: { service: string }) => BrowserWindow;
   getConfig: (key?: string) => unknown;
   isForcedVisible?: (windowId: number) => boolean;
+  disableValidationMode: () => void;
 }
 
 // Generic Handler Interface
