@@ -958,6 +958,22 @@ async function dispatchPageLogic() {
       return;
     }
   }
+
+  // [New] Exceptional UI capture: Force show and log error if no handler matches during game start.
+  // This ensures that unexpected pages (maintenance, extra redirects) are visible to the user.
+  const isAutomatedGameStart =
+    triggerContext === "GAME_START_POE1" ||
+    triggerContext === "GAME_START_POE2";
+
+  const isAboutBlank = currentUrl.href === "about:blank";
+
+  if (isAutomatedGameStart && !isAboutBlank) {
+    logger.error(
+      `[Game Window] UNHANDLED PAGE DETECTED during automated flow: ${currentUrl.href}`,
+    );
+    // Explicitly bypass local visibility helpers and force main process to show
+    ipcRenderer.send("window-visibility-request", true);
+  }
 }
 
 // Context State
