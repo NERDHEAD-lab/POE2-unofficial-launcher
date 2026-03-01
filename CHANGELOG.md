@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.6...0.9.7) (2026-03-01)
+
+
+### Bug Fixes
+
+* QR 로그인에서 감편로그인을 사용하지 않을 경우 매번 로그인이 필요해지는 문제 개선 ([8b5f1ac](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/8b5f1ac02dffe76cd3f877a4256288d1df98994e))
+* 설정 - 계정 진입 후 게임시작 시 로그인 화면이 표시 되지않는 현상 수정 ([d52f028](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/d52f0288207851ce3af1f58f68b2f6ad4fc4d6f5))
+* 예상하지 못한 팝업이 발생 할 경우, 게임 실행이 진행 되지 않는 문제 수정 ( 자동으로 진행 되지않는 임의의 팝업을 항상 보이도록 개선 ) ([17c9525](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/17c952547979db0df4ae3c8a3b2c485823b5f4e5))
+
 ## [0.9.6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.5...0.9.6) (2026-02-16)
 
 
