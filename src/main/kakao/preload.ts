@@ -23,6 +23,12 @@ interface PageHandler {
   visible?: boolean;
   /** List of trigger contexts this handler is active for. If undefined, active for all. */
   triggeredBy?: string[];
+  /**
+   * Timeout for this specific page in milliseconds.
+   * Set to -1 to disable timeout (e.g. for login pages).
+   * Default is 30000ms if not specified.
+   */
+  timeoutMs?: number;
   /** Main logic execution */
   execute: (context: HandlerContext) => Promise<void> | void;
 }
@@ -405,6 +411,7 @@ const DaumLoginHandler: PageHandler = {
   description: "Daum Login Page",
   match: (url) => url.hostname === "logins.daum.net",
   visible: true,
+  timeoutMs: -1, // No timeout for login
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_VALIDATION"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumLoginHandler.name}`);
@@ -433,6 +440,7 @@ const KakaoLoginHandler: PageHandler = {
     url.pathname.includes("/login") &&
     !url.pathname.includes("/simple"),
   visible: true,
+  timeoutMs: -1, // Interaction might be needed
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_MANUAL_LOGIN"],
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoLoginHandler.name}`);
@@ -534,6 +542,7 @@ const KakaoQRLoginHandler: PageHandler = {
   match: (url) =>
     url.hostname === "accounts.kakao.com" && url.pathname.includes("/qr_login"),
   visible: true,
+  timeoutMs: -1, // QR login needs time
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2", "ACCOUNT_MANUAL_LOGIN"],
   execute: () => {
     logger.log(`[Handler] Executing ${KakaoQRLoginHandler.name}`);
@@ -783,6 +792,7 @@ const DaumStarterPopupHandler: PageHandler = {
     url.hostname === "security-center.game.daum.net" &&
     url.pathname.includes("/popup/install_daumstarter"),
   visible: true,
+  timeoutMs: -1, // Installation takes time
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumStarterPopupHandler.name}`);
@@ -799,6 +809,7 @@ const DaumMemberCertHandler: PageHandler = {
     url.hostname === "member.game.daum.net" &&
     url.pathname.includes("/cert/kakao/init"),
   visible: true,
+  timeoutMs: -1, // Certification needs user action
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${DaumMemberCertHandler.name}`);
@@ -810,6 +821,7 @@ const KCBAuthHandler: PageHandler = {
   description: "KCB Authentication",
   match: (url) => url.hostname === "safe.ok-name.co.kr",
   visible: true,
+  timeoutMs: -1, // KCB Auth needs user action
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${KCBAuthHandler.name}`);
@@ -821,6 +833,7 @@ const KCBCardAuthHandler: PageHandler = {
   description: "KCB Card Authentication",
   match: (url) => url.hostname === "card.ok-name.co.kr",
   visible: true,
+  timeoutMs: -1, // Card Auth needs user action
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${KCBCardAuthHandler.name}`);
@@ -955,6 +968,16 @@ async function dispatchPageLogic() {
       };
 
       handler.execute(handlerContext);
+
+      // 3. Update Timeout in Main Process
+      const timeout =
+        handler.timeoutMs !== undefined ? handler.timeoutMs : 30000;
+
+      if (isValidationMode) {
+        ipcRenderer.send("account:update-timeout", timeout);
+      } else {
+        ipcRenderer.send("automation:update-timeout", timeout);
+      }
       return;
     }
   }

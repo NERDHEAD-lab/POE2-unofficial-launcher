@@ -158,6 +158,7 @@ let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 let validationModeActive = false;
 let validationTimeout: NodeJS.Timeout | null = null;
 const VALIDATION_TIMEOUT_MS = 30000; // 30s
+let automationTimeout: NodeJS.Timeout | null = null;
 
 function setValidationMode(active: boolean) {
   validationModeActive = active;
@@ -168,13 +169,57 @@ function setValidationMode(active: boolean) {
 
   if (active) {
     validationTimeout = setTimeout(() => {
-      logger.warn("[Account] Validation timed out.");
+      const currentUrl =
+        gameWindow && !gameWindow.isDestroyed()
+          ? gameWindow.webContents.getURL()
+          : "Unknown (Window closed)";
+      logger.error(`[Account] Validation timed out at: ${currentUrl}`);
+
       setValidationMode(false);
       if (gameWindow && !gameWindow.isDestroyed()) {
         gameWindow.close();
       }
     }, VALIDATION_TIMEOUT_MS);
   }
+}
+
+function clearAutomationTimeout() {
+  if (automationTimeout) {
+    clearTimeout(automationTimeout);
+    automationTimeout = null;
+  }
+}
+
+function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
+  clearAutomationTimeout();
+
+  if (ms === -1) {
+    logger.log("[Automation] Process timer DISABLED (infinite wait).");
+    return;
+  }
+
+  automationTimeout = setTimeout(async () => {
+    const currentUrl =
+      gameWindow && !gameWindow.isDestroyed()
+        ? gameWindow.webContents.getURL()
+        : "Unknown (Window closed)";
+    logger.error(`[Automation] Process timed out at: ${currentUrl}`);
+
+    if (gameWindow && !gameWindow.isDestroyed()) {
+      // Show the window so user can see what's happening
+      gameWindow.show();
+      gameWindow.focus();
+
+      // Generic message without assumptions or "Account" terminology
+      try {
+        await gameWindow.webContents.executeJavaScript(
+          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.");`,
+        );
+      } catch (e) {
+        logger.error("[Automation] Failed to show alert in game window:", e);
+      }
+    }
+  }, ms);
 }
 
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
@@ -872,6 +917,29 @@ ipcMain.on("kakao:login-required", (event, data?: { url?: string }) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("account:updated", { loginRequired: true });
   }
+
+  // Explicitly disable timeout when login is required to allow user to interact
+  setValidationMode(false);
+});
+
+ipcMain.on("automation:update-timeout", (_event, timeoutMs: number) => {
+  startAutomationTimeout(timeoutMs);
+  logger.log(`[Automation] Timer updated: ${timeoutMs}ms`);
+});
+
+ipcMain.on("account:update-timeout", (_event, timeoutMs: number) => {
+  if (validationModeActive) {
+    if (timeoutMs === -1) {
+      if (validationTimeout) {
+        clearTimeout(validationTimeout);
+        validationTimeout = null;
+      }
+      logger.log("[Account] Background validation timer paused.");
+    } else {
+      setValidationMode(true);
+      logger.log("[Account] Background validation timer refreshed.");
+    }
+  }
 });
 
 // --- Shared Window Open Handler Factory ---
@@ -1043,6 +1111,7 @@ const context: AppContext = {
   disableValidationMode: () => {
     logger.log("[Account] Explicitly disabling validation mode.");
     setValidationMode(false);
+    clearAutomationTimeout();
   },
 };
 
