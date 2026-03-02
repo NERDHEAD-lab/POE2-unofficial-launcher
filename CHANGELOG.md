@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.7...0.9.8) (2026-03-02)
+
+
+### Bug Fixes
+
+* 가시적으로 보여 줄 팝업이 항상 화면 맨앞으로 강조되도록 개선 ([0b23bfc](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0b23bfc32abff42c56170a59f8e1aac673e39e6b))
+* 게임 실행 절차에서 지연 발생 시 무반응이던 문제 수정 ( 문제 발생 시 숨긴 창을 자동으로 보여줌 ) ([e15e835](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e15e835d95f734c9a210c17724f2946ba0a2ddd6))
+* 일부 상황에서 `설정 - 계정` 확인이 자연스럽게 동작하지 않는 문제 수정 ([37faf21](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/37faf2158d4c96d50975088b0d426c0322b4a49c))
+
 ## [0.9.7](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.6...0.9.7) (2026-03-01)
 
 
