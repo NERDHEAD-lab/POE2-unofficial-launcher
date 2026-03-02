@@ -409,9 +409,7 @@ export class PatchManager {
         );
         this.logger.log(`[Backup] Metadata saved successfully.`);
       } catch (err) {
-        this.logger.error("Failed to write backup metadata:", err);
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(`[Backup] Failed to save metadata: ${msg}`);
+        this.logger.error("[Backup] Failed to save metadata:", err);
       }
     }
 

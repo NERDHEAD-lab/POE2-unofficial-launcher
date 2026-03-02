@@ -30,8 +30,11 @@ export const CleanupLauncherWindowHandler: EventHandler<ProcessEvent> = {
         if (!win.isDestroyed()) {
           try {
             await win.loadURL("about:blank");
-          } catch (e) {
-            logger.error(`[CleanupHandler] Failed to unload URL: ${e}`);
+          } catch (error) {
+            logger.error(
+              `[CleanupHandler] Failed to unload URL: ${win.webContents.getURL()}`,
+              error,
+            );
           }
           win.hide();
         }

@@ -75,8 +75,11 @@ export const StartPoe1KakaoHandler: EventHandler<UIEvent> = {
 
     try {
       await gameWindow.loadURL(targetUrl);
-    } catch (e) {
-      logger.error(`[StartPoe1KakaoHandler] Failed to load URL: ${e}`);
+    } catch (error) {
+      logger.error(
+        `[StartPoe1KakaoHandler] Failed to load URL: ${targetUrl}`,
+        error,
+      );
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         context,
