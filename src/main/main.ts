@@ -1002,12 +1002,13 @@ ipcMain.on(
       if (!forcedVisibleWindows.has(window.id)) {
         forcedVisibleWindows.add(window.id);
         logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
-        // If forced, it must show immediately (even if inactive config is off)
-        if (!window.isVisible()) {
-          window.showInactive();
-          window.moveTop();
-        }
       }
+
+      // Ensure it is shown and moved to top regardless of previous state
+      if (!window.isVisible()) {
+        window.showInactive();
+      }
+      window.moveTop();
     } else {
       if (forcedVisibleWindows.has(window.id)) {
         forcedVisibleWindows.delete(window.id);
