@@ -111,15 +111,37 @@ export abstract class LoggerBase {
     }
     return formatted;
   }
-
   private smartStringify(val: unknown, maxLength = 80): string {
     const seen = new WeakSet();
+
     const process = (v: unknown, level: number): string => {
-      if (typeof v !== "object" || v === null) {
+      // Handle Error objects specially because JSON.stringify(new Error()) -> {}
+      if (v instanceof Error) {
+        const errObj: Record<string, unknown> = {
+          name: v.name,
+          message: v.message,
+          stack: v.stack,
+        };
+        // Add any extra properties (like axios error.config or custom error codes)
+        Object.getOwnPropertyNames(v).forEach((key) => {
+          if (key !== "name" && key !== "message" && key !== "stack") {
+            errObj[key] = (v as any)[key];
+          }
+        });
+        return process(errObj, level);
+      }
+
+      if (v === null || v === undefined) {
+        return String(v);
+      }
+
+      if (typeof v !== "object") {
         return typeof v === "bigint" ? v.toString() : JSON.stringify(v);
       }
+
       if (seen.has(v as object)) return '"[Circular]"';
       seen.add(v as object);
+
       try {
         const compact = JSON.stringify(v, (_k, val) =>
           typeof val === "bigint" ? val.toString() : val,
@@ -129,25 +151,29 @@ export abstract class LoggerBase {
           return compact;
         }
       } catch {
-        /* proceed */
+        /* proceed to multi-line */
       }
+
       const indent = "  ".repeat(level + 1);
       const endIndent = "  ".repeat(level);
       let result: string;
+
       if (Array.isArray(v)) {
         const items = v
           .map((it) => process(it, level + 1))
           .join(`,\n${indent}`);
         result = `[\n${indent}${items}\n${endIndent}]`;
       } else {
-        const entries = Object.entries(v)
+        const entries = Object.entries(v as object)
           .map(([k, val]) => `${JSON.stringify(k)}: ${process(val, level + 1)}`)
           .join(`,\n${indent}`);
         result = `{\n${indent}${entries}\n${endIndent}}`;
       }
+
       seen.delete(v as object);
       return result;
     };
+
     return process(val, 0);
   }
 }

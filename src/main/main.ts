@@ -781,7 +781,10 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
           `[Account] Navigation interrupted for ${serviceId} (expected during background automation).`,
         );
       } else {
-        logger.error(`[Account] Failed to load validation URL:`, error);
+        logger.error(
+          `[Account] Failed to load validation URL: ${targetUrl}`,
+          error,
+        );
       }
     } finally {
       isNavigating.delete(serviceId);

@@ -141,10 +141,9 @@ const checkForUpdatesSmart = async () => {
         "[UpdateHandler] GitHub API Rate Limit exceeded (403). Falling back to standard check.",
       );
     } else {
-      const message = e instanceof Error ? e.message : String(e);
       logger.error(
         "[UpdateHandler] Smart Check failed. Falling back to standard check.",
-        message,
+        e,
       );
     }
   }

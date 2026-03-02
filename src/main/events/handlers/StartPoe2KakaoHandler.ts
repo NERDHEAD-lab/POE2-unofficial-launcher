@@ -77,16 +77,22 @@ export const StartPoe2KakaoHandler: EventHandler<UIEvent> = {
     try {
       await gameWindow.loadURL(targetUrl);
     } catch (err: unknown) {
-      const e = err as Error & { code?: number };
+      const error = err as Error & { code?: number };
 
       // ERR_ABORTED (-3) is EXPECTED when Electron hands off a custom protocol (daumgamestarter://) to the OS.
       // This means the external app launch was triggered successfully.
-      if (e.message && (e.message.includes("ERR_ABORTED") || e.code === -3)) {
+      if (
+        error.message &&
+        (error.message.includes("ERR_ABORTED") || error.code === -3)
+      ) {
         logger.log(
           `[StartPoe2KakaoHandler] Navigation aborted (-3) as expected for custom protocol launch. Success.`,
         );
       } else {
-        logger.error(`[StartPoe2KakaoHandler] Failed to load URL: ${e}`);
+        logger.error(
+          `[StartPoe2KakaoHandler] Failed to load URL: ${targetUrl}`,
+          error,
+        );
         eventBus.emit<GameStatusChangeEvent>(
           EventType.GAME_STATUS_CHANGE,
           context,

@@ -94,7 +94,7 @@ export const StartPoeGggHandler: EventHandler<UIEvent> = {
         },
       );
     } catch (e) {
-      logger.error(`[StartPoeGggHandler] Launch failed: ${e}`);
+      logger.error("[StartPoeGggHandler] Launch failed:", e);
       eventBus.emit<GameStatusChangeEvent>(
         EventType.GAME_STATUS_CHANGE,
         context,

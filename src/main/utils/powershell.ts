@@ -163,11 +163,10 @@ export class PowerShellManager {
             clearTimeout(timeout);
             if (session.pendingRequests.has(id)) {
               session.pendingRequests.delete(id);
-              const msg = `Socket Write Error: ${err.message}`;
-              logger.error(msg);
+              logger.error("Socket Write Error:", err);
               resolve({
                 stdout: "",
-                stderr: msg,
+                stderr: `Socket Write Error: ${err instanceof Error ? err.message : String(err)}`,
                 code: 1,
               });
             }
