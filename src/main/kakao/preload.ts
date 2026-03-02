@@ -914,14 +914,14 @@ const HANDLERS: PageHandler[] = [
 
 // --- Core Dispatcher ---
 
-async function dispatchPageLogic() {
+async function dispatchPageLogic(triggerContext?: string) {
   const currentUrl = new URL(window.location.href);
   logger.log(`[Game Window] Logic Dispatcher: ${currentUrl.href}`);
 
-  // Fetch navigation purpose from Main process
-  const triggerContext = await ipcRenderer.invoke(
-    "account:get-trigger-context",
-  );
+  // If triggerContext not provided (rare), fetch it
+  if (!triggerContext) {
+    triggerContext = await ipcRenderer.invoke("account:get-trigger-context");
+  }
   logger.log(`[Game Window] Trigger Context: ${triggerContext || "NONE"}`);
 
   for (const handler of HANDLERS) {
@@ -1045,17 +1045,19 @@ ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
 window.addEventListener("DOMContentLoaded", async () => {
   logger.log("[Game Window] DOMContentLoaded");
 
-  // Query validation mode from Main process (Sync state via IPC)
-  try {
-    isValidationMode = await ipcRenderer.invoke("account:is-validation-mode");
-    if (isValidationMode) {
-      logger.log("[Game Window] Background validation mode ACTIVE.");
-    }
-  } catch (e) {
-    logger.error("[Game Window] Failed to query validation mode:", e);
+  // 1. Fetch navigation purpose from Main process
+  const triggerContext = await ipcRenderer.invoke(
+    "account:get-trigger-context",
+  );
+
+  // 2. Derive validation mode from context (Immutable for this window's life)
+  isValidationMode = triggerContext === "ACCOUNT_VALIDATION";
+
+  if (isValidationMode) {
+    logger.log("[Game Window] Background validation mode ACTIVE.");
   }
 
-  dispatchPageLogic();
+  dispatchPageLogic(triggerContext);
 });
 
 logger.log("[Game Window] Preload Loaded");
