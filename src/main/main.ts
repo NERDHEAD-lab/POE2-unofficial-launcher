@@ -208,6 +208,15 @@ function setValidationMode(active: boolean) {
         gameWindow && !gameWindow.isDestroyed()
           ? gameWindow.webContents.getURL()
           : "Unknown (Window closed)";
+
+      // Ignore timeout if the window is cleanly reset or still loading about:blank
+      if (currentUrl === "about:blank") {
+        logger.log(
+          "[Account] Ignoring validation timeout on about:blank window.",
+        );
+        return;
+      }
+
       logger.error(`[Account] Validation timed out at: ${currentUrl}`);
 
       setValidationMode(false);
@@ -238,6 +247,15 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
       gameWindow && !gameWindow.isDestroyed()
         ? gameWindow.webContents.getURL()
         : "Unknown (Window closed)";
+
+    // Ignore timeout if the window is cleanly reset or still loading about:blank
+    if (currentUrl === "about:blank") {
+      logger.log(
+        "[Automation] Ignoring process timeout on about:blank window.",
+      );
+      return;
+    }
+
     logger.error(`[Automation] Process timed out at: ${currentUrl}`);
 
     if (gameWindow && !gameWindow.isDestroyed()) {
