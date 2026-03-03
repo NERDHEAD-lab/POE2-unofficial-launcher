@@ -701,36 +701,46 @@ function App() {
 
     const triggerRevalidation = async () => {
       if (!window.electronAPI || !isConfigLoaded) return;
-      // Use bgImage as it might be dynamic
-      const targetBg = bgImage;
+
+      // Instead of relying on bgImage (which has a 400ms delay),
+      // we get the "intended" background for the current activeGame.
+      // This correctly solves the race condition without brittle string checks.
+      const theme = await window.electronAPI.getActiveTheme(activeGame);
+      const targetBg =
+        (theme && theme.assets?.background) ||
+        (activeGame === "POE2" ? bgPoe2 : bgPoe);
+
       const cached = themeCache[activeGame];
 
-      // Skip if already checked for this specific image
+      // Skip if already checked for this specific image in this session
       if (revalidatedFiles.has(targetBg)) return;
 
       try {
         // [Hash-first Optimization]
+        // Get FS-level hash (MD5) from Main process
         const fsHash = await window.electronAPI.getFileHash(targetBg);
 
+        // If hash matches MD5 stored in cache, we are GOOD.
         if (cached && cached.hash === fsHash) {
           revalidatedFiles.add(targetBg);
           return;
         }
 
-        const { colors, hash } = await extractThemeColors(
-          targetBg,
-          activeFallback,
-        );
+        // Extract colors (now returns only colors, no internal hash)
+        const colors = await extractThemeColors(targetBg, activeFallback);
         revalidatedFiles.add(targetBg);
 
+        // Update the store using the MD5 hash from Main
         const currentCache = (await window.electronAPI.getConfig(
           CONFIG_KEYS.THEME_CACHE,
         )) as AppConfig["themeCache"];
+
         const updatedCache = {
           ...(currentCache || {}),
-          [activeGame]: { ...colors, hash },
+          [activeGame]: { ...colors, hash: fsHash },
         };
         window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
+        logger.log(`[Theme] Revalidated ${activeGame} with hash: ${fsHash}`);
       } catch (err) {
         logger.error("[Theme] Revalidation failed:", err);
       }

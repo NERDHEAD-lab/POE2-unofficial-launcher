@@ -52,21 +52,11 @@ export function hslToHex(h: number, s: number, l: number) {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-// Helper: Simple Hash for ImageData (DJB2)
-export function hashImageData(data: Uint8ClampedArray): string {
-  let hash = 5381;
-  for (let i = 0; i < data.length; i++) {
-    // Force unsigned 32-bit integer for consistent hex string
-    hash = ((hash << 5) + hash + data[i]) >>> 0;
-  }
-  return hash.toString(16);
-}
-
 // Extract Theme Colors from Image
 export async function extractThemeColors(
   imageUrl: string,
   fallback: { text: string; accent: string; footer: string },
-): Promise<{ colors: ThemeColors; hash: string }> {
+): Promise<ThemeColors> {
   return new Promise((resolve) => {
     const img = new Image();
     img.src = imageUrl;
@@ -74,16 +64,9 @@ export async function extractThemeColors(
     img.onload = () => {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return resolve({ colors: fallback, hash: "error" });
+      if (!ctx) return resolve(fallback);
 
-      // 1. Get Hash from small sample (faster than full image)
-      canvas.width = 10;
-      canvas.height = 10;
-      ctx.drawImage(img, 0, 0, 10, 10);
-      const hashData = ctx.getImageData(0, 0, 10, 10).data;
-      const hash = hashImageData(hashData);
-
-      // 2. Extract Average Color
+      // Extract Average Color
       canvas.width = 1;
       canvas.height = 1;
       ctx.drawImage(img, 0, 0, 1, 1);
@@ -103,11 +86,11 @@ export async function extractThemeColors(
       const footerL = 8;
       const footer = hslToHex(h, footerS, footerL);
 
-      resolve({ colors: { text, accent, footer }, hash });
+      resolve({ text, accent, footer });
     };
     img.onerror = () => {
       logger.warn("Failed to load bg image, using fallback:", imageUrl);
-      resolve({ colors: fallback, hash: "error" });
+      resolve(fallback);
     };
   });
 }
