@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.10](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.9...0.9.10) (2026-03-03)
+
+
+### Bug Fixes
+
+* 게임 시작 및 계정 확인 후 대기 상태를 위한 빈 화면이 문제 발생 시 숨긴 창을 자동으로 보여주는 대상에 포함되는 문제 수정 ([421b67a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/421b67a044c41bd6ce573f8915a0f25fe72db43c))
+* 일부 비활성 창이 간헐적으로 노출되는 문제 수정 ([bbf3e5f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bbf3e5f2fc294dff59f6ed9713f3acf09c074ef3))
+
 ## [0.9.9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.8...0.9.9) (2026-03-03)
 
 
