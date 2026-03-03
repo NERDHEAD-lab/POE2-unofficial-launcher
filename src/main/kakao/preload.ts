@@ -758,6 +758,7 @@ const SecurityCenterHandler: PageHandler = {
         if (delayTimeoutId) {
           clearTimeout(delayTimeoutId);
           delayTimeoutId = null;
+          context.setVisible(false);
         }
         return true;
       }
