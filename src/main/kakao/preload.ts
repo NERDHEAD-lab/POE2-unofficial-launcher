@@ -241,6 +241,7 @@ const AccountValidationHandler: PageHandler = {
     (url.hostname === "poe.game.daum.net" ||
       url.hostname === "pathofexile2.game.daum.net") &&
     isValidationMode,
+  timeoutMs: -1, // No timeout for background validation
   triggeredBy: ["ACCOUNT_VALIDATION"],
   execute: async () => {
     logger.log(`[Handler] Executing ${AccountValidationHandler.name}`);
@@ -949,13 +950,13 @@ async function dispatchPageLogic(triggerContext?: string) {
       // Priority: Handler.visible > Config
       const isVisibleByHandler = handler.visible === true;
 
-      if (isVisibleByHandler) {
+      if (isVisibleByHandler && !isValidationMode) {
         logger.log(
           `[Game Window] Visibility required (Handler: ${isVisibleByHandler}). Requesting show...`,
         );
         requestWindowVisibility(true);
       } else {
-        // [Refinement] Explicitly un-force if not required
+        // [Refinement] Explicitly un-force if not required (always un-force if in validation mode)
         requestWindowVisibility(false);
       }
 
