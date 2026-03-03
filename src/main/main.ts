@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   app,
@@ -118,6 +118,20 @@ import {
   applyResolutionRules,
   enforceConstraints,
 } from "./utils/window-resolution";
+
+// Register custom protocol as privileged so it bypasses CSP and works like file://
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "asset",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -500,6 +514,22 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
 
     if (filePath.startsWith("file://")) {
       targetPath = fileURLToPath(filePath);
+    } else if (filePath.startsWith("asset://")) {
+      // Decode the virtual path: asset://[game]/[themeId]/[filename]
+      try {
+        const urlObj = new URL(filePath);
+        // urlObj.hostname = game (lowercase), urlObj.pathname = /themeId/filename
+        const themeDir = themeCacheManager.getThemeDir();
+        const relativePath = decodeURIComponent(urlObj.pathname).replace(
+          /^\/+/,
+          "",
+        );
+
+        targetPath = path.join(themeDir, urlObj.hostname, relativePath);
+      } catch (e) {
+        logger.error("[Hash] Failed to parse asset virtual path:", filePath, e);
+        return "";
+      }
     } else if (!path.isAbsolute(filePath) || filePath.startsWith("/")) {
       // Normalize path to handle leading slashes correctly with path.join on Windows
       // path.join('C:\\a', '/b') results in 'C:\\b' on Windows, which we want to avoid.
@@ -2432,8 +2462,26 @@ ipcMain.handle("theme:get-active", async (_event, game: "POE1" | "POE2") => {
 app.whenReady().then(async () => {
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {
-    const url = request.url.slice("asset://".length);
-    return net.fetch("file://" + url);
+    try {
+      // request.url is the abstract path e.g., asset://poe1/3.27/bg.webp
+      const urlObj = new URL(request.url);
+
+      // hostname becomes the game (e.g., 'poe1'), pathname is '/[theme]/[file]'
+      const gameDir = urlObj.hostname;
+      const relativePath = decodeURIComponent(urlObj.pathname).replace(
+        /^\/+/,
+        "",
+      );
+
+      const themeDir = themeCacheManager.getThemeDir();
+      const localPath = path.join(themeDir, gameDir, relativePath);
+
+      // Use pathToFileURL to generate standard file:/// URL
+      return net.fetch(pathToFileURL(localPath).href);
+    } catch (err) {
+      logger.error("[Protocol] Failed to resolve asset URL:", request.url, err);
+      return new Response("Not Found", { status: 404 });
+    }
   });
 
   // [UAC Sync] Ensure RUNASINVOKER is applied if config is set
@@ -2449,4 +2497,29 @@ app.whenReady().then(async () => {
   // Ensure Auto-Launch path is updated (in case user moved the app)
   syncAutoLaunch();
   createWindows();
+
+  // Load and cache remote themes explicitly, and notify renderer ONLY when actual updates happen.
+  themeCacheManager.init().then((isUpdated) => {
+    if (isUpdated) {
+      // Notify all windows that a NEW theme cache is available and they should refresh
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("theme:synced");
+        }
+      });
+    }
+  });
+
+  // Also check for theme updates when the window regains focus (respects 24h cooldown internally)
+  app.on("browser-window-focus", () => {
+    themeCacheManager.syncThemes().then((isUpdated) => {
+      if (isUpdated) {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send("theme:synced");
+          }
+        });
+      }
+    });
+  });
 });

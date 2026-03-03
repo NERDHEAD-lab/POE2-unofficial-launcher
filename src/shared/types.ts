@@ -62,6 +62,7 @@ export interface AppConfig {
     autoApply: boolean;
     selectedThemes: Record<"POE1" | "POE2", string | "auto">;
     lastModified?: string; // For themes.json caching
+    lastSync?: number; // 24h caching timestamp
   };
 }
 
@@ -241,6 +242,7 @@ export interface ElectronAPI {
       })
     | null
   >;
+  onThemeSynced: (callback: () => void) => () => void; // New
 
   // [UAC Bypass API]
   isUACBypassEnabled: () => Promise<boolean>;

@@ -31,28 +31,47 @@ export class ThemeCacheManager {
     this.themeDir = path.join(userData, "themes");
   }
 
+  getThemeDir(): string {
+    return this.themeDir;
+  }
+
   /**
    * Initialize and perform initial sync
    */
-  async init() {
+  async init(): Promise<boolean> {
     try {
       await fs.mkdir(this.themeDir, { recursive: true });
-      await this.syncThemes();
+
+      // 1. Always load local cache first to ensure immediate UI feedback based on cache/fallback
+      await this.loadThemesFromLocalStorage();
+
+      // 2. Sync from remote (respecting 24h cooldown) and return whether an update occurred
+      const isUpdated = await this.syncThemes();
+      return isUpdated;
     } catch (error) {
       this.logger.error("Failed to initialize ThemeCacheManager:", error);
+      return false;
     }
   }
 
   /**
    * Fetch themes.json and download missing assets
    */
-  async syncThemes() {
-    this.logger.log("Syncing themes from remote...");
+  async syncThemes(force = false): Promise<boolean> {
+    this.logger.log("Checking for remote theme updates...");
 
     const settings = getConfig(
       "remoteThemeSettings",
     ) as AppConfig["remoteThemeSettings"];
     const lastModified = settings?.lastModified;
+    const lastSync = settings?.lastSync || 0;
+    const now = Date.now();
+
+    // 24-hour cooldown check: If we have cache and it's been less than 24h (86400000ms), and not forced
+    if (!force && this.themesData && now - lastSync < 24 * 60 * 60 * 1000) {
+      this.logger.log("Themes are still fresh (< 24h). Skipping remote sync.");
+      return false;
+    }
 
     try {
       const headers: Record<string, string> = {
@@ -66,9 +85,12 @@ export class ThemeCacheManager {
 
       if (response.status === 304) {
         this.logger.log("Themes are up to date (304 Not Modified).");
-        // Load from local fallback if we don't have it in memory yet
-        await this.loadThemesFromLocalStorage();
-        return;
+        // Update lastSync time so we wait another 24 hours
+        setConfigWithEvent("remoteThemeSettings", {
+          ...settings,
+          lastSync: now,
+        });
+        return false;
       }
 
       if (!response.ok) {
@@ -86,21 +108,23 @@ export class ThemeCacheManager {
         JSON.stringify(data, null, 2),
       );
 
-      // Update lastModified in config
-      if (newLastModified) {
-        setConfigWithEvent("remoteThemeSettings", {
-          ...settings,
-          lastModified: newLastModified,
-        });
-      }
+      // Update config metadata
+      setConfigWithEvent("remoteThemeSettings", {
+        ...settings,
+        lastModified: newLastModified || lastModified,
+        lastSync: now,
+      });
 
       this.logger.log("Themes synced and metadata updated.");
 
       // Proactively cache assets for active themes
       await this.cacheActiveThemes(data);
+
+      // True indicates new data is available, UI should refresh
+      return true;
     } catch (error) {
-      this.logger.error("Sync failed, falling back to local cache:", error);
-      await this.loadThemesFromLocalStorage();
+      this.logger.error("Sync failed:", error);
+      return false;
     }
   }
 
@@ -192,7 +216,12 @@ export class ThemeCacheManager {
 
     const themes =
       game === "POE1" ? this.themesData?.poe1 : this.themesData?.poe2;
-    if (!themes) return null;
+    if (!themes) {
+      this.logger.log(
+        `[Theme] ${game}: No themes data found in cache. Using default fallback.`,
+      );
+      return null;
+    }
 
     // Check user selection first
     const settings = getConfig(
@@ -224,7 +253,12 @@ export class ThemeCacheManager {
       activeTheme = this.findActiveTheme(themes);
     }
 
-    if (!activeTheme) return null;
+    if (!activeTheme) {
+      this.logger.log(
+        `[Theme] ${game}: No active date-matched or selected theme found. Using default fallback.`,
+      );
+      return null;
+    }
 
     // Try to map to local paths
     const assets: Record<string, string> = {};
@@ -239,18 +273,24 @@ export class ThemeCacheManager {
         const fileName = path.basename(relPath);
         const localPath = path.join(baseDir, fileName);
         await fs.access(localPath);
-        // Convert to asset:// protocol for electron to load securely
-        assets[key] = `asset://${localPath}`;
+
+        // Abstract asset URL: asset://[game]/[themeId]/[filename]
+        assets[key] =
+          `asset://${game.toLowerCase()}/${activeTheme.id}/${fileName}`;
       }
 
+      this.logger.log(
+        `[Theme] ${game}: Successfully applied remote theme '${activeTheme.id}'.`,
+      );
       return {
         ...activeTheme,
         assets,
         isRemote: true,
       };
-    } catch (_e) {
-      this.logger.warn(
-        `Assets for theme ${activeTheme.id} missing in cache. Fallback triggered.`,
+    } catch (err) {
+      this.logger.error(
+        `[Theme] ${game}: Asset resolution failed for theme '${activeTheme.id}', falling back. Error:`,
+        err,
       );
       return null;
     }

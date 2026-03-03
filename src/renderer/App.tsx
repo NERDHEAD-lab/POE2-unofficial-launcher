@@ -131,6 +131,14 @@ function App() {
     | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
     | null
   >(null);
+  const [poe1Theme, setPoe1Theme] = useState<
+    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
+    | null
+  >(null);
+  const [poe2Theme, setPoe2Theme] = useState<
+    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
+    | null
+  >(null);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -405,6 +413,12 @@ function App() {
     const theme = await window.electronAPI.getActiveTheme(activeGame);
     setActiveTheme(theme);
 
+    // Fetch both themes for logos
+    const t1 = await window.electronAPI.getActiveTheme("POE1");
+    const t2 = await window.electronAPI.getActiveTheme("POE2");
+    setPoe1Theme(t1);
+    setPoe2Theme(t2);
+
     if (theme && theme.assets?.background) {
       setBgImage(theme.assets.background);
     } else {
@@ -435,9 +449,16 @@ function App() {
         }
       });
 
+      // Listen for initial theme cache sync
+      const unsubThemeSync = window.electronAPI.onThemeSynced(() => {
+        logger.log("[App] Theme cache synced. Refreshing UI.");
+        refreshTheme();
+      });
+
       return () => {
         unsubscribe();
         unsubConfig();
+        unsubThemeSync();
       };
     }
   }, [refreshTheme]);
@@ -986,7 +1007,8 @@ function App() {
                 <GameSelector
                   activeGame={activeGame}
                   onGameChange={handleGameChange}
-                  activeTheme={activeTheme}
+                  poe1Theme={poe1Theme}
+                  poe2Theme={poe2Theme}
                 />
               </div>
 

@@ -99,6 +99,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   getActiveTheme: (game: AppConfig["activeGame"]) =>
     ipcRenderer.invoke("theme:get-active", game),
+  onThemeSynced: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("theme:synced", handler);
+    return () => ipcRenderer.off("theme:synced", handler);
+  },
 
   isUACBypassEnabled: () => ipcRenderer.invoke("uac:is-enabled"),
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),

@@ -11,7 +11,10 @@ import "./GameSelector.css";
 interface GameSelectorProps {
   activeGame: "POE1" | "POE2";
   onGameChange: (game: "POE1" | "POE2") => void;
-  activeTheme?:
+  poe1Theme?:
+    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
+    | null;
+  poe2Theme?:
     | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
     | null;
 }
@@ -72,7 +75,8 @@ const getVisualState = (cyclicPhase: number, isPoe1: boolean) => {
 const GameSelector: React.FC<GameSelectorProps> = ({
   activeGame,
   onGameChange,
-  activeTheme,
+  poe1Theme,
+  poe2Theme,
 }) => {
   // --- Refs & State ---
   const [renderPhase, setRenderPhase] = useState(activeGame === "POE1" ? 0 : 1);
@@ -346,22 +350,14 @@ const GameSelector: React.FC<GameSelectorProps> = ({
       )}
 
       <img
-        src={
-          activeGame === "POE1" && activeTheme?.assets?.logo
-            ? activeTheme.assets.logo
-            : logoPoe
-        }
+        src={poe1Theme?.assets?.logo ? poe1Theme.assets.logo : logoPoe}
         className="logo-item"
         alt="POE Logo"
         style={createStyle(poe1)}
         onClick={(e) => handleClick(e, "POE1")}
       />
       <img
-        src={
-          activeGame === "POE2" && activeTheme?.assets?.logo
-            ? activeTheme.assets.logo
-            : logoPoe2
-        }
+        src={poe2Theme?.assets?.logo ? poe2Theme.assets.logo : logoPoe2}
         className="logo-item"
         alt="POE2 Logo"
         style={createStyle(poe2)}
