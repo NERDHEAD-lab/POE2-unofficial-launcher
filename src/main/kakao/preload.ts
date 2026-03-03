@@ -240,6 +240,9 @@ const AccountValidationHandler: PageHandler = {
   execute: async () => {
     logger.log(`[Handler] Executing ${AccountValidationHandler.name}`);
 
+    let isSyncClicked = false;
+    let lastTier1LogTime = 0;
+
     observeAndInteract((obs) => {
       // --- Tier 1: GGB Check (Daum Auth) ---
       const ggbNickname = document.querySelector(
@@ -257,14 +260,18 @@ const AccountValidationHandler: PageHandler = {
           safeClick(ggbLoginBtn as HTMLElement, "GGB Login Button");
           return false; // Wait for navigation
         }
-        // If neither, maybe page is still loading or DOM changed significantly
         return false;
       }
 
       // --- Tier 2: StatusBar Check (POE Session Sync) ---
-      logger.log(
-        `[AccountValidationHandler] Tier 1 Success: GGB Logged in (${ggbNickname.textContent?.trim()})`,
-      );
+      // Throttle Tier 1 log to once every 5 seconds to reduce noise
+      const now = Date.now();
+      if (now - lastTier1LogTime > 5000) {
+        logger.log(
+          `[AccountValidationHandler] Tier 1 Success: GGB Logged in (${ggbNickname.textContent?.trim()})`,
+        );
+        lastTier1LogTime = now;
+      }
 
       const statusBarNickname = document.querySelector(
         SELECTORS.ACCOUNT.STATUS_NICKNAME,
@@ -285,10 +292,11 @@ const AccountValidationHandler: PageHandler = {
       }
 
       // GGB is logged in, but StatusBar isn't. Need to sync.
-      if (statusBarLoginBtn) {
+      if (statusBarLoginBtn && !isSyncClicked) {
         logger.log(
           "[AccountValidationHandler] Tier 2 Error: StatusBar needs sync. Clicking Login Link.",
         );
+        isSyncClicked = true; // Prevents spamming clicks/logs before navigation
         safeClick(statusBarLoginBtn as HTMLElement, "StatusBar Login Link");
         return false; // Wait for navigation
       }
