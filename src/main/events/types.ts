@@ -277,6 +277,7 @@ export interface AppContext {
   getConfig: (key?: string) => unknown;
   isForcedVisible?: (windowId: number) => boolean;
   disableValidationMode: () => void;
+  getActiveAutomationWindow: () => BrowserWindow | null;
 }
 
 // Generic Handler Interface

@@ -7,6 +7,7 @@ import { logger } from "../utils/preload-logger";
 
 interface HandlerContext {
   setVisible: (visible: boolean) => void;
+  getCurrentUrl: () => string;
 }
 
 interface GameSessionContext {
@@ -113,14 +114,7 @@ function requestWindowVisibility(visible: boolean) {
     return;
   }
 
-  if (visible) {
-    const width = document.documentElement.scrollWidth + 40; // Buffer for vertical scrollbar/border
-    const height = document.documentElement.scrollHeight + 60; // Buffer for titlebar/border
-    const options = { width, height };
-    ipcRenderer.send("window-visibility-request", true, options);
-  } else {
-    ipcRenderer.send("window-visibility-request", false);
-  }
+  ipcRenderer.send("window-visibility-request", visible);
 }
 
 function safeClick(
@@ -961,14 +955,20 @@ async function dispatchPageLogic(triggerContext?: string) {
       }
 
       // 2. Execute Handler with Context
-      const handlerContext: HandlerContext = {
-        setVisible: (visible: boolean) => {
-          logger.log(`[Game Window] Dynamic Visibility Request: ${visible}`);
-          ipcRenderer.send("window-visibility-request", visible);
-        },
-      };
-
-      handler.execute(handlerContext);
+      try {
+        const context: HandlerContext = {
+          setVisible: (visible: boolean) => {
+            requestWindowVisibility(visible);
+          },
+          getCurrentUrl: () => window.location.href,
+        };
+        await handler.execute(context);
+      } catch (e) {
+        logger.error(
+          `[Game Window] Error executing handler ${handler.name}:`,
+          e,
+        );
+      }
 
       // 3. Update Timeout in Main Process
       const timeout =
