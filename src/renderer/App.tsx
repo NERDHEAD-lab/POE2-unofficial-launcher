@@ -70,7 +70,54 @@ const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
 // Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
 const revalidatedFiles = new Set<string>();
 
+// --- 🛠️ Testing Scenarios (Toggle as needed) ---
+// "DELAYED"   : Crash after 2 seconds (Child component)
+// "IMMEDIATE" : Crash immediately during App render
+// "NULL_REF"  : Crash due to null reference during render
+// "NONE"      : No crash
+const TEST_CRASH_MODE = (import.meta.env.VITE_TEST_CRASH_MODE || "NONE") as
+  | "DELAYED"
+  | "IMMEDIATE"
+  | "NULL_REF"
+  | "NONE";
+
+const TestCrashComponent = () => {
+  const [shouldCrash, setShouldCrash] = useState(false);
+
+  useEffect(() => {
+    if (TEST_CRASH_MODE !== "DELAYED") return;
+    const timer = setTimeout(() => {
+      setShouldCrash(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (shouldCrash) {
+    throw new Error(
+      "REAL CASE TEST: A child component (TestCrashComponent) has crashed after 2 seconds.\n\n" +
+        "This confirms the ErrorBoundary works and the FatalErrorModal appears over the UI.",
+    );
+  }
+
+  return null;
+};
+
 function App() {
+  // 1. [TEST] Immediate Crash Scenario
+  if (TEST_CRASH_MODE === "IMMEDIATE") {
+    throw new Error(
+      "IMMEDIATE CRASH TEST: App component crashed right at the start of rendering.\n\n" +
+        "This specifically verifies that the main.tsx Root ErrorBoundary can handle failures even before App mounts.",
+    );
+  }
+
+  // 2. [TEST] Null Reference Scenario
+  const badData: any =
+    TEST_CRASH_MODE === "NULL_REF" ? null : { version: "1.0.0" };
+  if (TEST_CRASH_MODE === "NULL_REF") {
+    console.log(badData.property_of_null); // Explicit crash
+  }
+
   const [activeGame, setActiveGame] = useState<AppConfig["activeGame"]>("POE1");
   const [bgImage, setBgImage] = useState(bgPoe);
   const [bgOpacity, setBgOpacity] = useState(1);
@@ -759,6 +806,7 @@ function App() {
 
   return (
     <>
+      {TEST_CRASH_MODE !== "NONE" && <TestCrashComponent />}
       <OnboardingModal
         isOpen={showOnboarding}
         onFinish={handleOnboardingFinish}

@@ -13,6 +13,9 @@
   "scripts": {
     "setup": "node -e \"if(!require('fs').existsSync('node_modules')) { require('child_process').execSync('npm install', {stdio: 'inherit'}) }\"",
     "dev": "chcp 65001 && vite",
+    "dev:crash:immediate": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=IMMEDIATE vite",
+    "dev:crash:delayed": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=DELAYED vite",
+    "dev:crash:null": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=NULL_REF vite",
     "dev:test": "chcp 65001 && cross-env VITE_SHOW_GAME_WINDOW=true vite",
     "build": "tsc && vite build && electron-builder",
     "build:check": "tsc && vite build",
