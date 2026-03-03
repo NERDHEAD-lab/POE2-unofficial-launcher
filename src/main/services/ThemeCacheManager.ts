@@ -117,8 +117,8 @@ export class ThemeCacheManager {
 
       this.logger.log("Themes synced and metadata updated.");
 
-      // Proactively cache assets for active themes
-      await this.cacheActiveThemes(data);
+      // Proactively cache ALL assets for all themes in themes.json
+      await this.cacheAllThemes(data);
 
       // True indicates new data is available, UI should refresh
       return true;
@@ -134,20 +134,35 @@ export class ThemeCacheManager {
       const content = await fs.readFile(themesPath, "utf-8");
       this.themesData = JSON.parse(content);
       this.logger.log("Loaded themes from local themes.json.");
+
+      // Even if loading from local storage, try to ensure all assets exist
+      if (this.themesData) {
+        this.cacheAllThemes(this.themesData).catch((err) => {
+          this.logger.error("Background pre-caching failed:", err);
+        });
+      }
     } catch (_e) {
       this.logger.warn("No local themes.json found.");
     }
   }
 
   /**
-   * Identify active themes and download their assets
+   * Iterate through ALL themes and download their assets
    */
-  private async cacheActiveThemes(data: ThemesRemoteData) {
-    const activePoe1 = this.findActiveTheme(data.poe1);
-    const activePoe2 = this.findActiveTheme(data.poe2);
+  private async cacheAllThemes(data: ThemesRemoteData) {
+    this.logger.log("Starting full theme asset pre-caching...");
 
-    if (activePoe1) await this.downloadThemeAssets("POE1", activePoe1);
-    if (activePoe2) await this.downloadThemeAssets("POE2", activePoe2);
+    const allPoe1 = data.poe1 || [];
+    const allPoe2 = data.poe2 || [];
+
+    for (const theme of allPoe1) {
+      await this.downloadThemeAssets("POE1", theme);
+    }
+    for (const theme of allPoe2) {
+      await this.downloadThemeAssets("POE2", theme);
+    }
+
+    this.logger.log("Full theme asset pre-caching completed.");
   }
 
   /**
@@ -260,6 +275,18 @@ export class ThemeCacheManager {
       return null;
     }
 
+    // Ensure assets are downloaded for the active theme
+    // (This handles cases where a theme is manually selected but wasn't pre-cached because it's not the "date-active" one)
+    try {
+      await this.downloadThemeAssets(game, activeTheme);
+    } catch (err) {
+      this.logger.error(
+        `[Theme] ${game}: Failed to download assets for theme '${activeTheme.id}'. Falling back.`,
+        err,
+      );
+      return null;
+    }
+
     // Try to map to local paths
     const assets: Record<string, string> = {};
     const baseDir = path.join(
@@ -294,6 +321,14 @@ export class ThemeCacheManager {
       );
       return null;
     }
+  }
+
+  /**
+   * Get all themes data
+   */
+  async getThemes(): Promise<ThemesRemoteData | null> {
+    if (!this.themesData) await this.loadThemesFromLocalStorage();
+    return this.themesData;
   }
 }
 

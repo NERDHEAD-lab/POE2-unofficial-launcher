@@ -242,7 +242,8 @@ export interface ElectronAPI {
       })
     | null
   >;
-  onThemeSynced: (callback: () => void) => () => void; // New
+  getThemes: () => Promise<ThemesRemoteData | null>;
+  onThemeSynced: (callback: () => void) => () => void;
 
   // [UAC Bypass API]
   isUACBypassEnabled: () => Promise<boolean>;

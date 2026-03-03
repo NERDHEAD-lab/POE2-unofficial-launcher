@@ -2567,6 +2567,10 @@ ipcMain.handle("theme:get-active", async (_event, game: "POE1" | "POE2") => {
   return await themeCacheManager.getActiveTheme(game);
 });
 
+ipcMain.handle("theme:get-all", async () => {
+  return await themeCacheManager.getThemes();
+});
+
 app.whenReady().then(async () => {
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

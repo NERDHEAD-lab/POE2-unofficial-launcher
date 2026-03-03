@@ -52,6 +52,7 @@ export interface SettingChangeContext {
   // Dynamic Button Properties
   setButtonText: (text: string) => void;
   setVariant: (variant: "default" | "primary" | "danger") => void;
+  setOptions: (options: { label: string; value: string }[]) => void;
   getButtonText: () => string;
   getVariant: () => "default" | "primary" | "danger";
 }
@@ -101,6 +102,7 @@ export interface BaseSettingItem {
     // Dynamic Button Properties
     setButtonText: (text: string) => void;
     setVariant: (variant: "default" | "primary" | "danger") => void;
+    setOptions: (options: { label: string; value: string }[]) => void;
     getButtonText: () => string;
     getVariant: () => "default" | "primary" | "danger";
   }) => void | Promise<void | (() => void)> | (() => void);

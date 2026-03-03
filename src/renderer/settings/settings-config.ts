@@ -1,5 +1,5 @@
 import { SettingsCategory, SettingValue, DescriptionVariant } from "./types";
-import { BackupMetadata } from "../../shared/types";
+import { BackupMetadata, AppConfig, ThemeDefinition } from "../../shared/types";
 import imgUacTooltip from "../assets/settings/uac-tooltip.png";
 import { logger } from "../utils/logger";
 
@@ -51,6 +51,74 @@ const updateAggressiveModeDescription = (
       "warning",
     );
   }
+};
+
+// --- Theme Settings Helpers ---
+
+const formatThemeDate = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+};
+
+const handleThemeInit = async (
+  game: "POE1" | "POE2",
+  setValue: (v: SettingValue) => void,
+  setOptions: (options: { label: string; value: string }[]) => void,
+) => {
+  const config = (await window.electronAPI?.getConfig(
+    "remoteThemeSettings",
+  )) as AppConfig["remoteThemeSettings"];
+  const current = config?.selectedThemes?.[game] || "auto";
+  setValue(current);
+
+  const themes = await window.electronAPI?.getThemes();
+  const gameThemes = game === "POE1" ? themes?.poe1 : themes?.poe2;
+
+  if (gameThemes) {
+    const dynamicOptions = [
+      { label: "자동 (기간 한정 반영)", value: "auto" },
+      ...gameThemes.map((t: ThemeDefinition) => {
+        const start = formatThemeDate(t.startDate);
+        const end = formatThemeDate(t.endDate);
+        const period = start ? ` - ${start} ~ ${end}` : "";
+        return {
+          label: `${t.name} ( ${t.id} )${period}`,
+          value: t.id,
+        };
+      }),
+    ];
+    setOptions(dynamicOptions);
+  }
+};
+
+const handleThemeChange = async (
+  game: "POE1" | "POE2",
+  val: SettingValue,
+  showToast: (msg: string) => void,
+) => {
+  const config = (await window.electronAPI?.getConfig(
+    "remoteThemeSettings",
+  )) as AppConfig["remoteThemeSettings"];
+  const newConfig: AppConfig["remoteThemeSettings"] = {
+    ...(config || {
+      autoApply: true,
+      selectedThemes: { POE1: "auto", POE2: "auto" },
+    }),
+    selectedThemes: {
+      ...(config?.selectedThemes || { POE1: "auto", POE2: "auto" }),
+      [game]: val as string,
+    },
+  };
+  await window.electronAPI?.setConfig("remoteThemeSettings", newConfig);
+  showToast(
+    `[${game === "POE1" ? "PoE 1" : "PoE 2"} 테마] ${
+      val === "auto" ? "자동" : val
+    } 적용`,
+  );
 };
 
 const initBackupButton = async (
@@ -293,6 +361,38 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 });
               });
             },
+          },
+        ],
+      },
+      {
+        id: "disp_theme",
+        title: "테마",
+        items: [
+          {
+            id: "theme_mode_poe1",
+            type: "select",
+            label: "Path of Exile 1 테마",
+            description:
+              "런처에서 Path of Exile 1 선택 시 적용될 테마를 설정합니다.",
+            icon: "palette",
+            options: [],
+            onInit: async ({ setValue, setOptions }) =>
+              handleThemeInit("POE1", setValue, setOptions),
+            onChangeListener: async (val, { showToast }) =>
+              handleThemeChange("POE1", val, showToast),
+          },
+          {
+            id: "theme_mode_poe2",
+            type: "select",
+            label: "Path of Exile 2 테마",
+            description:
+              "런처에서 Path of Exile 2 선택 시 적용될 테마를 설정합니다.",
+            icon: "palette",
+            options: [],
+            onInit: async ({ setValue, setOptions }) =>
+              handleThemeInit("POE2", setValue, setOptions),
+            onChangeListener: async (val, { showToast }) =>
+              handleThemeChange("POE2", val, showToast),
           },
         ],
       },

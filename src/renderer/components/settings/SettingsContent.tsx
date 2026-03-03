@@ -106,6 +106,9 @@ const SettingItemRenderer: React.FC<{
   const [variant, setVariant] = useState<"default" | "primary" | "danger">(
     (item as SettingButton).variant || "default",
   );
+  const [options, setOptions] = useState<{ label: string; value: string }[]>(
+    (item as any).options || [],
+  );
 
   const buttonTextRef = useRef(buttonText);
   buttonTextRef.current = buttonText;
@@ -191,6 +194,9 @@ const SettingItemRenderer: React.FC<{
         },
         setVariant: (newVariant) => {
           if (mounted) setVariant(newVariant);
+        },
+        setOptions: (newOptions) => {
+          if (mounted) setOptions(newOptions);
         },
         getButtonText: () => buttonTextRef.current,
         getVariant: () => variantRef.current,
@@ -285,6 +291,7 @@ const SettingItemRenderer: React.FC<{
       },
       setButtonText: (v) => setButtonText(v),
       setVariant: (v) => setVariant(v),
+      setOptions: (v) => setOptions(v),
       getButtonText: () => buttonText,
       getVariant: () => variant,
     };
@@ -340,6 +347,7 @@ const SettingItemRenderer: React.FC<{
       setValue: (v) => handleChange(v),
       setButtonText: (v) => setButtonText(v),
       setVariant: (v) => setVariant(v),
+      setOptions: (v) => setOptions(v),
       getButtonText: () => buttonText,
       getVariant: () => variant,
     };
@@ -414,7 +422,7 @@ const SettingItemRenderer: React.FC<{
         const i = item as SettingSelect;
         return (
           <SelectItem
-            item={{ ...i, disabled: isDisabled }}
+            item={{ ...i, disabled: isDisabled, options }}
             value={stringVal}
             onChange={(_, v) => handleChange(v)}
           />

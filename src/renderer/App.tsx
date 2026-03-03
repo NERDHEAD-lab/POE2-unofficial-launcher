@@ -143,6 +143,9 @@ function App() {
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // [New] Theme Settings Version to trigger Effects
+  const [themeVersion, setThemeVersion] = useState(0);
+
   // Refactor: Use globalGameState instead of simple text string
   // [Refactor] Multi-Context Game Status Map
   // Key: `${gameId}_${serviceId}`
@@ -444,7 +447,7 @@ function App() {
 
       // [New] Listen for theme settings changes to refresh
       const unsubConfig = window.electronAPI.onConfigChange((key) => {
-        if (key === "remoteThemeSettings") {
+        if (key === "remoteThemeSettings" || key === "activeGame") {
           refreshTheme();
         }
       });
@@ -643,6 +646,9 @@ function App() {
         if (key === CONFIG_KEYS.DEBUG_CONSOLE) {
           setDebugConsole(value as boolean);
         }
+        if (key === "remoteThemeSettings") {
+          setThemeVersion((prev) => prev + 1);
+        }
       });
 
       // 3. Game Status Updates (New Architecture)
@@ -660,77 +666,61 @@ function App() {
   // Effect 1: Theme Application (Reacts to game or cache changes)
   // This is a PURE visual application effect. No setConfig or extraction here.
   useEffect(() => {
-    const poe1Fallback = {
-      text: "#c8c8c8",
-      accent: "#dfcf99",
-      footer: "#0e0e0e",
-    };
-    const poe2Fallback = {
-      text: "#aaddaa",
-      accent: "#aaddaa",
-      footer: "#0c150c",
-    };
-    const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
-
-    // Use colors from activeTheme if available, otherwise from themeCache, otherwise fallback
     const cached = themeCache[activeGame];
-    if (activeTheme && activeTheme.id && themeCache[activeGame]) {
-      // Priority: remote active theme might have its own colors in future,
-      // but for now we extract from background as before.
-      applyThemeColors(cached!);
-    } else if (cached) {
+    if (cached) {
       applyThemeColors(cached);
-    } else {
-      applyThemeColors(activeFallback);
     }
   }, [activeGame, themeCache, activeTheme]);
 
-  // Effect 2: Theme Extraction/Revalidation (Runs in background)
+  // Effect 2a: Sync Theme Data from Main (Only on app start or settings change)
   useEffect(() => {
-    const poe1Fallback = {
-      text: "#c8c8c8",
-      accent: "#dfcf99",
-      footer: "#0e0e0e",
+    const syncThemes = async () => {
+      if (!window.electronAPI || !isConfigLoaded) return;
+      try {
+        const [p1Theme, p2Theme] = await Promise.all([
+          window.electronAPI.getActiveTheme("POE1"),
+          window.electronAPI.getActiveTheme("POE2"),
+        ]);
+        setPoe1Theme(p1Theme);
+        setPoe2Theme(p2Theme);
+        logger.log("[Theme] Theme definitions synced from main process.");
+      } catch (err) {
+        logger.error("[Theme] Failed to sync themes:", err);
+      }
     };
-    const poe2Fallback = {
-      text: "#b5c2b5",
-      accent: "#aaddaa",
-      footer: "#0c150c",
-    };
-    const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
+    syncThemes();
+  }, [isConfigLoaded, themeVersion]);
 
-    const triggerRevalidation = async () => {
+  // Effect 2b: Active Theme Selection (Local state only, instant on tab switch)
+  useEffect(() => {
+    const theme = activeGame === "POE1" ? poe1Theme : poe2Theme;
+    setActiveTheme(theme);
+  }, [activeGame, poe1Theme, poe2Theme]);
+
+  // Effect 2c: Color Extraction & Cache (Background task, only on visual change)
+  useEffect(() => {
+    const targetBg =
+      (activeTheme && activeTheme.assets?.background) ||
+      (activeGame === "POE2" ? bgPoe2 : bgPoe);
+
+    const checkAndExtract = async () => {
       if (!window.electronAPI || !isConfigLoaded) return;
 
-      // Instead of relying on bgImage (which has a 400ms delay),
-      // we get the "intended" background for the current activeGame.
-      // This correctly solves the race condition without brittle string checks.
-      const theme = await window.electronAPI.getActiveTheme(activeGame);
-      const targetBg =
-        (theme && theme.assets?.background) ||
-        (activeGame === "POE2" ? bgPoe2 : bgPoe);
-
-      const cached = themeCache[activeGame];
-
-      // Skip if already checked for this specific image in this session
+      // Skip if already checked for this session
       if (revalidatedFiles.has(targetBg)) return;
 
       try {
-        // [Hash-first Optimization]
-        // Get FS-level hash (MD5) from Main process
         const fsHash = await window.electronAPI.getFileHash(targetBg);
+        const cached = themeCache[activeGame];
 
-        // If hash matches MD5 stored in cache, we are GOOD.
         if (cached && cached.hash === fsHash) {
           revalidatedFiles.add(targetBg);
           return;
         }
 
-        // Extract colors (now returns only colors, no internal hash)
-        const colors = await extractThemeColors(targetBg, activeFallback);
+        const colors = await extractThemeColors(targetBg);
         revalidatedFiles.add(targetBg);
 
-        // Update the store using the MD5 hash from Main
         const currentCache = (await window.electronAPI.getConfig(
           CONFIG_KEYS.THEME_CACHE,
         )) as AppConfig["themeCache"];
@@ -740,36 +730,63 @@ function App() {
           [activeGame]: { ...colors, hash: fsHash },
         };
         window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
-        logger.log(`[Theme] Revalidated ${activeGame} with hash: ${fsHash}`);
+        logger.log(`[Theme] ${activeGame} colors updated in cache.`);
       } catch (err) {
-        logger.error("[Theme] Revalidation failed:", err);
+        logger.error("[Theme] Background extraction failed:", err);
       }
     };
 
-    triggerRevalidation();
-  }, [activeGame, isConfigLoaded, themeCache, bgImage]);
+    checkAndExtract();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTheme, isConfigLoaded]);
 
-  // Effect 3: Background Transition Visuals (NO setConfig here)
+  // [New] Refs to manage background transitions without double-flicker
+  const pendingTargetRef = useRef<string | null>(null);
+  const fadeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Effect 3: Background Transition Visuals (Flicker-Free & Guaranteed Fade)
   useEffect(() => {
-    const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
+    // Priority: Remote Theme Background > Default Assets
+    const targetBg =
+      (activeTheme && activeTheme.assets?.background) ||
+      (activeGame === "POE1" ? bgPoe : bgPoe2);
 
+    // Initial mount: set immediately without animation
     if (isFirstMount.current) {
       isFirstMount.current = false;
+      setBgImage(targetBg);
+      setBgOpacity(1);
       return;
     }
 
-    // Visual Transition only
-    const fadeOutTimer = setTimeout(() => setBgOpacity(0), 0);
-    const swapTimer = setTimeout(() => {
-      setBgImage(targetBg);
-      setBgOpacity(1);
+    // Update the intended final target
+    pendingTargetRef.current = targetBg;
+
+    // If a transition is ALREADY in progress, just stop here.
+    // The current timer will pick up the latest target from pendingTargetRef when it fires.
+    if (fadeTimerRef.current) return;
+
+    // --- Start a new transition sequence ---
+    setBgOpacity(0);
+
+    fadeTimerRef.current = setTimeout(() => {
+      // 1. Swap the image while it's dark (opacity 0)
+      const finalTarget = pendingTargetRef.current || targetBg;
+      setBgImage(finalTarget);
+
+      // 2. [Reliability Fix] Small delay to ensure browser processed the image swap before fading in
+      // This avoids the image appearing to 'snap' or skip the fade animation in some cases.
+      setTimeout(() => {
+        setBgOpacity(1);
+        fadeTimerRef.current = null;
+      }, 50);
     }, 400);
 
     return () => {
-      clearTimeout(fadeOutTimer);
-      clearTimeout(swapTimer);
+      // Note: We don't clear the timer here (unless we want to restart on every update).
+      // If we don't clear, we get a single smooth dark period even with rapid updates.
     };
-  }, [activeGame]);
+  }, [activeGame, activeTheme]);
 
   const handleGameChange = (game: AppConfig["activeGame"]) => {
     setActiveGame(game);
@@ -965,6 +982,7 @@ function App() {
           style={{
             backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${bgImage}')`,
             opacity: bgOpacity,
+            transition: "opacity 0.4s ease-in-out",
             position: "absolute",
             top: 0,
             left: 0,

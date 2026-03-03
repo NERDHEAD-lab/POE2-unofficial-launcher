@@ -55,8 +55,13 @@ export function hslToHex(h: number, s: number, l: number) {
 // Extract Theme Colors from Image
 export async function extractThemeColors(
   imageUrl: string,
-  fallback: { text: string; accent: string; footer: string },
 ): Promise<ThemeColors> {
+  const defaultColors: ThemeColors = {
+    text: "#c8c8c8",
+    accent: "#dfcf99",
+    footer: "#0e0e0e",
+  };
+
   return new Promise((resolve) => {
     const img = new Image();
     img.src = imageUrl;
@@ -64,7 +69,7 @@ export async function extractThemeColors(
     img.onload = () => {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return resolve(fallback);
+      if (!ctx) return resolve(defaultColors);
 
       // Extract Average Color
       canvas.width = 1;
@@ -89,8 +94,8 @@ export async function extractThemeColors(
       resolve({ text, accent, footer });
     };
     img.onerror = () => {
-      logger.warn("Failed to load bg image, using fallback:", imageUrl);
-      resolve(fallback);
+      logger.warn("Failed to load bg image, using default:", imageUrl);
+      resolve(defaultColors);
     };
   });
 }
