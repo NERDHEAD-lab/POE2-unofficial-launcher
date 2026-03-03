@@ -19,9 +19,9 @@ try {
   // Fallback to Dev if git is not available or fails
 }
 
-const appVersion = JSON.stringify(
-  JSON.parse(readFileSync("package.json", "utf-8")).version,
-);
+const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
+const appVersion = JSON.stringify(packageJson.version);
+const appAuthorEmail = JSON.stringify(packageJson.author.email);
 
 const builderConfig = readFileSync("electron-builder.json5", "utf-8");
 const guidMatch = builderConfig.match(/guid:\s*["'](.*?)["']/);
@@ -36,6 +36,7 @@ const productName = productNameMatch
 
 const defines = {
   __APP_VERSION__: appVersion,
+  __APP_AUTHOR_EMAIL__: appAuthorEmail,
   __APP_HASH__: JSON.stringify(commitHash),
   __APP_GUID__: JSON.stringify(appGuid),
   __PRODUCT_NAME__: JSON.stringify(productName),

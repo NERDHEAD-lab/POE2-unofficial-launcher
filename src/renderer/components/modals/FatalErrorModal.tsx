@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+
+import { SUPPORT_URLS } from "../../../shared/urls";
 import "../../settings/Settings.css";
 
 interface FatalErrorModalProps {
@@ -7,6 +9,7 @@ interface FatalErrorModalProps {
 
 const FatalErrorModal: React.FC<FatalErrorModalProps> = ({ errorDetails }) => {
   const [copied, setCopied] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard
@@ -17,6 +20,18 @@ const FatalErrorModal: React.FC<FatalErrorModalProps> = ({ errorDetails }) => {
       })
       .catch((err) => {
         console.error("Failed to copy error details:", err);
+      });
+  };
+
+  const handleCopyEmail = () => {
+    navigator.clipboard
+      .writeText(SUPPORT_URLS.EMAIL)
+      .then(() => {
+        setEmailCopied(true);
+        setTimeout(() => setEmailCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy email:", err);
       });
   };
 
@@ -45,7 +60,7 @@ const FatalErrorModal: React.FC<FatalErrorModalProps> = ({ errorDetails }) => {
         className="settings-modal"
         style={{
           width: "750px",
-          height: "550px",
+          height: "600px", // Increased height to accommodate email info
           maxWidth: "95vw",
           maxHeight: "95vh",
           display: "flex",
@@ -129,13 +144,63 @@ const FatalErrorModal: React.FC<FatalErrorModalProps> = ({ errorDetails }) => {
               lineHeight: "1.7",
             }}
           >
-            <p style={{ margin: "0 0 8px 0" }}>
+            <p style={{ margin: "0 0 4px 0" }}>
               런처 구동 중 복구가 불가능한 시스템 오류가 발생했습니다.
             </p>
-            <p style={{ margin: 0, color: "#888" }}>
+            <p style={{ margin: "0 0 12px 0" }}>
               개발자에게 아래의 오류 내용을 전달해 주시면 문제 해결에 큰 도움이
               됩니다.
             </p>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "rgba(255, 255, 255, 0.03)",
+                padding: "12px 20px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.05)",
+              }}
+            >
+              <span
+                style={{
+                  color: "#dfcf99",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  fontFamily: "monospace",
+                }}
+              >
+                {SUPPORT_URLS.EMAIL}
+              </span>
+              <button
+                className="setting-btn default"
+                onClick={handleCopyEmail}
+                title="이메일 주소 복사"
+                style={{
+                  padding: "0",
+                  width: "32px",
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: emailCopied
+                    ? "rgba(76, 175, 80, 0.1)"
+                    : "rgba(255, 255, 255, 0.05)",
+                  color: emailCopied ? "#81c784" : "#ccc",
+                  borderColor: emailCopied
+                    ? "#4caf50"
+                    : "rgba(255, 255, 255, 0.1)",
+                  minWidth: "auto",
+                }}
+              >
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: "18px" }}
+                >
+                  {emailCopied ? "check" : "content_copy"}
+                </span>
+              </button>
+            </div>
           </div>
 
           <div

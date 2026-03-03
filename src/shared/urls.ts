@@ -39,6 +39,7 @@ export const FORUM_URLS: Record<AppConfig["serviceChannel"], string> = {
 
 // 4. Support & External Links
 export const SUPPORT_URLS = {
+  EMAIL: __APP_AUTHOR_EMAIL__,
   DONATION:
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher?docs=SUPPORT_KR.md",
   ISSUES: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues",

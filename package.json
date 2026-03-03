@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.9.8",
   "description": "Unofficial Launcher for Path of Exile & Path of Exile 2",
-  "author": "NERDHEAD LAB",
+  "author": {
+    "name": "NERDHEAD LAB",
+    "email": "nerdlab.kr@gmail.com"
+  },
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
