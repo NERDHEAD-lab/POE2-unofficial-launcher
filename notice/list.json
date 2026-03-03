@@ -22,5 +22,13 @@
     "date": "2026-02-15",
     "priority": true,
     "hash": "849b84b8c5de9d5d43d8274e32d835b6"
+  },
+  {
+    "id": 4,
+    "title": "[공지] 게임 실행 후 홈 화면 노출 및 지연 경고 현상 수정 안내",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] 게임 실행 단계에서 흰 화면만 표시되는 현상 조치 가이드.md",
+    "date": "2026-03-03",
+    "priority": true,
+    "hash": "b7e4a9aad32678451720e597b92c5151"
   }
 ]
