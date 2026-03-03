@@ -700,14 +700,20 @@ const KakaoAuthHandler: PageHandler = {
   },
 };
 
+// 해당 페이지는 동일한 URL에서 다른 페이지를 표시 하는 경우가 있음 (문자 인증, MOTP 등)
+// 따라서 timeoutMs를 -1로 설정하고 observeAndInteract에서 일정 시간이 지나면 오류 없이 화면을 보여주도록 한다.
 const SecurityCenterHandler: PageHandler = {
   name: "SecurityCenterHandler",
   description: "Security Center / Designated PC",
   match: (url) => url.hostname === "security-center.game.daum.net",
+  timeoutMs: -1,
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
-  execute: () => {
+  execute: (context) => {
     logger.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
     ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
+
+    let isDelayQueued = false;
+    let delayTimeoutId: NodeJS.Timeout | null = null;
 
     observeAndInteract((obs) => {
       // [Visibility Logic] Only show window if "Designated PC" certificate UI is present
@@ -749,8 +755,20 @@ const SecurityCenterHandler: PageHandler = {
         )
       ) {
         if (obs) obs.disconnect();
+        if (delayTimeoutId) {
+          clearTimeout(delayTimeoutId);
+          delayTimeoutId = null;
+        }
         return true;
       }
+
+      if (!isDelayQueued) {
+        isDelayQueued = true;
+        delayTimeoutId = setTimeout(() => {
+          context.setVisible(true);
+        }, 2000);
+      }
+
       return false;
     });
   },
