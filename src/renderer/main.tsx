@@ -20,6 +20,15 @@ const Root = () => {
   const [fatalError, setFatalError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (fatalError) {
+      // Ensure splash screen is removed if a fatal error occurs,
+      // even if App component failed to mount/render.
+      const splash = document.getElementById("launcher-splash");
+      if (splash) splash.remove();
+    }
+  }, [fatalError]);
+
+  useEffect(() => {
     if (window.electronAPI && window.electronAPI.onFatalError) {
       const cleanup = window.electronAPI.onFatalError((errorDetails) => {
         logger.error("[Root] Fatal Error received from Main:", errorDetails);
