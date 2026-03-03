@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.8...0.9.9) (2026-03-03)
+
+
+### Bug Fixes
+
+* 런쳐 실행 준비 간 문제가 발생할 경우 문제 원인을 파악할 수 없는 문제 수정 ([a29a822](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a29a8225184e5c878f3aa83b4c820062e5e439a1))
+* 런쳐 실행 준비 간 문제가 발생할 경우 문제 원인을 파악할 수 없는 문제 수정 - 2 ([c680ac9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c680ac932772b97c626041fcb44063bf89bfea34))
+* 런쳐 실행 준비 간 문제가 발생할 경우 문제 원인을 파악할 수 없는 문제 수정 - 3 ([cca17e3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/cca17e3142ee1149a4264b92ca23d84cfd46b88f))
+* 런쳐 실행 준비 간 문제가 발생할 경우 문제 원인을 파악할 수 없는 문제 수정 - 4 ([25b7dc0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/25b7dc0dfa5141fb165f2f7ca12da7db79d9aa14))
+
 ## [0.9.8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.7...0.9.8) (2026-03-02)
 
 
