@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.9.8",
   "description": "Unofficial Launcher for Path of Exile & Path of Exile 2",
-  "author": "NERDHEAD LAB",
+  "author": {
+    "name": "NERDHEAD LAB",
+    "email": "nerdlab.kr@gmail.com"
+  },
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -13,6 +16,9 @@
   "scripts": {
     "setup": "node -e \"if(!require('fs').existsSync('node_modules')) { require('child_process').execSync('npm install', {stdio: 'inherit'}) }\"",
     "dev": "chcp 65001 && vite",
+    "dev:crash:immediate": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=IMMEDIATE vite",
+    "dev:crash:delayed": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=DELAYED vite",
+    "dev:crash:null": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=NULL_REF vite",
     "dev:test": "chcp 65001 && cross-env VITE_SHOW_GAME_WINDOW=true vite",
     "build": "tsc && vite build && electron-builder",
     "build:check": "tsc && vite build",
@@ -39,7 +45,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.0",
+    "@eslint/js": "^9.0.0",
     "@types/chrome": "^0.1.33",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -48,7 +54,7 @@
     "cross-env": "^10.1.0",
     "electron": "^40.0.0",
     "electron-builder": "^26.0.0",
-    "eslint": "^10.0.0",
+    "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -64,9 +70,6 @@
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.5",
     "vitest": "^4.0.17"
-  },
-  "overrides": {
-    "eslint": "$eslint"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

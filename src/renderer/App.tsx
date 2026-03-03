@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import React, {
   useState,
   useEffect,
@@ -6,15 +7,7 @@ import React, {
   useCallback,
 } from "react";
 
-import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
-import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
-import iconGithub from "./assets/icon-github.svg";
-import bannerBottom from "./assets/layout/banner-bottom.png";
-import bgPoe from "./assets/poe1/bg-keepers.png";
-import bgPoe2 from "./assets/poe2/bg-forest.webp";
-import GameSelector from "./components/GameSelector";
-import GameStartButton from "./components/GameStartButton";
 import {
   AppConfig,
   GameStatusState,
@@ -24,7 +17,24 @@ import {
   UpdateStatus,
   ChangelogItem,
 } from "../shared/types";
+import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
+
+import "./App.css";
+import iconGithub from "./assets/icon-github.svg";
+import bannerBottom from "./assets/layout/banner-bottom.png";
+import bgPoe from "./assets/poe1/bg-keepers.png";
+import bgPoe2 from "./assets/poe2/bg-forest.webp";
+
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import GameSelector from "./components/GameSelector";
+import GameStartButton from "./components/GameStartButton";
+import OfficialLinkButtons from "./components/OfficialLinkButtons";
+import ServiceChannelSelector from "./components/ServiceChannelSelector";
+import SupportLinks from "./components/SupportLinks";
+import TitleBar from "./components/TitleBar";
+import UpdateModal from "./components/UpdateModal";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import FatalErrorModal from "./components/modals/FatalErrorModal";
 import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
@@ -32,12 +42,8 @@ import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
-import OfficialLinkButtons from "./components/OfficialLinkButtons";
-import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
-import SupportLinks from "./components/SupportLinks";
-import TitleBar from "./components/TitleBar";
-import UpdateModal from "./components/UpdateModal";
+
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
@@ -64,7 +70,54 @@ const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
 // Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
 const revalidatedFiles = new Set<string>();
 
+// --- 🛠️ Testing Scenarios (Toggle as needed) ---
+// "DELAYED"   : Crash after 2 seconds (Child component)
+// "IMMEDIATE" : Crash immediately during App render
+// "NULL_REF"  : Crash due to null reference during render
+// "NONE"      : No crash
+const TEST_CRASH_MODE = (import.meta.env.VITE_TEST_CRASH_MODE || "NONE") as
+  | "DELAYED"
+  | "IMMEDIATE"
+  | "NULL_REF"
+  | "NONE";
+
+const TestCrashComponent = () => {
+  const [shouldCrash, setShouldCrash] = useState(false);
+
+  useEffect(() => {
+    if (TEST_CRASH_MODE !== "DELAYED") return;
+    const timer = setTimeout(() => {
+      setShouldCrash(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (shouldCrash) {
+    throw new Error(
+      "REAL CASE TEST: A child component (TestCrashComponent) has crashed after 2 seconds.\n\n" +
+        "This confirms the ErrorBoundary works and the FatalErrorModal appears over the UI.",
+    );
+  }
+
+  return null;
+};
+
 function App() {
+  // 1. [TEST] Immediate Crash Scenario
+  if (TEST_CRASH_MODE === "IMMEDIATE") {
+    throw new Error(
+      "IMMEDIATE CRASH TEST: App component crashed right at the start of rendering.\n\n" +
+        "This specifically verifies that the main.tsx Root ErrorBoundary can handle failures even before App mounts.",
+    );
+  }
+
+  // 2. [TEST] Null Reference Scenario
+  const badData: any =
+    TEST_CRASH_MODE === "NULL_REF" ? null : { version: "1.0.0" };
+  if (TEST_CRASH_MODE === "NULL_REF") {
+    console.log(badData.property_of_null); // Explicit crash
+  }
+
   const [activeGame, setActiveGame] = useState<AppConfig["activeGame"]>("POE1");
   const [bgImage, setBgImage] = useState(bgPoe);
   const [bgOpacity, setBgOpacity] = useState(1);
@@ -216,9 +269,14 @@ function App() {
   // [UAC Migration] Listener
   useEffect(() => {
     if (window.electronAPI?.onUacMigrationRequest) {
-      return window.electronAPI.onUacMigrationRequest(() => {
+      const cleanup = window.electronAPI.onUacMigrationRequest(() => {
         setIsMigrationModalOpen(true);
       });
+
+      // Signal to Main that Renderer is ready to receive UAC migration requests
+      window.electronAPI.reportUacMigrationReady();
+
+      return cleanup;
     }
   }, []);
 
@@ -747,22 +805,8 @@ function App() {
   }, []);
 
   return (
-    <div
-      id="app-container"
-      className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
-      style={
-        {
-          width: "100vw",
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#000",
-          overflow: "hidden",
-          "--app-scale": scale,
-        } as React.CSSProperties
-      }
-    >
+    <>
+      {TEST_CRASH_MODE !== "NONE" && <TestCrashComponent />}
       <OnboardingModal
         isOpen={showOnboarding}
         onFinish={handleOnboardingFinish}
@@ -1042,7 +1086,7 @@ function App() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

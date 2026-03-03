@@ -125,7 +125,7 @@ export abstract class LoggerBase {
         // Add any extra properties (like axios error.config or custom error codes)
         Object.getOwnPropertyNames(v).forEach((key) => {
           if (key !== "name" && key !== "message" && key !== "stack") {
-            errObj[key] = (v as any)[key];
+            errObj[key] = (v as unknown as Record<string, unknown>)[key];
           }
         });
         return process(errObj, level);

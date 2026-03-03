@@ -215,11 +215,6 @@ export interface ElectronAPI {
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
 
-  // [Legacy UAC]
-  isLegacyUacEnabled: () => Promise<boolean>;
-  enableLegacyUac: () => Promise<boolean>;
-  disableLegacyUac: () => Promise<boolean>;
-
   // Admin / UAC
   isAdmin: () => Promise<boolean>;
   relaunchAsAdmin: () => void;
@@ -245,7 +240,12 @@ export interface ElectronAPI {
 
   // [UAC Migration]
   onUacMigrationRequest: (callback: () => void) => () => void;
+  reportUacMigrationReady: () => void;
   confirmUacMigration: () => void;
+
+  // [Fatal Error Handling]
+  onFatalError: (callback: (errorDetails: string) => void) => () => void;
+  reportFatalReady: () => void;
 }
 
 export type UpdateStatus =

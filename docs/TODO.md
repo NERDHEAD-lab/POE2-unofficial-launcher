@@ -22,6 +22,13 @@
   - [ ] **[Maintenance]** package.json: Remove `overrides` for `eslint` once `typescript-eslint` and `eslint-plugin-import` officially support v10. (Reason: Cleanup technical debt after ecosystem catch-up)
   - [ ] **[Refactoring]** src/main/kakao/preload.ts: `about:blank` 및 보안되지 않은 컨텍스트에서 `SessionStorage` 접근 시 발생하는 보안 경고(SecurityError)를 방지하기 위한 프로토콜 체크 추가 필요. (Reason: 불필요한 에러 로그 감소 및 안정성 확보)
 
+### [x] `UAC Migration` 모달 호출의 안전성 및 응답성 강화
+
+- **현상**: `main.ts` 초기 구동 시 `ready-to-show` 타임아웃(1초)에 의존하여 `uac-migration:request`를 렌더러로 보냄. 이 타이밍 이전에 렌더러가 완벽히 로드되지 않았다면 이벤트가 유실될 위험이 있음 (`onFatalError` 버퍼링 부재와 유사).
+- **해결안**:
+  - `App.tsx` 모달 마운트 시 `window.electronAPI.reportUacMigrationReady()`를 호출하여 메인으로 수신 가능 신호를 보냄.
+  - `main.ts`에서 위 `uac-migration:ready` 이벤트 수신 후 `detectLegacy()` 및 요청 발송을 안전하게 처리하도록 구조 변경.
+
 ## 2. 로그 시스템 안정화
 
 ### [ ] 초기 로그 중복 방지 로직 고도화
