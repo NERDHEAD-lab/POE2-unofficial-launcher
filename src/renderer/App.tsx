@@ -413,20 +413,18 @@ function App() {
 
   const refreshTheme = useCallback(async () => {
     if (!window.electronAPI) return;
-    const theme = await window.electronAPI.getActiveTheme(activeGame);
-    setActiveTheme(theme);
 
-    // Fetch both themes for logos
-    const t1 = await window.electronAPI.getActiveTheme("POE1");
-    const t2 = await window.electronAPI.getActiveTheme("POE2");
+    // Fetch both themes once to avoid redundant IPC calls
+    const [t1, t2] = await Promise.all([
+      window.electronAPI.getActiveTheme("POE1"),
+      window.electronAPI.getActiveTheme("POE2"),
+    ]);
+
     setPoe1Theme(t1);
     setPoe2Theme(t2);
 
-    if (theme && theme.assets?.background) {
-      setBgImage(theme.assets.background);
-    } else {
-      setBgImage(activeGame === "POE2" ? bgPoe2 : bgPoe);
-    }
+    const theme = activeGame === "POE1" ? t1 : t2;
+    setActiveTheme(theme);
   }, [activeGame]);
 
   // Update Check Effect

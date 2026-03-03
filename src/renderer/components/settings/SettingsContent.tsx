@@ -107,7 +107,7 @@ const SettingItemRenderer: React.FC<{
     (item as SettingButton).variant || "default",
   );
   const [options, setOptions] = useState<{ label: string; value: string }[]>(
-    (item as any).options || [],
+    item.type === "radio" || item.type === "select" ? item.options : [],
   );
 
   const buttonTextRef = useRef(buttonText);

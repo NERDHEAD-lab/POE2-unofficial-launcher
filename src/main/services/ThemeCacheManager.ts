@@ -22,6 +22,17 @@ export class ThemeCacheManager {
   private themeDir: string;
   private themesData: ThemesRemoteData | null = null;
 
+  // Cache to avoid redundant file system checks and logging
+  private lastResolvedThemes: Map<
+    string,
+    Omit<ThemeDefinition, "assets"> & {
+      assets: Record<string, string>;
+      isRemote: boolean;
+      _assetsHash: string;
+    }
+  > = new Map();
+  private lastAppliedThemeIds: Map<string, string> = new Map();
+
   constructor() {
     // userData path matches main/store.ts
     const userData = path.join(
@@ -232,9 +243,13 @@ export class ThemeCacheManager {
     const themes =
       game === "POE1" ? this.themesData?.poe1 : this.themesData?.poe2;
     if (!themes) {
-      this.logger.log(
-        `[Theme] ${game}: No themes data found in cache. Using default fallback.`,
-      );
+      if (this.lastAppliedThemeIds.has(game)) {
+        this.logger.log(
+          `[Theme] ${game}: No themes data found in cache. Using default fallback.`,
+        );
+        this.lastAppliedThemeIds.delete(game);
+        this.lastResolvedThemes.delete(game);
+      }
       return null;
     }
 
@@ -269,10 +284,23 @@ export class ThemeCacheManager {
     }
 
     if (!activeTheme) {
-      this.logger.log(
-        `[Theme] ${game}: No active date-matched or selected theme found. Using default fallback.`,
-      );
+      if (this.lastAppliedThemeIds.has(game)) {
+        this.logger.log(
+          `[Theme] ${game}: No active date-matched or selected theme found. Using default fallback.`,
+        );
+        this.lastAppliedThemeIds.delete(game);
+        this.lastResolvedThemes.delete(game);
+      }
       return null;
+    }
+
+    // 1. Check Memory Cache: If theme ID and its definition haven't changed, return cached result
+    const cached = this.lastResolvedThemes.get(game);
+    if (cached && cached.id === activeTheme.id) {
+      const settingsHash = JSON.stringify(activeTheme.assets);
+      if (cached._assetsHash === settingsHash) {
+        return cached;
+      }
     }
 
     // Ensure assets are downloaded for the active theme
@@ -306,19 +334,36 @@ export class ThemeCacheManager {
           `asset://${game.toLowerCase()}/${activeTheme.id}/${fileName}`;
       }
 
-      this.logger.log(
-        `[Theme] ${game}: Successfully applied remote theme '${activeTheme.id}'.`,
-      );
-      return {
+      const result = {
         ...activeTheme,
         assets,
         isRemote: true,
+        _assetsHash: JSON.stringify(activeTheme.assets),
+      } as Omit<ThemeDefinition, "assets"> & {
+        assets: Record<string, string>;
+        isRemote: boolean;
+        _assetsHash: string;
       };
+
+      // Update memory cache
+      this.lastResolvedThemes.set(game, result);
+
+      // Log only on theme change
+      if (this.lastAppliedThemeIds.get(game) !== activeTheme.id) {
+        this.logger.log(
+          `[Theme] ${game}: Successfully applied remote theme '${activeTheme.id}'.`,
+        );
+        this.lastAppliedThemeIds.set(game, activeTheme.id);
+      }
+
+      return result;
     } catch (err) {
       this.logger.error(
         `[Theme] ${game}: Asset resolution failed for theme '${activeTheme.id}', falling back. Error:`,
         err,
       );
+      this.lastAppliedThemeIds.delete(game);
+      this.lastResolvedThemes.delete(game);
       return null;
     }
   }
