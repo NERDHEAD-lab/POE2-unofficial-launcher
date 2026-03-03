@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Launcher Themes Schema",
+  "type": "object",
+  "properties": {
+    "poe1": { "type": "array", "items": { "$ref": "#/definitions/theme" } },
+    "poe2": { "type": "array", "items": { "$ref": "#/definitions/theme" } }
+  },
+  "required": ["poe1", "poe2"],
+  "definitions": {
+    "theme": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "assets": {
+          "type": "object",
+          "properties": {
+            "background": { "type": "string" },
+            "logo": { "type": "string" }
+          },
+          "required": ["background", "logo"]
+        },
+        "startDate": { 
+          "type": "string", 
+          "description": "Theme start date (UTC). Format: YYYY-MM-DD HH:mm:ss",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "examples": ["2025-10-31 16:00:00"]
+        },
+        "endDate": { 
+          "type": "string", 
+          "description": "Theme end date (UTC). Format: YYYY-MM-DD HH:mm:ss",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "examples": ["2025-11-30 23:59:59"]
+        }
+      },
+      "required": ["id", "name", "assets"],
+      "dependencies": {
+        "endDate": ["startDate"]
+      }
+    }
+  }
+}
