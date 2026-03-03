@@ -35,24 +35,24 @@ export abstract class LoggerBase {
     textColor?: string,
   ): void;
 
-  public log(message: unknown, ...args: unknown[]) {
+  public log = (message: unknown, ...args: unknown[]) => {
     this.executeLog(message, args, false);
-  }
+  };
 
   /**
    * log 메서드의 별칭입니다.
    */
-  public info(message: unknown, ...args: unknown[]) {
+  public info = (message: unknown, ...args: unknown[]) => {
     this.log(message, ...args);
-  }
+  };
 
-  public warn(message: unknown, ...args: unknown[]) {
+  public warn = (message: unknown, ...args: unknown[]) => {
     this.executeLog(message, args, false, "#FFB86C");
-  }
+  };
 
-  public error(message: unknown, ...args: unknown[]) {
+  public error = (message: unknown, ...args: unknown[]) => {
     this.executeLog(message, args, true, "#FF5555");
-  }
+  };
 
   /**
    * 터미널 콘솔 출력 없이 디버그 UI(Renderer)에만 로그를 보냅니다.
