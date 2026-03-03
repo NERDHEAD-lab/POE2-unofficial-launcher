@@ -1,15 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import "./GameSelector.css";
 
-// Import Assets
+import { ThemeDefinition } from "../../shared/types";
 import logoOiia from "../assets/oiia-cat.webp";
 import logoPoe from "../assets/poe1/logo.png";
 import logoPoe2 from "../assets/poe2/logo.png";
 import { logger } from "../utils/logger";
 
+import "./GameSelector.css";
+
 interface GameSelectorProps {
   activeGame: "POE1" | "POE2";
   onGameChange: (game: "POE1" | "POE2") => void;
+  activeTheme?:
+    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
+    | null;
 }
 
 type InteractionState =
@@ -68,6 +72,7 @@ const getVisualState = (cyclicPhase: number, isPoe1: boolean) => {
 const GameSelector: React.FC<GameSelectorProps> = ({
   activeGame,
   onGameChange,
+  activeTheme,
 }) => {
   // --- Refs & State ---
   const [renderPhase, setRenderPhase] = useState(activeGame === "POE1" ? 0 : 1);
@@ -341,14 +346,22 @@ const GameSelector: React.FC<GameSelectorProps> = ({
       )}
 
       <img
-        src={logoPoe}
+        src={
+          activeGame === "POE1" && activeTheme?.assets?.logo
+            ? activeTheme.assets.logo
+            : logoPoe
+        }
         className="logo-item"
         alt="POE Logo"
         style={createStyle(poe1)}
         onClick={(e) => handleClick(e, "POE1")}
       />
       <img
-        src={logoPoe2}
+        src={
+          activeGame === "POE2" && activeTheme?.assets?.logo
+            ? activeTheme.assets.logo
+            : logoPoe2
+        }
         className="logo-item"
         alt="POE2 Logo"
         style={createStyle(poe2)}

@@ -11,6 +11,8 @@ import {
   shell,
   session,
   screen,
+  protocol,
+  net,
 } from "electron";
 import JSZip from "jszip";
 
@@ -93,6 +95,7 @@ import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { ProcessWatcher } from "./services/ProcessWatcher";
+import { themeCacheManager } from "./services/ThemeCacheManager";
 import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
   isAdmin,
@@ -1707,6 +1710,11 @@ function createWindows() {
   const logWatcher = new LogWatcher(appContext);
   logWatcher.init();
 
+  // Initialize ThemeCacheManager
+  themeCacheManager.init().catch((err) => {
+    logger.error("[Main] Failed to initialize ThemeCacheManager:", err);
+  });
+
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
     logger.log("[Main] Window blurred (Focus Lost).");
@@ -2417,7 +2425,17 @@ ipcMain.handle("changelog:get-all", async () => {
   return changelogService.fetchChangelogs(currentVersion, "");
 });
 
+ipcMain.handle("theme:get-active", async (_event, game: "POE1" | "POE2") => {
+  return await themeCacheManager.getActiveTheme(game);
+});
+
 app.whenReady().then(async () => {
+  // Register custom protocol to load assets from %appdata%
+  protocol.handle("asset", (request) => {
+    const url = request.url.slice("asset://".length);
+    return net.fetch("file://" + url);
+  });
+
   // [UAC Sync] Ensure RUNASINVOKER is applied if config is set
   if (getEffectiveConfig("skipDaumGameStarterUac") === true) {
     if (!(await SimpleUacBypass.isRunAsInvokerEnabled())) {

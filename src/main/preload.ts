@@ -97,6 +97,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("update-status-change", handler);
     return () => ipcRenderer.off("update-status-change", handler);
   },
+  getActiveTheme: (game: AppConfig["activeGame"]) =>
+    ipcRenderer.invoke("theme:get-active", game),
 
   isUACBypassEnabled: () => ipcRenderer.invoke("uac:is-enabled"),
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),

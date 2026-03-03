@@ -16,7 +16,7 @@ if (!isDebug) {
   logger.log("[Renderer] Renderer Logger initialized.");
 }
 
-const Root = () => {
+export const Root = () => {
   const [fatalError, setFatalError] = useState<string | null>(null);
 
   useEffect(() => {

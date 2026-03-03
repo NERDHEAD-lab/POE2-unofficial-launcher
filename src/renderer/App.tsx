@@ -16,6 +16,7 @@ import {
   PatchProgress,
   UpdateStatus,
   ChangelogItem,
+  ThemeDefinition,
 } from "../shared/types";
 import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
 
@@ -25,7 +26,6 @@ import bannerBottom from "./assets/layout/banner-bottom.png";
 import bgPoe from "./assets/poe1/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
 
-import { ErrorBoundary } from "./components/ErrorBoundary";
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
 import OfficialLinkButtons from "./components/OfficialLinkButtons";
@@ -34,7 +34,6 @@ import SupportLinks from "./components/SupportLinks";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 import ChangelogModal from "./components/modals/ChangelogModal";
-import FatalErrorModal from "./components/modals/FatalErrorModal";
 import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
@@ -112,9 +111,8 @@ function App() {
   }
 
   // 2. [TEST] Null Reference Scenario
-  const badData: any =
-    TEST_CRASH_MODE === "NULL_REF" ? null : { version: "1.0.0" };
   if (TEST_CRASH_MODE === "NULL_REF") {
+    const badData = null as unknown as { property_of_null: string };
     console.log(badData.property_of_null); // Explicit crash
   }
 
@@ -129,6 +127,10 @@ function App() {
   >({});
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+  const [activeTheme, setActiveTheme] = useState<
+    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
+    | null
+  >(null);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -398,6 +400,18 @@ function App() {
     setPatchModalState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
+  const refreshTheme = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const theme = await window.electronAPI.getActiveTheme(activeGame);
+    setActiveTheme(theme);
+
+    if (theme && theme.assets?.background) {
+      setBgImage(theme.assets.background);
+    } else {
+      setBgImage(activeGame === "POE2" ? bgPoe2 : bgPoe);
+    }
+  }, [activeGame]);
+
   // Update Check Effect
   useEffect(() => {
     if (window.electronAPI) {
@@ -414,9 +428,26 @@ function App() {
       // Trigger check
       window.electronAPI.checkForUpdates();
 
-      return () => unsubscribe();
+      // [New] Listen for theme settings changes to refresh
+      const unsubConfig = window.electronAPI.onConfigChange((key) => {
+        if (key === "remoteThemeSettings") {
+          refreshTheme();
+        }
+      });
+
+      return () => {
+        unsubscribe();
+        unsubConfig();
+      };
     }
-  }, []);
+  }, [refreshTheme]);
+
+  useEffect(() => {
+    const initTheme = async () => {
+      await refreshTheme();
+    };
+    initTheme();
+  }, [refreshTheme]);
 
   const handleUpdateClick = () => {
     window.electronAPI.downloadUpdate();
@@ -614,19 +645,24 @@ function App() {
       footer: "#0e0e0e",
     };
     const poe2Fallback = {
-      text: "#b5c2b5",
+      text: "#aaddaa",
       accent: "#aaddaa",
       footer: "#0c150c",
     };
     const activeFallback = activeGame === "POE1" ? poe1Fallback : poe2Fallback;
 
+    // Use colors from activeTheme if available, otherwise from themeCache, otherwise fallback
     const cached = themeCache[activeGame];
-    if (cached) {
+    if (activeTheme && activeTheme.id && themeCache[activeGame]) {
+      // Priority: remote active theme might have its own colors in future,
+      // but for now we extract from background as before.
+      applyThemeColors(cached!);
+    } else if (cached) {
       applyThemeColors(cached);
     } else {
       applyThemeColors(activeFallback);
     }
-  }, [activeGame, themeCache]);
+  }, [activeGame, themeCache, activeTheme]);
 
   // Effect 2: Theme Extraction/Revalidation (Runs in background)
   useEffect(() => {
@@ -644,31 +680,28 @@ function App() {
 
     const triggerRevalidation = async () => {
       if (!window.electronAPI || !isConfigLoaded) return;
-      const targetBg = activeGame === "POE1" ? bgPoe : bgPoe2;
+      // Use bgImage as it might be dynamic
+      const targetBg = bgImage;
       const cached = themeCache[activeGame];
 
-      // Skip if already checked in this session
-      if (revalidatedFiles.has(activeGame)) return;
+      // Skip if already checked for this specific image
+      if (revalidatedFiles.has(targetBg)) return;
 
       try {
         // [Hash-first Optimization]
-        // Get FS-level hash before loading image in renderer
         const fsHash = await window.electronAPI.getFileHash(targetBg);
 
-        // If hash matches, we are GOOD. Avoid expensive image load & extraction.
         if (cached && cached.hash === fsHash) {
-          revalidatedFiles.add(activeGame);
+          revalidatedFiles.add(targetBg);
           return;
         }
 
-        // Only if hash changed (or no cache), we load the image and extract colors
         const { colors, hash } = await extractThemeColors(
           targetBg,
           activeFallback,
         );
-        revalidatedFiles.add(activeGame);
+        revalidatedFiles.add(targetBg);
 
-        // Update the store
         const currentCache = (await window.electronAPI.getConfig(
           CONFIG_KEYS.THEME_CACHE,
         )) as AppConfig["themeCache"];
@@ -683,7 +716,7 @@ function App() {
     };
 
     triggerRevalidation();
-  }, [activeGame, isConfigLoaded, themeCache]); // themeCache added for dependency integrity, revalidatedFiles prevents loops
+  }, [activeGame, isConfigLoaded, themeCache, bgImage]);
 
   // Effect 3: Background Transition Visuals (NO setConfig here)
   useEffect(() => {
@@ -953,6 +986,7 @@ function App() {
                 <GameSelector
                   activeGame={activeGame}
                   onGameChange={handleGameChange}
+                  activeTheme={activeTheme}
                 />
               </div>
 

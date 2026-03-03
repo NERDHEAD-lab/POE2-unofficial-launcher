@@ -46,6 +46,9 @@ export const SUPPORT_URLS = {
   GITHUB_REPO: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher",
   LATEST_VERSIONS_JSON:
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher/latest-versions.json",
+  THEMES_JSON:
+    "https://nerdhead-lab.github.io/POE2-unofficial-launcher/themes.json",
+  ASSETS_BASE: "https://nerdhead-lab.github.io/POE2-unofficial-launcher/",
 };
 
 // 5. Trade Site URLs
