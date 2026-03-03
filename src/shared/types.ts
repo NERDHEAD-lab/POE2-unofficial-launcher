@@ -215,11 +215,6 @@ export interface ElectronAPI {
   enableUACBypass: () => Promise<boolean>;
   disableUACBypass: () => Promise<boolean>;
 
-  // [Legacy UAC]
-  isLegacyUacEnabled: () => Promise<boolean>;
-  enableLegacyUac: () => Promise<boolean>;
-  disableLegacyUac: () => Promise<boolean>;
-
   // Admin / UAC
   isAdmin: () => Promise<boolean>;
   relaunchAsAdmin: () => void;

@@ -152,8 +152,12 @@ function handleFatalError(error: Error | unknown, type: string) {
 
   logger.error(`[Fatal] ${fullMessage}`);
 
-  if (isRendererReadyForFatalError && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("app:fatal-error", fullMessage);
+  if (
+    isRendererReadyForFatalError &&
+    context.mainWindow &&
+    !context.mainWindow.isDestroyed()
+  ) {
+    context.mainWindow.webContents.send("app:fatal-error", fullMessage);
   } else {
     // Buffer it if renderer isn't ready
     if (!fatalErrorBuffer) {
@@ -583,7 +587,7 @@ ipcMain.on("uac-migration:confirm", async () => {
 ipcMain.on("uac-migration:ready", async () => {
   if (await LegacyUacManager.detectLegacy()) {
     logger.log("[Main] Legacy UAC detected. Requesting migration modal...");
-    appContext.mainWindow?.webContents.send("uac-migration:request");
+    context.mainWindow?.webContents.send("uac-migration:request");
   }
 });
 
@@ -604,21 +608,11 @@ ipcMain.handle("uac:disable", async () => {
   return true; // Optimistic success
 });
 
-// [New] Legacy UAC Mode Handlers (Test/Fallback)
-ipcMain.handle("legacy-uac:is-enabled", async () => {
-  return await LegacyUacManager.detectLegacy();
-});
-
 // --- Constants ---
 const PARTITIONS = {
   KAKAO: KAKAO_PARTITION,
   GGG: "persist:ggg_game",
 };
-
-ipcMain.handle("legacy-uac:disable", async () => {
-  // cleanupLegacy removes the legacy mode
-  return await LegacyUacManager.cleanupLegacy();
-});
 
 // --- Admin IPC ---
 
