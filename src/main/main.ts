@@ -228,6 +228,52 @@ app.on("web-contents-created", (_, wc) => {
   });
 });
 
+/**
+ * Safely resizes a window based on actual content dimensions using setSize.
+ * Includes a 100ms delay to allow external layouts to fully settle.
+ * Iterates through all DOM elements to find the true max scroll dimensions,
+ * preventing clipping on sites that use internal scroll containers.
+ */
+async function resizeToFitContent(win: BrowserWindow) {
+  if (!win || win.isDestroyed()) return;
+
+  // Wait for dynamic layouts to stabilize
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  try {
+    const dimensions = await win.webContents.executeJavaScript(`
+      (() => {
+        const allElements = document.querySelectorAll('*');
+        let maxW = document.documentElement.scrollWidth;
+        let maxH = document.documentElement.scrollHeight;
+
+        allElements.forEach(el => {
+          if (el.scrollWidth > maxW) maxW = el.scrollWidth;
+          if (el.scrollHeight > maxH) maxH = el.scrollHeight;
+        });
+
+        return { width: maxW, height: maxH };
+      })();
+    `);
+
+    if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+      // Add a small safety margin to prevent scrollbars from appearing
+      const targetWidth = Math.ceil(dimensions.width) + 30;
+      const targetHeight = Math.ceil(dimensions.height) + 40;
+
+      logger.log(
+        `[Main] Adjusting window ${win.id} size to fit content: ${targetWidth}x${targetHeight}`,
+      );
+      win.setSize(targetWidth, targetHeight);
+
+      // Re-center after resizing
+      win.center();
+    }
+  } catch (e) {
+    logger.error(`[Main] Failed to adjust window ${win.id} size:`, e);
+  }
+}
+
 function setValidationMode(active: boolean) {
   validationModeActive = active;
   if (validationTimeout) {
@@ -316,35 +362,9 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
         return;
       }
 
-      // [v14] Dynamic Resize based on content with minimal padding
-      try {
-        const dimensions = await targetWindow.webContents.executeJavaScript(`({
-          width: document.documentElement.scrollWidth,
-          height: document.documentElement.scrollHeight
-        })`);
-
-        if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
-          // Minimal buffer: Enough for borders and typical padding, no aggressive min-size
-          const finalWidth = Math.min(
-            1600,
-            Math.max(200, dimensions.width + 40),
-          );
-          const finalHeight = Math.min(
-            1000,
-            Math.max(150, dimensions.height + 80),
-          );
-
-          logger.log(
-            `[Automation] Resizing window ${targetWindow.id} to content: ${finalWidth}x${finalHeight}`,
-          );
-          targetWindow.setSize(finalWidth, finalHeight);
-        }
-      } catch (e) {
-        logger.error("[Automation] Failed to measure content dimensions:", e);
-      }
-
-      // [v14] Refined Focus Sequence
+      // [v22] Adjust size with 0.1s delay
       targetWindow.show();
+      await resizeToFitContent(targetWindow);
       targetWindow.center();
       targetWindow.focus();
       targetWindow.moveTop();
@@ -1161,7 +1181,7 @@ const createHandleWindowOpen =
 const forcedVisibleWindows = new Set<number>();
 
 // [IPC] Dynamic Visibility Request from Preload
-ipcMain.on("window-visibility-request", (event, isVisible: boolean) => {
+ipcMain.on("window-visibility-request", async (event, isVisible: boolean) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window.isDestroyed()) return;
 
@@ -1170,7 +1190,6 @@ ipcMain.on("window-visibility-request", (event, isVisible: boolean) => {
   const isValidation = triggerContext === "ACCOUNT_VALIDATION";
 
   if (isVisible) {
-    // [Security] Absolutely prevent show if in background validation mode
     if (isValidation) {
       logger.log(
         `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
@@ -1183,10 +1202,11 @@ ipcMain.on("window-visibility-request", (event, isVisible: boolean) => {
       logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
     }
 
-    // [v11] Revert to simple show/center/focus for reliable layout
     if (!window.isVisible()) {
       window.show();
     }
+    // [v22] Adjust size with 0.1s delay
+    await resizeToFitContent(window);
     window.center();
     window.focus();
     window.moveTop();
@@ -1195,12 +1215,7 @@ ipcMain.on("window-visibility-request", (event, isVisible: boolean) => {
       forcedVisibleWindows.delete(window.id);
       logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
 
-      // If released, check if it should be hidden (Config Check)
-      // If "Show Inactive" is OFF, and it's not the Main/Game/Debug window, hide it.
       if (!showInactive) {
-        // Double check against context to avoid hiding critical windows mistakenly
-        // But logic in InactiveWindowVisibilityHandler handles this.
-        // Let's reuse the logic by manual check here for responsiveness.
         const isMainWindow =
           context.mainWindow && context.mainWindow.id === window.id;
         const isGameWindow =
