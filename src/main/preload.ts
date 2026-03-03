@@ -221,7 +221,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.off("app:title-updated", handler);
   },
   requestTitleUpdate: () => ipcRenderer.send("app:request-title"),
+
+  // [UAC Migration]
+  onUacMigrationRequest: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("uac-migration:request", handler);
+    return () => ipcRenderer.off("uac-migration:request", handler);
+  },
+  reportUacMigrationReady: () => ipcRenderer.send("uac-migration:ready"),
   confirmUacMigration: () => ipcRenderer.send("uac-migration:confirm"),
+
   initialGameName: getGameName(
     ipcRenderer.sendSync("config:get-sync", "activeGame"),
   ),
@@ -237,4 +246,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("account:updated", handler);
     return () => ipcRenderer.off("account:updated", handler);
   },
+
+  // [Fatal Error Handling]
+  onFatalError: (callback: (errorDetails: string) => void) => {
+    const handler = (_event: IpcRendererEvent, errorDetails: string) =>
+      callback(errorDetails);
+    ipcRenderer.on("app:fatal-error", handler);
+    return () => ipcRenderer.off("app:fatal-error", handler);
+  },
+  reportFatalReady: () => ipcRenderer.send("app:fatal-error-ready"),
 });

@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import React, {
   useState,
   useEffect,
@@ -6,15 +7,7 @@ import React, {
   useCallback,
 } from "react";
 
-import "./App.css";
 import { CONFIG_KEYS } from "../shared/config";
-import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
-import iconGithub from "./assets/icon-github.svg";
-import bannerBottom from "./assets/layout/banner-bottom.png";
-import bgPoe from "./assets/poe1/bg-keepers.png";
-import bgPoe2 from "./assets/poe2/bg-forest.webp";
-import GameSelector from "./components/GameSelector";
-import GameStartButton from "./components/GameStartButton";
 import {
   AppConfig,
   GameStatusState,
@@ -24,7 +17,24 @@ import {
   UpdateStatus,
   ChangelogItem,
 } from "../shared/types";
+import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
+
+import "./App.css";
+import iconGithub from "./assets/icon-github.svg";
+import bannerBottom from "./assets/layout/banner-bottom.png";
+import bgPoe from "./assets/poe1/bg-keepers.png";
+import bgPoe2 from "./assets/poe2/bg-forest.webp";
+
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import GameSelector from "./components/GameSelector";
+import GameStartButton from "./components/GameStartButton";
+import OfficialLinkButtons from "./components/OfficialLinkButtons";
+import ServiceChannelSelector from "./components/ServiceChannelSelector";
+import SupportLinks from "./components/SupportLinks";
+import TitleBar from "./components/TitleBar";
+import UpdateModal from "./components/UpdateModal";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import FatalErrorModal from "./components/modals/FatalErrorModal";
 import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
@@ -32,12 +42,8 @@ import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
-import OfficialLinkButtons from "./components/OfficialLinkButtons";
-import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
-import SupportLinks from "./components/SupportLinks";
-import TitleBar from "./components/TitleBar";
-import UpdateModal from "./components/UpdateModal";
+
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
 import { extractThemeColors, applyThemeColors } from "./utils/theme";
@@ -216,9 +222,14 @@ function App() {
   // [UAC Migration] Listener
   useEffect(() => {
     if (window.electronAPI?.onUacMigrationRequest) {
-      return window.electronAPI.onUacMigrationRequest(() => {
+      const cleanup = window.electronAPI.onUacMigrationRequest(() => {
         setIsMigrationModalOpen(true);
       });
+
+      // Signal to Main that Renderer is ready to receive UAC migration requests
+      window.electronAPI.reportUacMigrationReady();
+
+      return cleanup;
     }
   }, []);
 
@@ -233,6 +244,23 @@ function App() {
 
   // Launcher Title State (Managed by Main Process via Events)
   const [appTitle, setAppTitle] = useState<string | undefined>(undefined);
+
+  // [Fatal Error Handling State]
+  const [fatalError, setFatalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onFatalError) {
+      const cleanup = window.electronAPI.onFatalError((errorDetails) => {
+        logger.error("[App] Fatal Error received from Main:", errorDetails);
+        setFatalError(errorDetails);
+      });
+
+      // Signal to Main that Renderer is ready to receive buffered fatal errors
+      window.electronAPI.reportFatalReady();
+
+      return cleanup;
+    }
+  }, []);
 
   useEffect(() => {
     if (window.electronAPI?.onTitleUpdated) {
@@ -747,302 +775,305 @@ function App() {
   }, []);
 
   return (
-    <div
-      id="app-container"
-      className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
-      style={
-        {
-          width: "100vw",
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#000",
-          overflow: "hidden",
-          "--app-scale": scale,
-        } as React.CSSProperties
-      }
-    >
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onFinish={handleOnboardingFinish}
-      />
-
-      <MigrationModal
-        isOpen={isMigrationModalOpen}
-        onConfirm={handleMigrationConfirm}
-        onCancel={handleMigrationCancel}
-      />
-
-      {isChangelogOpen && (
-        <ChangelogModal
-          changelogs={changelogs}
-          oldVersion={versionRange.old}
-          newVersion={versionRange.new}
-          onClose={() => setIsChangelogOpen(false)}
-        />
-      )}
-
-      <UpdateModal
-        isOpen={isUpdateModalOpen}
-        version={
-          (updateState.state === "available" ||
-            updateState.state === "downloaded" ||
-            updateState.state === "downloading") &&
-          "version" in updateState
-            ? updateState.version || ""
-            : ""
-        }
-        status={updateState}
-        onUpdate={handleUpdateClick}
-        onInstall={handleInstallClick}
-        onClose={handleUpdateDismiss}
-      />
-
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-
-      <PatchFixModal
-        isOpen={patchModalState.isOpen}
-        mode={patchModalState.mode}
-        gameId={patchModalState.gameId}
-        serviceId={patchModalState.serviceId}
-        progress={patchModalState.progress}
-        autoStart={patchModalState.autoStart}
-        onConfirm={handlePatchConfirm}
-        onCancel={handlePatchCancel}
-        onClose={handlePatchClose}
-      />
-
-      <NoticeModal
-        item={selectedNotice}
-        onClose={() => setSelectedNotice(null)}
-      />
-
-      {isForcedRepairOpen && repairVersionInfo && (
-        <ForcedRepairModal
-          key={`${activeGame}-${repairVersionInfo.version}`}
-          isOpen={isForcedRepairOpen}
-          gameId={activeGame}
-          serviceId={serviceChannel}
-          versionInfo={repairVersionInfo}
-          remoteVersion={remoteVersions?.[activeGame]?.version}
-          onCancel={() => setIsForcedRepairOpen(false)}
-          onConfirm={handleForcedRepairConfirm}
-        />
-      )}
-
-      {/* Scalable UI Content */}
+    <ErrorBoundary onFatalError={setFatalError}>
       <div
-        className="app-scaler"
-        style={{
-          transform: `scale(${scale})`,
-          width: `${BASE_WIDTH}px`,
-          height: `${BASE_HEIGHT}px`,
-          transformOrigin: "center center",
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-          zIndex: 10,
-          flexShrink: 0,
-          backgroundColor: "#000",
-        }}
+        id="app-container"
+        className={activeGame === "POE2" ? "bg-poe2" : "bg-poe1"}
+        style={
+          {
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#000",
+            overflow: "hidden",
+            "--app-scale": scale,
+          } as React.CSSProperties
+        }
       >
-        {/* Background Layer (Now inside Scaler to create Letterbox effect) */}
-
-        <div
-          id="app-background"
-          style={{
-            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${bgImage}')`,
-            opacity: bgOpacity,
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundSize: "cover",
-            backgroundPosition: "center top",
-            zIndex: 0,
-          }}
-        />
-        {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
-        <TitleBar
-          title={appTitle}
-          showUpdateIcon={updateState.state === "downloaded"}
-          onUpdateClick={() => setIsUpdateModalOpen(true)}
-          devMode={devMode}
-          debugConsole={debugConsole}
+        {fatalError && <FatalErrorModal errorDetails={fatalError} />}
+        <OnboardingModal
+          isOpen={showOnboarding}
+          onFinish={handleOnboardingFinish}
         />
 
-        {/* 2. Main Content Frame */}
+        <MigrationModal
+          isOpen={isMigrationModalOpen}
+          onConfirm={handleMigrationConfirm}
+          onCancel={handleMigrationCancel}
+        />
+
+        {isChangelogOpen && (
+          <ChangelogModal
+            changelogs={changelogs}
+            oldVersion={versionRange.old}
+            newVersion={versionRange.new}
+            onClose={() => setIsChangelogOpen(false)}
+          />
+        )}
+
+        <UpdateModal
+          isOpen={isUpdateModalOpen}
+          version={
+            (updateState.state === "available" ||
+              updateState.state === "downloaded" ||
+              updateState.state === "downloading") &&
+            "version" in updateState
+              ? updateState.version || ""
+              : ""
+          }
+          status={updateState}
+          onUpdate={handleUpdateClick}
+          onInstall={handleInstallClick}
+          onClose={handleUpdateDismiss}
+        />
+
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+
+        <PatchFixModal
+          isOpen={patchModalState.isOpen}
+          mode={patchModalState.mode}
+          gameId={patchModalState.gameId}
+          serviceId={patchModalState.serviceId}
+          progress={patchModalState.progress}
+          autoStart={patchModalState.autoStart}
+          onConfirm={handlePatchConfirm}
+          onCancel={handlePatchCancel}
+          onClose={handlePatchClose}
+        />
+
+        <NoticeModal
+          item={selectedNotice}
+          onClose={() => setSelectedNotice(null)}
+        />
+
+        {isForcedRepairOpen && repairVersionInfo && (
+          <ForcedRepairModal
+            key={`${activeGame}-${repairVersionInfo.version}`}
+            isOpen={isForcedRepairOpen}
+            gameId={activeGame}
+            serviceId={serviceChannel}
+            versionInfo={repairVersionInfo}
+            remoteVersion={remoteVersions?.[activeGame]?.version}
+            onCancel={() => setIsForcedRepairOpen(false)}
+            onConfirm={handleForcedRepairConfirm}
+          />
+        )}
+
+        {/* Scalable UI Content */}
         <div
-          className="app-main-content"
+          className="app-scaler"
           style={{
-            flex: 1,
+            transform: `scale(${scale})`,
+            width: `${BASE_WIDTH}px`,
+            height: `${BASE_HEIGHT}px`,
+            transformOrigin: "center center",
             display: "flex",
             flexDirection: "column",
             position: "relative",
             zIndex: 10,
-            minHeight: 0 /* Force flex constraints */,
-            overflow: "hidden" /* Clip any runaway contents */,
-            paddingTop:
-              "32px" /* Ensure content starts below absolute TitleBar */,
+            flexShrink: 0,
+            backgroundColor: "#000",
           }}
         >
-          {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
-          <div className="frame-decoration top-center">
-            {/* Blue Fire Overlay (Localized Ripple) */}
-            <div className="top-center-blue" />
-            {/* Interactive Hit Zone for Blue Fire (Top Central Demon) */}
-            <div className="top-center-trigger" />
-          </div>
-          <div className="frame-decoration top-left"></div>
-          <div className="frame-decoration top-right"></div>
+          {/* Background Layer (Now inside Scaler to create Letterbox effect) */}
 
-          <div className="app-layout">
-            {/* === Left Panel: Controls (400px width) === */}
-            <div className="left-panel">
-              {/* Section A: Game Selector (Top) */}
-              <div style={{ marginTop: "10px" }}>
-                <GameSelector
-                  activeGame={activeGame}
-                  onGameChange={handleGameChange}
-                />
-              </div>
+          <div
+            id="app-background"
+            style={{
+              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${bgImage}')`,
+              opacity: bgOpacity,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              backgroundSize: "cover",
+              backgroundPosition: "center top",
+              zIndex: 0,
+            }}
+          />
+          {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
+          <TitleBar
+            title={appTitle}
+            showUpdateIcon={updateState.state === "downloaded"}
+            onUpdateClick={() => setIsUpdateModalOpen(true)}
+            devMode={devMode}
+            debugConsole={debugConsole}
+          />
 
-              {/* Section B: Menu Area (Middle) - Flex Grow */}
-              <div
-                className="middle-menu-area"
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "flex-start" /* Top align */,
-                  alignItems: "flex-start" /* Left align */,
-                  paddingTop: "40px" /* Some top spacing */,
-                  paddingLeft: "20px" /* Small padding for left alignment */,
-                  paddingRight: "20px" /* Symmetric padding */,
-                }}
-              >
-                <SupportLinks
-                  remoteVersions={remoteVersions}
-                  onForcedRepairRequest={handleForcedRepairRequest}
-                />
-              </div>
+          {/* 2. Main Content Frame */}
+          <div
+            className="app-main-content"
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              position: "relative",
+              zIndex: 10,
+              minHeight: 0 /* Force flex constraints */,
+              overflow: "hidden" /* Clip any runaway contents */,
+              paddingTop:
+                "32px" /* Ensure content starts below absolute TitleBar */,
+            }}
+          >
+            {/* Gothic Top Frame Decorations (Now Inside Main Content) */}
+            <div className="frame-decoration top-center">
+              {/* Blue Fire Overlay (Localized Ripple) */}
+              <div className="top-center-blue" />
+              {/* Interactive Hit Zone for Blue Fire (Top Central Demon) */}
+              <div className="top-center-trigger" />
+            </div>
+            <div className="frame-decoration top-left"></div>
+            <div className="frame-decoration top-right"></div>
 
-              {/* Section C: Game Start & Company Logos (Bottom) */}
-              <div className="bottom-controls">
-                <div style={{ width: "340px", marginBottom: "4px" }}>
-                  <ServiceChannelSelector
-                    channel={serviceChannel}
-                    onChannelChange={handleChannelChange}
-                    onSettingsClick={() => setIsSettingsOpen(true)}
+            <div className="app-layout">
+              {/* === Left Panel: Controls (400px width) === */}
+              <div className="left-panel">
+                {/* Section A: Game Selector (Top) */}
+                <div style={{ marginTop: "10px" }}>
+                  <GameSelector
+                    activeGame={activeGame}
+                    onGameChange={handleGameChange}
                   />
                 </div>
 
-                {/* Official Links (Homepage/Trade) */}
-                <OfficialLinkButtons
-                  activeGame={activeGame}
-                  serviceChannel={serviceChannel}
-                />
-
-                <GameStartButton
-                  onClick={handleGameStart}
-                  label={
-                    activeGameStatus.status === "uninstalled"
-                      ? "설치하기"
-                      : "게임 시작"
-                  }
-                  className={isButtonDisabled ? "disabled" : ""}
-                  style={
-                    isButtonDisabled
-                      ? {
-                          opacity: 0.5,
-                          cursor: "not-allowed",
-                          pointerEvents: "none",
-                        }
-                      : {}
-                  }
-                />
-
-                {/* Progress Info Message */}
+                {/* Section B: Menu Area (Middle) - Flex Grow */}
                 <div
+                  className="middle-menu-area"
                   style={{
-                    height: "20px",
-                    marginTop: "2px",
-                    marginBottom: "2px",
+                    flex: 1,
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--theme-accent)",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                    opacity: activeStatusMessage ? 1 : 0,
-                    transition: "opacity 0.3s ease-in-out",
+                    flexDirection: "column",
+                    justifyContent: "flex-start" /* Top align */,
+                    alignItems: "flex-start" /* Left align */,
+                    paddingTop: "40px" /* Some top spacing */,
+                    paddingLeft: "20px" /* Small padding for left alignment */,
+                    paddingRight: "20px" /* Symmetric padding */,
                   }}
                 >
-                  {activeStatusMessage || " "}
+                  <SupportLinks
+                    remoteVersions={remoteVersions}
+                    onForcedRepairRequest={handleForcedRepairRequest}
+                  />
                 </div>
 
-                {/* Company Logos - Removed and moved to Service Channel Dropdown */}
-                <div className="company-logos" style={{ display: "none" }} />
-              </div>
-            </div>
+                {/* Section C: Game Start & Company Logos (Bottom) */}
+                <div className="bottom-controls">
+                  <div style={{ width: "340px", marginBottom: "4px" }}>
+                    <ServiceChannelSelector
+                      channel={serviceChannel}
+                      onChannelChange={handleChannelChange}
+                      onSettingsClick={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
 
-            {/* === Right Panel: Content Area === */}
-            <div className="right-panel">
-              <div className="dev-notice-container">
-                <NewsSection
-                  title="개발자 공지사항"
-                  items={devNotices}
-                  forumUrl=""
-                  onRead={handleDevRead}
-                  onShowModal={handleNoticeClick}
-                  isDevSection={true}
-                  headerVariant="long"
+                  {/* Official Links (Homepage/Trade) */}
+                  <OfficialLinkButtons
+                    activeGame={activeGame}
+                    serviceChannel={serviceChannel}
+                  />
+
+                  <GameStartButton
+                    onClick={handleGameStart}
+                    label={
+                      activeGameStatus.status === "uninstalled"
+                        ? "설치하기"
+                        : "게임 시작"
+                    }
+                    className={isButtonDisabled ? "disabled" : ""}
+                    style={
+                      isButtonDisabled
+                        ? {
+                            opacity: 0.5,
+                            cursor: "not-allowed",
+                            pointerEvents: "none",
+                          }
+                        : {}
+                    }
+                  />
+
+                  {/* Progress Info Message */}
+                  <div
+                    style={{
+                      height: "20px",
+                      marginTop: "2px",
+                      marginBottom: "2px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--theme-accent)",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                      opacity: activeStatusMessage ? 1 : 0,
+                      transition: "opacity 0.3s ease-in-out",
+                    }}
+                  >
+                    {activeStatusMessage || " "}
+                  </div>
+
+                  {/* Company Logos - Removed and moved to Service Channel Dropdown */}
+                  <div className="company-logos" style={{ display: "none" }} />
+                </div>
+              </div>
+
+              {/* === Right Panel: Content Area === */}
+              <div className="right-panel">
+                <div className="dev-notice-container">
+                  <NewsSection
+                    title="개발자 공지사항"
+                    items={devNotices}
+                    forumUrl=""
+                    onRead={handleDevRead}
+                    onShowModal={handleNoticeClick}
+                    isDevSection={true}
+                    headerVariant="long"
+                  />
+                </div>
+                <NewsDashboard
+                  activeGame={activeGame}
+                  serviceChannel={serviceChannel}
+                  onItemClick={handleNoticeClick}
                 />
               </div>
-              <NewsDashboard
-                activeGame={activeGame}
-                serviceChannel={serviceChannel}
-                onItemClick={handleNoticeClick}
-              />
-            </div>
-          </div>
-
-          {/* Footer Section (Button + Image Separation) */}
-          <div className="footer-section">
-            {/* 1. Background Image Wrapper (Clipped) */}
-            <div className="footer-bg-wrapper">
-              <img
-                src={bannerBottom}
-                className="footer-bg-image"
-                alt="Footer Banner"
-              />
             </div>
 
-            {/* 2. Content Overlay (Text & Icon) */}
-            <div className="footer-content">
-              <span className="credits-text">Powered by NERDHEAD LAB</span>
-              <a
-                href={SUPPORT_URLS.GITHUB_REPO}
-                target="_blank"
-                className="github-link"
-              >
+            {/* Footer Section (Button + Image Separation) */}
+            <div className="footer-section">
+              {/* 1. Background Image Wrapper (Clipped) */}
+              <div className="footer-bg-wrapper">
                 <img
-                  src={iconGithub}
-                  className="github-icon"
-                  alt="GitHub Repo"
+                  src={bannerBottom}
+                  className="footer-bg-image"
+                  alt="Footer Banner"
                 />
-              </a>
+              </div>
+
+              {/* 2. Content Overlay (Text & Icon) */}
+              <div className="footer-content">
+                <span className="credits-text">Powered by NERDHEAD LAB</span>
+                <a
+                  href={SUPPORT_URLS.GITHUB_REPO}
+                  target="_blank"
+                  className="github-link"
+                >
+                  <img
+                    src={iconGithub}
+                    className="github-icon"
+                    alt="GitHub Repo"
+                  />
+                </a>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

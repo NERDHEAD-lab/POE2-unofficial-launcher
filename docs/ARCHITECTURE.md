@@ -132,7 +132,18 @@
 - **결과**:
   - **사용자 경험 성숙도**: 복잡한 설정 간의 관계를 시각적으로 명확히 전달하며, 적용 시점(재시작)을 명시하여 혼란을 방지함.
 
-#### ADR-008: Robust UAC Bypass via Proxy VBS & Task Scheduler
+#### ADR-009: Global Fatal Error Handling & Fallback UI
+
+- **상황**: 초기 앱 로드 중 예외가 발생하거나 React 렌더링에 치명적인 문제가 있을 경우 백화현상(White Screen)과 함께 런처가 응답 불능 상태에 빠지는 현상 제거 필요.
+- **결정**:
+  - **Main Process 포착**: `process.on('uncaughtException', ...)` 및 `unhandledRejection` 핸들러를 추가하여 메인 프로세스의 치명적 오류를 글로벌하게 포착. 발생한 오류는 Renderer가 준비(`app:fatal-error-ready`)되기 전까지 버퍼링함.
+  - **Renderer ErrorBoundary**: React 렌더 트리 내부에서 발생하는 JS 오류는 최상단 `ErrorBoundary` 컴포넌트가 `componentDidCatch`로 포착함.
+  - **FatalErrorModal**: 어떠한 오류든 포착되면, 안전한 CSS/스타일(인라인 적용 포함)만을 사용한 `FatalErrorModal`을 노출하여 사용자가 에러 내역을 복사하거나 런처를 강제 재시작할 수 있도록 안내.
+- **결과**:
+  - **안정성 (Graceful Degradation)**: 앱 크래시 대신 명확한 안내 화면을 띄워 사용자 거부감을 최소화하고 디버깅 가능한 보고 체계를 갖춤.
+  - **백화현상 근절**: 어떠한 타이밍에 오류가 발생하든 최소한의 방어 레이어가 정상 렌더링을 보장.
+
+#### ADR-010: Robust UAC Bypass via Proxy VBS & Task Scheduler
 
 - **상황**: 게임 실행 파일을 직접 호출 시 관리자 권한 요청(UAC)이 매번 발생하여 자동화 흐름이 끊김. 이를 해결하기 위해 시스템 레지스트리를 수정하여 런처가 제어권을 가져와야 함.
 - **결정**:

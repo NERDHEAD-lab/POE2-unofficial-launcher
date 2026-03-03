@@ -245,7 +245,12 @@ export interface ElectronAPI {
 
   // [UAC Migration]
   onUacMigrationRequest: (callback: () => void) => () => void;
+  reportUacMigrationReady: () => void;
   confirmUacMigration: () => void;
+
+  // [Fatal Error Handling]
+  onFatalError: (callback: (errorDetails: string) => void) => () => void;
+  reportFatalReady: () => void;
 }
 
 export type UpdateStatus =

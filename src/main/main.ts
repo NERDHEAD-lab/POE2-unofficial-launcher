@@ -141,6 +141,37 @@ let currentActiveContext: {
   serviceId: AppConfig["serviceChannel"];
 } | null = null;
 
+// --- Fatal Error Handling State ---
+let fatalErrorBuffer: string | null = null;
+let isRendererReadyForFatalError = false;
+
+function handleFatalError(error: Error | unknown, type: string) {
+  const errorMessage =
+    error instanceof Error ? error.stack || error.message : String(error);
+  const fullMessage = `[${type}] ${errorMessage}`;
+
+  logger.error(`[Fatal] ${fullMessage}`);
+
+  if (isRendererReadyForFatalError && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("app:fatal-error", fullMessage);
+  } else {
+    // Buffer it if renderer isn't ready
+    if (!fatalErrorBuffer) {
+      fatalErrorBuffer = fullMessage;
+    } else {
+      fatalErrorBuffer += `\n\n[${type}] ${errorMessage}`;
+    }
+  }
+}
+
+process.on("uncaughtException", (error) => {
+  handleFatalError(error, "uncaughtException");
+});
+
+process.on("unhandledRejection", (reason) => {
+  handleFatalError(reason, "unhandledRejection");
+});
+
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -326,6 +357,19 @@ ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
 ipcMain.on("app:relaunch", () => {
   app.relaunch();
   app.exit(0);
+});
+
+// [Fatal Error Handling]
+ipcMain.on("app:fatal-error-ready", () => {
+  logger.log("[Main] Renderer is ready to receive fatal errors.");
+  isRendererReadyForFatalError = true;
+
+  // Flush buffer if any
+  if (fatalErrorBuffer && mainWindow && !mainWindow.isDestroyed()) {
+    logger.log("[Main] Flushing fatal error buffer to renderer.");
+    mainWindow.webContents.send("app:fatal-error", fatalErrorBuffer);
+    fatalErrorBuffer = null;
+  }
 });
 
 ipcMain.handle("debug:get-history", () => {
@@ -524,7 +568,6 @@ ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
   return shell.openPath(targetPath);
 });
 
-// --- UAC Bypass IPC Handlers ---
 ipcMain.on("uac-migration:confirm", async () => {
   logger.log("[Main] User confirmed UAC Migration.");
   await LegacyUacManager.cleanupLegacy();
@@ -534,6 +577,14 @@ ipcMain.on("uac-migration:confirm", async () => {
 
   // Use setConfigWithEvent
   setConfigWithEvent(key, newValue);
+});
+
+// [UAC Migration] Handle Renderer Ready Signal
+ipcMain.on("uac-migration:ready", async () => {
+  if (await LegacyUacManager.detectLegacy()) {
+    logger.log("[Main] Legacy UAC detected. Requesting migration modal...");
+    appContext.mainWindow?.webContents.send("uac-migration:request");
+  }
 });
 
 // [Fix] Register Missing UAC Handlers
@@ -1393,19 +1444,10 @@ function createWindows() {
         logger.log("[Main] Starting hidden (minimized to tray).");
       }
 
-      // [Fix] Defer Version Check/Changelog until Window is Ready
-      // A small timeout ensures the renderer has fully initialized and registered IPC listeners.
+      // [Fix] Defer Version Check until Window is Ready
       setTimeout(async () => {
         // Check for launcher update (version change)
         await checkLauncherVersionUpdate();
-
-        // [UAC Migration] Trigger In-App Modal if Legacy Detected
-        if (await LegacyUacManager.detectLegacy()) {
-          logger.log(
-            "[Main] Legacy UAC detected. Requesting migration modal...",
-          );
-          mainWindow?.webContents.send("uac-migration:request");
-        }
       }, 1000);
     }
   });
