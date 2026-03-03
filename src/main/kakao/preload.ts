@@ -26,7 +26,7 @@ interface PageHandler {
   /**
    * Timeout for this specific page in milliseconds.
    * Set to -1 to disable timeout (e.g. for login pages).
-   * Default is 30000ms if not specified.
+   * Default is 10000ms if not specified.
    */
   timeoutMs?: number;
   /** Main logic execution */
@@ -241,6 +241,7 @@ const AccountValidationHandler: PageHandler = {
     (url.hostname === "poe.game.daum.net" ||
       url.hostname === "pathofexile2.game.daum.net") &&
     isValidationMode,
+  timeoutMs: -1, // No timeout for background validation
   triggeredBy: ["ACCOUNT_VALIDATION"],
   execute: async () => {
     logger.log(`[Handler] Executing ${AccountValidationHandler.name}`);
@@ -949,13 +950,13 @@ async function dispatchPageLogic(triggerContext?: string) {
       // Priority: Handler.visible > Config
       const isVisibleByHandler = handler.visible === true;
 
-      if (isVisibleByHandler) {
+      if (isVisibleByHandler && !isValidationMode) {
         logger.log(
           `[Game Window] Visibility required (Handler: ${isVisibleByHandler}). Requesting show...`,
         );
         requestWindowVisibility(true);
       } else {
-        // [Refinement] Explicitly un-force if not required
+        // [Refinement] Explicitly un-force if not required (always un-force if in validation mode)
         requestWindowVisibility(false);
       }
 
@@ -971,7 +972,7 @@ async function dispatchPageLogic(triggerContext?: string) {
 
       // 3. Update Timeout in Main Process
       const timeout =
-        handler.timeoutMs !== undefined ? handler.timeoutMs : 30000;
+        handler.timeoutMs !== undefined ? handler.timeoutMs : 10000;
 
       if (isValidationMode) {
         ipcRenderer.send("account:update-timeout", timeout);

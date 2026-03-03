@@ -192,7 +192,7 @@ let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 // --- Account Validation State ---
 let validationModeActive = false;
 let validationTimeout: NodeJS.Timeout | null = null;
-const VALIDATION_TIMEOUT_MS = 30000; // 30s
+const VALIDATION_TIMEOUT_MS = 10000; // 10s
 let automationTimeout: NodeJS.Timeout | null = null;
 
 function setValidationMode(active: boolean) {
@@ -208,6 +208,15 @@ function setValidationMode(active: boolean) {
         gameWindow && !gameWindow.isDestroyed()
           ? gameWindow.webContents.getURL()
           : "Unknown (Window closed)";
+
+      // Ignore timeout if the window is cleanly reset or still loading about:blank
+      if (currentUrl === "about:blank") {
+        logger.log(
+          "[Account] Ignoring validation timeout on about:blank window.",
+        );
+        return;
+      }
+
       logger.error(`[Account] Validation timed out at: ${currentUrl}`);
 
       setValidationMode(false);
@@ -238,9 +247,27 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
       gameWindow && !gameWindow.isDestroyed()
         ? gameWindow.webContents.getURL()
         : "Unknown (Window closed)";
+
+    // Ignore timeout if the window is cleanly reset or still loading about:blank
+    if (currentUrl === "about:blank") {
+      logger.log(
+        "[Automation] Ignoring process timeout on about:blank window.",
+      );
+      return;
+    }
+
     logger.error(`[Automation] Process timed out at: ${currentUrl}`);
 
     if (gameWindow && !gameWindow.isDestroyed()) {
+      // [Security] Do NOT show or alert if this is a background validation window
+      const triggerContext = getNavigationTrigger(gameWindow.webContents.id);
+      if (triggerContext === "ACCOUNT_VALIDATION") {
+        logger.log(
+          "[Automation] Process timed out (Validation Mode). Suppressing show/alert.",
+        );
+        return;
+      }
+
       // Show the window so user can see what's happening
       gameWindow.show();
       gameWindow.focus();
@@ -248,7 +275,7 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
       // Generic message without assumptions or "Account" terminology
       try {
         await gameWindow.webContents.executeJavaScript(
-          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.");`,
+          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.\\n\\n현재 URL: " + ${JSON.stringify(currentUrl)});`,
         );
       } catch (e) {
         logger.error("[Automation] Failed to show alert in game window:", e);
@@ -949,6 +976,18 @@ ipcMain.on("kakao:login-required", (event, data?: { url?: string }) => {
 
   // Explicitly disable timeout when login is required to allow user to interact
   setValidationMode(false);
+
+  // [Refinement] Close the background validation window if it's no longer needed
+  // (User will explicitly open it via "Login" button if they want to)
+  if (gameWindow && !gameWindow.isDestroyed()) {
+    const context = getNavigationTrigger(gameWindow.webContents.id);
+    if (context === "ACCOUNT_VALIDATION") {
+      logger.log(
+        "[Account] Closing background validation window (Login Required).",
+      );
+      gameWindow.close();
+    }
+  }
 });
 
 ipcMain.on("automation:update-timeout", (_event, timeoutMs: number) => {
@@ -1042,8 +1081,18 @@ ipcMain.on(
     }
 
     const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+    const triggerContext = getNavigationTrigger(event.sender.id);
+    const isValidation = triggerContext === "ACCOUNT_VALIDATION";
 
     if (isVisible) {
+      // [Security] Absolutely prevent show if in background validation mode
+      if (isValidation) {
+        logger.log(
+          `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
+        );
+        return;
+      }
+
       if (!forcedVisibleWindows.has(window.id)) {
         forcedVisibleWindows.add(window.id);
         logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
