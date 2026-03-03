@@ -192,7 +192,7 @@ let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 // --- Account Validation State ---
 let validationModeActive = false;
 let validationTimeout: NodeJS.Timeout | null = null;
-const VALIDATION_TIMEOUT_MS = 30000; // 30s
+const VALIDATION_TIMEOUT_MS = 10000; // 10s
 let automationTimeout: NodeJS.Timeout | null = null;
 
 function setValidationMode(active: boolean) {
@@ -275,7 +275,7 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
       // Generic message without assumptions or "Account" terminology
       try {
         await gameWindow.webContents.executeJavaScript(
-          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.");`,
+          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.\\n\\n현재 URL: " + ${JSON.stringify(currentUrl)});`,
         );
       } catch (e) {
         logger.error("[Automation] Failed to show alert in game window:", e);
