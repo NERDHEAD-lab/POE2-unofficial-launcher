@@ -7,6 +7,7 @@ import { logger } from "../utils/preload-logger";
 
 interface HandlerContext {
   setVisible: (visible: boolean) => void;
+  getCurrentUrl: () => string;
 }
 
 interface GameSessionContext {
@@ -113,14 +114,7 @@ function requestWindowVisibility(visible: boolean) {
     return;
   }
 
-  if (visible) {
-    const width = document.documentElement.scrollWidth + 40; // Buffer for vertical scrollbar/border
-    const height = document.documentElement.scrollHeight + 60; // Buffer for titlebar/border
-    const options = { width, height };
-    ipcRenderer.send("window-visibility-request", true, options);
-  } else {
-    ipcRenderer.send("window-visibility-request", false);
-  }
+  ipcRenderer.send("window-visibility-request", visible);
 }
 
 function safeClick(
@@ -246,6 +240,9 @@ const AccountValidationHandler: PageHandler = {
   execute: async () => {
     logger.log(`[Handler] Executing ${AccountValidationHandler.name}`);
 
+    let isSyncClicked = false;
+    let lastTier1LogTime = 0;
+
     observeAndInteract((obs) => {
       // --- Tier 1: GGB Check (Daum Auth) ---
       const ggbNickname = document.querySelector(
@@ -263,14 +260,18 @@ const AccountValidationHandler: PageHandler = {
           safeClick(ggbLoginBtn as HTMLElement, "GGB Login Button");
           return false; // Wait for navigation
         }
-        // If neither, maybe page is still loading or DOM changed significantly
         return false;
       }
 
       // --- Tier 2: StatusBar Check (POE Session Sync) ---
-      logger.log(
-        `[AccountValidationHandler] Tier 1 Success: GGB Logged in (${ggbNickname.textContent?.trim()})`,
-      );
+      // Throttle Tier 1 log to once every 5 seconds to reduce noise
+      const now = Date.now();
+      if (now - lastTier1LogTime > 5000) {
+        logger.log(
+          `[AccountValidationHandler] Tier 1 Success: GGB Logged in (${ggbNickname.textContent?.trim()})`,
+        );
+        lastTier1LogTime = now;
+      }
 
       const statusBarNickname = document.querySelector(
         SELECTORS.ACCOUNT.STATUS_NICKNAME,
@@ -291,10 +292,11 @@ const AccountValidationHandler: PageHandler = {
       }
 
       // GGB is logged in, but StatusBar isn't. Need to sync.
-      if (statusBarLoginBtn) {
+      if (statusBarLoginBtn && !isSyncClicked) {
         logger.log(
           "[AccountValidationHandler] Tier 2 Error: StatusBar needs sync. Clicking Login Link.",
         );
+        isSyncClicked = true; // Prevents spamming clicks/logs before navigation
         safeClick(statusBarLoginBtn as HTMLElement, "StatusBar Login Link");
         return false; // Wait for navigation
       }
@@ -706,14 +708,20 @@ const KakaoAuthHandler: PageHandler = {
   },
 };
 
+// 해당 페이지는 동일한 URL에서 다른 페이지를 표시 하는 경우가 있음 (문자 인증, MOTP 등)
+// 따라서 timeoutMs를 -1로 설정하고 observeAndInteract에서 일정 시간이 지나면 오류 없이 화면을 보여주도록 한다.
 const SecurityCenterHandler: PageHandler = {
   name: "SecurityCenterHandler",
   description: "Security Center / Designated PC",
   match: (url) => url.hostname === "security-center.game.daum.net",
+  timeoutMs: -1,
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
-  execute: () => {
+  execute: (context) => {
     logger.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
     ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
+
+    let isDelayQueued = false;
+    let delayTimeoutId: NodeJS.Timeout | null = null;
 
     observeAndInteract((obs) => {
       // [Visibility Logic] Only show window if "Designated PC" certificate UI is present
@@ -755,8 +763,21 @@ const SecurityCenterHandler: PageHandler = {
         )
       ) {
         if (obs) obs.disconnect();
+        if (delayTimeoutId) {
+          clearTimeout(delayTimeoutId);
+          delayTimeoutId = null;
+          context.setVisible(false);
+        }
         return true;
       }
+
+      if (!isDelayQueued) {
+        isDelayQueued = true;
+        delayTimeoutId = setTimeout(() => {
+          context.setVisible(true);
+        }, 2000);
+      }
+
       return false;
     });
   },
@@ -961,14 +982,20 @@ async function dispatchPageLogic(triggerContext?: string) {
       }
 
       // 2. Execute Handler with Context
-      const handlerContext: HandlerContext = {
-        setVisible: (visible: boolean) => {
-          logger.log(`[Game Window] Dynamic Visibility Request: ${visible}`);
-          ipcRenderer.send("window-visibility-request", visible);
-        },
-      };
-
-      handler.execute(handlerContext);
+      try {
+        const context: HandlerContext = {
+          setVisible: (visible: boolean) => {
+            requestWindowVisibility(visible);
+          },
+          getCurrentUrl: () => window.location.href,
+        };
+        await handler.execute(context);
+      } catch (e) {
+        logger.error(
+          `[Game Window] Error executing handler ${handler.name}:`,
+          e,
+        );
+      }
 
       // 3. Update Timeout in Main Process
       const timeout =

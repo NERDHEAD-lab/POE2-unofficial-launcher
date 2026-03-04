@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   app,
@@ -11,6 +11,9 @@ import {
   shell,
   session,
   screen,
+  protocol,
+  net,
+  webContents,
 } from "electron";
 import JSZip from "jszip";
 
@@ -93,6 +96,7 @@ import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { ProcessWatcher } from "./services/ProcessWatcher";
+import { themeCacheManager } from "./services/ThemeCacheManager";
 import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
   isAdmin,
@@ -115,6 +119,20 @@ import {
   applyResolutionRules,
   enforceConstraints,
 } from "./utils/window-resolution";
+
+// Register custom protocol as privileged so it bypasses CSP and works like file://
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "asset",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -194,6 +212,67 @@ let validationModeActive = false;
 let validationTimeout: NodeJS.Timeout | null = null;
 const VALIDATION_TIMEOUT_MS = 10000; // 10s
 let automationTimeout: NodeJS.Timeout | null = null;
+let lastActiveAutomationWebContentsId: number | null = null; // [New] Track which window last updated the timeout
+
+// [New] Safety Cleanup for Automation Tracking
+app.on("web-contents-created", (_, wc) => {
+  wc.on("destroyed", () => {
+    if (lastActiveAutomationWebContentsId === wc.id) {
+      logger.log(
+        `[Main] Clearing lastActiveAutomationWebContentsId ${wc.id} (Destroyed)`,
+      );
+      lastActiveAutomationWebContentsId = null;
+    }
+    // navigationTriggerContexts is not globally available here but we can use the helper
+    setNavigationTrigger(wc.id, null);
+  });
+});
+
+/**
+ * Safely resizes a window based on actual content dimensions using setSize.
+ * Includes a 100ms delay to allow external layouts to fully settle.
+ * Iterates through all DOM elements to find the true max scroll dimensions,
+ * preventing clipping on sites that use internal scroll containers.
+ */
+async function resizeToFitContent(win: BrowserWindow) {
+  if (!win || win.isDestroyed()) return;
+
+  // Wait for dynamic layouts to stabilize
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  try {
+    const dimensions = await win.webContents.executeJavaScript(`
+      (() => {
+        const allElements = document.querySelectorAll('*');
+        let maxW = document.documentElement.scrollWidth;
+        let maxH = document.documentElement.scrollHeight;
+
+        allElements.forEach(el => {
+          if (el.scrollWidth > maxW) maxW = el.scrollWidth;
+          if (el.scrollHeight > maxH) maxH = el.scrollHeight;
+        });
+
+        return { width: maxW, height: maxH };
+      })();
+    `);
+
+    if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+      // Add a small safety margin to prevent scrollbars from appearing
+      const targetWidth = Math.ceil(dimensions.width) + 30;
+      const targetHeight = Math.ceil(dimensions.height) + 40;
+
+      logger.log(
+        `[Main] Adjusting window ${win.id} size to fit content: ${targetWidth}x${targetHeight}`,
+      );
+      win.setSize(targetWidth, targetHeight);
+
+      // Re-center after resizing
+      win.center();
+    }
+  } catch (e) {
+    logger.error(`[Main] Failed to adjust window ${win.id} size:`, e);
+  }
+}
 
 function setValidationMode(active: boolean) {
   validationModeActive = active;
@@ -243,9 +322,22 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
   }
 
   automationTimeout = setTimeout(async () => {
+    // [Getter Logic] Determine which window to show for the timeout
+    let targetWindow = gameWindow;
+
+    if (lastActiveAutomationWebContentsId) {
+      const wc = webContents.fromId(lastActiveAutomationWebContentsId);
+      if (wc) {
+        const activeWin = BrowserWindow.fromWebContents(wc);
+        if (activeWin && !activeWin.isDestroyed()) {
+          targetWindow = activeWin;
+        }
+      }
+    }
+
     const currentUrl =
-      gameWindow && !gameWindow.isDestroyed()
-        ? gameWindow.webContents.getURL()
+      targetWindow && !targetWindow.isDestroyed()
+        ? targetWindow.webContents.getURL()
         : "Unknown (Window closed)";
 
     // Ignore timeout if the window is cleanly reset or still loading about:blank
@@ -256,11 +348,13 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
       return;
     }
 
-    logger.error(`[Automation] Process timed out at: ${currentUrl}`);
+    logger.error(
+      `[Automation] Process timed out at: ${currentUrl} (Win: ${targetWindow?.id || "N/A"})`,
+    );
 
-    if (gameWindow && !gameWindow.isDestroyed()) {
+    if (targetWindow && !targetWindow.isDestroyed()) {
       // [Security] Do NOT show or alert if this is a background validation window
-      const triggerContext = getNavigationTrigger(gameWindow.webContents.id);
+      const triggerContext = getNavigationTrigger(targetWindow.webContents.id);
       if (triggerContext === "ACCOUNT_VALIDATION") {
         logger.log(
           "[Automation] Process timed out (Validation Mode). Suppressing show/alert.",
@@ -268,17 +362,31 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
         return;
       }
 
-      // Show the window so user can see what's happening
-      gameWindow.show();
-      gameWindow.focus();
+      // [v22] Adjust size with 0.1s delay
+      targetWindow.show();
+      await resizeToFitContent(targetWindow);
+      targetWindow.center();
+      targetWindow.focus();
+      targetWindow.moveTop();
 
-      // Generic message without assumptions or "Account" terminology
+      // Use native dialog to avoid blocking the renderer thread (v9)
       try {
-        await gameWindow.webContents.executeJavaScript(
-          `alert("자동화 진행 중 지연이 발생했습니다. 페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.\\n\\n현재 URL: " + ${JSON.stringify(currentUrl)});`,
-        );
+        const displayUrl = currentUrl.includes("?")
+          ? currentUrl.split("?")[0] + "?..."
+          : currentUrl.length > 80
+            ? currentUrl.substring(0, 77) + "..."
+            : currentUrl;
+
+        dialog.showMessageBox(targetWindow, {
+          type: "warning",
+          title: "자동화 지연 알림",
+          message: "자동화 진행 중 지연이 발생했습니다.",
+          detail: `페이지 확인이 필요할 수 있습니다. 직접 확인해 주세요.\n\n현재 URL:\n${displayUrl}`,
+          buttons: ["확인"],
+          noLink: true,
+        });
       } catch (e) {
-        logger.error("[Automation] Failed to show alert in game window:", e);
+        logger.error("[Automation] Failed to show alert in target window:", e);
       }
     }
   }, ms);
@@ -497,6 +605,22 @@ ipcMain.handle("file:get-hash", async (_event, filePath: string) => {
 
     if (filePath.startsWith("file://")) {
       targetPath = fileURLToPath(filePath);
+    } else if (filePath.startsWith("asset://")) {
+      // Decode the virtual path: asset://[game]/[themeId]/[filename]
+      try {
+        const urlObj = new URL(filePath);
+        // urlObj.hostname = game (lowercase), urlObj.pathname = /themeId/filename
+        const themeDir = themeCacheManager.getThemeDir();
+        const relativePath = decodeURIComponent(urlObj.pathname).replace(
+          /^\/+/,
+          "",
+        );
+
+        targetPath = path.join(themeDir, urlObj.hostname, relativePath);
+      } catch (e) {
+        logger.error("[Hash] Failed to parse asset virtual path:", filePath, e);
+        return "";
+      }
     } else if (!path.isAbsolute(filePath) || filePath.startsWith("/")) {
       // Normalize path to handle leading slashes correctly with path.join on Windows
       // path.join('C:\\a', '/b') results in 'C:\\b' on Windows, which we want to avoid.
@@ -990,13 +1114,17 @@ ipcMain.on("kakao:login-required", (event, data?: { url?: string }) => {
   }
 });
 
-ipcMain.on("automation:update-timeout", (_event, timeoutMs: number) => {
+ipcMain.on("automation:update-timeout", (event, timeoutMs: number) => {
+  lastActiveAutomationWebContentsId = event.sender.id; // Correctly track the caller
   startAutomationTimeout(timeoutMs);
-  logger.log(`[Automation] Timer updated: ${timeoutMs}ms`);
+  logger.log(
+    `[Automation] Timer updated: ${timeoutMs}ms (Caller: ${event.sender.id})`,
+  );
 });
 
-ipcMain.on("account:update-timeout", (_event, timeoutMs: number) => {
+ipcMain.on("account:update-timeout", (event, timeoutMs: number) => {
   if (validationModeActive) {
+    lastActiveAutomationWebContentsId = event.sender.id; // Track even in validation
     if (timeoutMs === -1) {
       if (validationTimeout) {
         clearTimeout(validationTimeout);
@@ -1035,8 +1163,8 @@ const createHandleWindowOpen =
     return {
       action: "allow" as const,
       overrideBrowserWindowOptions: {
-        width: 800,
-        height: 600,
+        width: 1024,
+        height: 768,
         autoHideMenuBar: true,
         show: shouldShowAtInit,
         webPreferences: {
@@ -1053,85 +1181,58 @@ const createHandleWindowOpen =
 const forcedVisibleWindows = new Set<number>();
 
 // [IPC] Dynamic Visibility Request from Preload
-ipcMain.on(
-  "window-visibility-request",
-  (
-    event,
-    isVisible: boolean,
-    options?: {
-      width?: number;
-      height?: number;
-      minWidth?: number;
-      minHeight?: number;
-    },
-  ) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window || window.isDestroyed()) return;
+ipcMain.on("window-visibility-request", async (event, isVisible: boolean) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isDestroyed()) return;
 
-    if (isVisible && options) {
-      if (options.width && options.height) {
-        window.setSize(options.width, options.height);
-      }
-      if (options.minWidth && options.minHeight) {
-        window.setMinimumSize(options.minWidth, options.minHeight);
-      }
+  const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+  const triggerContext = getNavigationTrigger(event.sender.id);
+  const isValidation = triggerContext === "ACCOUNT_VALIDATION";
+
+  if (isVisible) {
+    if (isValidation) {
       logger.log(
-        `[Main] Applied window options for ${window.id}: ${JSON.stringify(options)}`,
+        `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
       );
+      return;
     }
 
-    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
-    const triggerContext = getNavigationTrigger(event.sender.id);
-    const isValidation = triggerContext === "ACCOUNT_VALIDATION";
+    if (!forcedVisibleWindows.has(window.id)) {
+      forcedVisibleWindows.add(window.id);
+      logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
+    }
 
-    if (isVisible) {
-      // [Security] Absolutely prevent show if in background validation mode
-      if (isValidation) {
-        logger.log(
-          `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
-        );
-        return;
-      }
+    if (!window.isVisible()) {
+      window.show();
+    }
+    // [v22] Adjust size with 0.1s delay
+    await resizeToFitContent(window);
+    window.center();
+    window.focus();
+    window.moveTop();
+  } else {
+    if (forcedVisibleWindows.has(window.id)) {
+      forcedVisibleWindows.delete(window.id);
+      logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
 
-      if (!forcedVisibleWindows.has(window.id)) {
-        forcedVisibleWindows.add(window.id);
-        logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
-      }
+      if (!showInactive) {
+        const isMainWindow =
+          context.mainWindow && context.mainWindow.id === window.id;
+        const isGameWindow =
+          context.gameWindow && context.gameWindow.id === window.id;
+        const isDebugWindow =
+          context.debugWindow && context.debugWindow.id === window.id;
 
-      // Ensure it is shown and moved to top regardless of previous state
-      if (!window.isVisible()) {
-        window.showInactive();
-      }
-      window.moveTop();
-    } else {
-      if (forcedVisibleWindows.has(window.id)) {
-        forcedVisibleWindows.delete(window.id);
-        logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
-
-        // If released, check if it should be hidden (Config Check)
-        // If "Show Inactive" is OFF, and it's not the Main/Game/Debug window, hide it.
-        if (!showInactive) {
-          // Double check against context to avoid hiding critical windows mistakenly
-          // But logic in InactiveWindowVisibilityHandler handles this.
-          // Let's reuse the logic by manual check here for responsiveness.
-          const isMainWindow =
-            context.mainWindow && context.mainWindow.id === window.id;
-          const isGameWindow =
-            context.gameWindow && context.gameWindow.id === window.id;
-          const isDebugWindow =
-            context.debugWindow && context.debugWindow.id === window.id;
-
-          if (!isMainWindow && !isGameWindow && !isDebugWindow) {
-            logger.log(
-              `[Main] Hiding window ${window.id} (Config is OFF & Force Released)`,
-            );
-            window.hide();
-          }
+        if (!isMainWindow && !isGameWindow && !isDebugWindow) {
+          logger.log(
+            `[Main] Hiding window ${window.id} (Config is OFF & Force Released)`,
+          );
+          window.hide();
         }
       }
     }
-  },
-);
+  }
+});
 
 // 2. Initialize Shared Context
 const context: AppContext = {
@@ -1191,6 +1292,16 @@ const context: AppContext = {
     logger.log("[Account] Explicitly disabling validation mode.");
     setValidationMode(false);
     clearAutomationTimeout();
+  },
+  getActiveAutomationWindow: () => {
+    if (lastActiveAutomationWebContentsId) {
+      const wc = webContents.fromId(lastActiveAutomationWebContentsId);
+      if (wc) {
+        const win = BrowserWindow.fromWebContents(wc);
+        if (win && !win.isDestroyed()) return win;
+      }
+    }
+    return gameWindow;
   },
 };
 
@@ -1706,6 +1817,11 @@ function createWindows() {
   // Initialize LogWatcher
   const logWatcher = new LogWatcher(appContext);
   logWatcher.init();
+
+  // Initialize ThemeCacheManager
+  themeCacheManager.init().catch((err) => {
+    logger.error("[Main] Failed to initialize ThemeCacheManager:", err);
+  });
 
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
@@ -2227,6 +2343,36 @@ app.on("browser-window-created", (_, window) => {
   window.webContents.setWindowOpenHandler(
     createHandleWindowOpen(window.webContents.id, currentPartition),
   );
+
+  // [Fix] Update gameWindow reference to track the latest active automation window
+  if (
+    window !== mainWindow &&
+    window !== debugWindow &&
+    (currentPartition === PARTITIONS.KAKAO ||
+      currentPartition === PARTITIONS.GGG)
+  ) {
+    logger.log(`[Main] Tracking new automation window: ${window.id}`);
+    const previousGameWindow = gameWindow; // Keep track of the "Parent" window
+    gameWindow = window;
+    if (appContext) appContext.gameWindow = window;
+
+    // Handle reference cleanup if this specific window closes
+    window.on("closed", () => {
+      if (gameWindow === window) {
+        logger.log(
+          `[Main] Automation window ${window.id} closed. Falling back to previous window if exists.`,
+        );
+        // Fallback to previous window if it's still alive, otherwise null
+        const fallbackWindow =
+          previousGameWindow && !previousGameWindow.isDestroyed()
+            ? previousGameWindow
+            : null;
+
+        gameWindow = fallbackWindow;
+        if (appContext) appContext.gameWindow = fallbackWindow;
+      }
+    });
+  }
   // [Log] Monitor Popup Closing
   window.on("close", () => {
     // Skip Main/Debug windows (handled separately)
@@ -2417,7 +2563,39 @@ ipcMain.handle("changelog:get-all", async () => {
   return changelogService.fetchChangelogs(currentVersion, "");
 });
 
+ipcMain.handle("theme:get-active", async (_event, game: "POE1" | "POE2") => {
+  return await themeCacheManager.getActiveTheme(game);
+});
+
+ipcMain.handle("theme:get-all", async () => {
+  return await themeCacheManager.getThemes();
+});
+
 app.whenReady().then(async () => {
+  // Register custom protocol to load assets from %appdata%
+  protocol.handle("asset", (request) => {
+    try {
+      // request.url is the abstract path e.g., asset://poe1/3.27/bg.webp
+      const urlObj = new URL(request.url);
+
+      // hostname becomes the game (e.g., 'poe1'), pathname is '/[theme]/[file]'
+      const gameDir = urlObj.hostname;
+      const relativePath = decodeURIComponent(urlObj.pathname).replace(
+        /^\/+/,
+        "",
+      );
+
+      const themeDir = themeCacheManager.getThemeDir();
+      const localPath = path.join(themeDir, gameDir, relativePath);
+
+      // Use pathToFileURL to generate standard file:/// URL
+      return net.fetch(pathToFileURL(localPath).href);
+    } catch (err) {
+      logger.error("[Protocol] Failed to resolve asset URL:", request.url, err);
+      return new Response("Not Found", { status: 404 });
+    }
+  });
+
   // [UAC Sync] Ensure RUNASINVOKER is applied if config is set
   if (getEffectiveConfig("skipDaumGameStarterUac") === true) {
     if (!(await SimpleUacBypass.isRunAsInvokerEnabled())) {
@@ -2431,4 +2609,29 @@ app.whenReady().then(async () => {
   // Ensure Auto-Launch path is updated (in case user moved the app)
   syncAutoLaunch();
   createWindows();
+
+  // Load and cache remote themes explicitly, and notify renderer ONLY when actual updates happen.
+  themeCacheManager.init().then((isUpdated) => {
+    if (isUpdated) {
+      // Notify all windows that a NEW theme cache is available and they should refresh
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("theme:synced");
+        }
+      });
+    }
+  });
+
+  // Also check for theme updates when the window regains focus (respects 24h cooldown internally)
+  app.on("browser-window-focus", () => {
+    themeCacheManager.syncThemes().then((isUpdated) => {
+      if (isUpdated) {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send("theme:synced");
+          }
+        });
+      }
+    });
+  });
 });

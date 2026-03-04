@@ -56,6 +56,32 @@ export interface AppConfig {
     string, // Key: "${gameId}_${serviceId}"
     { version: string; webRoot: string; timestamp: number }
   >;
+
+  // Remote Theme Settings
+  remoteThemeSettings: {
+    autoApply: boolean;
+    selectedThemes: Record<"POE1" | "POE2", string | "auto">;
+    lastModified?: string; // For themes.json caching
+    lastSync?: number; // 24h caching timestamp
+  };
+}
+
+export interface ThemeAssets {
+  background: string;
+  logo: string;
+}
+
+export interface ThemeDefinition {
+  id: string;
+  name: string;
+  assets: ThemeAssets;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ThemesRemoteData {
+  poe1: ThemeDefinition[];
+  poe2: ThemeDefinition[];
 }
 
 // Granular Status Codes for granular UI feedback
@@ -209,6 +235,15 @@ export interface ElectronAPI {
   onUpdateStatusChange: (
     callback: (status: UpdateStatus) => void,
   ) => () => void;
+  getActiveTheme: (game: AppConfig["activeGame"]) => Promise<
+    | (ThemeDefinition & {
+        assets: Record<string, string>;
+        isRemote: boolean;
+      })
+    | null
+  >;
+  getThemes: () => Promise<ThemesRemoteData | null>;
+  onThemeSynced: (callback: () => void) => () => void;
 
   // [UAC Bypass API]
   isUACBypassEnabled: () => Promise<boolean>;

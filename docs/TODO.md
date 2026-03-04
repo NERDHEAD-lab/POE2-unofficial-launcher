@@ -20,6 +20,7 @@
   - 메인 창의 `ready-to-show` 이벤트 이후 특정 지연 시간이나 렌더링 완료 신호를 받아 디버그 콘솔을 표시하는 구조 강화.
   - `parent: mainWindow` 설정 외에도 `alwaysOnTop` 등의 설정을 통해 런처 레이어링 정책 확립.
   - [ ] **[Maintenance]** package.json: Remove `overrides` for `eslint` once `typescript-eslint` and `eslint-plugin-import` officially support v10. (Reason: Cleanup technical debt after ecosystem catch-up)
+  - [ ] **[Maintenance]** eslint.config.mjs: `eslint-plugin-eslint-comments` 플러그인을 도입하여 `eslint-disable` 주석 무분별 사용을 제한(warn 수준으로 감지)하도록 설정. (Reason: 강제 Rule 회피 방지 및 사이드이펙트 인지 강화)
   - [ ] **[Refactoring]** src/main/kakao/preload.ts: `about:blank` 및 보안되지 않은 컨텍스트에서 `SessionStorage` 접근 시 발생하는 보안 경고(SecurityError)를 방지하기 위한 프로토콜 체크 추가 필요. (Reason: 불필요한 에러 로그 감소 및 안정성 확보)
 
 ### [x] `UAC Migration` 모달 호출의 안전성 및 응답성 강화
@@ -82,3 +83,10 @@
   - `window.onblur` 이벤트 시 `document.body`에 `paused` 클래스를 추가.
   - CSS 전역 변수나 특정 클래스 하위의 `animation-play-state: paused` 적용.
   - 고비용 컴포넌트(비디오 배경 등)의 렌더링 일시 중단 처리.
+
+## 5. 테마 시스템 고도화 및 최적화
+
+### [ ] 빌드 타임 자산 해시 사전 생성 (Build-time optimization)
+
+- **현상**: 기본 배경 이미지 등 정적 자산에 대해서도 매번 `fs.readFile`을 통해 MD5를 추출함.
+- **개선안**: 빌드 시점에 기본 자산의 MD5를 매니페스트 형태로 생성하여, 런타임 시 파일 IO 없이 즉시 캐시 유효성을 검증하도록 개선.

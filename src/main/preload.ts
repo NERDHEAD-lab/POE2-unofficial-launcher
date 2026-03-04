@@ -97,6 +97,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("update-status-change", handler);
     return () => ipcRenderer.off("update-status-change", handler);
   },
+  getActiveTheme: (game: AppConfig["activeGame"]) =>
+    ipcRenderer.invoke("theme:get-active", game),
+  getThemes: () => ipcRenderer.invoke("theme:get-all"),
+  onThemeSynced: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("theme:synced", handler);
+    return () => ipcRenderer.off("theme:synced", handler);
+  },
 
   isUACBypassEnabled: () => ipcRenderer.invoke("uac:is-enabled"),
   enableUACBypass: () => ipcRenderer.invoke("uac:enable"),

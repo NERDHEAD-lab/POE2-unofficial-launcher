@@ -154,6 +154,25 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "각 게임 및 서비스별 마지막으로 감지된 버전과 WebRoot 정보를 저장합니다. (자동 관리)",
   },
+  REMOTE_THEME_SETTINGS: {
+    key: "remoteThemeSettings",
+    name: "Remote Theme Settings",
+    category: "Appearance",
+    description:
+      "원격 테마 관리 시스템의 설정(자동 적용 여부, 선택된 테마 등)을 저장합니다. (자동 관리)",
+  },
+  THEME_MODE_POE1: {
+    key: "theme_mode_poe1",
+    name: "POE1 Theme Mode",
+    category: "Appearance",
+    description: "Path of Exile 1에서 사용할 테마를 결정합니다.",
+  },
+  THEME_MODE_POE2: {
+    key: "theme_mode_poe2",
+    name: "POE2 Theme Mode",
+    category: "Appearance",
+    description: "Path of Exile 2에서 사용할 테마를 결정합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -180,6 +199,9 @@ export const CONFIG_KEYS = {
   KAKAO_ACCOUNT_ID: CONFIG_METADATA.KAKAO_ACCOUNT_ID.key,
   GGG_ACCOUNT_ID: CONFIG_METADATA.GGG_ACCOUNT_ID.key,
   KNOWN_GAME_VERSIONS: CONFIG_METADATA.KNOWN_GAME_VERSIONS.key,
+  REMOTE_THEME_SETTINGS: CONFIG_METADATA.REMOTE_THEME_SETTINGS.key,
+  THEME_MODE_POE1: CONFIG_METADATA.THEME_MODE_POE1.key,
+  THEME_MODE_POE2: CONFIG_METADATA.THEME_MODE_POE2.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -205,6 +227,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   autoResolution: true,
   resolutionMode: "1440x960",
   knownGameVersions: {},
+  remoteThemeSettings: {
+    autoApply: true,
+    selectedThemes: {
+      POE1: "auto",
+      POE2: "auto",
+    },
+  },
 };
 
 export const DEBUG_APP_CONFIG = {
