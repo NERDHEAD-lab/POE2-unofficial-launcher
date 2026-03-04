@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.10.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.10...0.10.0) (2026-03-04)
+
+
+### Features
+
+* 보여지는 팝업창 크기 최적화 ([147c12a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/147c12a8c66b1e5faf1798e19fd601fc8a026ccb))
+* 시즌 테마를 선택 할 수 있도록 개선 ([83908dd](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/83908dd90af205579c8cf422e085f3c335b2fb36))
+* 시즌 테마를 선택 할 수 있도록 개선 - 2 ([baaf97f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/baaf97f726d0a3422cb91e302d4cf325b0025781))
+* 시즌 테마를 선택 할 수 있도록 개선 - 3 ([ee62493](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ee62493500d68ce29575ba28fc346158da57ed4a))
+* 시즌이 변경 될 때 리소스 변경으로 인한 업데이트를 요구하지 않도록 개선 ( 외부 참조 ) ([7b81496](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/7b81496fec7596bb2aed51bef04dfd1b32044184))
+* 시즌이 변경 될 때 리소스 변경으로 인한 업데이트를 요구하지 않도록 개선 ( 외부 참조 ) - 2 ([5e5c792](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/5e5c79246febfb9af25bf0af90d543c53d4f4338))
+
+
+### Bug Fixes
+
+* `설정 - 계정` 진입 시 id 검증 로직이 불필요한 트래픽을 유발하는 문제 수정 ([736a14e](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/736a14e448a5f85d3c5793b530f5a6038cce2a28))
+* toast 메시지의 스타일이 시즌 테마와 연동되지 않던 문제 수정 ([b77d6d1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b77d6d1359508c06eafc5492b9c20d52fd5aab08))
+* 게임 실행 간 지연 발생 시 오류 페이지를 홈페지로 표시하는 문제 수정 ([9390861](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/93908618b1f2f59257aadfa7d60406f1170cad4a))
+* 시즌 테마 색상 추출 로직이 의도와는 다르게 최적화 되지않은 상태를 개선 ([3fddafe](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3fddafe2aa15907cd6c8c7f63fcfbc42accc09b0))
+* 오류 트래킹을 위한 로직으로 인해 일부 상황에서 fatal error가 발생하는 문제 수정 ([38fa50a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/38fa50a922d3580b9e6a14fd3607a1ba3a8cabdd))
+* 특정 팝업( MOTP, 문자 인증 )을 표시하지 않는 문제 수정 ([558000b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/558000b9591cd0d6f5764ac2a315ab80318d77ad))
+* 특정 팝업( MOTP, 문자 인증 )을 표시하지 않는 문제 수정 - 2 ([161501c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/161501c1943751653fabe6a30b0bf02b8afdb85a))
+
 ## [0.9.10](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.9...0.9.10) (2026-03-03)
 
 
