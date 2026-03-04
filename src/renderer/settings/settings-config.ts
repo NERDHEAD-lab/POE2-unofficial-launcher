@@ -79,17 +79,23 @@ const handleThemeInit = async (
   const gameThemes = game === "POE1" ? themes?.poe1 : themes?.poe2;
 
   if (gameThemes) {
+    const now = new Date();
     const dynamicOptions = [
       { label: "자동 (기간 한정 반영)", value: "auto" },
-      ...gameThemes.map((t: ThemeDefinition) => {
-        const start = formatThemeDate(t.startDate);
-        const end = formatThemeDate(t.endDate);
-        const period = start ? ` - ${start} ~ ${end}` : "";
-        return {
-          label: `${t.name} ( ${t.id} )${period}`,
-          value: t.id,
-        };
-      }),
+      ...gameThemes
+        .filter((t: ThemeDefinition) => {
+          if (!t.startDate) return true;
+          return new Date(t.startDate) <= now;
+        })
+        .map((t: ThemeDefinition) => {
+          const start = formatThemeDate(t.startDate);
+          const end = formatThemeDate(t.endDate);
+          const period = start ? ` - ${start} ~ ${end}` : "";
+          return {
+            label: `${t.name} ( ${t.id} )${period}`,
+            value: t.id,
+          };
+        }),
     ];
     setOptions(dynamicOptions);
   }
