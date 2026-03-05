@@ -22,6 +22,8 @@ export interface AppConfig {
   [key: string]: unknown;
   serviceChannel: "Kakao Games" | "GGG";
   activeGame: "POE1" | "POE2";
+  dev_mode: boolean;
+  debug_console: boolean;
   themeCache: Partial<
     Record<
       "POE1" | "POE2",
