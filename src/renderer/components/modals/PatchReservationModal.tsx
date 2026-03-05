@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 
-import "./PatchReservationModal.css";
 import { PatchReservation, AppConfig } from "../../../shared/types";
 import imgGGG from "../../assets/img-ci-ggg_150x67.png";
 import imgKakao from "../../assets/img-ci-kakaogames_158x28.png";
 import logoPoe1 from "../../assets/poe1/logo.png";
 import logoPoe2 from "../../assets/poe2/logo.png";
+import { Toast } from "../ui/Toast";
+import "./PatchReservationModal.css";
 
 const SERVICE_CONFIG: Record<
   AppConfig["serviceChannel"],
@@ -97,6 +98,22 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   const [selectedService, setSelectedService] =
     useState<AppConfig["serviceChannel"]>(activeService);
 
+  // Real-time time sync
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000 * 30); // Check every 30 seconds for better precision than 60s
+    return () => clearInterval(timer);
+  }, []);
+
+  // Toast state
+  const [toast, setToast] = useState({ visible: false, message: "" });
+  const showToast = (message: string) => {
+    setToast({ visible: true, message });
+    setTimeout(() => setToast((prev) => ({ ...prev, visible: false })), 3000);
+  };
+
   const [isServiceOpen, setIsServiceOpen] = useState(false);
   const [isGameOpen, setIsGameOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -135,71 +152,43 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
       h?: string;
       mi?: string;
     }) => {
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
-      const currentDay = now.getDate();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-
       const parseVal = (v: string | undefined, fallback: number) => {
         if (v === undefined || v === "") return fallback;
         const parsed = parseInt(v);
         return isNaN(parsed) ? fallback : parsed;
       };
 
-      let ty = parseVal(newValues.y ?? year, currentYear);
-      let tm = parseVal(newValues.m ?? month, currentMonth);
-      let td = parseVal(newValues.d ?? day, currentDay);
-      let th = parseVal(newValues.h ?? hour, currentHour);
-      let tmi = parseVal(newValues.mi ?? minute, currentMinute);
+      let ty = parseVal(newValues.y ?? year, currentTime.getFullYear());
+      let tm = parseVal(newValues.m ?? month, currentTime.getMonth() + 1);
+      let td = parseVal(newValues.d ?? day, currentTime.getDate());
+      let th = parseVal(newValues.h ?? hour, currentTime.getHours());
+      let tmi = parseVal(newValues.mi ?? minute, currentTime.getMinutes());
 
       // 1. Month-end adjustment (clamping day)
       const maxDays = new Date(ty, tm, 0).getDate();
       if (td > maxDays) td = maxDays;
 
-      // 2. Future time check & auto-correction
-      if (ty === currentYear) {
-        if (tm < currentMonth) {
-          tm = currentMonth;
-          td = currentDay;
-          th = currentHour;
-          tmi = currentMinute + 1;
-        } else if (tm === currentMonth) {
-          if (td < currentDay) {
-            td = currentDay;
-            th = currentHour;
-            tmi = currentMinute + 1;
-          } else if (td === currentDay) {
-            if (th < currentHour) {
-              th = currentHour;
-              tmi = currentMinute + 1;
-            } else if (th === currentHour) {
-              if (tmi <= currentMinute) {
-                tmi = currentMinute + 1;
-              }
-            }
-          }
-        }
-      }
+      // 2. Future time check & auto-correction (Compare as timestamp)
+      const targetDate = new Date(ty, tm - 1, td, th, tmi);
+      const minValidDate = currentTime; // Just use currentTime for "isNow" state
 
-      // 3. Overflow handling (minute/hour/day/month)
-      if (tmi >= 60) {
-        tmi = 0;
-        th += 1;
-      }
-      if (th >= 24) {
-        th = 0;
-        td += 1;
-      }
-      const finalMaxDays = new Date(ty, tm, 0).getDate();
-      if (td > finalMaxDays) {
-        td = 1;
-        tm += 1;
-      }
-      if (tm > 12) {
-        tm = 1;
-        ty += 1;
+      if (targetDate.getTime() < currentTime.getTime()) {
+        // Only show toast if it was a manual change or a significant correction
+        if (
+          newValues.y ||
+          newValues.m ||
+          newValues.d ||
+          newValues.h ||
+          newValues.mi
+        ) {
+          showToast("현재보다 과거로 설정할 수 없습니다.");
+        }
+
+        ty = minValidDate.getFullYear();
+        tm = minValidDate.getMonth() + 1;
+        td = minValidDate.getDate();
+        th = minValidDate.getHours();
+        tmi = minValidDate.getMinutes();
       }
 
       setYear(ty.toString());
@@ -208,17 +197,15 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
       setHour(th.toString().padStart(2, "0"));
       setMinute(tmi.toString().padStart(2, "0"));
     },
-    [year, month, day, hour, minute],
+    [year, month, day, hour, minute, currentTime],
   );
 
   // Time Options Filtering (Disable past times)
   const timeOptions = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const currentDay = now.getDate();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const currentYear = currentTime.getFullYear();
+    const currentMonth = currentTime.getMonth() + 1;
+    const currentDay = currentTime.getDate();
+    const currentHour = currentTime.getHours();
 
     const parseVal = (v: string, fallback: number) => {
       if (!v) return fallback;
@@ -265,11 +252,11 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
         targetMonth > currentMonth ||
         targetDay > currentDay ||
         targetHour > currentHour ||
-        parseInt(mi) > currentMinute,
+        parseInt(mi) >= currentTime.getMinutes(),
     );
 
     return { years, months, days, hours, minutes };
-  }, [year, month, day, hour]);
+  }, [year, month, day, hour, currentTime]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -296,23 +283,65 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   }, [openDropdown, timeRefs]);
 
   // Reset inputs when modal opens
+  const lastOpenRef = React.useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !lastOpenRef.current) {
       setTimeout(() => {
         setSelectedGame(activeGame);
         setSelectedService(activeService);
 
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
+        const initialDate = currentTime; // Default to just "now"
 
-        setYear(now.getFullYear().toString());
-        setMonth((now.getMonth() + 1).toString().padStart(2, "0"));
-        setDay(now.getDate().toString().padStart(2, "0"));
-        setHour(now.getHours().toString().padStart(2, "0"));
-        setMinute(now.getMinutes().toString().padStart(2, "0"));
+        setYear(initialDate.getFullYear().toString());
+        setMonth((initialDate.getMonth() + 1).toString().padStart(2, "0"));
+        setDay(initialDate.getDate().toString().padStart(2, "0"));
+        setHour(initialDate.getHours().toString().padStart(2, "0"));
+        setMinute(initialDate.getMinutes().toString().padStart(2, "0"));
       }, 0);
     }
-  }, [isOpen, activeGame, activeService]);
+    lastOpenRef.current = isOpen;
+  }, [isOpen, activeGame, activeService, currentTime]);
+
+  // Reactive auto-correction: if time passes and selected becomes past, correct it.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const targetDate = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hour),
+      parseInt(minute),
+    );
+
+    if (targetDate.getTime() < currentTime.getTime()) {
+      // Use setTimeout to avoid synchronous setState inside useEffect
+      setTimeout(() => {
+        if (isOpen) {
+          updateAndValidateTime({});
+        }
+      }, 0);
+    }
+  }, [
+    currentTime,
+    isOpen,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    updateAndValidateTime,
+  ]);
+
+  const isNow = useMemo(() => {
+    return (
+      year === currentTime.getFullYear().toString() &&
+      month === (currentTime.getMonth() + 1).toString().padStart(2, "0") &&
+      day === currentTime.getDate().toString().padStart(2, "0") &&
+      hour === currentTime.getHours().toString().padStart(2, "0") &&
+      minute === currentTime.getMinutes().toString().padStart(2, "0")
+    );
+  }, [year, month, day, hour, minute, currentTime]);
 
   if (!isOpen) return null;
 
@@ -437,7 +466,9 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
             <div className="form-group">
               <label>예약 시간</label>
               <div className="form-group-time-grid">
-                <div className="time-select-outer year">
+                <div
+                  className={`time-select-outer year ${isNow ? "is-now" : ""}`}
+                >
                   <label>YYYY</label>
                   <TimeSelect
                     type="year"
@@ -452,7 +483,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                   />
                 </div>
                 <div className="time-separator">/</div>
-                <div className="time-select-outer">
+                <div className={`time-select-outer ${isNow ? "is-now" : ""}`}>
                   <label>MM</label>
                   <TimeSelect
                     type="month"
@@ -467,7 +498,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                   />
                 </div>
                 <div className="time-separator">/</div>
-                <div className="time-select-outer">
+                <div className={`time-select-outer ${isNow ? "is-now" : ""}`}>
                   <label>DD</label>
                   <TimeSelect
                     type="day"
@@ -487,7 +518,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                 >
                   |
                 </div>
-                <div className="time-select-outer">
+                <div className={`time-select-outer ${isNow ? "is-now" : ""}`}>
                   <label>HH</label>
                   <TimeSelect
                     type="hour"
@@ -502,7 +533,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                   />
                 </div>
                 <div className="time-separator">:</div>
-                <div className="time-select-outer">
+                <div className={`time-select-outer ${isNow ? "is-now" : ""}`}>
                   <label>mm</label>
                   <TimeSelect
                     type="minute"
@@ -524,7 +555,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
             <button
               className="btn-add-reservation"
               onClick={handleAdd}
-              disabled={!isFormValid}
+              disabled={!isFormValid || isNow}
             >
               <span className="material-symbols-outlined">add</span>
               예약 추가하기
@@ -589,6 +620,12 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
             닫기
           </button>
         </div>
+        <Toast
+          message={toast.message}
+          visible={toast.visible}
+          container={null}
+          variant="warning"
+        />
       </div>
     </div>
   );

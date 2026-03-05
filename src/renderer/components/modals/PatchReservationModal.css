@@ -291,6 +291,12 @@ img.dropdown-logo[alt="GGG"] {
   color: #fff;
 }
 
+.time-select-outer.is-now .time-select-trigger {
+  color: rgba(255, 255, 255, 0.25);
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .time-select-list {
   position: absolute;
   top: 100%;
