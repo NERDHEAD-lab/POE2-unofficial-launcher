@@ -28,6 +28,25 @@ const SettingsModal: React.FC<Props> = ({
     }
     return SETTINGS_CONFIG[0].id;
   });
+
+  // Sync active category when initialSettingId changes (e.g., from external navigation)
+  useEffect(() => {
+    if (isOpen && initialSettingId) {
+      for (const cat of SETTINGS_CONFIG) {
+        const hasItem = cat.sections.some((s) =>
+          s.items.some((i) => i.id === initialSettingId),
+        );
+        if (hasItem) {
+          // Use setTimeout to avoid synchronous setState inside effect (cascading render)
+          const timer = setTimeout(() => {
+            setActiveCatId(cat.id);
+          }, 0);
+          return () => clearTimeout(timer);
+        }
+      }
+    }
+  }, [isOpen, initialSettingId]);
+
   const [isVisible, setIsVisible] = useState(false);
   const [isRestartNeeded, setIsRestartNeeded] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);

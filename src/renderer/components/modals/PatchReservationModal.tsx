@@ -139,6 +139,34 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   const [isGameOpen, setIsGameOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  // Local config state for real-time synchronization when modal is open
+  const [localConfig, setLocalConfig] = useState(launcherConfig);
+
+  // [Direct Subscription] Listen for config changes while the modal is open
+  useEffect(() => {
+    if (!isOpen || !window.electronAPI?.onConfigChange) return;
+
+    const removeListener = window.electronAPI.onConfigChange((key, value) => {
+      setLocalConfig((prev) => ({
+        ...prev,
+        [key]: value as AppConfig[keyof AppConfig],
+      }));
+    });
+
+    return () => removeListener();
+  }, [isOpen]);
+
+  // Sync with prop updates if they happen (though direct subscription is primary)
+  useEffect(() => {
+    if (isOpen) {
+      // Use setTimeout to avoid synchronous setState inside effect (cascading render)
+      const timer = setTimeout(() => {
+        setLocalConfig(launcherConfig);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [launcherConfig, isOpen]);
+
   const serviceDropdownRef = React.useRef<HTMLDivElement>(null);
   const gameDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -366,45 +394,76 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
 
   // Stability Checks Logic
   const stabilityChecks = useMemo<StabilityCheck[]>(() => {
+    // 1. Identify all services involved (current selection + existing reservations)
+    const activeServices = new Set<string>();
+    activeServices.add(selectedService);
+    reservations.forEach((r) => activeServices.add(r.serviceId));
+
+    // 2. Determine if Kakao-specific checks are needed
+    const needsKakaoChecks = activeServices.has("Kakao Games");
+
     const checks: StabilityCheck[] = [
       {
         id: "auto-launch",
         level: "warning",
         text: "컴퓨터 시작 시 자동 실행이 꺼져 있습니다. (런처가 꺼져 있으면 예약 패치가 동작하지 않습니다.)",
         configId: "autoLaunch",
-        condition: !launcherConfig.autoLaunch,
+        condition: !localConfig.autoLaunch,
       },
       {
         id: "close-action",
         level: "warning",
         text: "창 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
         configId: "closeAction",
-        condition: launcherConfig.closeAction === "close",
+        condition: localConfig.closeAction === "close",
       },
       {
         id: "kakao-uac",
         level: "error",
         text: "카카오 플랫폼은 UAC 우회 설정이 꺼져 있으면 자동 패치가 불가능합니다.",
         configId: "skipDaumGameStarterUac",
-        condition:
-          launcherConfig.serviceChannel === "Kakao Games" &&
-          !launcherConfig.skipDaumGameStarterUac,
+        condition: needsKakaoChecks && !localConfig.skipDaumGameStarterUac,
       },
       {
         id: "auto-fix",
         level: "warning",
         text: "패치 오류 자동 수정이 꺼져 있습니다. (오류 발생 시 패치가 중단됩니다.)",
         configId: "autoFixPatchError",
-        condition: !launcherConfig.autoFixPatchError,
+        condition: !localConfig.autoFixPatchError,
       },
     ];
 
-    return checks.filter((c) => c.condition);
-  }, [launcherConfig]);
+    return checks
+      .filter((c) => c.condition)
+      .sort((a, b) => {
+        if (a.level === "error" && b.level !== "error") return -1;
+        if (a.level !== "error" && b.level === "error") return 1;
+        return 0;
+      });
+  }, [localConfig, selectedService, reservations]);
+
+  const hasError = useMemo(
+    () => stabilityChecks.some((c) => c.level === "error"),
+    [stabilityChecks],
+  );
 
   if (!isOpen) return null;
 
   const handleAdd = () => {
+    if (hasError) {
+      showToast(
+        "현재 설정으로는 예약 패치가 불가능합니다. '확인 필요' 항목을 해결해주세요.",
+      );
+      return;
+    }
+
+    if (isNow) {
+      showToast(
+        "현재 시간으로는 예약할 수 없습니다. 시간을 다시 설정해주세요.",
+      );
+      return;
+    }
+
     const targetDate = new Date(
       parseInt(year),
       parseInt(month) - 1,
@@ -420,6 +479,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
       serviceId: selectedService,
       targetTime: targetDate.toISOString(),
     });
+    showToast("새로운 패치 예약이 추가되었습니다.");
   };
 
   const isFormValid = year && month && day && hour && minute;
@@ -446,6 +506,10 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
         </div>
 
         <div className="patch-body">
+          {/* Section 1: Add Reservation */}
+          <div className="section-header">
+            <span className="title">새로운 예약 추가</span>
+          </div>
           <div className="reservation-form">
             <div className="form-group-row">
               <div className="form-group" ref={serviceDropdownRef}>
@@ -612,58 +676,59 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
             </div>
 
             <button
-              className="btn-add-reservation"
+              className={`btn-add-reservation ${hasError || isNow ? "has-error" : ""}`}
               onClick={handleAdd}
-              disabled={!isFormValid || isNow}
+              disabled={!isFormValid}
             >
               <span className="material-symbols-outlined">add</span>
               예약 추가하기
             </button>
           </div>
 
+          {/* Section 2: Action Required */}
+          {stabilityChecks.length > 0 && (
+            <div className="stability-section">
+              <div className="section-header">
+                <span className="title">확인 필요</span>
+                <span className="count warning">
+                  {stabilityChecks.length}건
+                </span>
+              </div>
+              <div className="stability-list">
+                {stabilityChecks.map((check) => (
+                  <div
+                    key={check.id}
+                    className={`stability-item level-${check.level}`}
+                  >
+                    <div className="item-content">
+                      <span className="material-symbols-outlined icon">
+                        {check.level === "error" ? "report" : "warning"}
+                      </span>
+                      <span className="text">{check.text}</span>
+                    </div>
+                    {check.configId && (
+                      <button
+                        className="btn-go-setting"
+                        onClick={() => onNavigateToSetting?.(check.configId!)}
+                        title="설정으로 이동"
+                      >
+                        <span className="material-symbols-outlined">
+                          settings
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 3: Current Reservations */}
           <div className="reservation-list-section">
             <div className="section-header">
               <span className="title">현재 예약 목록</span>
               <span className="count">{reservations.length}개</span>
             </div>
-
-            {/* Stability Warnings Section */}
-            {stabilityChecks.length > 0 && (
-              <div className="reservation-list-section stability-section">
-                <div className="section-header">
-                  <span className="title">확인 필요</span>
-                  <span className="count warning">
-                    {stabilityChecks.length}건
-                  </span>
-                </div>
-                <div className="stability-list">
-                  {stabilityChecks.map((check) => (
-                    <div
-                      key={check.id}
-                      className={`stability-item level-${check.level}`}
-                    >
-                      <div className="item-content">
-                        <span className="material-symbols-outlined icon">
-                          {check.level === "error" ? "report" : "warning"}
-                        </span>
-                        <span className="text">{check.text}</span>
-                      </div>
-                      {check.configId && (
-                        <button
-                          className="btn-go-setting"
-                          onClick={() => onNavigateToSetting?.(check.configId!)}
-                          title="설정으로 이동"
-                        >
-                          <span className="material-symbols-outlined">
-                            settings
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="reservation-list">
               {reservations.length === 0 ? (

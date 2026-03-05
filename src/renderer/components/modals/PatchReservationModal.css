@@ -82,7 +82,7 @@
   background: #1a1a1a;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 24px; /* Gap between the 3 main sections */
 }
 
 .reservation-form {
@@ -367,7 +367,7 @@ img.dropdown-logo[alt="GGG"] {
 }
 
 .btn-add-reservation {
-  margin-top: 8px;
+  margin-top: 4px;
   background: var(--theme-accent, #dfcf99);
   color: #000;
   border: none;
@@ -387,6 +387,12 @@ img.dropdown-logo[alt="GGG"] {
   filter: brightness(1.1);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(223, 207, 153, 0.3);
+}
+
+.btn-add-reservation.has-error {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: grayscale(0.5);
 }
 
 .btn-add-reservation:disabled {
@@ -453,7 +459,9 @@ img.dropdown-logo[alt="GGG"] {
 
 /* Stability Warnings Section */
 .stability-section {
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .section-header .count.warning {
