@@ -61,9 +61,18 @@ export interface AppConfig {
   remoteThemeSettings: {
     autoApply: boolean;
     selectedThemes: Record<"POE1" | "POE2", string | "auto">;
-    lastModified?: string; // For themes.json caching
     lastSync?: number; // 24h caching timestamp
+    lastModified?: string; // For themes.json caching
   };
+  patchReservations: PatchReservation[];
+}
+
+export interface PatchReservation {
+  id: string; // 고유 ID (UUID 또는 timestamp)
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+  targetTime: string; // ISO String
+  createdAt: string; // 생성일시
 }
 
 export interface ThemeAssets {
@@ -191,6 +200,9 @@ export interface ElectronAPI {
       gameId?: string;
     }) => void,
   ) => () => void; // New
+  onShowPatchReservationModal?: (callback: () => void) => () => void; // New
+  triggerPatchReservation: (reservation: PatchReservation) => void; // New
+  deletePatchReservation: (id: string) => void; // New
   triggerManualPatchFix: (
     serviceId?: AppConfig["serviceChannel"],
     gameId?: AppConfig["activeGame"],

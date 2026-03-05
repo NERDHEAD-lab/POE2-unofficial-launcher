@@ -143,5 +143,20 @@ export class LogParser {
     return webRoot;
   }
 
+  /**
+   * Checks if a log line indicates patch completion
+   */
+  public static isPatchFinished(line: string): boolean {
+    return line.includes("Finished checking files");
+  }
+
+  /**
+   * Extracts startup time (seconds) from a log line if it marks game startup
+   */
+  public static extractStartupTime(line: string): number | null {
+    const match = line.match(/\[STARTUP\] Game in ([\d.]+) seconds/);
+    return match ? parseFloat(match[1]) : null;
+  }
+
   public static compareVersions = compareVersions;
 }

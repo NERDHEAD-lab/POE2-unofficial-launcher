@@ -242,6 +242,32 @@ export class LogWatcher {
               true,
             );
           }
+
+          // [New] Check for Patch Finished
+          if (LogParser.isPatchFinished(line) && this.currentPid) {
+            this.emitLog(`Patch Finished Detected (PID: ${this.currentPid})`);
+            eventBus.emit(EventType.LOG_PATCH_FINISHED, this.context, {
+              gameId: this.lastCheckedGameId!,
+              serviceId: this.lastCheckedServiceId!,
+              pid: this.currentPid,
+              timestamp: Date.now(),
+            });
+          }
+
+          // [New] Check for Game Startup
+          const startupTime = LogParser.extractStartupTime(line);
+          if (startupTime !== null && this.currentPid) {
+            this.emitLog(
+              `Game Startup Detected (PID: ${this.currentPid}, Time: ${startupTime}s)`,
+            );
+            eventBus.emit(EventType.LOG_GAME_STARTUP, this.context, {
+              gameId: this.lastCheckedGameId!,
+              serviceId: this.lastCheckedServiceId!,
+              pid: this.currentPid,
+              startupTime,
+              timestamp: Date.now(),
+            });
+          }
         }
 
         // [Korean Mode] Aggressive Patch Logic

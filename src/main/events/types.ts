@@ -27,6 +27,8 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
+  LOG_PATCH_FINISHED = "LOG:PATCH_FINISHED",
+  LOG_GAME_STARTUP = "LOG:GAME_STARTUP",
   // Changelog
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
   UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
@@ -97,6 +99,29 @@ export interface LogErrorDetectedEvent {
     pid: number;
     errorCount: number;
     logPath: string;
+  };
+  timestamp?: number;
+}
+
+export interface LogPatchFinishedEvent {
+  type: EventType.LOG_PATCH_FINISHED;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
+
+export interface LogGameStartupEvent {
+  type: EventType.LOG_GAME_STARTUP;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    timestamp: number;
+    startupTime: number; // seconds
   };
   timestamp?: number;
 }
@@ -251,6 +276,8 @@ export type AppEvent =
   | SyncDevToolsVisibilityEvent
   | UpdateWindowTitleEvent
   | ShowChangelogEvent
+  | LogPatchFinishedEvent
+  | LogGameStartupEvent
   | ToolForceRepairEvent;
 
 // --- Context & Handler Interfaces ---

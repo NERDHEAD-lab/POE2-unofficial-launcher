@@ -39,6 +39,7 @@ import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
+import { PatchReservationModal } from "./components/modals/PatchReservationModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import SettingsModal from "./components/settings/SettingsModal";
@@ -139,6 +140,12 @@ function App() {
     | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
     | null
   >(null);
+
+  // Patch Reservation State
+  const [isPatchReservationOpen, setIsPatchReservationOpen] = useState(false);
+  const [patchReservations, setPatchReservations] = useState<
+    AppConfig["patchReservations"]
+  >([]);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -376,6 +383,13 @@ function App() {
           },
         );
       }
+
+      // [New] Listener for Patch Reservation Modal
+      if (window.electronAPI.onShowPatchReservationModal) {
+        window.electronAPI.onShowPatchReservationModal(() => {
+          setIsPatchReservationOpen(true);
+        });
+      }
     }
   }, []);
 
@@ -585,6 +599,12 @@ function App() {
           setServiceChannel(
             config[CONFIG_KEYS.SERVICE_CHANNEL] as AppConfig["serviceChannel"],
           );
+        if (config[CONFIG_KEYS.PATCH_RESERVATIONS])
+          setPatchReservations(
+            config[
+              CONFIG_KEYS.PATCH_RESERVATIONS
+            ] as AppConfig["patchReservations"],
+          );
         if (config[CONFIG_KEYS.THEME_CACHE])
           setThemeCache(
             config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
@@ -637,6 +657,9 @@ function App() {
               ? (value as AppConfig["themeCache"])
               : prev,
           );
+        }
+        if (key === CONFIG_KEYS.PATCH_RESERVATIONS) {
+          setPatchReservations(value as AppConfig["patchReservations"]);
         }
         if (key === CONFIG_KEYS.DEV_MODE) {
           setDevMode(value as boolean);
@@ -939,6 +962,26 @@ function App() {
         onClose={handlePatchClose}
       />
 
+      {/* Modal: Patch Reservation */}
+      <PatchReservationModal
+        isOpen={isPatchReservationOpen}
+        reservations={patchReservations}
+        activeGame={activeGame}
+        activeService={serviceChannel}
+        onAdd={(res) => {
+          const newRes = {
+            ...res,
+            id: Date.now().toString(),
+            createdAt: new Date().toISOString(),
+          };
+          window.electronAPI.triggerPatchReservation(newRes);
+        }}
+        onDelete={(id) => {
+          window.electronAPI.deletePatchReservation(id);
+        }}
+        onClose={() => setIsPatchReservationOpen(false)}
+      />
+
       <NoticeModal
         item={selectedNotice}
         onClose={() => setSelectedNotice(null)}
@@ -1055,6 +1098,9 @@ function App() {
                 <SupportLinks
                   remoteVersions={remoteVersions}
                   onForcedRepairRequest={handleForcedRepairRequest}
+                  onPatchReservationRequest={() =>
+                    setIsPatchReservationOpen(true)
+                  }
                 />
               </div>
 

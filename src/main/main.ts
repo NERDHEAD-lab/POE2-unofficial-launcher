@@ -95,6 +95,7 @@ import { GameVersionScanner } from "./services/GameVersionScanner";
 import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
+import { PatchReservationService } from "./services/PatchReservationService";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import { themeCacheManager } from "./services/ThemeCacheManager";
 import { getConfig, setupStoreObservers, default as store } from "./store";
@@ -1487,6 +1488,7 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
 
 // Global Context
 let appContext: AppContext;
+let patchReservationService: PatchReservationService;
 
 // Initialize Services
 newsService.init(() => {
@@ -1817,6 +1819,9 @@ function createWindows() {
   // Initialize LogWatcher
   const logWatcher = new LogWatcher(appContext);
   logWatcher.init();
+
+  // Initialize PatchReservationService
+  patchReservationService = new PatchReservationService(appContext);
 
   // Initialize ThemeCacheManager
   themeCacheManager.init().catch((err) => {
@@ -2239,6 +2244,23 @@ ipcMain.on("patch:cancel", () => {
     activeManualPatchManager.cancelPatch();
   } else {
     logger.log("[Main] No active manual patch manager to cancel.");
+  }
+});
+
+// --- Patch Reservation IPC ---
+ipcMain.on("patch:reserve", (_event, reservation) => {
+  logger.log(
+    `[Main] Patch Reservation added: ${reservation.gameId} at ${reservation.targetTime}`,
+  );
+  if (patchReservationService) {
+    patchReservationService.addReservation(reservation);
+  }
+});
+
+ipcMain.on("patch:delete-reservation", (_event, id: string) => {
+  logger.log(`[Main] Patch Reservation deleted: ${id}`);
+  if (patchReservationService) {
+    patchReservationService.deleteReservation(id);
   }
 });
 

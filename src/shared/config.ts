@@ -173,6 +173,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "Appearance",
     description: "Path of Exile 2에서 사용할 테마를 결정합니다.",
   },
+  PATCH_RESERVATIONS: {
+    key: "patchReservations",
+    name: "Patch Reservations",
+    category: "Patch",
+    description: "게임 패치 자동 예약 목록을 저장합니다. (자동 관리)",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -202,6 +208,7 @@ export const CONFIG_KEYS = {
   REMOTE_THEME_SETTINGS: CONFIG_METADATA.REMOTE_THEME_SETTINGS.key,
   THEME_MODE_POE1: CONFIG_METADATA.THEME_MODE_POE1.key,
   THEME_MODE_POE2: CONFIG_METADATA.THEME_MODE_POE2.key,
+  PATCH_RESERVATIONS: CONFIG_METADATA.PATCH_RESERVATIONS.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -234,6 +241,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       POE2: "auto",
     },
   },
+  patchReservations: [],
 };
 
 export const DEBUG_APP_CONFIG = {

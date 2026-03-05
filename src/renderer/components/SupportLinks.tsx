@@ -119,15 +119,28 @@ interface SupportLinksProps {
     webRoot: string;
     timestamp: string | number;
   }) => void;
+  onPatchReservationRequest?: () => void;
 }
 
 const SupportLinks: React.FC<SupportLinksProps> = ({
   remoteVersions,
   onForcedRepairRequest,
+  onPatchReservationRequest,
 }) => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
     () => [
+      {
+        id: "patch_reservation",
+        type: "link",
+        icon: "schedule",
+        defaultLabel: "게임 패치 예약",
+        onClick: () => {
+          if (onPatchReservationRequest) {
+            onPatchReservationRequest();
+          }
+        },
+      },
       {
         id: "force_restore",
         type: "link",
@@ -226,7 +239,7 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
     ],
-    [onForcedRepairRequest, remoteVersions],
+    [onForcedRepairRequest, onPatchReservationRequest, remoteVersions],
   );
 
   return (
