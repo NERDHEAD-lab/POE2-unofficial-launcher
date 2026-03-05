@@ -24,7 +24,7 @@ import {
   deleteConfigWithEvent,
 } from "./utils/config-utils";
 import { DEBUG_APP_CONFIG } from "../shared/config";
-import { getGameName, getLauncherTitle } from "../shared/naming";
+import { getGameName, getLauncherTitle, getAppName } from "../shared/naming";
 import {
   AppConfig,
   RunStatus,
@@ -42,6 +42,7 @@ import {
   LogErrorHandler,
   AutoPatchProcessStopHandler,
   PatchProgressHandler,
+  ProcessWillTerminateHandler,
   triggerPendingManualPatches,
   cancelPendingPatches,
 } from "./events/handlers/AutoPatchHandler";
@@ -120,6 +121,10 @@ import {
   applyResolutionRules,
   enforceConstraints,
 } from "./utils/window-resolution";
+
+// Set App Name explicitly for Windows Branding
+// Dynamically set in broadcastTitleUpdate
+// app.setName("POE2 Unofficial Launcher");
 
 // Register custom protocol as privileged so it bypasses CSP and works like file://
 protocol.registerSchemesAsPrivileged([
@@ -1365,6 +1370,7 @@ const handlers = [
   AutoPatchProcessStopHandler,
   PatchProgressHandler, // Added
   AutoLaunchHandler, // Added
+  ProcessWillTerminateHandler,
   DevToolsVisibilityHandler,
   ChangelogCheckHandler,
   ChangelogUISyncHandler,
@@ -1511,24 +1517,30 @@ let lastBroadcastedTitle: string | null = null;
  * to the Window, Tray, and Renderer (via Event).
  */
 function broadcastTitleUpdate() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-
   const version = app.getVersion();
   const activeGame = (getEffectiveConfig("activeGame") || "POE2") as string;
+  const gameName = getGameName(activeGame);
+  const appName = getAppName(gameName);
+
+  // 1. Update Application Name (for Notifications, Taskbar/TaskManager)
+  // This can be called even before the window is created
+  app.setName(appName);
+
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
   const isLowRes =
     screen.getDisplayNearestPoint(mainWindow.getBounds()).workAreaSize.width <
     BASE_WIDTH + 10;
 
-  const gameName = getGameName(activeGame);
   const title = getLauncherTitle(gameName, version, isLowRes);
 
-  // 1. Update Window System Title
+  // 2. Update Window System Title
   mainWindow.setTitle(title);
 
-  // 2. Update Tray Tooltip
+  // 3. Update Tray Tooltip
   trayManager.updateTitle(title);
 
-  // 3. Notify Renderer (for UI TitleBar)
+  // 4. Notify Renderer (for UI TitleBar)
   mainWindow.webContents.send("app:title-updated", title);
 
   // Spam Prevention: Log only if changed
@@ -2630,6 +2642,10 @@ app.whenReady().then(async () => {
   await syncInstallLocation();
   // Ensure Auto-Launch path is updated (in case user moved the app)
   syncAutoLaunch();
+
+  // Initial title/name broadcast before window creation
+  broadcastTitleUpdate();
+
   createWindows();
 
   // Load and cache remote themes explicitly, and notify renderer ONLY when actual updates happen.

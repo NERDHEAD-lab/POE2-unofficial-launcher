@@ -2,11 +2,16 @@ import { Notification } from "electron";
 
 import { PatchReservation, AppConfig } from "../../shared/types";
 import { eventBus } from "../events/EventBus";
+import { registerAutoPatchExpectation } from "../events/handlers/AutoPatchHandler";
 import {
   AppContext,
   EventType,
   LogPatchFinishedEvent,
   LogGameStartupEvent,
+  PatchRetryRequestedEvent,
+  PatchReservationFailedEvent,
+  PatchReservationSuccessEvent,
+  ProcessWillTerminateEvent,
 } from "../events/types";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
@@ -14,6 +19,8 @@ import { PowerShellManager } from "../utils/powershell";
 
 export class PatchReservationService {
   private timer: NodeJS.Timeout | null = null;
+  // Key: gameId_serviceId
+  private activeTimeouts = new Map<string, NodeJS.Timeout>();
   private pendingChecks = new Map<
     number,
     {
@@ -48,6 +55,47 @@ export class PatchReservationService {
     eventBus.on(EventType.LOG_GAME_STARTUP, (event: LogGameStartupEvent) => {
       this.handleGameStartup(event.payload);
     });
+
+    // Handle Retry Requests (from Abnormal Exit or Silence)
+    eventBus.on(
+      EventType.PATCH_RETRY_REQUESTED,
+      (event: PatchRetryRequestedEvent) => {
+        const { gameId, serviceId, retryCount } = event.payload;
+        this.triggerPatch(
+          {
+            id: `retry_${Date.now()}`,
+            gameId: gameId as AppConfig["activeGame"],
+            serviceId: serviceId as AppConfig["serviceChannel"],
+            targetTime: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          },
+          retryCount,
+        );
+      },
+    );
+
+    // Handle Success
+    eventBus.on(
+      EventType.PATCH_RESERVATION_SUCCESS,
+      (event: PatchReservationSuccessEvent) => {
+        const { gameId, serviceId } = event.payload;
+        const key = `${gameId}_${serviceId}`;
+        const timeout = this.activeTimeouts.get(key);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.activeTimeouts.delete(key);
+          logger.log(`[PatchReservation] Success confirmed for ${key}.`);
+        }
+      },
+    );
+
+    // Handle Ultimate Failure
+    eventBus.on(
+      EventType.PATCH_RESERVATION_FAILED,
+      (event: PatchReservationFailedEvent) => {
+        this.notifyFailure(event.payload);
+      },
+    );
   }
 
   private async checkReservations() {
@@ -63,33 +111,47 @@ export class PatchReservationService {
     }
   }
 
-  private async triggerPatch(res: PatchReservation) {
+  private async triggerPatch(res: PatchReservation, retryCount: number = 0) {
+    const key = `${res.gameId}_${res.serviceId}`;
     logger.log(
-      `[PatchReservation] Triggering patch for ${res.gameId} (${res.serviceId})`,
+      `[PatchReservation] Triggering patch for ${key} (Attempt: ${retryCount + 1})`,
     );
 
-    // Trigger Game Start event which will handle authentication and patching
-    // We need to ensure the active config matches the reservation for a moment or pass data
-    // The current architecture uses global config for game start.
+    // 1. Register expectation in AutoPatchHandler
+    registerAutoPatchExpectation(res.gameId, res.serviceId, retryCount);
 
-    // In actual implementation, we'd emit UI_GAME_START_CLICK or a direct start command
-    // but we need to ensure right game/service is targeted.
+    // 2. Temporarily set config to the reserved game/service
+    setConfigWithEvent("activeGame", res.gameId as AppConfig["activeGame"]);
+    setConfigWithEvent(
+      "serviceChannel",
+      res.serviceId as AppConfig["serviceChannel"],
+    );
 
-    // For now, let's assume we want to trigger the specific start handler.
-    // However, the cleanest way is to use existing UI_GAME_START_CLICK after setting config.
+    // 3. Set silence timeout (60s)
+    if (this.activeTimeouts.has(key)) {
+      clearTimeout(this.activeTimeouts.get(key)!);
+    }
 
-    // 1. Temporarily set config to the reserved game/service
-    setConfigWithEvent("activeGame", res.gameId);
-    setConfigWithEvent("serviceChannel", res.serviceId);
+    const timeout = setTimeout(() => {
+      logger.warn(`[PatchReservation] Silence timeout (60s) for ${key}.`);
+      this.activeTimeouts.delete(key);
+      eventBus.emit(EventType.PATCH_RETRY_REQUESTED, this.context, {
+        gameId: res.gameId,
+        serviceId: res.serviceId,
+        retryCount: retryCount + 1,
+      });
+    }, 60000);
 
-    // 2. Emit start event
+    this.activeTimeouts.set(key, timeout);
+
+    // 4. Emit start event
     eventBus.emit(EventType.UI_GAME_START_CLICK, this.context, undefined);
   }
 
   private handlePatchFinished(payload: LogPatchFinishedEvent["payload"]) {
     const { pid, gameId, serviceId } = payload;
 
-    // 1. Set 1 minute timer
+    // 1. Set 1 minute timer (This is to check if it automatically transitions to game)
     const timeout = setTimeout(() => {
       this.notifyUpdateResult(gameId, serviceId, true);
       this.cleanupProcess(pid);
@@ -120,22 +182,55 @@ export class PatchReservationService {
     serviceId: string,
     isUpdated: boolean,
   ) {
-    const title = isUpdated ? "업데이트 완료" : "업데이트 없음";
+    const title = isUpdated ? "예약 패치 완료" : "업데이트 없음";
     const body = isUpdated
-      ? `[${serviceId}] ${gameId} 업데이트가 완료되었습니다.`
-      : `[${serviceId}] ${gameId} 업데이트가 없습니다.`;
+      ? `[${serviceId}] ${gameId} 패치 예약 동작이 성공적으로 완료되었습니다.`
+      : `[${serviceId}] ${gameId} 패치를 시도했으나 업데이트가 없었습니다.`;
 
     if (Notification.isSupported()) {
-      new Notification({ title, body }).show();
+      new Notification({
+        title,
+        body,
+        timeoutType: "never",
+      }).show();
     }
 
     logger.log(`[PatchReservation] Notification: ${body}`);
   }
 
+  private notifyFailure(payload: PatchReservationFailedEvent["payload"]) {
+    const { gameId, serviceId, reason } = payload;
+    const title = "예약 패치 실패";
+    const body = `[${serviceId}] ${gameId} 패치 예약에 실패했습니다.\n사유: ${reason}`;
+
+    if (Notification.isSupported()) {
+      new Notification({
+        title,
+        body,
+        urgency: "critical",
+        timeoutType: "never",
+      }).show();
+    }
+
+    logger.error(`[PatchReservation] FINAL FAILURE: ${body}`);
+
+    // Cleanup timeout if any
+    const key = `${gameId}_${serviceId}`;
+    if (this.activeTimeouts.has(key)) {
+      clearTimeout(this.activeTimeouts.get(key)!);
+      this.activeTimeouts.delete(key);
+    }
+  }
+
   private cleanupProcess(pid: number) {
     logger.log(`[PatchReservation] Cleaning up process ${pid}`);
 
-    // Use PowerShellManager for taskkill (as in Korean Mode)
+    // Emit intentional stop event BEFORE killing to avoid abnormal exit detection
+    eventBus.emit(EventType.PROCESS_WILL_TERMINATE, this.context, {
+      pid,
+    } as ProcessWillTerminateEvent["payload"]);
+
+    // Use PowerShellManager for taskkill
     const uacBypassEnabled =
       this.context.getConfig("skipDaumGameStarterUac") === true;
     PowerShellManager.getInstance().execute(
@@ -170,5 +265,9 @@ export class PatchReservationService {
       clearTimeout(check.timeout);
     }
     this.pendingChecks.clear();
+    for (const timeout of this.activeTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    this.activeTimeouts.clear();
   }
 }

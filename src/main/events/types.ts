@@ -38,6 +38,12 @@ export enum EventType {
 
   // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
+
+  // Patch Reservation & Process Meta
+  PROCESS_WILL_TERMINATE = "PROCESS:WILL_TERMINATE",
+  PATCH_RETRY_REQUESTED = "PATCH:RETRY_REQUESTED",
+  PATCH_RESERVATION_FAILED = "PATCH:RESERVATION_FAILED",
+  PATCH_RESERVATION_SUCCESS = "PATCH:RESERVATION_SUCCESS",
 }
 
 export interface ToolForceRepairEvent {
@@ -276,9 +282,48 @@ export type AppEvent =
   | SyncDevToolsVisibilityEvent
   | UpdateWindowTitleEvent
   | ShowChangelogEvent
-  | LogPatchFinishedEvent
   | LogGameStartupEvent
-  | ToolForceRepairEvent;
+  | LogPatchFinishedEvent
+  | ToolForceRepairEvent
+  | ProcessWillTerminateEvent
+  | PatchRetryRequestedEvent
+  | PatchReservationFailedEvent
+  | PatchReservationSuccessEvent;
+
+export interface ProcessWillTerminateEvent {
+  type: EventType.PROCESS_WILL_TERMINATE;
+  payload: { pid: number };
+  timestamp?: number;
+}
+
+export interface PatchRetryRequestedEvent {
+  type: EventType.PATCH_RETRY_REQUESTED;
+  payload: {
+    gameId: string;
+    serviceId: string;
+    retryCount: number;
+  };
+  timestamp?: number;
+}
+
+export interface PatchReservationFailedEvent {
+  type: EventType.PATCH_RESERVATION_FAILED;
+  payload: {
+    gameId: string;
+    serviceId: string;
+    reason: string;
+  };
+  timestamp?: number;
+}
+
+export interface PatchReservationSuccessEvent {
+  type: EventType.PATCH_RESERVATION_SUCCESS;
+  payload: {
+    gameId: string;
+    serviceId: string;
+  };
+  timestamp?: number;
+}
 
 // --- Context & Handler Interfaces ---
 
