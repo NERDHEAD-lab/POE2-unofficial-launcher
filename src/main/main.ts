@@ -2589,7 +2589,10 @@ app.on("activate", () => {
 });
 
 // Set App User Model ID for Windows Taskbar Icon handling
-app.setAppUserModelId("com.nerdhead.poe2-launcher");
+const APP_USER_MODEL_ID = "com.nerdhead.poe2-launcher";
+app.setAppUserModelId(
+  app.isPackaged ? APP_USER_MODEL_ID : `${APP_USER_MODEL_ID}.dev`,
+);
 
 ipcMain.handle("changelog:get-all", async () => {
   const currentVersion = app.getVersion();
