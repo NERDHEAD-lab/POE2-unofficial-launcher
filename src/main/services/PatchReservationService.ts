@@ -182,12 +182,15 @@ export class PatchReservationService {
     serviceId: string,
     isUpdated: boolean,
   ) {
+    const config = this.context.getConfig() as AppConfig;
+    const isSilent = config.silentPatchNotification === true;
+
     const title = isUpdated ? "예약 패치 완료" : "업데이트 없음";
     const body = isUpdated
       ? `[${serviceId}] ${gameId} 패치 예약 동작이 성공적으로 완료되었습니다.`
       : `[${serviceId}] ${gameId} 패치를 시도했으나 업데이트가 없었습니다.`;
 
-    if (Notification.isSupported()) {
+    if (!isSilent && Notification.isSupported()) {
       new Notification({
         title,
         body,
@@ -195,15 +198,20 @@ export class PatchReservationService {
       }).show();
     }
 
-    logger.log(`[PatchReservation] Notification: ${body}`);
+    logger.log(
+      `[PatchReservation] ${isSilent ? "(SILENT) " : ""}Notification: ${body}`,
+    );
   }
 
   private notifyFailure(payload: PatchReservationFailedEvent["payload"]) {
+    const config = this.context.getConfig() as AppConfig;
+    const isSilent = config.silentPatchNotification === true;
+
     const { gameId, serviceId, reason } = payload;
     const title = "예약 패치 실패";
     const body = `[${serviceId}] ${gameId} 패치 예약에 실패했습니다.\n사유: ${reason}`;
 
-    if (Notification.isSupported()) {
+    if (!isSilent && Notification.isSupported()) {
       new Notification({
         title,
         body,
@@ -212,7 +220,9 @@ export class PatchReservationService {
       }).show();
     }
 
-    logger.error(`[PatchReservation] FINAL FAILURE: ${body}`);
+    logger.error(
+      `[PatchReservation] ${isSilent ? "(SILENT) " : ""}FINAL FAILURE: ${body}`,
+    );
 
     // Cleanup timeout if any
     const key = `${gameId}_${serviceId}`;

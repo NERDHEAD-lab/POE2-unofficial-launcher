@@ -70,22 +70,43 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
 
 interface PatchReservationModalProps {
   isOpen: boolean;
-  onClose: () => void;
   reservations: PatchReservation[];
   activeGame: AppConfig["activeGame"];
   activeService: AppConfig["serviceChannel"];
-  onAdd: (reservation: Omit<PatchReservation, "id" | "createdAt">) => void;
+  silentNotification: boolean;
+  onSilentToggle: (enabled: boolean) => void;
+  onAdd: (data: Omit<PatchReservation, "id" | "createdAt">) => void;
   onDelete: (id: string) => void;
+  onClose: () => void;
+  onNavigateToSetting?: (configId: string) => void;
+  launcherConfig: {
+    autoLaunch: boolean;
+    closeAction: "minimize" | "close";
+    autoFixPatchError: boolean;
+    skipDaumGameStarterUac: boolean;
+    serviceChannel: AppConfig["serviceChannel"];
+  };
 }
 
+interface StabilityCheck {
+  id: string;
+  level: "warning" | "error";
+  text: string;
+  configId?: string;
+  condition: boolean;
+}
 export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   isOpen,
   onClose,
   reservations,
   activeGame,
   activeService,
+  silentNotification,
+  onSilentToggle,
   onAdd,
   onDelete,
+  onNavigateToSetting,
+  launcherConfig,
 }) => {
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
@@ -343,6 +364,44 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
     );
   }, [year, month, day, hour, minute, currentTime]);
 
+  // Stability Checks Logic
+  const stabilityChecks = useMemo<StabilityCheck[]>(() => {
+    const checks: StabilityCheck[] = [
+      {
+        id: "auto-launch",
+        level: "warning",
+        text: "컴퓨터 시작 시 자동 실행이 꺼져 있습니다. (런처가 꺼져 있으면 예약 패치가 동작하지 않습니다.)",
+        configId: "autoLaunch",
+        condition: !launcherConfig.autoLaunch,
+      },
+      {
+        id: "close-action",
+        level: "warning",
+        text: "창 닫기 설정이 '종료'로 되어 있습니다. (트레이 최소화 권장)",
+        configId: "closeAction",
+        condition: launcherConfig.closeAction === "close",
+      },
+      {
+        id: "kakao-uac",
+        level: "error",
+        text: "카카오 플랫폼은 UAC 우회 설정이 꺼져 있으면 자동 패치가 불가능합니다.",
+        configId: "skipDaumGameStarterUac",
+        condition:
+          launcherConfig.serviceChannel === "Kakao Games" &&
+          !launcherConfig.skipDaumGameStarterUac,
+      },
+      {
+        id: "auto-fix",
+        level: "warning",
+        text: "패치 오류 자동 수정이 꺼져 있습니다. (오류 발생 시 패치가 중단됩니다.)",
+        configId: "autoFixPatchError",
+        condition: !launcherConfig.autoFixPatchError,
+      },
+    ];
+
+    return checks.filter((c) => c.condition);
+  }, [launcherConfig]);
+
   if (!isOpen) return null;
 
   const handleAdd = () => {
@@ -568,6 +627,44 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
               <span className="count">{reservations.length}개</span>
             </div>
 
+            {/* Stability Warnings Section */}
+            {stabilityChecks.length > 0 && (
+              <div className="reservation-list-section stability-section">
+                <div className="section-header">
+                  <span className="title">확인 필요</span>
+                  <span className="count warning">
+                    {stabilityChecks.length}건
+                  </span>
+                </div>
+                <div className="stability-list">
+                  {stabilityChecks.map((check) => (
+                    <div
+                      key={check.id}
+                      className={`stability-item level-${check.level}`}
+                    >
+                      <div className="item-content">
+                        <span className="material-symbols-outlined icon">
+                          {check.level === "error" ? "report" : "warning"}
+                        </span>
+                        <span className="text">{check.text}</span>
+                      </div>
+                      {check.configId && (
+                        <button
+                          className="btn-go-setting"
+                          onClick={() => onNavigateToSetting?.(check.configId!)}
+                          title="설정으로 이동"
+                        >
+                          <span className="material-symbols-outlined">
+                            settings
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="reservation-list">
               {reservations.length === 0 ? (
                 <div className="empty-list">예약된 항목이 없습니다.</div>
@@ -616,6 +713,30 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
         </div>
 
         <div className="patch-actions">
+          <button
+            className={`btn-silent-toggle ${!silentNotification ? "notif-enabled" : "is-silent"}`}
+            onClick={() => {
+              const newState = !silentNotification;
+              onSilentToggle(newState);
+              showToast(
+                newState
+                  ? "패치 완료 알림을 표시하지 않습니다. (방해 금지 모드)"
+                  : "패치 완료 후 결과를 알림으로 표시합니다.",
+              );
+            }}
+            title={
+              silentNotification
+                ? "알림 켜기 (현재 방해 금지)"
+                : "알림 끄기 (방해 금지)"
+            }
+          >
+            <span className="material-symbols-outlined">
+              {silentNotification
+                ? "notifications_off"
+                : "notifications_active"}
+            </span>
+          </button>
+          <div className="spacer" />
           <button className="btn-confirm" onClick={onClose}>
             닫기
           </button>

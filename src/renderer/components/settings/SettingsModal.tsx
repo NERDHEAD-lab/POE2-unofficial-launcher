@@ -9,10 +9,25 @@ import { Toast } from "../ui/Toast";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  initialSettingId?: string;
 }
 
-const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const [activeCatId, setActiveCatId] = useState(SETTINGS_CONFIG[0].id);
+const SettingsModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  initialSettingId,
+}) => {
+  const [activeCatId, setActiveCatId] = useState(() => {
+    if (initialSettingId) {
+      for (const cat of SETTINGS_CONFIG) {
+        const hasItem = cat.sections.some((s) =>
+          s.items.some((i) => i.id === initialSettingId),
+        );
+        if (hasItem) return cat.id;
+      }
+    }
+    return SETTINGS_CONFIG[0].id;
+  });
   const [isVisible, setIsVisible] = useState(false);
   const [isRestartNeeded, setIsRestartNeeded] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
@@ -49,14 +64,14 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     [],
   );
 
-  // Animation Logic
+  // Animation & initial focus Logic
   useEffect(() => {
     if (isOpen) {
-      // Defer state update to avoid sync render warning and allow transition
+      // Defer state update to allow transition
       const raf = requestAnimationFrame(() => setIsVisible(true));
       return () => cancelAnimationFrame(raf);
     } else {
-      const timer = setTimeout(() => setIsVisible(false), 200); // Wait for fade out
+      const timer = setTimeout(() => setIsVisible(false), 200);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
@@ -118,6 +133,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
           onClose={handleCloseAttempt}
           onShowToast={showToast}
           onRestartRequired={() => setIsRestartNeeded(true)}
+          highlightSettingId={initialSettingId}
         />
 
         {/* Restart Confirmation Popup */}

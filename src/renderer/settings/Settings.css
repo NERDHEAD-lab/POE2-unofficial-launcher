@@ -212,6 +212,25 @@
   transition: none;
 }
 
+.setting-item.highlighted {
+  border-color: var(--theme-accent, #dfcf99);
+  box-shadow: 0 0 15px rgba(223, 207, 153, 0.3);
+  animation: highlightFlash 2s ease-out;
+}
+
+@keyframes highlightFlash {
+  0% {
+    background: rgba(223, 207, 153, 0.4);
+    box-shadow: 0 0 30px rgba(223, 207, 153, 0.6);
+  }
+  30% {
+    background: rgba(223, 207, 153, 0.1);
+  }
+  100% {
+    background: #252525;
+  }
+}
+
 /* Disabled State */
 .setting-item.is-disabled {
   opacity: 0.5;

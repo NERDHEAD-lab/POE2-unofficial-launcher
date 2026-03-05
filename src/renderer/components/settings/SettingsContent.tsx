@@ -35,6 +35,7 @@ interface Props {
     variant?: "success" | "white" | "error" | "warning",
   ) => void;
   onRestartRequired: () => void;
+  highlightSettingId?: string;
 }
 
 // Individual Item Renderer to manage its own initialization and dynamic state
@@ -50,6 +51,7 @@ const SettingItemRenderer: React.FC<{
   onValueChange: (id: string, value: SettingValue) => void; // Real-time state local sync
   onShowConfirm?: (props: ConfirmModalProps) => void;
   onHideConfirm?: () => void;
+  isHighlighted?: boolean;
 }> = ({
   item,
   initialValue,
@@ -59,6 +61,7 @@ const SettingItemRenderer: React.FC<{
   onValueChange,
   onShowConfirm,
   onHideConfirm,
+  isHighlighted,
 }) => {
   const [val, setVal] = useState<SettingValue | undefined>(initialValue);
   // Dynamic Label State
@@ -74,6 +77,7 @@ const SettingItemRenderer: React.FC<{
       : [];
   });
 
+  const itemRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
   // Initialize description blocks from item.description (string)
@@ -231,6 +235,19 @@ const SettingItemRenderer: React.FC<{
     onShowToast,
     refreshOnValues,
   ]);
+
+  // Handle auto-scroll to highlighted item
+  useEffect(() => {
+    if (isHighlighted && itemRef.current) {
+      const timer = setTimeout(() => {
+        itemRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 500); // Wait for modal animation + content layout
+      return () => clearTimeout(timer);
+    }
+  }, [isHighlighted]);
 
   const isDependentVisible = (() => {
     if (!item.dependsOn) return true;
@@ -482,13 +499,14 @@ const SettingItemRenderer: React.FC<{
 
   return (
     <div
+      ref={itemRef}
       className={`setting-item type-${item.type} ${
         isExpanded ? "is-expanded" : ""
       } ${isExpandable ? "is-clickable" : ""} ${isDisabled ? "is-disabled" : ""} ${
         !isFinalVisible ? "is-hidden" : ""
       } ${item.dependsOn ? "is-dependent" : ""} ${
         descriptionBlocks.length > 0 ? "has-description" : "no-description"
-      }`}
+      } ${isHighlighted ? "highlighted" : ""}`}
       onClick={() => {
         if (isExpandable) setIsExpanded(!isExpanded);
       }}
@@ -581,6 +599,7 @@ export const SettingsContent: React.FC<Props> = ({
   onClose,
   onShowToast,
   onRestartRequired,
+  highlightSettingId,
 }) => {
   // Global Config Sync State
   const [config, setConfig] = useState<Record<string, SettingValue>>({});
@@ -700,6 +719,7 @@ export const SettingsContent: React.FC<Props> = ({
                     onValueChange={handleUpdateConfig}
                     onShowConfirm={(props) => setConfirmProps(props)}
                     onHideConfirm={() => setConfirmProps(null)}
+                    isHighlighted={item.id === highlightSettingId}
                   />
                 );
               },

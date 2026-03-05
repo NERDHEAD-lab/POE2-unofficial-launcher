@@ -65,6 +65,7 @@ export interface AppConfig {
     lastModified?: string; // For themes.json caching
   };
   patchReservations: PatchReservation[];
+  silentPatchNotification: boolean;
 }
 
 export interface PatchReservation {

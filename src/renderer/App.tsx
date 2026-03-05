@@ -146,9 +146,19 @@ function App() {
   const [patchReservations, setPatchReservations] = useState<
     AppConfig["patchReservations"]
   >([]);
+  const [silentPatchNotification, setSilentPatchNotification] = useState(true);
+  const [autoLaunch, setAutoLaunch] = useState(false);
+  const [closeAction, setCloseAction] = useState<"minimize" | "close">(
+    "minimize",
+  );
+  const [autoFixPatchError, setAutoFixPatchError] = useState(false);
+  const [skipDaumGameStarterUac, setSkipDaumGameStarterUac] = useState(false);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsFocusId, setSettingsFocusId] = useState<string | undefined>(
+    undefined,
+  );
 
   // [New] Theme Settings Version to trigger Effects
   const [themeVersion, setThemeVersion] = useState(0);
@@ -341,13 +351,6 @@ function App() {
       if (window.electronAPI.onPatchProgress) {
         window.electronAPI.onPatchProgress((progress: PatchProgress) => {
           const isDone = progress.status === "done";
-          if (isDone) {
-            setActiveMessage(
-              "패치 복구가 완료되었습니다. 이제 게임을 실행할 수 있습니다.",
-            );
-            // Auto-clear after 5 seconds
-            setTimeout(() => setActiveMessage(""), 5000);
-          }
 
           setPatchModalState((prev) => ({
             ...prev,
@@ -496,6 +499,16 @@ function App() {
 
   const handleUpdateDismiss = () => {
     setIsUpdateModalOpen(false);
+  };
+
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+    setSettingsFocusId(undefined);
+  };
+
+  const openSettingsWithFocus = (configId: string) => {
+    setSettingsFocusId(configId);
+    setIsSettingsOpen(true);
   };
 
   // Effect: Handle Generic Status Message & Timers
@@ -875,6 +888,32 @@ function App() {
     window.electronAPI?.setConfig(CONFIG_KEYS.SHOW_ONBOARDING, false);
   };
 
+  const handleAddPatchReservation = useCallback(
+    (res: Omit<AppConfig["patchReservations"][0], "id" | "createdAt">) => {
+      const newRes = {
+        ...res,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      };
+      window.electronAPI.triggerPatchReservation(newRes);
+    },
+    [],
+  );
+
+  const handleRemovePatchReservation = useCallback((id: string) => {
+    window.electronAPI.deletePatchReservation(id);
+  }, []);
+
+  const handleSilentPatchNotificationToggle = useCallback(
+    (enabled: boolean) => {
+      window.electronAPI.setConfig(
+        CONFIG_KEYS.SILENT_PATCH_NOTIFICATION,
+        enabled,
+      );
+    },
+    [],
+  );
+
   // --- Auto Scaling Logic (Scale-to-Fit) ---
   const BASE_WIDTH = 1440;
   const BASE_HEIGHT = 960;
@@ -947,7 +986,8 @@ function App() {
 
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={closeSettings}
+        initialSettingId={settingsFocusId}
       />
 
       <PatchFixModal
@@ -968,18 +1008,19 @@ function App() {
         reservations={patchReservations}
         activeGame={activeGame}
         activeService={serviceChannel}
-        onAdd={(res) => {
-          const newRes = {
-            ...res,
-            id: Date.now().toString(),
-            createdAt: new Date().toISOString(),
-          };
-          window.electronAPI.triggerPatchReservation(newRes);
-        }}
-        onDelete={(id) => {
-          window.electronAPI.deletePatchReservation(id);
-        }}
+        silentNotification={silentPatchNotification}
+        onSilentToggle={handleSilentPatchNotificationToggle}
+        onAdd={handleAddPatchReservation}
+        onDelete={handleRemovePatchReservation}
         onClose={() => setIsPatchReservationOpen(false)}
+        onNavigateToSetting={openSettingsWithFocus}
+        launcherConfig={{
+          autoLaunch,
+          closeAction,
+          autoFixPatchError,
+          skipDaumGameStarterUac,
+          serviceChannel,
+        }}
       />
 
       <NoticeModal
