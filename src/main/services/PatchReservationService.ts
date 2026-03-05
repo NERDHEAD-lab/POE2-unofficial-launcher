@@ -12,14 +12,20 @@ import {
   PatchReservationFailedEvent,
   PatchReservationSuccessEvent,
   ProcessWillTerminateEvent,
+  ConfigChangeEvent,
 } from "../events/types";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
 import { PowerShellManager } from "../utils/powershell";
 
 export class PatchReservationService {
-  private timer: NodeJS.Timeout | null = null;
-  // Key: gameId_serviceId
+  // Map to store active timer for each reservation ID
+  private scheduledTimers = new Map<string, NodeJS.Timeout>();
+
+  // Queue for sequential execution
+  private reservationQueue: PatchReservation[] = [];
+  private isProcessing = false;
+
   private activeTimeouts = new Map<string, NodeJS.Timeout>();
   private pendingChecks = new Map<
     number,
@@ -32,17 +38,19 @@ export class PatchReservationService {
   >();
 
   constructor(private context: AppContext) {
-    this.startScheduler();
     this.initEventListeners();
-  }
-
-  private startScheduler() {
-    this.timer = setInterval(() => {
-      this.checkReservations();
-    }, 1000 * 30); // Check every 30 seconds
+    // Initial schedule refresh (also handles missed reservations)
+    this.refreshSchedules();
   }
 
   private initEventListeners() {
+    // Listen for config changes to refresh schedules
+    eventBus.on(EventType.CONFIG_CHANGE, (event: ConfigChangeEvent) => {
+      if (event.payload.key === "patchReservations") {
+        this.refreshSchedules();
+      }
+    });
+
     // Listen for patch finished
     eventBus.on(
       EventType.LOG_PATCH_FINISHED,
@@ -86,6 +94,9 @@ export class PatchReservationService {
           this.activeTimeouts.delete(key);
           logger.log(`[PatchReservation] Success confirmed for ${key}.`);
         }
+
+        // Mark current as done and proceed to next in queue
+        this.finishCurrentAndContinue();
       },
     );
 
@@ -94,21 +105,98 @@ export class PatchReservationService {
       EventType.PATCH_RESERVATION_FAILED,
       (event: PatchReservationFailedEvent) => {
         this.notifyFailure(event.payload);
+
+        // Mark current as done (failed) and proceed to next in queue
+        this.finishCurrentAndContinue();
       },
     );
   }
 
-  private async checkReservations() {
+  private refreshSchedules() {
+    // Clear all existing timers
+    for (const timer of this.scheduledTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.scheduledTimers.clear();
+
     const config = this.context.getConfig() as AppConfig;
     const reservations = config.patchReservations || [];
     const now = new Date();
 
-    const due = reservations.filter((res) => new Date(res.targetTime) <= now);
+    const missed: PatchReservation[] = [];
+    const future: PatchReservation[] = [];
 
-    for (const res of due) {
-      await this.triggerPatch(res);
-      this.removeReservation(res.id);
+    // Categorize reservations
+    reservations.forEach((res) => {
+      if (new Date(res.targetTime) <= now) {
+        missed.push(res);
+      } else {
+        future.push(res);
+      }
+    });
+
+    // 1. Handle Missed (Catch-up) with Deduplication
+    if (missed.length > 0) {
+      // Deduplicate: same game+service -> keep latest
+      const dedupMap = new Map<string, PatchReservation>();
+      missed.forEach((m) => {
+        const key = `${m.gameId}_${m.serviceId}`;
+        const existing = dedupMap.get(key);
+        if (
+          !existing ||
+          new Date(m.targetTime) > new Date(existing.targetTime)
+        ) {
+          dedupMap.set(key, m);
+        }
+      });
+
+      // Add deduped missed to queue
+      dedupMap.forEach((res) => {
+        this.enqueue(res);
+        this.removeReservation(res.id); // Remove from config as it's now in queue
+      });
     }
+
+    // 2. Schedule Future
+    future.forEach((res) => {
+      const delay = new Date(res.targetTime).getTime() - now.getTime();
+      const timer = setTimeout(() => {
+        this.enqueue(res);
+        this.removeReservation(res.id);
+        this.scheduledTimers.delete(res.id);
+      }, delay);
+      this.scheduledTimers.set(res.id, timer);
+    });
+
+    logger.log(
+      `[PatchReservation] Schedules refreshed. Missed: ${missed.length} (Deduped: ${missed.length - (missed.length - missed.length)}), Future: ${future.length}`,
+    );
+  }
+
+  private enqueue(res: PatchReservation) {
+    // Avoid double enqueuing same reservation ID
+    if (this.reservationQueue.some((q) => q.id === res.id)) return;
+
+    this.reservationQueue.push(res);
+    this.processQueue();
+  }
+
+  private async processQueue() {
+    if (this.isProcessing || this.reservationQueue.length === 0) return;
+
+    this.isProcessing = true;
+    const nextItem = this.reservationQueue[0];
+
+    logger.log(
+      `[PatchReservation] Processing queue - Current: ${nextItem.gameId}_${nextItem.serviceId}, Remaining: ${this.reservationQueue.length - 1}`,
+    );
+    await this.triggerPatch(nextItem);
+  }
+
+  private finishCurrentAndContinue() {
+    this.reservationQueue.shift();
+    this.isProcessing = false;
+    this.processQueue();
   }
 
   private async triggerPatch(res: PatchReservation, retryCount: number = 0) {
@@ -226,7 +314,7 @@ export class PatchReservationService {
 
     // Cleanup timeout if any
     const key = `${gameId}_${serviceId}`;
-    if (this.activeTimeouts.has(key)) {
+    if (this.activeTimeouts.get(key)) {
       clearTimeout(this.activeTimeouts.get(key)!);
       this.activeTimeouts.delete(key);
     }
@@ -260,24 +348,34 @@ export class PatchReservationService {
   }
 
   public addReservation(reservation: PatchReservation) {
+    // This will trigger CONFIG_CHANGE which calls refreshSchedules
     const config = this.context.getConfig() as AppConfig;
     const updated = [...(config.patchReservations || []), reservation];
     setConfigWithEvent("patchReservations", updated);
   }
 
   public deleteReservation(id: string) {
+    // This will trigger CONFIG_CHANGE which calls refreshSchedules
     this.removeReservation(id);
   }
 
   public stop() {
-    if (this.timer) clearInterval(this.timer);
+    for (const timer of this.scheduledTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.scheduledTimers.clear();
+
     for (const check of this.pendingChecks.values()) {
       clearTimeout(check.timeout);
     }
     this.pendingChecks.clear();
+
     for (const timeout of this.activeTimeouts.values()) {
       clearTimeout(timeout);
     }
     this.activeTimeouts.clear();
+
+    this.reservationQueue = [];
+    this.isProcessing = false;
   }
 }
