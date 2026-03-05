@@ -18,7 +18,7 @@
   transition:
     opacity 0.5s ease-out,
     transform 0.5s ease-out;
-  z-index: 9999;
+  z-index: 13000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
   display: flex;
@@ -58,5 +58,5 @@
 /* Positioning Override based on parent context (for Settings Modal portal) */
 .settings-modal .shared-toast {
   bottom: 25px;
-  z-index: 10001;
+  z-index: 13001;
 }
