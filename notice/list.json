@@ -8,27 +8,35 @@
     "hash": "324abaf49dd16649f577ff6681c31ee4"
   },
   {
-    "id": 2,
-    "title": "Unable to start PathOfExile_KG.exe 조치 가이드 (임시)",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] Unable to start PathOfExile_KG.exe 조치 가이드 (임시).md",
-    "date": "2026-02-16",
-    "priority": true,
-    "hash": "ebe9948c8303e5c2d8e6c911a3f04982"
-  },
-  {
     "id": 3,
     "title": "PoE & PoE 2 Unofficial Launcher 로드맵 공지",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]PoE & PoE 2 Unofficial Launcher 로드맵 공지.md",
-    "date": "2026-02-15",
+    "date": "2026-03-06",
     "priority": true,
-    "hash": "849b84b8c5de9d5d43d8274e32d835b6"
+    "hash": "6145b045d79650ec4772490f72eedacb"
   },
   {
-    "id": 4,
-    "title": "[공지] 게임 실행 후 홈 화면 노출 및 지연 경고 현상 수정 안내",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] 게임 실행 단계에서 흰 화면만 표시되는 현상 조치 가이드.md",
-    "date": "2026-03-03",
+    "id": 5,
+    "title": "Unable to start PathOfExile_KG.exe 조치 가이드 (임시)",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] Unable to start PathOfExile_KG.exe 조치 가이드.md",
+    "date": "2026-03-06",
     "priority": true,
+    "hash": "65fb9be7ba5ddc5dd9daac0cb28093e3"
+  },
+  {
+    "id": 6,
+    "title": "간헐적으로 런쳐 업데이트에 실패하는 문제",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice] 간헐적으로 업데이트에 실패하는 문제.md",
+    "date": "2026-03-06",
+    "priority": true,
+    "hash": "0c7a363e584940e5bed4af9b3ce16608"
+  },
+  {
+    "id": 7,
+    "title": "[공지] 게임 실행 후 홈 화면 노출 및 지연 경고 현상 수정 안내",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/게임 실행 단계에서 흰 화면만 표시되는 현상 조치 가이드.md",
+    "date": "2026-03-06",
+    "priority": false,
     "hash": "b7e4a9aad32678451720e597b92c5151"
   }
 ]
