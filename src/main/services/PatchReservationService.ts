@@ -1,5 +1,25 @@
 import { Notification } from "electron";
 
+/**
+ * [v42] Patch Reservation Resolution Logic Summary:
+ *
+ * 1. 성공 (isUpdated: true)
+ *    - UI 타이틀에서 "완료" 혹은 다국어 완료 문구(Done, Fertig, Hecho 등)가 명시적으로 확인된 경우.
+ *    - 처리 위치: `handleUiTitleTick`
+ *
+ * 2. 업데이트 없음 (isUpdated: false)
+ *    - 로그 분석 중 `LOG_GAME_STARTUP` 이벤트가 발생한 경우. (패치 없이 바로 게임 진입)
+ *    - 처리 위치: `handleGameStartup`
+ *
+ * 3. 실패 (Failure / Canceled)
+ *    - 프로세스 종료(`PROCESS_STOP`) 후 10초 내에 새로운 프로세스가 시작되지 않고,
+ *    - 이전에 "완료" 문구를 확인하지 못한 상태인 경우.
+ *    - 처리 위치: `handleProcessStop` -> `abnormalExitTimeout` (10초 유예)
+ *
+ * 4. PID 교체 (Normal Flow)
+ *    - 프로세스 종료 후 10초 이내에 새로운 세션(`LOG_SESSION_START`)이 시작되는 경우.
+ *    - 처리 위치: `handleProcessStop`에서 타이머 시작 -> `LOG_SESSION_START`에서 타이머 해제
+ */
 import { PatchReservation, AppConfig } from "../../shared/types";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
@@ -10,11 +30,13 @@ import {
   LogSessionStartEvent,
   LogPatchFinishedEvent,
   LogGameStartupEvent,
+  ProcessEvent,
   PatchRetryRequestedEvent,
   PatchReservationFailedEvent,
   PatchReservationSuccessEvent,
   ProcessWillTerminateEvent,
   ConfigChangeEvent,
+  PatchUiTitleTickEvent,
 } from "../events/types";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
@@ -30,16 +52,9 @@ export class PatchReservationService {
 
   private activeTimeouts = new Map<string, NodeJS.Timeout>();
   private currentActivePid: number | null = null;
-  // [v29 FIX] Changed from PID to GameId_ServiceId as key to prevent tracker loss on auto-restart
-  private pendingChecks = new Map<
-    string,
-    {
-      id: string;
-      gameId: string;
-      serviceId: string;
-      timeout: NodeJS.Timeout;
-    }
-  >();
+  // [v42] Changed from Map (timeouts) to Set (keys) because backup timer is removed
+  private pendingResolutionKeys = new Set<string>();
+  private abnormalExitTimeouts = new Map<string, NodeJS.Timeout>();
 
   // Dynamic listener IDs for cleanup
   private dynamicListenerIds: Map<EventType, string> = new Map();
@@ -86,7 +101,19 @@ export class PatchReservationService {
     const id0 = eventBus.on(
       EventType.LOG_SESSION_START,
       (event: LogSessionStartEvent) => {
-        this.currentActivePid = event.payload.pid;
+        const { gameId, serviceId, pid } = event.payload;
+        const taskKey = `${gameId}_${serviceId}`;
+
+        // [v42] PID Rotation Check: Clear any "Abnormal Exit" timer if a new session starts for same task
+        if (this.abnormalExitTimeouts.has(taskKey)) {
+          logger.log(
+            `[PatchReservation] PID Rotation detected for ${taskKey}. New PID: ${pid}. Continuing...`,
+          );
+          clearTimeout(this.abnormalExitTimeouts.get(taskKey));
+          this.abnormalExitTimeouts.delete(taskKey);
+        }
+
+        this.currentActivePid = pid;
         logger.log(
           `[PatchReservation] Tracking PID ${this.currentActivePid} for current assignment.`,
         );
@@ -132,11 +159,24 @@ export class PatchReservationService {
       },
     );
 
+    const id5 = eventBus.on(
+      EventType.PATCH_UI_TITLE_TICK,
+      (event: PatchUiTitleTickEvent) => {
+        this.handleUiTitleTick(event.payload);
+      },
+    );
+
+    const id6 = eventBus.on(EventType.PROCESS_STOP, (event: ProcessEvent) => {
+      this.handleProcessStop(event.payload);
+    });
+
     this.dynamicListenerIds.set(EventType.LOG_SESSION_START, id0);
     this.dynamicListenerIds.set(EventType.LOG_PATCH_FINISHED, id1);
     this.dynamicListenerIds.set(EventType.LOG_GAME_STARTUP, id2);
     this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_SUCCESS, id3);
     this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_FAILED, id4);
+    this.dynamicListenerIds.set(EventType.PATCH_UI_TITLE_TICK, id5);
+    this.dynamicListenerIds.set(EventType.PROCESS_STOP, id6);
 
     logger.log(
       `[PatchReservation] Dynamic execution listeners subscribed (Queue: ${this.reservationQueue.length}).`,
@@ -246,11 +286,13 @@ export class PatchReservationService {
     // Explicit Unsubscribe after EACH task completion (triggered by notification)
     this.cleanupExecutionListeners();
 
-    // Clear any dangling timers from the finished task
-    for (const check of this.pendingChecks.values()) {
-      clearTimeout(check.timeout);
+    // Clear any dangling status from the finished task
+    this.pendingResolutionKeys.clear();
+
+    for (const timeout of this.abnormalExitTimeouts.values()) {
+      clearTimeout(timeout);
     }
-    this.pendingChecks.clear();
+    this.abnormalExitTimeouts.clear();
 
     for (const timeout of this.activeTimeouts.values()) {
       clearTimeout(timeout);
@@ -298,7 +340,7 @@ export class PatchReservationService {
   }
 
   private handlePatchFinished(payload: LogPatchFinishedEvent["payload"]) {
-    const { pid, gameId, serviceId } = payload;
+    const { gameId, serviceId } = payload;
     const taskKey = `${gameId}_${serviceId}`;
 
     // Verify this event belongs to the CURRENT reservation
@@ -314,66 +356,38 @@ export class PatchReservationService {
       return;
     }
 
-    // [v28/v29 FIX] Prevent multiple 60s timers and use taskKey instead of PID
-    if (this.pendingChecks.has(taskKey)) {
-      logger.warn(
-        `[PatchReservation] Duplicate LOG_PATCH_FINISHED detected for ${taskKey}. Clearing old timer.`,
-      );
-      clearTimeout(this.pendingChecks.get(taskKey)!.timeout);
-    }
-
-    // Set 30 seconds backup timer (User's requirement: Wait 30s and complete)
-    const timeout = setTimeout(() => {
-      logger.log(
-        `[PatchReservation] 30 seconds wait finished for ${taskKey}. Game did NOT start natively. Notifying success.`,
-      );
-      this.notifyUpdateResult(gameId, serviceId, true);
-
-      // Cleanup strategy: Try to kill whatever is in currentActivePid (which might have been rotated)
-      const terminateAfterPatch =
-        this.context.getConfig("terminateAfterPatch") !== false;
-      if (terminateAfterPatch) {
-        if (this.currentActivePid) {
-          this.cleanupProcess(gameId, serviceId, this.currentActivePid);
-        } else {
-          // Fallback to the pid that emitted the event if tracking lost
-          this.cleanupProcess(gameId, serviceId, pid);
-        }
-      } else {
-        logger.log(
-          `[PatchReservation] Terminate after patch is DISABLED. Keeping process alive.`,
-        );
-      }
-
-      this.finishCurrentAndContinue(); // Complete the task
-    }, 30000);
-
-    this.pendingChecks.set(taskKey, {
-      id: taskKey,
-      gameId,
-      serviceId,
-      timeout,
-    });
+    // [v42] No more 30s timeout. Just mark as waiting for UI/Startup resolution.
+    this.pendingResolutionKeys.add(taskKey);
 
     logger.log(
-      `[PatchReservation] Patch finished detected for ${taskKey}. Starting 30 seconds wait...`,
+      `[PatchReservation] Patch finished detected for ${taskKey}. Waiting for UI "완료" or Game Startup...`,
     );
   }
 
-  private handleGameStartup(payload: LogGameStartupEvent["payload"]) {
+  private async handleGameStartup(payload: LogGameStartupEvent["payload"]) {
     const { pid, gameId, serviceId } = payload;
     const taskKey = `${gameId}_${serviceId}`;
 
-    // Case 1: Game started AFTER patch detected (within the 1m wait)
+    const terminateAfterPatch =
+      this.context.getConfig("terminateAfterPatch") !== false;
+
+    // Case 1: Game started AFTER patch detected (within the checking phase)
     // -> This means "No Update" because the game launched immediately after checking files.
-    const check = this.pendingChecks.get(taskKey);
-    if (check) {
-      clearTimeout(check.timeout);
+    if (this.pendingResolutionKeys.has(taskKey)) {
+      this.pendingResolutionKeys.delete(taskKey); // Ensure cleanup
       logger.log(
         `[PatchReservation] Game startup detected after patch check for ${taskKey}. No update found.`,
       );
-      this.notifyUpdateResult(gameId, serviceId, false); // FIXED: true -> false
-      this.cleanupProcess(gameId, serviceId, pid);
+      this.notifyUpdateResult(gameId, serviceId, false);
+
+      if (terminateAfterPatch) {
+        await this.cleanupProcess(gameId, serviceId, pid);
+      } else {
+        logger.log(
+          `[PatchReservation] No update found but terminateAfterPatch is disabled. PID ${pid} remains alive.`,
+        );
+      }
+
       this.finishCurrentAndContinue();
       return;
     }
@@ -384,8 +398,106 @@ export class PatchReservationService {
         `[PatchReservation] Game startup detected directly (No Update) for PID ${pid}.`,
       );
       this.notifyUpdateResult(gameId, serviceId, false);
-      this.cleanupProcess(gameId, serviceId, pid);
+
+      if (terminateAfterPatch) {
+        await this.cleanupProcess(gameId, serviceId, pid);
+      } else {
+        logger.log(
+          `[PatchReservation] Direct startup detected but terminateAfterPatch is disabled. PID ${pid} remains alive.`,
+        );
+      }
+
       this.finishCurrentAndContinue();
+    }
+  }
+
+  private async handleUiTitleTick(payload: PatchUiTitleTickEvent["payload"]) {
+    const { title, gameId, serviceId, pid } = payload;
+    const taskKey = `${gameId}_${serviceId}`;
+
+    const currentRes = this.reservationQueue[0];
+    if (
+      !currentRes ||
+      currentRes.gameId !== gameId ||
+      currentRes.serviceId !== serviceId
+    ) {
+      return;
+    }
+
+    // [v42] Optimization: Trigger "Update Success" immediately if UI says "완료" (Done)
+    // ONLY use the following user-provided completion strings
+    const isDone =
+      /Done|Pronto|Завершено|Fertig|Hecho|Terminé|완료|完了|เสร็จสิ้น|完成/i.test(
+        title,
+      );
+
+    if (
+      isDone &&
+      this.pendingResolutionKeys.has(taskKey) &&
+      gameId &&
+      serviceId
+    ) {
+      logger.log(
+        `[PatchReservation] UI status "완료" detected for ${taskKey}. Closing patcher...`,
+      );
+      this.pendingResolutionKeys.delete(taskKey);
+
+      this.notifyUpdateResult(gameId, serviceId, true);
+
+      // [v42 FIX] Always attempt cleanup if title "완료" is seen, respecting config
+      const terminateAfterPatch =
+        this.context.getConfig("terminateAfterPatch") !== false;
+      if (terminateAfterPatch) {
+        await this.cleanupProcess(gameId, serviceId, pid);
+      } else {
+        logger.log(
+          `[PatchReservation] terminateAfterPatch is disabled. PID ${pid} remains alive.`,
+        );
+      }
+
+      this.finishCurrentAndContinue();
+    }
+  }
+
+  private handleProcessStop(payload: { pid: number; name: string }) {
+    const { pid } = payload;
+
+    // If the process we were tracking just stopped
+    if (this.currentActivePid === pid) {
+      logger.log(`[PatchReservation] Process stopped: PID ${pid}`);
+
+      // [v42] Case A: PID Rotation Check -> Wait 10s
+      // If the process stops while reservation is active, we MUST wait for potential PID rotation (Starter -> Patcher)
+      // or check if it was truly finished (which should have been handled by handleUiTitleTick).
+      const currentRes = this.reservationQueue[0];
+      if (currentRes) {
+        const taskKey = `${currentRes.gameId}_${currentRes.serviceId}`;
+        logger.warn(
+          `[PatchReservation] Process stopped for ${taskKey}. Waiting 10s for PID Rotation or confirming exit...`,
+        );
+
+        const timeout = setTimeout(() => {
+          // If 10s passed and we are still in this state, it's a FAILURE
+          // because if it were successful, handleUiTitleTick or handleGameStartup would have cleared these states.
+          logger.error(
+            `[PatchReservation] No new process detected after 10s for ${taskKey}. Marking as FAILED.`,
+          );
+          this.abnormalExitTimeouts.delete(taskKey);
+
+          this.notifyFailure({
+            gameId: currentRes.gameId,
+            serviceId: currentRes.serviceId,
+            reason:
+              "사용자 중단 혹은 프로세스가 비정상 종료되었습니다. (완료 확인 불가)",
+          });
+          this.finishCurrentAndContinue();
+        }, 10000);
+
+        this.abnormalExitTimeouts.set(taskKey, timeout);
+        return;
+      }
+
+      this.currentActivePid = null;
     }
   }
 
@@ -507,7 +619,8 @@ export class PatchReservationService {
     }
 
     // [v34 FIX] Also kill ALL related processes for the game/service to handle PID changes (Kakao Games case)
-    const profile = (GAME_SERVICE_PROFILES as any)[serviceId];
+    const profile =
+      GAME_SERVICE_PROFILES[serviceId as AppConfig["serviceChannel"]];
     if (profile) {
       this.emitLog(
         `[PatchReservation] Performing broad cleanup for ${serviceId} keywords: ${profile.processKeywords.join(", ")}`,
@@ -546,10 +659,12 @@ export class PatchReservationService {
     }
     this.scheduledTimers.clear();
 
-    for (const check of this.pendingChecks.values()) {
-      clearTimeout(check.timeout);
+    this.pendingResolutionKeys.clear();
+
+    for (const timeout of this.abnormalExitTimeouts.values()) {
+      clearTimeout(timeout);
     }
-    this.pendingChecks.clear();
+    this.abnormalExitTimeouts.clear();
 
     for (const timeout of this.activeTimeouts.values()) {
       clearTimeout(timeout);
