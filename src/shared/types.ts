@@ -246,7 +246,7 @@ export interface ElectronAPI {
   sendDebugLog: (log: DebugLogPayload) => void;
   checkForUpdates: () => Promise<void>; // Manually trigger check
   downloadUpdate: () => void; // Trigger download
-  installUpdate: () => void; // Trigger install & restart
+  installUpdate: (isSilent?: boolean) => void; // Trigger install & restart
   onUpdateStatusChange: (
     callback: (status: UpdateStatus) => void,
   ) => () => void;

@@ -488,8 +488,8 @@ function App() {
     // Modal stays open to show progress
   };
 
-  const handleInstallClick = () => {
-    window.electronAPI.installUpdate();
+  const handleInstallClick = (isSilent = true) => {
+    window.electronAPI.installUpdate(isSilent);
   };
 
   const handleUpdateDismiss = () => {

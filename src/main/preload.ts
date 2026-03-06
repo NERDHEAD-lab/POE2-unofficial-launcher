@@ -91,7 +91,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // [Update API]
   checkForUpdates: () => ipcRenderer.send("ui:update-check"),
   downloadUpdate: () => ipcRenderer.send("ui:update-download"),
-  installUpdate: () => ipcRenderer.send("ui:update-install"),
+  installUpdate: (isSilent?: boolean) =>
+    ipcRenderer.send("ui:update-install", isSilent),
   onUpdateStatusChange: (callback: (status: UpdateStatus) => void) => {
     const handler = (_event: IpcRendererEvent, status: UpdateStatus) =>
       callback(status);

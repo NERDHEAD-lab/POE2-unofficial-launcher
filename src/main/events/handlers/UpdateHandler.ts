@@ -4,6 +4,7 @@ import { autoUpdater } from "electron-updater";
 
 import { UpdateStatus } from "../../../shared/types";
 import { logger } from "../../utils/logger";
+import { PowerShellManager } from "../../utils/powershell";
 import {
   AppContext,
   EventHandler,
@@ -246,9 +247,11 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
 
   condition: () => true,
 
-  handle: async (_event, _context: AppContext) => {
+  handle: async (event, _context: AppContext) => {
+    const isSilent = event.payload?.isSilent ?? true;
+
     logger.log(
-      `[UpdateHandler] Requesting install & quit... (Current EXE: ${app.getPath("exe")})`,
+      `[UpdateHandler] Requesting install & quit... (isSilent: ${isSilent}, Current EXE: ${app.getPath("exe")})`,
     );
 
     if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
@@ -257,6 +260,14 @@ export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
       );
       return;
     }
-    autoUpdater.quitAndInstall(true, true); // Enforce Silent Install (isSilent: true)
+
+    // [Safety] Cleanup PowerShell sessions before quitting to ensure no file locks
+    try {
+      PowerShellManager.getInstance().cleanup();
+    } catch (e) {
+      logger.error("[UpdateHandler] Failed to cleanup PowerShell sessions:", e);
+    }
+
+    autoUpdater.quitAndInstall(isSilent, true);
   },
 };

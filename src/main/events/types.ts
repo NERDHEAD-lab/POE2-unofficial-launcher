@@ -189,7 +189,9 @@ export interface UIUpdateDownloadEvent {
 
 export interface UIUpdateInstallEvent {
   type: EventType.UI_UPDATE_INSTALL;
-  payload?: void;
+  payload?: {
+    isSilent?: boolean;
+  };
   timestamp?: number;
 }
 

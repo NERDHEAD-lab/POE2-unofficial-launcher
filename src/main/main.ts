@@ -1455,12 +1455,12 @@ ipcMain.on("ui:update-download", () => {
   }
 });
 
-ipcMain.on("ui:update-install", () => {
+ipcMain.on("ui:update-install", (_event, isSilent?: boolean) => {
   if (appContext) {
     eventBus.emit<UIUpdateInstallEvent>(
       EventType.UI_UPDATE_INSTALL,
       appContext,
-      undefined,
+      { isSilent },
     );
   }
 });
