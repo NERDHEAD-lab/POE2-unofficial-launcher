@@ -32,6 +32,8 @@ export class LogWatcher {
   private lastCheckedGameId: AppConfig["activeGame"] | null = null;
   private lastCheckedServiceId: AppConfig["serviceChannel"] | null = null;
   private currentPid: number | null = null;
+  // [v30 FIX] Track multiple PIDs to prevent premature stopMonitoring during client self-restart
+  private activeGamePids = new Set<number>();
   private lastReportedErrorCount: number = 0;
   private isChecking = false;
 
@@ -61,9 +63,16 @@ export class LogWatcher {
 
       if (this.isGameProcess(name, serviceId)) {
         this.emitLog(
-          `[Event:PROCESS_START] Matched Game Process: ${name} (PID: ${pid}) -> Starting Monitor`,
+          `[Event:PROCESS_START] Matched Game Process: ${name} (PID: ${pid}) -> Tracking LogWatcher`,
         );
-        await this.startMonitoring(serviceId, activeGame, pid);
+        this.activeGamePids.add(pid);
+
+        // Update currentPid so events correctly reference the latest spawned client
+        this.currentPid = pid;
+
+        if (!this.isMonitoring) {
+          await this.startMonitoring(serviceId, activeGame, pid);
+        }
       }
     });
 
@@ -73,7 +82,19 @@ export class LogWatcher {
       ) as AppConfig["serviceChannel"];
 
       if (this.isGameProcess(event.payload.name, serviceId)) {
-        this.stopMonitoring();
+        const pid = event.payload.pid;
+        this.activeGamePids.delete(pid);
+        this.emitLog(
+          `[Event:PROCESS_STOP] Removed PID: ${pid} from LogWatcher tracking. Active remaining: ${this.activeGamePids.size}`,
+        );
+
+        // Only stop monitoring if NO related game processes remain alive.
+        if (this.activeGamePids.size === 0) {
+          this.emitLog(
+            `[LogWatcher] All related processes stopped. Tearing down monitor.`,
+          );
+          this.stopMonitoring();
+        }
       }
     });
   }
@@ -204,9 +225,14 @@ export class LogWatcher {
             }
           }
 
+          // [v32 REMOVED] Removing strict PID filtering for Kakao Patcher compatibility.
+          // Some patcher/downloader logs do not follow the standard "Client {PID}" format.
+          // By removing this, we can capture "Finished checking files" logs regardless of formatting.
+          /*
           if (this.currentPid && !line.includes(`Client ${this.currentPid}`)) {
             if (!line.includes(config.logStartMarker)) continue;
           }
+          */
 
           // Check for Backup Web Root
           const backupWebRoot = LogParser.extractBackupWebRoot(line);

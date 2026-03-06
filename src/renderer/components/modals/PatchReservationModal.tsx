@@ -498,6 +498,11 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
             <h2>게임 패치 예약 설정</h2>
             <div className="header-sub-text">
               원하는 시간에 게임 패치를 자동으로 시작합니다.
+              <br />
+              <span className="warning-text">
+                ※ 예약 실행 시간에 게임이 이미 켜져 있으면 정상적으로 동작하지
+                않습니다.
+              </span>
             </div>
           </div>
           <button className="btn-close-icon" onClick={onClose}>
