@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.0.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.10.0...1.0.0) (2026-03-06)
+
+
+### Features
+
+* 게임 예약 패치 기능 추가 - 1 ([796fd87](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/796fd873d14c74da4cb757897ccd9b2fe89489fd))
+* 게임 예약 패치 기능 추가 - 2 ([2c23cf0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/2c23cf004fd6764f01e92891123fc28be6531b1f))
+* 게임 예약 패치 기능 추가 - 3 ([81e160f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/81e160ff0f1b2656169c179e6c225e0e641b4cca))
+* 게임 예약 패치 기능 추가 - 4 ([3720f67](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3720f6758730d745e1c254e7fcdc6c30cb69d768))
+* 게임 예약 패치 기능 추가 - 5 ([1c2a8e3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1c2a8e39f26c22284218f0cd17c8cc003c928db8))
+* 게임 예약 패치 기능 추가 - 6 ([8667aa2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/8667aa2496fb8cc31737083d161ee5dc0197c2ce))
+* 게임 예약 패치 기능 추가 - 7 ([ad33f96](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ad33f9604a686e2f39adfb60253bb80ee69a4513))
+* 게임 예약 패치 기능 추가 - 8 ([b00178d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b00178d8d750526152fd928b85b07f00c802251c))
+* 공식 디스코드 채널 추가 ([4a0313c](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4a0313ce294897535577981568fb4953a5492fc6))
+* 런쳐 설정 로딩 최적화 ([3feaac5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3feaac5743ae3dcf4b16824dd57458ace716028a))
+* 런쳐 설정 로딩 최적화 - 2 ([9dcbeab](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/9dcbeabd0d925702637a56d6fd5cd493fee6f2fc))
+* 런쳐 수동 업데이트 할 수 있는 버튼 추가 ([414ef67](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/414ef673536cc99f83f6c3094dd1a35f833f5fd0))
+* 버그제보, 기능제안 UI/UX 개선 및 보고서 클립보드 기능 추가 ([e6249ae](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e6249aea9cce734628196c9039d44df274e47fc3))
+
+
+### Chores
+
+* release 1.0.0 ([89b55c1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/89b55c11d8f19bb0335d750a87c46e87196dbc59))
+
 ## [0.10.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.9.10...0.10.0) (2026-03-04)
 
 
