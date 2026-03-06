@@ -46,7 +46,11 @@ import SettingsModal from "./components/settings/SettingsModal";
 
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
-import { extractThemeColors, applyThemeColors } from "./utils/theme";
+import {
+  extractThemeColors,
+  applyThemeColors,
+  DEFAULT_THEME_COLORS,
+} from "./utils/theme";
 
 // Status Message Configuration Interface
 interface StatusMessageConfig {
@@ -644,11 +648,16 @@ function App() {
   // Effect 1: Theme Application (Reacts to game or cache changes)
   // This is a PURE visual application effect. No setConfig or extraction here.
   useEffect(() => {
+    if (!isConfigLoaded) return;
+
     const cached = config.themeCache[config.activeGame];
     if (cached) {
       applyThemeColors(cached);
+    } else {
+      // Fallback: Apply default theme colors if cache is missing
+      applyThemeColors(DEFAULT_THEME_COLORS);
     }
-  }, [config.activeGame, config.themeCache, activeTheme]);
+  }, [isConfigLoaded, config.activeGame, config.themeCache, activeTheme]);
 
   // Effect 2a: Sync Theme Data from Main (Only on app start or settings change)
   useEffect(() => {
