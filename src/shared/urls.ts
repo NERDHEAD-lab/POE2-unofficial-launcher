@@ -42,6 +42,11 @@ export const SUPPORT_URLS = {
   EMAIL: __APP_AUTHOR_EMAIL__,
   DONATION:
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher?docs=SUPPORT_KR.md",
+  DISCORD_INVITE: "https://discord.gg/aYrPYdvGEn",
+  DISCORD_ERRORS:
+    "https://discord.com/channels/1455427555883749439/1479304995940733019",
+  DISCORD_SUGGESTIONS:
+    "https://discord.com/channels/1455427555883749439/1479304951313469621",
   ISSUES: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues",
   GITHUB_REPO: "https://github.com/NERDHEAD-lab/POE2-unofficial-launcher",
   LATEST_VERSIONS_JSON:

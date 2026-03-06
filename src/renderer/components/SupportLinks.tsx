@@ -220,12 +220,47 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
       {
-        id: "issues",
+        id: "bug_report",
         type: "link",
-        defaultLabel: "기능 건의/버그 제보",
+        defaultLabel: "버그 제보",
         icon: "bug_report",
+        onClick: async () => {
+          try {
+            const history = await window.electronAPI.getDebugHistory();
+            const errorLogs = history
+              .filter((log: any) => log.isError)
+              .map((log: any) => {
+                const time = new Date(log.timestamp).toLocaleTimeString();
+                return `[${time}] [${log.type}] ${log.content}`;
+              })
+              .join("\n");
+
+            const event = new CustomEvent("SHOW_REPORT_MODAL", {
+              detail: {
+                errorDetails: errorLogs,
+                type: "bug",
+              },
+            });
+            window.dispatchEvent(event);
+          } catch (err) {
+            console.error("Failed to collect logs for bug report:", err);
+            window.open(SUPPORT_URLS.DISCORD_ERRORS, "_blank");
+          }
+        },
+      },
+      {
+        id: "suggestion",
+        type: "link",
+        defaultLabel: "기능 건의",
+        icon: "rate_review", // or lightbulb
         onClick: () => {
-          window.open(SUPPORT_URLS.ISSUES, "_blank");
+          const event = new CustomEvent("SHOW_REPORT_MODAL", {
+            detail: {
+              errorDetails: "",
+              type: "suggestion",
+            },
+          });
+          window.dispatchEvent(event);
         },
       },
       { id: "sep_2", type: "separator" },
