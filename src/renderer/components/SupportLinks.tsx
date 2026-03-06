@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import "./SupportLinks.css";
 import { AppConfig } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
+import iconDiscord from "../assets/icon-discord.svg?raw";
 import { VersionService, RemoteVersions } from "../services/VersionService";
 
 // [New] Extensible Link Item Definition
@@ -104,9 +105,41 @@ const SupportLinkItemRenderer: React.FC<{
           : { cursor: "pointer" }
       }
     >
-      <span className="material-symbols-outlined support-link-icon">
-        {item.icon}
-      </span>
+      {item.icon && (
+        <div
+          className="support-link-icon-wrapper"
+          style={{
+            width: "20px",
+            height: "20px",
+            marginRight: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {item.icon.includes("<svg") ? (
+            <span
+              className="support-link-icon"
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "currentColor",
+              }}
+              dangerouslySetInnerHTML={{ __html: item.icon }}
+            />
+          ) : (
+            <span
+              className="material-symbols-outlined support-link-icon"
+              style={{ fontSize: "20px" }}
+            >
+              {item.icon}
+            </span>
+          )}
+        </div>
+      )}
       {label}
     </div>
   );
@@ -119,15 +152,28 @@ interface SupportLinksProps {
     webRoot: string;
     timestamp: string | number;
   }) => void;
+  onPatchReservationRequest?: () => void;
 }
 
 const SupportLinks: React.FC<SupportLinksProps> = ({
   remoteVersions,
   onForcedRepairRequest,
+  onPatchReservationRequest,
 }) => {
   // Define Links Configuration
   const linkDefinitions = useMemo<SupportLinkItemDef[]>(
     () => [
+      {
+        id: "patch_reservation",
+        type: "link",
+        icon: "schedule",
+        defaultLabel: "게임 패치 예약",
+        onClick: () => {
+          if (onPatchReservationRequest) {
+            onPatchReservationRequest();
+          }
+        },
+      },
       {
         id: "force_restore",
         type: "link",
@@ -207,15 +253,60 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
       {
-        id: "issues",
+        id: "bug_report",
         type: "link",
-        defaultLabel: "기능 건의/버그 제보",
+        defaultLabel: "버그 제보",
         icon: "bug_report",
+        onClick: async () => {
+          try {
+            const history = await window.electronAPI.getDebugHistory();
+            const errorLogs = history
+              .filter((log: any) => log.isError)
+              .map((log: any) => {
+                const time = new Date(log.timestamp).toLocaleTimeString();
+                return `[${time}] [${log.type}] ${log.content}`;
+              })
+              .join("\n");
+
+            const event = new CustomEvent("SHOW_REPORT_MODAL", {
+              detail: {
+                errorDetails: errorLogs,
+                type: "bug",
+              },
+            });
+            window.dispatchEvent(event);
+          } catch (err) {
+            console.error("Failed to collect logs for bug report:", err);
+            window.open(SUPPORT_URLS.DISCORD_ERRORS, "_blank");
+          }
+        },
+      },
+      {
+        id: "suggestion",
+        type: "link",
+        defaultLabel: "기능 건의",
+        icon: "rate_review", // or lightbulb
         onClick: () => {
-          window.open(SUPPORT_URLS.ISSUES, "_blank");
+          const event = new CustomEvent("SHOW_REPORT_MODAL", {
+            detail: {
+              errorDetails: "",
+              type: "suggestion",
+            },
+          });
+          window.dispatchEvent(event);
         },
       },
       { id: "sep_2", type: "separator" },
+      {
+        id: "discord_invite",
+        type: "link",
+        defaultLabel: "공식 디스코드",
+        icon: iconDiscord,
+        onClick: () => {
+          window.open(SUPPORT_URLS.DISCORD_INVITE, "_blank");
+        },
+      },
+      { id: "sep_3", type: "separator" },
       {
         id: "donation",
         type: "link",
@@ -226,7 +317,7 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
     ],
-    [onForcedRepairRequest, remoteVersions],
+    [onForcedRepairRequest, onPatchReservationRequest, remoteVersions],
   );
 
   return (

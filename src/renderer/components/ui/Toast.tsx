@@ -16,9 +16,7 @@ export const Toast: React.FC<ToastProps> = ({
   variant = "default",
 }) => {
   const content = (
-    <div
-      className={`shared-toast ${visible ? "visible" : ""} ${variant !== "default" ? variant : ""}`}
-    >
+    <div className={`shared-toast ${variant} ${visible ? "visible" : ""}`}>
       {message}
     </div>
   );

@@ -8,7 +8,7 @@ interface UpdateModalProps {
   version: string;
   status: UpdateStatus;
   onUpdate: () => void; // Trigger Download
-  onInstall: () => void; // Trigger Restart & Install
+  onInstall: (isSilent?: boolean) => void; // Trigger Restart & Install
   onClose: () => void;
 }
 
@@ -66,23 +66,48 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
         )}
 
         <div className="update-actions">
-          {isDownloaded ? (
-            <button className="btn-update-primary" onClick={onInstall}>
-              재시작하여 설치
-            </button>
-          ) : (
-            <button
-              className={`btn-update-primary ${isDownloading ? "disabled" : ""}`}
-              onClick={onUpdate}
-              disabled={isDownloading}
-            >
-              {isDownloading ? "다운로드 중..." : "지금 업데이트"}
-            </button>
-          )}
+          <div className="update-primary-actions">
+            {isDownloaded ? (
+              <>
+                <button
+                  className="btn-update-primary"
+                  onClick={() => onInstall(true)}
+                >
+                  재시작하여 설치
+                </button>
+                <button
+                  className="btn-update-manual"
+                  onClick={() => onInstall(false)}
+                >
+                  <span>수동 업데이트</span>
+                  <div className="info-icon-wrapper">
+                    <span className="material-symbols-outlined info-icon">
+                      info
+                    </span>
+                    <div className="info-tooltip">
+                      재시작 후 업데이트가 정상적으로 진행되지 않을 경우
+                      사용하세요.
+                    </div>
+                  </div>
+                </button>
+              </>
+            ) : (
+              <button
+                className={`btn-update-primary ${isDownloading ? "disabled" : ""}`}
+                onClick={onUpdate}
+                disabled={isDownloading}
+              >
+                {isDownloading ? "다운로드 중..." : "지금 업데이트"}
+              </button>
+            )}
+          </div>
+
           {!isDownloading && (
-            <button className="btn-update-secondary" onClick={onClose}>
-              나중에 하기
-            </button>
+            <div className="update-secondary-actions">
+              <button className="btn-update-secondary" onClick={onClose}>
+                나중에 하기
+              </button>
+            </div>
           )}
         </div>
       </div>

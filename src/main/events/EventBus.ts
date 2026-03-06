@@ -57,15 +57,17 @@ class EventBus {
   public on<T extends AppEvent>(
     type: T["type"],
     callback: (event: T) => void,
-  ): void {
+  ): string {
+    const id = `anonymous_${type}_${Date.now()}_${Math.random()}`;
     const handler: EventHandler<T> = {
-      id: `anonymous_${type}_${Date.now()}_${Math.random()}`,
+      id,
       targetEvent: type,
       handle: async (event: T) => {
         callback(event);
       },
     };
     this.register(handler);
+    return id;
   }
 
   /**

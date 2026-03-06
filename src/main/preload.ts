@@ -11,6 +11,7 @@ import {
   UpdateStatus,
   PatchProgress,
   AccountUpdateData,
+  PatchReservation,
 } from "../shared/types";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
@@ -90,7 +91,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // [Update API]
   checkForUpdates: () => ipcRenderer.send("ui:update-check"),
   downloadUpdate: () => ipcRenderer.send("ui:update-download"),
-  installUpdate: () => ipcRenderer.send("ui:update-install"),
+  installUpdate: (isSilent?: boolean) =>
+    ipcRenderer.send("ui:update-install", isSilent),
   onUpdateStatusChange: (callback: (status: UpdateStatus) => void) => {
     const handler = (_event: IpcRendererEvent, status: UpdateStatus) =>
       callback(status);
@@ -180,6 +182,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) => ipcRenderer.invoke("patch:check-backup", serviceId, gameId),
+  triggerPatchReservation: (reservation: PatchReservation) =>
+    ipcRenderer.send("patch:reserve", reservation),
+  deletePatchReservation: (id: string) =>
+    ipcRenderer.send("patch:delete-reservation", id),
+  onShowPatchReservationModal: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("UI:SHOW_PATCH_RESERVATION_MODAL", handler);
+    return () => ipcRenderer.off("UI:SHOW_PATCH_RESERVATION_MODAL", handler);
+  },
   getDebugHistory: () => ipcRenderer.invoke("debug:get-history"),
   deleteConfig: (key: string) => ipcRenderer.invoke("config:delete", key),
   onScalingModeChange: (callback: (enabled: boolean) => void) => {

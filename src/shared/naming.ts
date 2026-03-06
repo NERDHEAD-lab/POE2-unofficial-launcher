@@ -30,3 +30,12 @@ export function getLauncherTitle(
   const resolutionInfo = isLowRes ? " [저해상도 모드]" : "";
   return `${gameName} Unofficial Launcher v${version}${resolutionInfo}`;
 }
+
+/**
+ * Returns the base application name for branding (Notifications, Taskbar).
+ * @param gameName Formatted game name.
+ * @returns Unified app name.
+ */
+export function getAppName(gameName: string): string {
+  return `${gameName} Unofficial Launcher`;
+}

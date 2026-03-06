@@ -32,7 +32,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
+  z-index: 11000;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.2s ease-out;
 }
@@ -210,6 +210,25 @@
 
   /* Transitions are DISABLED by default to prevent load glitches */
   transition: none;
+}
+
+.setting-item.highlighted {
+  border-color: var(--theme-accent, #dfcf99);
+  box-shadow: 0 0 15px rgba(223, 207, 153, 0.3);
+  animation: highlightFlash 2s ease-out;
+}
+
+@keyframes highlightFlash {
+  0% {
+    background: rgba(223, 207, 153, 0.4);
+    box-shadow: 0 0 30px rgba(223, 207, 153, 0.6);
+  }
+  30% {
+    background: rgba(223, 207, 153, 0.1);
+  }
+  100% {
+    background: #252525;
+  }
 }
 
 /* Disabled State */

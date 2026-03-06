@@ -1,0 +1,858 @@
+.patch-reservation-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  backdrop-filter: blur(8px);
+  animation: overlayFadeIn 0.25s ease-out;
+}
+
+.patch-reservation-modal-content {
+  background: #1a1a1a;
+  width: 480px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  border: 1px solid #333;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
+  animation: contentFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.patch-header {
+  padding: 20px 24px;
+  background: #1e1e1e;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #333;
+  position: relative;
+}
+
+.patch-header .icon {
+  font-size: 32px;
+  color: var(--theme-accent, #dfcf99);
+  filter: drop-shadow(0 0 8px rgba(223, 207, 153, 0.4));
+}
+
+.header-text {
+  flex: 1;
+}
+
+.patch-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--theme-text, #eee);
+  letter-spacing: -0.02em;
+}
+
+.header-sub-text {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.btn-close-icon {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  transition: all 0.2s;
+}
+
+.btn-close-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.patch-body {
+  padding: 24px;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Gap between the 3 main sections */
+}
+
+.reservation-form {
+  background: #222;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  padding-left: 2px;
+}
+
+.custom-dropdown-wrapper {
+  position: relative;
+  width: 100%;
+  height: 40px;
+}
+
+.custom-dropdown-trigger {
+  width: 100%;
+  height: 100%;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-trigger::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #888;
+  pointer-events: none;
+}
+
+.custom-dropdown-trigger:hover,
+.custom-dropdown-trigger.active {
+  background-color: rgba(30, 30, 30, 1);
+  border-color: var(--theme-accent, #dfcf99);
+}
+
+.custom-dropdown-trigger.active::after {
+  border-top: none;
+  border-bottom: 5px solid var(--theme-accent, #dfcf99);
+}
+
+.custom-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  margin-top: 4px;
+  background-color: rgba(15, 15, 15, 0.98);
+  border: 1px solid var(--theme-accent, #dfcf99);
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-dropdown-item {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.custom-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.custom-dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.custom-dropdown-item.selected {
+  background-color: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 2px 0 0 0 var(--theme-accent, #dfcf99);
+}
+
+.dropdown-logo {
+  max-width: 85%;
+  height: auto;
+  object-fit: contain;
+  filter: grayscale(0.2);
+  transition: filter 0.2s;
+  display: block;
+}
+
+/* Logo Sizing Adjustments */
+img.dropdown-logo[alt="Kakao Games"] {
+  height: 14px;
+}
+img.dropdown-logo[alt="GGG"] {
+  height: 28px;
+}
+
+.selected-text,
+.item-text {
+  font-size: 14px;
+  color: #eee;
+  font-weight: 500;
+}
+
+.custom-dropdown-item:hover .item-text {
+  color: #fff;
+}
+
+.custom-dropdown-item:hover .dropdown-logo,
+.custom-dropdown-trigger:hover .dropdown-logo,
+.custom-dropdown-trigger.active .dropdown-logo {
+  filter: grayscale(0) brightness(1.1);
+}
+
+.form-group-time-grid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  justify-content: center;
+}
+
+.time-select-outer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.time-select-outer label {
+  font-size: 9px;
+  color: #555;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.time-select-wrapper {
+  position: relative;
+  width: 50px;
+  height: 32px;
+}
+
+.time-select-outer.year .time-select-wrapper {
+  width: 65px;
+}
+
+.time-select-trigger {
+  width: 100%;
+  height: 100%;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.time-select-trigger:hover,
+.time-select-trigger.active {
+  border-color: var(--theme-accent, #dfcf99);
+  background-color: rgba(30, 30, 30, 1);
+  color: #fff;
+}
+
+.time-select-outer.is-now .time-select-trigger {
+  color: rgba(255, 255, 255, 0.25);
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.time-select-list {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  max-height: 150px;
+  margin-top: 4px;
+  background-color: rgba(15, 15, 15, 0.98);
+  border: 1px solid var(--theme-accent, #dfcf99);
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 년도 드롭다운은 좀 더 넓게 */
+.time-select-outer.year .time-select-list {
+  width: 75px;
+}
+
+.time-select-item {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  color: #aaa;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.time-select-item:last-child {
+  border-bottom: none;
+}
+
+.time-select-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.time-select-item.selected {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--theme-accent, #dfcf99);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* 스크롤바 최적화 */
+.time-select-list::-webkit-scrollbar {
+  width: 4px;
+}
+.time-select-list::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+.time-separator {
+  color: #444;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 14px;
+}
+
+.btn-add-reservation {
+  margin-top: 4px;
+  background: var(--theme-accent, #dfcf99);
+  color: #000;
+  border: none;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-add-reservation:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(223, 207, 153, 0.3);
+}
+
+.btn-add-reservation.has-error {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: grayscale(0.5);
+}
+
+.btn-add-reservation:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reservation-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.section-header .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #eee;
+}
+
+.section-header .count {
+  font-size: 12px;
+  font-family: monospace;
+  color: #666;
+}
+
+.reservation-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #151515;
+}
+
+.empty-list {
+  padding: 32px;
+  text-align: center;
+  color: #555;
+  font-size: 13px;
+}
+
+.reservation-item {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #222;
+  transition: background 0.2s;
+}
+
+.reservation-item:last-child {
+  border-bottom: none;
+}
+
+.reservation-item:hover {
+  background: #1e1e1e;
+}
+
+/* Stability Warnings Section */
+.stability-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header .count.warning {
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.1);
+}
+
+.stability-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stability-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #252525; /* Same as reservation-item */
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  min-height: 52px;
+}
+
+.stability-item .item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.stability-item.level-warning {
+  border-color: rgba(241, 196, 15, 0.2);
+  background: rgba(241, 196, 15, 0.05); /* Very subtle tint */
+}
+
+.stability-item.level-warning .text {
+  color: #f39c12;
+}
+
+.stability-item.level-warning .icon {
+  color: #f39c12;
+}
+
+.stability-item.level-error {
+  border-color: rgba(231, 76, 60, 0.3);
+  background: rgba(231, 76, 60, 0.08); /* More noticeable tint */
+}
+
+.stability-item.level-error .text {
+  color: #e74c3c;
+  font-weight: 500;
+}
+
+.stability-item.level-error .icon {
+  color: #e74c3c;
+}
+
+.stability-item .icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stability-item .text {
+  font-size: 13.5px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.btn-go-setting {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  margin-left: 12px;
+}
+
+.btn-go-setting:hover {
+  color: var(--theme-accent, #dfcf99);
+  background: rgba(223, 207, 153, 0.1);
+}
+
+.btn-go-setting .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.res-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.res-game-service {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.badge.kakao-games {
+  background: #fee500;
+  color: #000;
+}
+
+.badge.ggg {
+  background: #333;
+  color: #dfcf99;
+  border: 1px solid #444;
+}
+
+.game-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.res-time {
+  font-size: 12px;
+  color: #777;
+  font-family: monospace;
+}
+
+.btn-delete {
+  background: transparent;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover {
+  background: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+}
+
+.patch-actions {
+  padding: 16px 24px;
+  background: #151515;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  border-top: 1px solid #333;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.btn-silent-toggle {
+  background: transparent;
+  border: 1px solid #333;
+  color: #666;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-silent-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+  border-color: #444;
+}
+
+.btn-silent-toggle.notif-enabled {
+  color: var(--theme-accent, #dfcf99);
+  border-color: rgba(223, 207, 153, 0.4);
+  background: rgba(223, 207, 153, 0.03);
+  box-shadow: 0 0 15px rgba(223, 207, 153, 0.05);
+}
+
+.btn-silent-toggle.notif-enabled:hover {
+  background: rgba(223, 207, 153, 0.1);
+  border-color: var(--theme-accent, #dfcf99);
+  filter: brightness(1.1);
+}
+
+.btn-silent-toggle.is-silent {
+  color: #f44336;
+  border-color: rgba(244, 67, 54, 0.3);
+  background: rgba(244, 67, 54, 0.05);
+  box-shadow: inset 0 0 10px rgba(244, 67, 54, 0.1);
+}
+
+.btn-silent-toggle.is-silent:hover {
+  background: rgba(244, 67, 54, 0.15);
+  border-color: #f44336;
+  color: #ff5252;
+}
+
+.btn-silent-toggle .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.btn-terminate-toggle {
+  background: transparent;
+  border: 1px solid #333;
+  color: #666;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.btn-terminate-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+  border-color: #444;
+}
+
+.terminate-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.terminate-checkbox-wrapper:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.checkbox-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.checkbox-container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkbox-custom {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 18px;
+  width: 18px;
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.terminate-checkbox-wrapper:hover .checkbox-custom {
+  border-color: rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.checkbox-container input:checked ~ .checkbox-custom {
+  background-color: var(--theme-accent, #dfcf99);
+  border-color: var(--theme-accent, #dfcf99);
+  box-shadow: 0 0 12px rgba(var(--theme-accent-rgb, 223, 207, 153), 0.2);
+}
+
+.check-icon {
+  font-family: "Material Symbols Outlined" !important;
+  font-size: 16px !important;
+  color: #111 !important;
+  font-weight: 900 !important; /* Material Symbols wght */
+  opacity: 0;
+  transform: scale(0.4) translateY(1px);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  user-select: none;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 700,
+    "GRAD" 0,
+    "opsz" 20 !important;
+}
+
+.checkbox-container input:checked ~ .checkbox-custom .check-icon {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.checkbox-label {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  transition: color 0.2s ease;
+}
+
+.terminate-checkbox-wrapper:hover .checkbox-label {
+  color: rgba(255, 255, 255, 1);
+}
+
+.checkbox-container input:checked ~ .checkbox-label {
+  color: var(--theme-accent, #dfcf99);
+  text-shadow: 0 0 10px rgba(var(--theme-accent-rgb, 223, 207, 153), 0.1);
+}
+
+.btn-terminate-toggle .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.btn-terminate-toggle .btn-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.btn-confirm {
+  background: #333;
+  color: #eee;
+  border: none;
+  padding: 8px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm:hover {
+  background: #444;
+  color: #fff;
+}
+
+/* Scrollbar */
+.reservation-list::-webkit-scrollbar {
+  width: 6px;
+}
+.reservation-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.reservation-list::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+.reservation-list::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(calc(var(--app-scale, 1) * 0.9)) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(var(--app-scale, 1)) translateY(0);
+  }
+}

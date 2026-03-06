@@ -27,6 +27,8 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
+  LOG_PATCH_FINISHED = "LOG:PATCH_FINISHED",
+  LOG_GAME_STARTUP = "LOG:GAME_STARTUP",
   // Changelog
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
   UPDATE_WINDOW_TITLE = "APP:UPDATE_WINDOW_TITLE",
@@ -36,6 +38,12 @@ export enum EventType {
 
   // DevTools Sync
   SYNC_DEVTOOLS_VISIBILITY = "DEVTOOLS:SYNC_VISIBILITY",
+
+  // Patch Reservation & Process Meta
+  PROCESS_WILL_TERMINATE = "PROCESS:WILL_TERMINATE",
+  PATCH_RETRY_REQUESTED = "PATCH:RETRY_REQUESTED",
+  PATCH_RESERVATION_FAILED = "PATCH:RESERVATION_FAILED",
+  PATCH_RESERVATION_SUCCESS = "PATCH:RESERVATION_SUCCESS",
 }
 
 export interface ToolForceRepairEvent {
@@ -101,6 +109,29 @@ export interface LogErrorDetectedEvent {
   timestamp?: number;
 }
 
+export interface LogPatchFinishedEvent {
+  type: EventType.LOG_PATCH_FINISHED;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
+
+export interface LogGameStartupEvent {
+  type: EventType.LOG_GAME_STARTUP;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    serviceId: AppConfig["serviceChannel"];
+    pid: number;
+    timestamp: number;
+    startupTime: number; // seconds
+  };
+  timestamp?: number;
+}
+
 // --- Payload Definitions & Specific Event Interfaces ---
 
 // 1. Config Change Event
@@ -158,7 +189,9 @@ export interface UIUpdateDownloadEvent {
 
 export interface UIUpdateInstallEvent {
   type: EventType.UI_UPDATE_INSTALL;
-  payload?: void;
+  payload?: {
+    isSilent?: boolean;
+  };
   timestamp?: number;
 }
 
@@ -251,7 +284,48 @@ export type AppEvent =
   | SyncDevToolsVisibilityEvent
   | UpdateWindowTitleEvent
   | ShowChangelogEvent
-  | ToolForceRepairEvent;
+  | LogGameStartupEvent
+  | LogPatchFinishedEvent
+  | ToolForceRepairEvent
+  | ProcessWillTerminateEvent
+  | PatchRetryRequestedEvent
+  | PatchReservationFailedEvent
+  | PatchReservationSuccessEvent;
+
+export interface ProcessWillTerminateEvent {
+  type: EventType.PROCESS_WILL_TERMINATE;
+  payload: { pid: number };
+  timestamp?: number;
+}
+
+export interface PatchRetryRequestedEvent {
+  type: EventType.PATCH_RETRY_REQUESTED;
+  payload: {
+    gameId: string;
+    serviceId: string;
+    retryCount: number;
+  };
+  timestamp?: number;
+}
+
+export interface PatchReservationFailedEvent {
+  type: EventType.PATCH_RESERVATION_FAILED;
+  payload: {
+    gameId: string;
+    serviceId: string;
+    reason: string;
+  };
+  timestamp?: number;
+}
+
+export interface PatchReservationSuccessEvent {
+  type: EventType.PATCH_RESERVATION_SUCCESS;
+  payload: {
+    gameId: string;
+    serviceId: string;
+  };
+  timestamp?: number;
+}
 
 // --- Context & Handler Interfaces ---
 

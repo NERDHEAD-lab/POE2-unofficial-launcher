@@ -7,15 +7,15 @@ import React, {
   useCallback,
 } from "react";
 
-import { CONFIG_KEYS } from "../shared/config";
+import { CONFIG_KEYS, DEFAULT_CONFIG } from "../shared/config";
 import {
   AppConfig,
-  GameStatusState,
   RunStatus,
   NewsItem,
-  PatchProgress,
-  UpdateStatus,
+  GameStatusState,
   ChangelogItem,
+  UpdateStatus,
+  PatchProgress,
   ThemeDefinition,
 } from "../shared/types";
 import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
@@ -39,13 +39,18 @@ import MigrationModal from "./components/modals/MigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
+import { PatchReservationModal } from "./components/modals/PatchReservationModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import SettingsModal from "./components/settings/SettingsModal";
 
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
-import { extractThemeColors, applyThemeColors } from "./utils/theme";
+import {
+  extractThemeColors,
+  applyThemeColors,
+  DEFAULT_THEME_COLORS,
+} from "./utils/theme";
 
 // Status Message Configuration Interface
 interface StatusMessageConfig {
@@ -116,17 +121,6 @@ function App() {
     console.log(badData.property_of_null); // Explicit crash
   }
 
-  const [activeGame, setActiveGame] = useState<AppConfig["activeGame"]>("POE1");
-  const [bgImage, setBgImage] = useState(bgPoe);
-  const [bgOpacity, setBgOpacity] = useState(1);
-  const [serviceChannel, setServiceChannel] =
-    useState<AppConfig["serviceChannel"]>("Kakao Games");
-  // Shared Theme Cache State (from Electron Store)
-  const [themeCache, setThemeCache] = useState<
-    Partial<AppConfig["themeCache"]>
-  >({});
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [activeTheme, setActiveTheme] = useState<
     | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
     | null
@@ -140,8 +134,20 @@ function App() {
     | null
   >(null);
 
-  // Settings Modal State
+  // Patch Reservation State
+  const [isPatchReservationOpen, setIsPatchReservationOpen] = useState(false);
+  // Configuration State (Unified)
+  const [config, setConfigState] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+
+  // UI States (Local only)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsFocusId, setSettingsFocusId] = useState<string | undefined>(
+    undefined,
+  );
+
+  const [bgImage, setBgImage] = useState(bgPoe);
+  const [bgOpacity, setBgOpacity] = useState(1);
 
   // [New] Theme Settings Version to trigger Effects
   const [themeVersion, setThemeVersion] = useState(0);
@@ -155,15 +161,15 @@ function App() {
 
   // Computed: Current Active Status based on selection
   const activeGameStatus = useMemo(() => {
-    const key = `${activeGame}_${serviceChannel}`;
+    const key = `${config.activeGame}_${config.serviceChannel}`;
     return (
       gameStatusMap[key] || {
-        gameId: activeGame,
-        serviceId: serviceChannel,
+        gameId: config.activeGame,
+        serviceId: config.serviceChannel,
         status: "idle",
       }
     );
-  }, [gameStatusMap, activeGame, serviceChannel]);
+  }, [gameStatusMap, config.activeGame, config.serviceChannel]);
 
   // Active Status Message State
   const [activeMessage, setActiveMessage] = useState<string>("");
@@ -220,10 +226,6 @@ function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false); // [UAC Migration]
 
-  // Debug States
-  const [devMode, setDevMode] = useState(false);
-  const [debugConsole, setDebugConsole] = useState(false);
-
   // Forced Repair Modal State
   const [isForcedRepairOpen, setIsForcedRepairOpen] = useState(false);
   const [repairVersionInfo, setRepairVersionInfo] = useState<{
@@ -266,17 +268,17 @@ function App() {
       // Try to get remote web root for this game to help main process
       const remoteInfo = VersionService.getRemoteVersionForGame(
         remoteVersions,
-        activeGame,
+        config.activeGame,
       );
 
       window.electronAPI.triggerForceRepair(
-        serviceChannel,
-        activeGame,
+        config.serviceChannel,
+        config.activeGame,
         manualVersion,
         remoteInfo?.webRoot,
       );
     },
-    [serviceChannel, activeGame, remoteVersions],
+    [config.serviceChannel, config.activeGame, remoteVersions],
   );
 
   // [UAC Migration] Listener
@@ -376,6 +378,13 @@ function App() {
           },
         );
       }
+
+      // [New] Listener for Patch Reservation Modal
+      if (window.electronAPI.onShowPatchReservationModal) {
+        window.electronAPI.onShowPatchReservationModal(() => {
+          setIsPatchReservationOpen(true);
+        });
+      }
     }
   }, []);
 
@@ -423,9 +432,9 @@ function App() {
     setPoe1Theme(t1);
     setPoe2Theme(t2);
 
-    const theme = activeGame === "POE1" ? t1 : t2;
+    const theme = config.activeGame === "POE1" ? t1 : t2;
     setActiveTheme(theme);
-  }, [activeGame]);
+  }, [config.activeGame]);
 
   // Update Check Effect
   useEffect(() => {
@@ -445,7 +454,10 @@ function App() {
 
       // [New] Listen for theme settings changes to refresh
       const unsubConfig = window.electronAPI.onConfigChange((key) => {
-        if (key === "remoteThemeSettings" || key === "activeGame") {
+        if (
+          key === CONFIG_KEYS.REMOTE_THEME_SETTINGS ||
+          key === CONFIG_KEYS.ACTIVE_GAME
+        ) {
           refreshTheme();
         }
       });
@@ -476,12 +488,22 @@ function App() {
     // Modal stays open to show progress
   };
 
-  const handleInstallClick = () => {
-    window.electronAPI.installUpdate();
+  const handleInstallClick = (isSilent = true) => {
+    window.electronAPI.installUpdate(isSilent);
   };
 
   const handleUpdateDismiss = () => {
     setIsUpdateModalOpen(false);
+  };
+
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+    setSettingsFocusId(undefined);
+  };
+
+  const openSettingsWithFocus = (configId: string) => {
+    setSettingsFocusId(configId);
+    setIsSettingsOpen(true);
   };
 
   // Effect: Handle Generic Status Message & Timers
@@ -532,19 +554,24 @@ function App() {
   const activeStatusMessage = useMemo(() => {
     // Only show status if it matches the currently selected Game & Service context
     if (
-      activeGameStatus.gameId === activeGame &&
-      activeGameStatus.serviceId === serviceChannel
+      activeGameStatus.gameId === config.activeGame &&
+      activeGameStatus.serviceId === config.serviceChannel
     ) {
       return activeMessage;
     }
-  }, [activeGameStatus, activeGame, serviceChannel, activeMessage]);
+  }, [
+    activeGameStatus,
+    config.activeGame,
+    config.serviceChannel,
+    activeMessage,
+  ]);
 
   // Compute Button Disabled State
   const isButtonDisabled = useMemo(() => {
     // Context mismatch check
     if (
-      activeGameStatus.gameId !== activeGame ||
-      activeGameStatus.serviceId !== serviceChannel
+      activeGameStatus.gameId !== config.activeGame ||
+      activeGameStatus.serviceId !== config.serviceChannel
     ) {
       return false; // Actually, if context mismatch, we might want to allow "Starting" new context?
       // But adhering to original logic:
@@ -570,42 +597,18 @@ function App() {
 
     // Idle / Error -> Enabled
     return false;
-  }, [activeGameStatus, activeGame, serviceChannel]);
+  }, [activeGameStatus, config.activeGame, config.serviceChannel]);
 
   useEffect(() => {
     if (window.electronAPI) {
       // 1. Initial Load
+      // 1. Initial Load
       window.electronAPI.getConfig().then((rawConfig: unknown) => {
-        const config = rawConfig as AppConfig;
-        if (config[CONFIG_KEYS.ACTIVE_GAME])
-          setActiveGame(
-            config[CONFIG_KEYS.ACTIVE_GAME] as AppConfig["activeGame"],
-          );
-        if (config[CONFIG_KEYS.SERVICE_CHANNEL])
-          setServiceChannel(
-            config[CONFIG_KEYS.SERVICE_CHANNEL] as AppConfig["serviceChannel"],
-          );
-        if (config[CONFIG_KEYS.THEME_CACHE])
-          setThemeCache(
-            config[CONFIG_KEYS.THEME_CACHE] as AppConfig["themeCache"],
-          );
-
-        // Load Debug States (using getEffectiveConfig parity via initial load)
-        setDevMode(config[CONFIG_KEYS.DEV_MODE] as boolean);
-        setDebugConsole(config[CONFIG_KEYS.DEBUG_CONSOLE] as boolean);
-
-        // Load Onboarding State
-        if (config[CONFIG_KEYS.SHOW_ONBOARDING] !== undefined) {
-          setShowOnboarding(config[CONFIG_KEYS.SHOW_ONBOARDING] as boolean);
-        }
-
+        const loadedConfig = rawConfig as AppConfig;
+        setConfigState(loadedConfig);
         setIsConfigLoaded(true);
 
-        const initialBg =
-          (config[CONFIG_KEYS.ACTIVE_GAME] as AppConfig["activeGame"]) ===
-          "POE2"
-            ? bgPoe2
-            : bgPoe;
+        const initialBg = loadedConfig.activeGame === "POE2" ? bgPoe2 : bgPoe;
         setBgImage(initialBg);
 
         // [Splash] Fade out and remove launcher splash screen from index.html
@@ -621,30 +624,11 @@ function App() {
 
       // 2. Listen for Changes (Reactive Observer)
       window.electronAPI.onConfigChange((key, value) => {
-        if (key === CONFIG_KEYS.ACTIVE_GAME) {
-          setActiveGame((prev) =>
-            prev !== value ? (value as AppConfig["activeGame"]) : prev,
-          );
-        }
-        if (key === CONFIG_KEYS.SERVICE_CHANNEL) {
-          setServiceChannel((prev) =>
-            prev !== value ? (value as AppConfig["serviceChannel"]) : prev,
-          );
-        }
-        if (key === CONFIG_KEYS.THEME_CACHE) {
-          setThemeCache((prev) =>
-            JSON.stringify(prev) !== JSON.stringify(value)
-              ? (value as AppConfig["themeCache"])
-              : prev,
-          );
-        }
-        if (key === CONFIG_KEYS.DEV_MODE) {
-          setDevMode(value as boolean);
-        }
-        if (key === CONFIG_KEYS.DEBUG_CONSOLE) {
-          setDebugConsole(value as boolean);
-        }
-        if (key === "remoteThemeSettings") {
+        setConfigState((prev) => ({
+          ...prev,
+          [key]: value,
+        }));
+        if (key === CONFIG_KEYS.REMOTE_THEME_SETTINGS) {
           setThemeVersion((prev) => prev + 1);
         }
       });
@@ -664,11 +648,16 @@ function App() {
   // Effect 1: Theme Application (Reacts to game or cache changes)
   // This is a PURE visual application effect. No setConfig or extraction here.
   useEffect(() => {
-    const cached = themeCache[activeGame];
+    if (!isConfigLoaded) return;
+
+    const cached = config.themeCache[config.activeGame];
     if (cached) {
       applyThemeColors(cached);
+    } else {
+      // Fallback: Apply default theme colors if cache is missing
+      applyThemeColors(DEFAULT_THEME_COLORS);
     }
-  }, [activeGame, themeCache, activeTheme]);
+  }, [isConfigLoaded, config.activeGame, config.themeCache, activeTheme]);
 
   // Effect 2a: Sync Theme Data from Main (Only on app start or settings change)
   useEffect(() => {
@@ -691,15 +680,19 @@ function App() {
 
   // Effect 2b: Active Theme Selection (Local state only, instant on tab switch)
   useEffect(() => {
-    const theme = activeGame === "POE1" ? poe1Theme : poe2Theme;
-    setActiveTheme(theme);
-  }, [activeGame, poe1Theme, poe2Theme]);
+    const theme = config.activeGame === "POE1" ? poe1Theme : poe2Theme;
+    // Use setTimeout to avoid synchronous setState inside effect
+    const timer = setTimeout(() => {
+      setActiveTheme(theme);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [config.activeGame, poe1Theme, poe2Theme]);
 
   // Effect 2c: Color Extraction & Cache (Background task, only on visual change)
   useEffect(() => {
     const targetBg =
       (activeTheme && activeTheme.assets?.background) ||
-      (activeGame === "POE2" ? bgPoe2 : bgPoe);
+      (config.activeGame === "POE2" ? bgPoe2 : bgPoe);
 
     const checkAndExtract = async () => {
       if (!window.electronAPI || !isConfigLoaded) return;
@@ -709,7 +702,7 @@ function App() {
 
       try {
         const fsHash = await window.electronAPI.getFileHash(targetBg);
-        const cached = themeCache[activeGame];
+        const cached = config.themeCache[config.activeGame];
 
         if (cached && cached.hash === fsHash) {
           revalidatedFiles.add(targetBg);
@@ -725,18 +718,17 @@ function App() {
 
         const updatedCache = {
           ...(currentCache || {}),
-          [activeGame]: { ...colors, hash: fsHash },
+          [config.activeGame]: { ...colors, hash: fsHash },
         };
         window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
-        logger.log(`[Theme] ${activeGame} colors updated in cache.`);
+        logger.log(`[Theme] ${config.activeGame} colors updated in cache.`);
       } catch (err) {
         logger.error("[Theme] Background extraction failed:", err);
       }
     };
 
     checkAndExtract();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTheme, isConfigLoaded]);
+  }, [activeTheme, isConfigLoaded, config.activeGame, config.themeCache]);
 
   // [New] Refs to manage background transitions without double-flicker
   const pendingTargetRef = useRef<string | null>(null);
@@ -747,14 +739,16 @@ function App() {
     // Priority: Remote Theme Background > Default Assets
     const targetBg =
       (activeTheme && activeTheme.assets?.background) ||
-      (activeGame === "POE1" ? bgPoe : bgPoe2);
+      (config.activeGame === "POE1" ? bgPoe : bgPoe2);
 
-    // Initial mount: set immediately without animation
+    // Initial mount: set immediately without animation (Deferred to avoid sync setState)
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      setBgImage(targetBg);
-      setBgOpacity(1);
-      return;
+      const timer = setTimeout(() => {
+        setBgImage(targetBg);
+        setBgOpacity(1);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     // Update the intended final target
@@ -765,7 +759,10 @@ function App() {
     if (fadeTimerRef.current) return;
 
     // --- Start a new transition sequence ---
-    setBgOpacity(0);
+    // Use setTimeout to avoid synchronous setState inside effect
+    const startTimer = setTimeout(() => {
+      setBgOpacity(0);
+    }, 0);
 
     fadeTimerRef.current = setTimeout(() => {
       // 1. Swap the image while it's dark (opacity 0)
@@ -781,19 +778,18 @@ function App() {
     }, 400);
 
     return () => {
-      // Note: We don't clear the timer here (unless we want to restart on every update).
+      clearTimeout(startTimer);
+      // Note: We don't clear the main fadeTimerRef here (unless we want to restart on every update).
       // If we don't clear, we get a single smooth dark period even with rapid updates.
     };
-  }, [activeGame, activeTheme]);
+  }, [config.activeGame, activeTheme]);
 
   const handleGameChange = (game: AppConfig["activeGame"]) => {
-    setActiveGame(game);
     // 1. User triggered change moves the "Source of Truth"
     window.electronAPI?.setConfig(CONFIG_KEYS.ACTIVE_GAME, game);
   };
 
   const handleChannelChange = (channel: AppConfig["serviceChannel"]) => {
-    setServiceChannel(channel);
     // 2. User triggered change moves the "Source of Truth"
     window.electronAPI?.setConfig(CONFIG_KEYS.SERVICE_CHANNEL, channel);
   };
@@ -806,19 +802,20 @@ function App() {
 
     if (activeGameStatus.status === "uninstalled") {
       // Open Download Page using centralized URL constants
-      const downloadUrl = DOWNLOAD_URLS[serviceChannel][activeGame];
+      const downloadUrl =
+        DOWNLOAD_URLS[config.serviceChannel][config.activeGame];
       if (downloadUrl) {
         window.open(downloadUrl, "_blank");
       } else {
         logger.error(
-          `[App] No download URL found for ${activeGame} / ${serviceChannel}`,
+          `[App] No download URL found for ${config.activeGame} / ${config.serviceChannel}`,
         );
       }
       return;
     }
 
     window.electronAPI.triggerGameStart();
-    logger.log(`Game Start Triggered via IPC (${activeGame})`);
+    logger.log(`Game Start Triggered via IPC (${config.activeGame})`);
   };
 
   // Developer Notices State
@@ -848,9 +845,38 @@ function App() {
   };
 
   const handleOnboardingFinish = () => {
-    setShowOnboarding(false);
     window.electronAPI?.setConfig(CONFIG_KEYS.SHOW_ONBOARDING, false);
   };
+
+  const handleAddPatchReservation = useCallback(
+    (res: Omit<AppConfig["patchReservations"][0], "id" | "createdAt">) => {
+      const newRes = {
+        ...res,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      };
+      window.electronAPI.triggerPatchReservation(newRes);
+    },
+    [],
+  );
+
+  const handleRemovePatchReservation = useCallback((id: string) => {
+    window.electronAPI.deletePatchReservation(id);
+  }, []);
+
+  const handleSilentPatchNotificationToggle = useCallback(
+    (enabled: boolean) => {
+      window.electronAPI.setConfig(
+        CONFIG_KEYS.SILENT_PATCH_NOTIFICATION,
+        enabled,
+      );
+    },
+    [],
+  );
+
+  const handleTerminateAfterPatchToggle = useCallback((enabled: boolean) => {
+    window.electronAPI.setConfig(CONFIG_KEYS.TERMINATE_AFTER_PATCH, enabled);
+  }, []);
 
   // --- Auto Scaling Logic (Scale-to-Fit) ---
   const BASE_WIDTH = 1440;
@@ -887,7 +913,7 @@ function App() {
     <>
       {TEST_CRASH_MODE !== "NONE" && <TestCrashComponent />}
       <OnboardingModal
-        isOpen={showOnboarding}
+        isOpen={config.showOnboarding}
         onFinish={handleOnboardingFinish}
       />
 
@@ -924,7 +950,8 @@ function App() {
 
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={closeSettings}
+        initialSettingId={settingsFocusId}
       />
 
       <PatchFixModal
@@ -939,6 +966,29 @@ function App() {
         onClose={handlePatchClose}
       />
 
+      {/* Modal: Patch Reservation */}
+      <PatchReservationModal
+        isOpen={isPatchReservationOpen}
+        reservations={config.patchReservations}
+        activeGame={config.activeGame}
+        activeService={config.serviceChannel}
+        silentNotification={config.silentPatchNotification}
+        terminateAfterPatch={config.terminateAfterPatch}
+        onSilentToggle={handleSilentPatchNotificationToggle}
+        onTerminateAfterPatchToggle={handleTerminateAfterPatchToggle}
+        onAdd={handleAddPatchReservation}
+        onDelete={handleRemovePatchReservation}
+        onClose={() => setIsPatchReservationOpen(false)}
+        onNavigateToSetting={openSettingsWithFocus}
+        launcherConfig={{
+          autoLaunch: config.autoLaunch,
+          closeAction: config.closeAction,
+          autoFixPatchError: config.autoFixPatchError,
+          skipDaumGameStarterUac: config.skipDaumGameStarterUac,
+          serviceChannel: config.serviceChannel,
+        }}
+      />
+
       <NoticeModal
         item={selectedNotice}
         onClose={() => setSelectedNotice(null)}
@@ -946,12 +996,12 @@ function App() {
 
       {isForcedRepairOpen && repairVersionInfo && (
         <ForcedRepairModal
-          key={`${activeGame}-${repairVersionInfo.version}`}
+          key={`${config.activeGame}-${repairVersionInfo.version}`}
           isOpen={isForcedRepairOpen}
-          gameId={activeGame}
-          serviceId={serviceChannel}
+          gameId={config.activeGame}
+          serviceId={config.serviceChannel}
           versionInfo={repairVersionInfo}
-          remoteVersion={remoteVersions?.[activeGame]?.version}
+          remoteVersion={remoteVersions?.[config.activeGame]?.version}
           onCancel={() => setIsForcedRepairOpen(false)}
           onConfirm={handleForcedRepairConfirm}
         />
@@ -996,8 +1046,8 @@ function App() {
           title={appTitle}
           showUpdateIcon={updateState.state === "downloaded"}
           onUpdateClick={() => setIsUpdateModalOpen(true)}
-          devMode={devMode}
-          debugConsole={debugConsole}
+          devMode={config.dev_mode}
+          debugConsole={config.debug_console}
         />
 
         {/* 2. Main Content Frame */}
@@ -1031,7 +1081,7 @@ function App() {
               {/* Section A: Game Selector (Top) */}
               <div style={{ marginTop: "10px" }}>
                 <GameSelector
-                  activeGame={activeGame}
+                  activeGame={config.activeGame}
                   onGameChange={handleGameChange}
                   poe1Theme={poe1Theme}
                   poe2Theme={poe2Theme}
@@ -1055,6 +1105,9 @@ function App() {
                 <SupportLinks
                   remoteVersions={remoteVersions}
                   onForcedRepairRequest={handleForcedRepairRequest}
+                  onPatchReservationRequest={() =>
+                    setIsPatchReservationOpen(true)
+                  }
                 />
               </div>
 
@@ -1062,7 +1115,7 @@ function App() {
               <div className="bottom-controls">
                 <div style={{ width: "340px", marginBottom: "4px" }}>
                   <ServiceChannelSelector
-                    channel={serviceChannel}
+                    channel={config.serviceChannel}
                     onChannelChange={handleChannelChange}
                     onSettingsClick={() => setIsSettingsOpen(true)}
                   />
@@ -1070,8 +1123,8 @@ function App() {
 
                 {/* Official Links (Homepage/Trade) */}
                 <OfficialLinkButtons
-                  activeGame={activeGame}
-                  serviceChannel={serviceChannel}
+                  activeGame={config.activeGame}
+                  serviceChannel={config.serviceChannel}
                 />
 
                 <GameStartButton
@@ -1132,8 +1185,8 @@ function App() {
                 />
               </div>
               <NewsDashboard
-                activeGame={activeGame}
-                serviceChannel={serviceChannel}
+                activeGame={config.activeGame}
+                serviceChannel={config.serviceChannel}
                 onItemClick={handleNoticeClick}
               />
             </div>

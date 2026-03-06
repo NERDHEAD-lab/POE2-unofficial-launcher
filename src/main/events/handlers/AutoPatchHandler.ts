@@ -16,6 +16,9 @@ import {
   LogBackupWebRootFoundEvent,
   ProcessEvent,
   DebugLogEvent,
+  ProcessWillTerminateEvent,
+  PatchRetryRequestedEvent,
+  PatchReservationFailedEvent,
   UIEvent,
 } from "../types";
 
@@ -44,6 +47,9 @@ interface SessionState {
   errorCount: number;
   startTime: number;
   alerted: boolean;
+  isAutoPatch: boolean;
+  intentionalStop: boolean;
+  retryCount: number;
 }
 
 class AutoPatchStateManager {
@@ -51,6 +57,8 @@ class AutoPatchStateManager {
   private sessions = new Map<number, SessionState>();
   // Key: serviceId (Pending manual confirmation)
   private pendingManualPatches = new Map<string, SessionState>();
+  // Key: gameId_serviceId (Next session expectation)
+  private autoPatchExpectations = new Map<string, { retryCount: number }>();
 
   private patchManager: PatchManager | null = null;
 
@@ -66,13 +74,39 @@ class AutoPatchStateManager {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) {
+    const key = `${gameId}_${serviceId}`;
+    const expectation = this.autoPatchExpectations.get(key);
+
     this.sessions.set(pid, {
       serviceId,
       gameId,
       errorCount: 0,
       startTime: Date.now(),
       alerted: false,
+      isAutoPatch: !!expectation,
+      intentionalStop: false,
+      retryCount: expectation?.retryCount || 0,
     });
+
+    // Clear expectation once session starts
+    if (expectation) {
+      this.autoPatchExpectations.delete(key);
+    }
+  }
+
+  public setIntentionalStop(pid: number) {
+    const session = this.sessions.get(pid);
+    if (session) {
+      session.intentionalStop = true;
+    }
+  }
+
+  public expectAutoPatch(
+    gameId: string,
+    serviceId: string,
+    retryCount: number = 0,
+  ) {
+    this.autoPatchExpectations.set(`${gameId}_${serviceId}`, { retryCount });
   }
 
   public setWebRoot(pid: number, webRoot: string) {
@@ -170,6 +204,14 @@ export function cancelPendingPatches(context: AppContext) {
   emitLog(context, "[AutoPatch] All pending patches cancelled.");
 }
 
+export function registerAutoPatchExpectation(
+  gameId: string,
+  serviceId: string,
+  retryCount: number = 0,
+) {
+  stateManager.expectAutoPatch(gameId, serviceId, retryCount);
+}
+
 // --- Handlers ---
 
 export const LogSessionHandler: EventHandler<LogSessionStartEvent> = {
@@ -221,6 +263,14 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
         // Use setConfigWithEvent to ensure UI updates
         setConfigWithEvent("knownGameVersions", updated);
       }
+
+      // [New] Emit success if it's an auto-patch session to clear service-level timeout
+      if (session.isAutoPatch) {
+        eventBus.emit(EventType.PATCH_RESERVATION_SUCCESS, context, {
+          gameId: session.gameId,
+          serviceId: session.serviceId,
+        });
+      }
     }
   },
 };
@@ -265,8 +315,12 @@ export const LogErrorHandler: EventHandler<LogErrorDetectedEvent> = {
           true,
         );
 
+        // Emit intentional stop event BEFORE killing
+        eventBus.emit(EventType.PROCESS_WILL_TERMINATE, context, {
+          pid,
+        } as ProcessWillTerminateEvent["payload"]);
+
         // Execute TaskKill via PowerShell
-        // If UAC Bypass is enabled, we don't need admin privileges to kill the process (useAdmin: false)
         const uacBypassEnabled =
           context.getConfig("skipDaumGameStarterUac") === true;
         PowerShellManager.getInstance().execute(
@@ -294,8 +348,37 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
     if (session) {
       emitLog(
         context,
-        `[AutoPatch] Process ${pid} stop detected. Checking session state...`,
+        `[AutoPatch] Process ${pid} stop detected. Intentional: ${session.intentionalStop}`,
       );
+
+      // Check for Abnormal Exit (Crash/Closed without reaching WebRoot)
+      if (!session.intentionalStop && session.isAutoPatch && !session.webRoot) {
+        if (session.retryCount < 3) {
+          emitLog(
+            context,
+            `[AutoPatch] ⚠️ Abnormal exit detected for auto-patch session (PID ${pid}). Requesting retry ${session.retryCount + 1}/3...`,
+            true,
+          );
+          eventBus.emit(EventType.PATCH_RETRY_REQUESTED, context, {
+            gameId: session.gameId,
+            serviceId: session.serviceId,
+            retryCount: session.retryCount + 1,
+          } as PatchRetryRequestedEvent["payload"]);
+          stateManager.clearSession(pid);
+          return;
+        } else {
+          emitLog(
+            context,
+            `[AutoPatch] ❌ Max retries reached for ${session.gameId} (${session.serviceId}).`,
+            true,
+          );
+          eventBus.emit(EventType.PATCH_RESERVATION_FAILED, context, {
+            gameId: session.gameId,
+            serviceId: session.serviceId,
+            reason: "Max retries reached without log response.",
+          } as PatchReservationFailedEvent["payload"]);
+        }
+      }
 
       const aggressiveMode =
         context.getConfig("aggressivePatchMode") === true &&
@@ -400,3 +483,12 @@ export const PatchProgressHandler: EventHandler<AppEvent> = {
     }
   },
 };
+
+export const ProcessWillTerminateHandler: EventHandler<ProcessWillTerminateEvent> =
+  {
+    id: "ProcessWillTerminateHandler",
+    targetEvent: EventType.PROCESS_WILL_TERMINATE,
+    handle: async (event, _context) => {
+      stateManager.setIntentionalStop(event.payload.pid);
+    },
+  };

@@ -8,7 +8,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 10000;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.3s ease-out;
 }
@@ -18,7 +18,7 @@
   border: 1px solid var(--theme-accent, #af944f);
   padding: 30px;
   border-radius: 8px;
-  width: 400px;
+  width: 480px;
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   transform: scale(var(--app-scale, 1));
@@ -42,39 +42,49 @@
 
 .update-actions {
   display: flex;
-  justify-content: center;
-  gap: 15px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 20px;
 }
 
 .btn-update-primary {
   background: var(--theme-accent, #af944f);
   color: #000;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 15px;
+  white-space: nowrap;
 }
 
 .btn-update-primary:hover {
   background: #cbb475;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .btn-update-secondary {
   background: transparent;
   color: #888;
-  border: 1px solid #444;
-  padding: 10px 20px;
+  border: 1px solid #333;
+  padding: 12px 20px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 14px;
+  white-space: nowrap;
+  height: fit-content;
+  min-width: 100px;
 }
 
 .btn-update-secondary:hover {
-  border-color: #666;
+  border-color: #555;
   color: #aaa;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 @keyframes fadeIn {
@@ -128,4 +138,91 @@
   color: #888;
   cursor: not-allowed;
   transform: none;
+}
+
+/* 수동 업데이트용 신규 스타일 (커밋 가독성을 위해 하단 배치) */
+.update-primary-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 15px;
+}
+
+.update-secondary-actions {
+  display: flex;
+  align-items: center;
+}
+
+.btn-update-manual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  color: #666;
+  border: 1px dashed #444;
+  padding: 11px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-update-manual:hover {
+  border-color: #666;
+  color: #999;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.info-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.info-icon {
+  font-size: 18px;
+  color: #555;
+  cursor: help;
+  transition: color 0.2s;
+}
+
+.info-icon:hover {
+  color: var(--theme-accent, #af944f);
+}
+
+.info-tooltip {
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  color: #ccc;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  width: 220px;
+  text-align: center;
+  border: 1px solid #333;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10001;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.6);
+}
+
+.info-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.info-icon-wrapper:hover .info-tooltip {
+  opacity: 1;
 }

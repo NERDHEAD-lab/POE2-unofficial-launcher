@@ -173,6 +173,25 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "Appearance",
     description: "Path of Exile 2에서 사용할 테마를 결정합니다.",
   },
+  PATCH_RESERVATIONS: {
+    key: "patchReservations",
+    name: "Patch Reservations",
+    category: "Patch",
+    description: "게임 패치 자동 예약 목록을 저장합니다. (자동 관리)",
+  },
+  SILENT_PATCH_NOTIFICATION: {
+    key: "silentPatchNotification",
+    name: "Do Not Disturb Mode",
+    category: "Patch",
+    description:
+      "패치 예약 실행 시 윈도우 알림을 표시하지 않습니다. (방해 금지 모드)",
+  },
+  TERMINATE_AFTER_PATCH: {
+    key: "terminateAfterPatch",
+    name: "Auto Close After Patch",
+    category: "Patch",
+    description: "패치 예약 성공 시 게임 및 런처를 자동으로 종료합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -202,6 +221,9 @@ export const CONFIG_KEYS = {
   REMOTE_THEME_SETTINGS: CONFIG_METADATA.REMOTE_THEME_SETTINGS.key,
   THEME_MODE_POE1: CONFIG_METADATA.THEME_MODE_POE1.key,
   THEME_MODE_POE2: CONFIG_METADATA.THEME_MODE_POE2.key,
+  PATCH_RESERVATIONS: CONFIG_METADATA.PATCH_RESERVATIONS.key,
+  SILENT_PATCH_NOTIFICATION: CONFIG_METADATA.SILENT_PATCH_NOTIFICATION.key,
+  TERMINATE_AFTER_PATCH: CONFIG_METADATA.TERMINATE_AFTER_PATCH.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -234,6 +256,9 @@ export const DEFAULT_CONFIG: AppConfig = {
       POE2: "auto",
     },
   },
+  patchReservations: [],
+  silentPatchNotification: false,
+  terminateAfterPatch: true,
 };
 
 export const DEBUG_APP_CONFIG = {

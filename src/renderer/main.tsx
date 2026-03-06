@@ -18,15 +18,28 @@ if (!isDebug) {
 
 export const Root = () => {
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<{
+    errorDetails: string;
+    type: "bug" | "suggestion";
+  } | null>(null);
+  const [launcherVersion, setLauncherVersion] = useState<string>("Unknown");
 
   useEffect(() => {
-    if (fatalError) {
-      // Ensure splash screen is removed if a fatal error occurs,
-      // even if App component failed to mount/render.
+    // Get launcher version on mount
+    if (window.electronAPI && window.electronAPI.getConfig) {
+      window.electronAPI.getConfig("launcherVersion").then((v) => {
+        if (v) setLauncherVersion(v as string);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (fatalError || reportData) {
+      // Ensure splash screen is removed if an error or report modal occurs
       const splash = document.getElementById("launcher-splash");
       if (splash) splash.remove();
     }
-  }, [fatalError]);
+  }, [fatalError, reportData]);
 
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onFatalError) {
@@ -35,16 +48,40 @@ export const Root = () => {
         setFatalError(errorDetails);
       });
 
-      // Signal to Main that Renderer is ready to receive buffered fatal errors
       window.electronAPI.reportFatalReady();
-
       return cleanup;
     }
   }, []);
 
+  useEffect(() => {
+    // Listen for manual report modal trigger
+    const handleShowReport = (event: any) => {
+      setReportData(event.detail);
+    };
+
+    window.addEventListener("SHOW_REPORT_MODAL" as any, handleShowReport);
+    return () => {
+      window.removeEventListener("SHOW_REPORT_MODAL" as any, handleShowReport);
+    };
+  }, []);
+
   return (
     <div id="app-container">
-      {fatalError && <FatalErrorModal errorDetails={fatalError} />}
+      {fatalError && (
+        <FatalErrorModal
+          errorDetails={fatalError}
+          launcherVersion={launcherVersion}
+          type="fatal"
+        />
+      )}
+      {reportData && !fatalError && (
+        <FatalErrorModal
+          errorDetails={reportData.errorDetails}
+          type={reportData.type}
+          launcherVersion={launcherVersion}
+          onClose={() => setReportData(null)}
+        />
+      )}
       <ErrorBoundary onFatalError={setFatalError}>
         {isDebug ? <DebugConsole /> : <App />}
       </ErrorBoundary>
