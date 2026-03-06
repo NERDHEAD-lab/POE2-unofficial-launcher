@@ -677,6 +677,134 @@ img.dropdown-logo[alt="GGG"] {
   font-size: 20px;
 }
 
+.btn-terminate-toggle {
+  background: transparent;
+  border: 1px solid #333;
+  color: #666;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.btn-terminate-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+  border-color: #444;
+}
+
+.terminate-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.terminate-checkbox-wrapper:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.checkbox-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.checkbox-container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkbox-custom {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 18px;
+  width: 18px;
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.terminate-checkbox-wrapper:hover .checkbox-custom {
+  border-color: rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.checkbox-container input:checked ~ .checkbox-custom {
+  background-color: var(--theme-accent, #dfcf99);
+  border-color: var(--theme-accent, #dfcf99);
+  box-shadow: 0 0 12px rgba(var(--theme-accent-rgb, 223, 207, 153), 0.2);
+}
+
+.check-icon {
+  font-family: "Material Symbols Outlined" !important;
+  font-size: 16px !important;
+  color: #111 !important;
+  font-weight: 900 !important; /* Material Symbols wght */
+  opacity: 0;
+  transform: scale(0.4) translateY(1px);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  user-select: none;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 700,
+    "GRAD" 0,
+    "opsz" 20 !important;
+}
+
+.checkbox-container input:checked ~ .checkbox-custom .check-icon {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.checkbox-label {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  transition: color 0.2s ease;
+}
+
+.terminate-checkbox-wrapper:hover .checkbox-label {
+  color: rgba(255, 255, 255, 1);
+}
+
+.checkbox-container input:checked ~ .checkbox-label {
+  color: var(--theme-accent, #dfcf99);
+  text-shadow: 0 0 10px rgba(var(--theme-accent-rgb, 223, 207, 153), 0.1);
+}
+
+.btn-terminate-toggle .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.btn-terminate-toggle .btn-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .btn-confirm {
   background: #333;
   color: #eee;

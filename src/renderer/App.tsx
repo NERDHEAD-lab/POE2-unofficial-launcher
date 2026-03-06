@@ -874,6 +874,10 @@ function App() {
     [],
   );
 
+  const handleTerminateAfterPatchToggle = useCallback((enabled: boolean) => {
+    window.electronAPI.setConfig(CONFIG_KEYS.TERMINATE_AFTER_PATCH, enabled);
+  }, []);
+
   // --- Auto Scaling Logic (Scale-to-Fit) ---
   const BASE_WIDTH = 1440;
   const BASE_HEIGHT = 960;
@@ -969,7 +973,9 @@ function App() {
         activeGame={config.activeGame}
         activeService={config.serviceChannel}
         silentNotification={config.silentPatchNotification}
+        terminateAfterPatch={config.terminateAfterPatch}
         onSilentToggle={handleSilentPatchNotificationToggle}
+        onTerminateAfterPatchToggle={handleTerminateAfterPatchToggle}
         onAdd={handleAddPatchReservation}
         onDelete={handleRemovePatchReservation}
         onClose={() => setIsPatchReservationOpen(false)}

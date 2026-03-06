@@ -68,6 +68,7 @@ export interface AppConfig {
   };
   patchReservations: PatchReservation[];
   silentPatchNotification: boolean;
+  terminateAfterPatch: boolean;
 }
 
 export interface PatchReservation {

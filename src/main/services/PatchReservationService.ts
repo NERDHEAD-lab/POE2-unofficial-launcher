@@ -322,23 +322,31 @@ export class PatchReservationService {
       clearTimeout(this.pendingChecks.get(taskKey)!.timeout);
     }
 
-    // Set 1 minute backup timer (User's requirement: Wait 1m and complete)
+    // Set 30 seconds backup timer (User's requirement: Wait 30s and complete)
     const timeout = setTimeout(() => {
       logger.log(
-        `[PatchReservation] 1 minute wait finished for ${taskKey}. Game did NOT start natively. Notifying success.`,
+        `[PatchReservation] 30 seconds wait finished for ${taskKey}. Game did NOT start natively. Notifying success.`,
       );
       this.notifyUpdateResult(gameId, serviceId, true);
 
       // Cleanup strategy: Try to kill whatever is in currentActivePid (which might have been rotated)
-      if (this.currentActivePid) {
-        this.cleanupProcess(gameId, serviceId, this.currentActivePid);
+      const terminateAfterPatch =
+        this.context.getConfig("terminateAfterPatch") !== false;
+      if (terminateAfterPatch) {
+        if (this.currentActivePid) {
+          this.cleanupProcess(gameId, serviceId, this.currentActivePid);
+        } else {
+          // Fallback to the pid that emitted the event if tracking lost
+          this.cleanupProcess(gameId, serviceId, pid);
+        }
       } else {
-        // Fallback to the pid that emitted the event if tracking lost
-        this.cleanupProcess(gameId, serviceId, pid);
+        logger.log(
+          `[PatchReservation] Terminate after patch is DISABLED. Keeping process alive.`,
+        );
       }
 
       this.finishCurrentAndContinue(); // Complete the task
-    }, 60000);
+    }, 30000);
 
     this.pendingChecks.set(taskKey, {
       id: taskKey,
@@ -348,7 +356,7 @@ export class PatchReservationService {
     });
 
     logger.log(
-      `[PatchReservation] Patch finished detected for ${taskKey}. Starting 1 minute wait...`,
+      `[PatchReservation] Patch finished detected for ${taskKey}. Starting 30 seconds wait...`,
     );
   }
 

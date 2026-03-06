@@ -74,7 +74,9 @@ interface PatchReservationModalProps {
   activeGame: AppConfig["activeGame"];
   activeService: AppConfig["serviceChannel"];
   silentNotification: boolean;
+  terminateAfterPatch: boolean;
   onSilentToggle: (enabled: boolean) => void;
+  onTerminateAfterPatchToggle: (enabled: boolean) => void;
   onAdd: (data: Omit<PatchReservation, "id" | "createdAt">) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -107,6 +109,8 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   onDelete,
   onNavigateToSetting,
   launcherConfig,
+  terminateAfterPatch,
+  onTerminateAfterPatchToggle,
 }) => {
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
@@ -806,6 +810,32 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                 : "notifications_active"}
             </span>
           </button>
+
+          <label className="terminate-checkbox-wrapper">
+            <div className="checkbox-container">
+              <input
+                type="checkbox"
+                checked={terminateAfterPatch}
+                onChange={() => {
+                  const newState = !terminateAfterPatch;
+                  onTerminateAfterPatchToggle(newState);
+                  showToast(
+                    newState
+                      ? "패치 성공 후 게임 및 런처를 자동으로 종료합니다."
+                      : "패치 성공 후에도 런처와 게임을 종료하지 않습니다.",
+                  );
+                }}
+              />
+              <span className="checkbox-custom">
+                <span className="material-symbols-outlined check-icon">
+                  check
+                </span>
+              </span>
+            </div>
+            <span className="checkbox-label">
+              패치 성공 시 게임 및 런처 종료
+            </span>
+          </label>
           <div className="spacer" />
           <button className="btn-confirm" onClick={onClose}>
             닫기

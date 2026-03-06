@@ -186,6 +186,12 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "패치 예약 실행 시 윈도우 알림을 표시하지 않습니다. (방해 금지 모드)",
   },
+  TERMINATE_AFTER_PATCH: {
+    key: "terminateAfterPatch",
+    name: "Auto Close After Patch",
+    category: "Patch",
+    description: "패치 예약 성공 시 게임 및 런처를 자동으로 종료합니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -217,6 +223,7 @@ export const CONFIG_KEYS = {
   THEME_MODE_POE2: CONFIG_METADATA.THEME_MODE_POE2.key,
   PATCH_RESERVATIONS: CONFIG_METADATA.PATCH_RESERVATIONS.key,
   SILENT_PATCH_NOTIFICATION: CONFIG_METADATA.SILENT_PATCH_NOTIFICATION.key,
+  TERMINATE_AFTER_PATCH: CONFIG_METADATA.TERMINATE_AFTER_PATCH.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -251,6 +258,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   patchReservations: [],
   silentPatchNotification: false,
+  terminateAfterPatch: true,
 };
 
 export const DEBUG_APP_CONFIG = {
