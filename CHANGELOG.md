@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.0.0...1.0.1) (2026-03-06)
+
+
+### Bug Fixes
+
+* 게임 패치 예약 기능이 패치가 완료되지 않아도 종료시키는 현상 수정 ([14f52a2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/14f52a25ac0a73d8932a31323384a623af722a48))
+
 ## [1.0.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/0.10.0...1.0.0) (2026-03-06)
 
 
