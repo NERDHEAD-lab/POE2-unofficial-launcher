@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import "./SupportLinks.css";
 import { AppConfig } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
+import iconDiscord from "../assets/icon-discord.svg?raw";
 import { VersionService, RemoteVersions } from "../services/VersionService";
 
 // [New] Extensible Link Item Definition
@@ -104,9 +105,41 @@ const SupportLinkItemRenderer: React.FC<{
           : { cursor: "pointer" }
       }
     >
-      <span className="material-symbols-outlined support-link-icon">
-        {item.icon}
-      </span>
+      {item.icon && (
+        <div
+          className="support-link-icon-wrapper"
+          style={{
+            width: "20px",
+            height: "20px",
+            marginRight: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {item.icon.includes("<svg") ? (
+            <span
+              className="support-link-icon"
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "currentColor",
+              }}
+              dangerouslySetInnerHTML={{ __html: item.icon }}
+            />
+          ) : (
+            <span
+              className="material-symbols-outlined support-link-icon"
+              style={{ fontSize: "20px" }}
+            >
+              {item.icon}
+            </span>
+          )}
+        </div>
+      )}
       {label}
     </div>
   );
@@ -264,6 +297,16 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         },
       },
       { id: "sep_2", type: "separator" },
+      {
+        id: "discord_invite",
+        type: "link",
+        defaultLabel: "공식 디스코드",
+        icon: iconDiscord,
+        onClick: () => {
+          window.open(SUPPORT_URLS.DISCORD_INVITE, "_blank");
+        },
+      },
+      { id: "sep_3", type: "separator" },
       {
         id: "donation",
         type: "link",
