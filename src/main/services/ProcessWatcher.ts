@@ -1,7 +1,13 @@
 import { eventBus } from "../events/EventBus";
 import { SUPPORTED_PROCESS_NAMES } from "../events/handlers/GameProcessStatusHandler";
-import { AppContext, EventType, ProcessEvent } from "../events/types";
+import {
+  AppContext,
+  EventType,
+  PatchUiTitleTickEvent,
+  ProcessEvent,
+} from "../events/types";
 import { Logger } from "../utils/logger";
+import { PowerShellManager } from "../utils/powershell";
 import * as processUtils from "../utils/process";
 
 const TARGET_PROCESSES = SUPPORTED_PROCESS_NAMES;
@@ -17,11 +23,16 @@ export class ProcessWatcher {
   /**
    * PID-based cache for currently running target processes.
    * Key: Process ID
-   * Value: { name: Process Name, path: Executable Path }
+   * Value: { name: Process Name, path: Executable Path, gameId?, serviceId? }
    */
-  private activePids: Map<number, { name: string; path: string }> = new Map();
+  private activePids: Map<
+    number,
+    { name: string; path: string; gameId?: string; serviceId?: string }
+  > = new Map();
+  private lastKakaoLauncher: string | null = null;
   private suspendTimer: NodeJS.Timeout | null = null;
   private isChecking = false;
+  private titleWatchTimer: NodeJS.Timeout | null = null;
 
   constructor(context: AppContext) {
     this.context = context;
@@ -155,10 +166,16 @@ export class ProcessWatcher {
       for (const p of currentProcesses) {
         if (!this.activePids.has(p.pid)) {
           // New Process Detected
-          this.activePids.set(p.pid, { name: p.name, path: p.path });
+          const identity = this.inferProcessIdentity(p.name, p.path);
+          this.activePids.set(p.pid, {
+            name: p.name,
+            path: p.path,
+            gameId: identity.gameId,
+            serviceId: identity.serviceId,
+          });
 
           this.logger.log(
-            `Process Started: ${p.name} (PID: ${p.pid}, Path: ${p.path || "Unknown"})`,
+            `Process Started: ${p.name} (PID: ${p.pid}, Path: ${p.path || "Unknown"}, Game: ${identity.gameId || "Unknown"}, Service: ${identity.serviceId || "Unknown"})`,
           );
 
           eventBus.emit<ProcessEvent>(EventType.PROCESS_START, this.context, {
@@ -169,7 +186,14 @@ export class ProcessWatcher {
         }
       }
 
-      // 3. Identify STOPPED processes (PID in cache but not in current list)
+      // 3. Update Title Monitoring state
+      if (this.activePids.size > 0) {
+        this.ensureTitleMonitoring(true);
+      } else {
+        this.ensureTitleMonitoring(false);
+      }
+
+      // 4. Identify STOPPED processes (PID in cache but not in current list)
       for (const [pid, info] of this.activePids.entries()) {
         if (!currentPidSet.has(pid)) {
           // Process Stopped
@@ -189,5 +213,102 @@ export class ProcessWatcher {
     } finally {
       this.isChecking = false;
     }
+  }
+
+  private ensureTitleMonitoring(shouldRun: boolean) {
+    if (shouldRun && !this.titleWatchTimer) {
+      this.logger.log("Starting Real-time Title Monitoring (10s interval)...");
+      this.titleWatchTimer = setInterval(() => this.tickTitleTitle(), 10000);
+    } else if (!shouldRun && this.titleWatchTimer) {
+      this.logger.log("Stopping Real-time Title Monitoring.");
+      clearInterval(this.titleWatchTimer);
+      this.titleWatchTimer = null;
+    }
+  }
+
+  private async tickTitleTitle() {
+    if (this.activePids.size === 0) return;
+
+    try {
+      const pids = Array.from(this.activePids.keys());
+      const psCmd = `powershell -Command "Get-Process -Id ${pids.join(",")} -ErrorAction SilentlyContinue | Select-Object Name, Id, MainWindowTitle | ConvertTo-Json -Compress"`;
+      const { stdout } = await PowerShellManager.getInstance().execute(
+        psCmd,
+        false,
+        true,
+      );
+
+      if (stdout && stdout.trim()) {
+        const result = JSON.parse(stdout);
+        const processes = Array.isArray(result) ? result : [result];
+
+        for (const p of processes) {
+          const title = p.MainWindowTitle || "";
+          if (title) {
+            const info = this.activePids.get(p.Id);
+            this.logger.log(
+              `Title Tick: [${p.Name}] (${info?.gameId || "Unknown"}) "${title}"`,
+            );
+            eventBus.emit<PatchUiTitleTickEvent>(
+              EventType.PATCH_UI_TITLE_TICK,
+              this.context,
+              {
+                processName: p.Name,
+                pid: p.Id,
+                title,
+                gameId: info?.gameId,
+                serviceId: info?.serviceId,
+                timestamp: Date.now(),
+              },
+            );
+          }
+        }
+      }
+    } catch (_err) {
+      // Quietly ignore
+    }
+  }
+
+  private inferProcessIdentity(
+    name: string,
+    path: string,
+  ): { gameId?: string; serviceId?: string } {
+    const lowerName = name.toLowerCase();
+    const lowerPath = path?.toLowerCase() || "";
+
+    // 1. Kakao PoEs
+    if (lowerName === "poe2_launcher.exe") {
+      this.lastKakaoLauncher = "POE2";
+      return { gameId: "POE2", serviceId: "Kakao Games" };
+    }
+    if (lowerName === "poe_launcher.exe") {
+      this.lastKakaoLauncher = "POE1";
+      return { gameId: "POE1", serviceId: "Kakao Games" };
+    }
+    if (lowerName === "pathofexile_kg.exe") {
+      // Path-based inference first for Kakao
+      // [v42] Support both "Path of Exile 2" and "Path of Exile2" (case-insensitive)
+      if (/path of exile\s*2/.test(lowerPath)) {
+        return { gameId: "POE2", serviceId: "Kakao Games" };
+      } else if (lowerPath.includes("path of exile")) {
+        return { gameId: "POE1", serviceId: "Kakao Games" };
+      }
+      // Fallback to last seen launcher
+      return {
+        gameId: this.lastKakaoLauncher || "POE2",
+        serviceId: "Kakao Games",
+      };
+    }
+
+    // 2. GGG PoEs
+    if (lowerName === "pathofexile.exe") {
+      if (/path of exile\s*2/.test(lowerPath)) {
+        return { gameId: "POE2", serviceId: "GGG" };
+      } else if (lowerPath.includes("path of exile")) {
+        return { gameId: "POE1", serviceId: "GGG" };
+      }
+    }
+
+    return {};
   }
 }

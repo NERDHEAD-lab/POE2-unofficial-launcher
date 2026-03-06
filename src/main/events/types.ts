@@ -44,6 +44,7 @@ export enum EventType {
   PATCH_RETRY_REQUESTED = "PATCH:RETRY_REQUESTED",
   PATCH_RESERVATION_FAILED = "PATCH:RESERVATION_FAILED",
   PATCH_RESERVATION_SUCCESS = "PATCH:RESERVATION_SUCCESS",
+  PATCH_UI_TITLE_TICK = "PATCH:UI_TITLE_TICK",
 }
 
 export interface ToolForceRepairEvent {
@@ -290,7 +291,21 @@ export type AppEvent =
   | ProcessWillTerminateEvent
   | PatchRetryRequestedEvent
   | PatchReservationFailedEvent
-  | PatchReservationSuccessEvent;
+  | PatchReservationSuccessEvent
+  | PatchUiTitleTickEvent;
+
+export interface PatchUiTitleTickEvent {
+  type: EventType.PATCH_UI_TITLE_TICK;
+  payload: {
+    processName: string;
+    pid: number;
+    title: string;
+    gameId?: string;
+    serviceId?: string;
+    timestamp: number;
+  };
+  timestamp?: number;
+}
 
 export interface ProcessWillTerminateEvent {
   type: EventType.PROCESS_WILL_TERMINATE;
