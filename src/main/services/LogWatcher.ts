@@ -7,6 +7,7 @@ import { eventBus } from "../events/EventBus";
 import {
   AppContext,
   EventType,
+  IService,
   ProcessEvent,
   LogErrorDetectedEvent,
 } from "../events/types";
@@ -17,7 +18,8 @@ import { getGameInstallPath } from "../utils/registry";
 const ERROR_PATTERN = "Transferred a partial file";
 const ERROR_THRESHOLD = 10;
 
-export class LogWatcher {
+export class LogWatcher implements IService {
+  public readonly id = "LogWatcher";
   private context: AppContext;
   private logger = new Logger({
     type: "LOG_WATCHER",
@@ -159,6 +161,10 @@ export class LogWatcher {
       const msg = e instanceof Error ? e.message : String(e);
       this.emitLog(`Failed to start: ${msg}`, true);
     }
+  }
+
+  public async stop(): Promise<void> {
+    this.stopMonitoring();
   }
 
   public async stopMonitoring() {

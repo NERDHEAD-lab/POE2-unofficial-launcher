@@ -154,32 +154,6 @@ const checkForUpdatesSmart = async () => {
 };
 
 /**
- * Starts a periodic update check in the background.
- * Periodic checks are always 'silent' (don't show popup).
- */
-export const startUpdateCheckInterval = (context: AppContext) => {
-  const ONE_HOUR = 1000 * 60 * 60;
-  const UPDATE_INTERVAL = ONE_HOUR * 4; // Check every 4 hours
-
-  logger.log("[UpdateHandler] Initializing background update scheduler.");
-
-  setInterval(async () => {
-    if (!app.isPackaged || process.env.VITE_DEV_SERVER_URL) {
-      return;
-    }
-
-    logger.log("[UpdateHandler] Background update check triggered.");
-    currentCheckIsSilent = true; // Background checks are silent
-    attachUpdateListeners(context);
-    try {
-      await checkForUpdatesSmart();
-    } catch (e) {
-      logger.error("[UpdateHandler] Background check failed:", e);
-    }
-  }, UPDATE_INTERVAL);
-};
-
-/**
  * Triggers an update check immediately.
  * @param context App context
  * @param isSilent Whether to suppress UI popups if an update is found

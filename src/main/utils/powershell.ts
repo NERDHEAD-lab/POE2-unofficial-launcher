@@ -50,6 +50,7 @@ export class PowerShellManager {
   // Separate states for Admin and Normal sessions
   private adminSession: SessionState = this.createEmptySession();
   private normalSession: SessionState = this.createEmptySession();
+  private isDestroyed: boolean = false;
 
   private constructor() {}
 
@@ -186,6 +187,15 @@ export class PowerShellManager {
     session: SessionState,
     isAdmin: boolean,
   ): Promise<void> {
+    // 0. If manager is destroyed, block all new sessions
+    if (this.isDestroyed) {
+      return Promise.reject(
+        new Error(
+          "PowerShellManager is destroyed. Blocking new session creation.",
+        ),
+      );
+    }
+
     // 1. If session is fully active, return immediately
     if (session.socket && !session.socket.destroyed && session.server) {
       return Promise.resolve();
@@ -420,6 +430,7 @@ try {
   }
 
   public cleanup() {
+    this.isDestroyed = true;
     this.cleanupSession(this.adminSession);
     this.cleanupSession(this.normalSession);
   }

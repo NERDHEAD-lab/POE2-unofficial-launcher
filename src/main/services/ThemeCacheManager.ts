@@ -9,6 +9,7 @@ import {
   AppConfig,
 } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
+import { IService } from "../events/types";
 import { getConfig } from "../store";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { Logger } from "../utils/logger";
@@ -17,7 +18,8 @@ import { Logger } from "../utils/logger";
  * Manages remote theme assets caching in %appdata%
  * Logic: Sync -> Load from Cache -> Fallback
  */
-export class ThemeCacheManager {
+export class ThemeCacheManager implements IService {
+  public readonly id = "ThemeCacheManager";
   private logger = new Logger({ type: "THEME_CACHE", typeColor: "#4ec9b0" });
   private themeDir: string;
   private themesData: ThemesRemoteData | null = null;
@@ -49,20 +51,24 @@ export class ThemeCacheManager {
   /**
    * Initialize and perform initial sync
    */
-  async init(): Promise<boolean> {
+  async init(): Promise<void> {
     try {
       await fs.mkdir(this.themeDir, { recursive: true });
 
       // 1. Always load local cache first to ensure immediate UI feedback based on cache/fallback
       await this.loadThemesFromLocalStorage();
 
-      // 2. Sync from remote (respecting 24h cooldown) and return whether an update occurred
-      const isUpdated = await this.syncThemes();
-      return isUpdated;
+      // 2. Sync from remote (respecting 24h cooldown)
+      await this.syncThemes();
     } catch (error) {
       this.logger.error("Failed to initialize ThemeCacheManager:", error);
-      return false;
     }
+  }
+
+  public async stop(): Promise<void> {
+    // No background timers to stop for now,
+    // but implemented for IService compliance.
+    this.logger.log("ThemeCacheManager service stopped.");
   }
 
   /**
