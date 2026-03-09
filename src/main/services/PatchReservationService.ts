@@ -27,6 +27,7 @@ import { registerAutoPatchExpectation } from "../events/handlers/AutoPatchHandle
 import {
   AppContext,
   EventType,
+  IService,
   LogSessionStartEvent,
   LogPatchFinishedEvent,
   LogGameStartupEvent,
@@ -42,7 +43,8 @@ import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
 import { PowerShellManager } from "../utils/powershell";
 
-export class PatchReservationService {
+export class PatchReservationService implements IService {
+  public readonly id = "PatchReservationService";
   // Map to store active timer for each reservation ID
   private scheduledTimers = new Map<string, NodeJS.Timeout>();
 
@@ -61,6 +63,9 @@ export class PatchReservationService {
 
   constructor(private context: AppContext) {
     this.initEventListeners();
+  }
+
+  public async init(): Promise<void> {
     // Initial schedule refresh (also handles missed reservations)
     this.refreshSchedules();
   }
@@ -653,7 +658,7 @@ export class PatchReservationService {
     this.removeReservation(id);
   }
 
-  public stop() {
+  public async stop(): Promise<void> {
     for (const timer of this.scheduledTimers.values()) {
       clearTimeout(timer);
     }

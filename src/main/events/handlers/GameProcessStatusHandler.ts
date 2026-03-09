@@ -126,7 +126,7 @@ const PROCESS_STRATEGIES: ProcessStrategy[] = [
       const stoppedPid = event.payload.pid;
       const isGameRunning = context.processWatcher?.isProcessRunning?.(
         "PathOfExile_KG.exe",
-        (info) => info.pid !== stoppedPid,
+        (info: { pid: number; path: string }) => info.pid !== stoppedPid,
       );
 
       if (isGameRunning) {

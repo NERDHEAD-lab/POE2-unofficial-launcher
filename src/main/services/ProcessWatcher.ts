@@ -3,6 +3,7 @@ import { SUPPORTED_PROCESS_NAMES } from "../events/handlers/GameProcessStatusHan
 import {
   AppContext,
   EventType,
+  IService,
   PatchUiTitleTickEvent,
   ProcessEvent,
 } from "../events/types";
@@ -12,8 +13,8 @@ import * as processUtils from "../utils/process";
 
 const TARGET_PROCESSES = SUPPORTED_PROCESS_NAMES;
 
-export class ProcessWatcher {
-  private context: AppContext;
+export class ProcessWatcher implements IService {
+  public readonly id = "ProcessWatcher";
   private logger = new Logger({
     type: "PROCESS_WATCHER",
     typeColor: "#4ec9b0",
@@ -34,8 +35,14 @@ export class ProcessWatcher {
   private isChecking = false;
   private titleWatchTimer: NodeJS.Timeout | null = null;
 
-  constructor(context: AppContext) {
-    this.context = context;
+  constructor(private context: AppContext) {}
+
+  public async init(): Promise<void> {
+    this.startWatching();
+  }
+
+  public async stop(): Promise<void> {
+    this.stopWatching();
   }
 
   public startWatching(intervalMs: number = 3000) {

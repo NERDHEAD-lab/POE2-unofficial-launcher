@@ -342,7 +342,40 @@ export interface PatchReservationSuccessEvent {
   timestamp?: number;
 }
 
-// --- Context & Handler Interfaces ---
+/**
+ * Interface for background services with life-cycle management.
+ * Similar to Java's Closeable, but for async Electron environment.
+ */
+export interface IService {
+  readonly id: string;
+  init?(): Promise<void> | void;
+  stop(): Promise<void> | void;
+}
+
+/**
+ * Manager to handle multiple IService instances.
+ */
+export interface IServiceManager {
+  register(service: IService): void;
+  get<T extends IService>(id: string): T | undefined;
+  stopAll(): Promise<void>;
+}
+
+/**
+ * Interface for the ProcessWatcher functionality within AppContext.
+ * This describes the public API used by handlers.
+ */
+export interface IProcessWatcher {
+  startWatching: (intervalMs?: number) => void;
+  stopWatching: () => void;
+  scheduleSuspension: () => void;
+  cancelSuspension: () => void;
+  wakeUp: (reason: string) => void;
+  isProcessRunning: (
+    name: string,
+    criteria?: (info: { pid: number; path: string }) => boolean,
+  ) => boolean;
+}
 
 // Context passed to handlers
 export interface AppContext {
@@ -350,18 +383,11 @@ export interface AppContext {
   gameWindow: BrowserWindow | null;
   debugWindow: BrowserWindow | null;
   store: Store<AppConfig>;
-  // We use a loose type or interface to avoid strict circular dependency with class
-  processWatcher?: {
-    startWatching: () => void;
-    stopWatching: () => void;
-    scheduleSuspension: () => void;
-    cancelSuspension: () => void;
-    wakeUp: (reason: string) => void;
-    isProcessRunning: (
-      name: string,
-      criteria?: (info: { pid: number; path: string }) => boolean,
-    ) => boolean;
-  };
+  // [v43] Unified service manager instead of individual fields
+  serviceManager: IServiceManager;
+  // Keep legacy individual field for now to avoid massive refactoring,
+  // but typed properly to avoid 'any' lint warnings.
+  processWatcher?: IProcessWatcher;
   ensureGameWindow: (options?: { service: string }) => BrowserWindow;
   getConfig: (key?: string) => unknown;
   isForcedVisible?: (windowId: number) => boolean;

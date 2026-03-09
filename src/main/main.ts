@@ -72,7 +72,6 @@ import {
   UpdateCheckHandler,
   UpdateDownloadHandler,
   UpdateInstallHandler,
-  startUpdateCheckInterval,
   triggerUpdateCheck,
 } from "./events/handlers/UpdateHandler";
 import {
@@ -87,9 +86,10 @@ import {
   UIUpdateInstallEvent,
   UpdateWindowTitleEvent,
   DebugLogEvent,
+  IServiceManager,
 } from "./events/types";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
-import { trayManager } from "./managers/TrayManager"; // Added
+import { trayManager } from "./managers/TrayManager";
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
 import { GameVersionScanner } from "./services/GameVersionScanner";
@@ -98,7 +98,9 @@ import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { PatchReservationService } from "./services/PatchReservationService";
 import { ProcessWatcher } from "./services/ProcessWatcher";
+import { serviceManager } from "./services/ServiceManager";
 import { themeCacheManager } from "./services/ThemeCacheManager";
+import { UpdateSchedulerService } from "./services/UpdateSchedulerService";
 import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
   isAdmin,
@@ -1012,10 +1014,7 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
           `[Account] Navigation interrupted for ${serviceId} (expected during background automation).`,
         );
       } else {
-        logger.error(
-          `[Account] Failed to load validation URL: ${targetUrl}`,
-          error,
-        );
+        logger.error(`[Account] Failed to load validation URL: ${targetUrl}`);
       }
     } finally {
       isNavigating.delete(serviceId);
@@ -1240,6 +1239,56 @@ ipcMain.on("window-visibility-request", async (event, isVisible: boolean) => {
   }
 });
 
+// Global Context
+let appContext: AppContext;
+
+// Helper to ensure game window exists or create it
+const ensureGameWindow = (options?: { service: string }) => {
+  if (!gameWindow || gameWindow.isDestroyed()) {
+    const service = options?.service || "Kakao Games"; // Default to Kakao for now
+    let partition = PARTITIONS.KAKAO;
+    let preloadPath = path.join(__dirname, "kakao/preload.js");
+
+    if (service === "GGG") {
+      partition = PARTITIONS.GGG;
+      // TODO: Create ggg/preload.js when GGG support is fully implemented.
+      // For now, use Kakao preload or a minimal one?
+      // Actually, GGG web login might need different preload.
+      // Let's use kakao preload as placeholder but isolated.
+      preloadPath = path.join(__dirname, "kakao/preload.js");
+    }
+
+    gameWindow = new BrowserWindow({
+      width: 1280,
+      height: 720,
+      title: `POE2 Launcher (${service} Window)`,
+      show: false, // 기본 숨김 처리 (플래시 방지)
+      webPreferences: {
+        preload: preloadPath,
+        nodeIntegration: false,
+        contextIsolation: true, // Partitioned Game Window needs isolation? Usually yes.
+        partition: partition, // Session Isolation based on Service
+      },
+    });
+
+    // [Context Support] Register Window Open Handler with Opener Context
+    gameWindow.webContents.setWindowOpenHandler(
+      createHandleWindowOpen(gameWindow.webContents.id, partition),
+    );
+
+    // Update Context
+    if (appContext) appContext.gameWindow = gameWindow;
+
+    // Handle closing
+    gameWindow.on("closed", () => {
+      resetGameStatusIfInterrupted(gameWindow!);
+      gameWindow = null;
+      if (appContext) appContext.gameWindow = null;
+    });
+  }
+  return gameWindow!;
+};
+
 // 2. Initialize Shared Context
 const context: AppContext = {
   mainWindow: null,
@@ -1247,52 +1296,9 @@ const context: AppContext = {
   debugWindow: null,
 
   store,
+  serviceManager: serviceManager as IServiceManager,
   isForcedVisible: (windowId: number) => forcedVisibleWindows.has(windowId),
-  ensureGameWindow: (options?: { service: string }) => {
-    if (!gameWindow || gameWindow.isDestroyed()) {
-      const service = options?.service || "Kakao Games"; // Default to Kakao for now
-      let partition = PARTITIONS.KAKAO;
-      let preloadPath = path.join(__dirname, "kakao/preload.js");
-
-      if (service === "GGG") {
-        partition = PARTITIONS.GGG;
-        // TODO: Create ggg/preload.js when GGG support is fully implemented.
-        // For now, use Kakao preload or a minimal one?
-        // Actually, GGG web login might need different preload.
-        // Let's use kakao preload as placeholder but isolated.
-        preloadPath = path.join(__dirname, "kakao/preload.js");
-      }
-
-      gameWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        title: `POE2 Launcher (${service} Window)`,
-        show: false, // 기본 숨김 처리 (플래시 방지)
-        webPreferences: {
-          preload: preloadPath,
-          nodeIntegration: false,
-          contextIsolation: true, // Partitioned Game Window needs isolation? Usually yes.
-          partition: partition, // Session Isolation based on Service
-        },
-      });
-
-      // [Context Support] Register Window Open Handler with Opener Context
-      gameWindow.webContents.setWindowOpenHandler(
-        createHandleWindowOpen(gameWindow.webContents.id, partition),
-      );
-
-      // Update Context
-      context.gameWindow = gameWindow;
-
-      // Handle closing
-      gameWindow.on("closed", () => {
-        resetGameStatusIfInterrupted(gameWindow!);
-        gameWindow = null;
-        context.gameWindow = null;
-      });
-    }
-    return gameWindow!;
-  },
+  ensureGameWindow: ensureGameWindow,
   getConfig: (key?: string) => getEffectiveConfig(key),
   disableValidationMode: () => {
     logger.log("[Account] Explicitly disabling validation mode.");
@@ -1492,9 +1498,12 @@ function applyIntelligentConstraints(win: BrowserWindow | null) {
   syncDebugWindow("IntelligentConstraints");
 }
 
-// Global Context
-let appContext: AppContext;
-let patchReservationService: PatchReservationService;
+// Initialize Context Helper
+function initAppContext() {
+  appContext = context; // Assign the pre-defined context object
+  eventBus.setContext(appContext);
+  PowerShellManager.getInstance().setContext(appContext);
+}
 
 // Initialize Services
 newsService.init(() => {
@@ -1550,7 +1559,7 @@ function broadcastTitleUpdate() {
   }
 }
 
-function createWindows() {
+async function createWindow() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
     width: BASE_WIDTH,
@@ -1738,7 +1747,7 @@ function createWindows() {
   }
 
   // Initialize Global Context
-  appContext = context;
+  initAppContext(); // Call the helper function to set appContext
   ContextProvider.set(appContext); // [New] Set Global Context Provider
   appContext.mainWindow = mainWindow;
   setupMainLogger(appContext, (event) => {
@@ -1815,40 +1824,29 @@ function createWindows() {
     logger.error("[Main] Failed to sync auto-launch settings:", err);
   });
 
-  // Inject Context into PowerShellManager for Debug Logs
-  PowerShellManager.getInstance().setContext(appContext);
-  eventBus.setContext(appContext);
+  // --- Service Registration & Management (v43) ---
+  serviceManager.register(themeCacheManager);
+  serviceManager.register(new ProcessWatcher(appContext));
+  serviceManager.register(new LogWatcher(appContext));
+  serviceManager.register(new PatchReservationService(appContext));
+  serviceManager.register(new UpdateSchedulerService(appContext));
 
-  // Start Background Update Scheduler
-  startUpdateCheckInterval(appContext);
+  // Initialize all services
+  await serviceManager.initAll();
 
-  // Initialize and Start Process Watcher
-  const processWatcher = new ProcessWatcher(appContext);
-  // Assign to context for handlers (e.g., SystemWakeUpHandler)
-  appContext.processWatcher = processWatcher;
-  processWatcher.startWatching();
-
-  // Initialize LogWatcher
-  const logWatcher = new LogWatcher(appContext);
-  logWatcher.init();
-
-  // Initialize PatchReservationService
-  patchReservationService = new PatchReservationService(appContext);
-
-  // Initialize ThemeCacheManager
-  themeCacheManager.init().catch((err) => {
-    logger.error("[Main] Failed to initialize ThemeCacheManager:", err);
-  });
+  // Legacy field support for handlers (if needed)
+  appContext.processWatcher =
+    serviceManager.get<ProcessWatcher>("ProcessWatcher");
 
   // --- ProcessWatcher Optimization & wake-up integrated in Class ---
   mainWindow.on("blur", () => {
     logger.log("[Main] Window blurred (Focus Lost).");
-    processWatcher.scheduleSuspension();
+    serviceManager.get<ProcessWatcher>("ProcessWatcher")?.scheduleSuspension();
   });
 
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
-    processWatcher.cancelSuspension();
+    serviceManager.get<ProcessWatcher>("ProcessWatcher")?.cancelSuspension();
   });
 
   // --- Main Window Loading ---
@@ -2264,15 +2262,27 @@ ipcMain.on("patch:reserve", (_event, reservation) => {
   logger.log(
     `[Main] Patch Reservation added: ${reservation.gameId} at ${reservation.targetTime}`,
   );
-  if (patchReservationService) {
-    patchReservationService.addReservation(reservation);
+  if (appContext?.serviceManager) {
+    const patchReservationService =
+      appContext.serviceManager.get<PatchReservationService>(
+        "PatchReservationService",
+      );
+    if (patchReservationService) {
+      patchReservationService.addReservation(reservation);
+    }
   }
 });
 
 ipcMain.on("patch:delete-reservation", (_event, id: string) => {
   logger.log(`[Main] Patch Reservation deleted: ${id}`);
-  if (patchReservationService) {
-    patchReservationService.deleteReservation(id);
+  if (appContext?.serviceManager) {
+    const patchReservationService =
+      appContext.serviceManager.get<PatchReservationService>(
+        "PatchReservationService",
+      );
+    if (patchReservationService) {
+      patchReservationService.deleteReservation(id);
+    }
   }
 });
 
@@ -2570,21 +2580,44 @@ eventBus.register({
   },
 });
 
-app.on("before-quit", () => {
+/**
+ * Performs ultimate cleanup of all background services and PowerShell sessions
+ * to ensure no file locks remain before the app terminates.
+ */
+async function cleanupServices() {
+  logger.log("[Main] Performing global service cleanup...");
+
+  // 1. Stop all registered services (Waiters, Watchers, Schedulers)
+  try {
+    await serviceManager.stopAll();
+  } catch (e) {
+    logger.error("[Main] Failed to stop services during cleanup:", e);
+  }
+
+  // 2. Cleanup PowerShell Sessions (FINAL)
+  // This will set isDestroyed=true and block further creations
+  try {
+    PowerShellManager.getInstance().cleanup();
+  } catch (e) {
+    logger.error("[Main] Failed to cleanup PowerShell session:", e);
+  }
+}
+
+app.on("before-quit", async () => {
   isQuitting = true;
-  PowerShellManager.getInstance().cleanup();
+  await cleanupServices();
 });
 
-app.on("window-all-closed", () => {
-  PowerShellManager.getInstance().cleanup();
+app.on("window-all-closed", async () => {
+  await cleanupServices();
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on("activate", () => {
+app.on("activate", async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindows();
+    await createWindow();
   }
 });
 
@@ -2649,19 +2682,10 @@ app.whenReady().then(async () => {
   // Initial title/name broadcast before window creation
   broadcastTitleUpdate();
 
-  createWindows();
+  await createWindow();
 
-  // Load and cache remote themes explicitly, and notify renderer ONLY when actual updates happen.
-  themeCacheManager.init().then((isUpdated) => {
-    if (isUpdated) {
-      // Notify all windows that a NEW theme cache is available and they should refresh
-      BrowserWindow.getAllWindows().forEach((win) => {
-        if (!win.isDestroyed()) {
-          win.webContents.send("theme:synced");
-        }
-      });
-    }
-  });
+  // Load and cache remote themes explicitly.
+  themeCacheManager.init();
 
   // Also check for theme updates when the window regains focus (respects 24h cooldown internally)
   app.on("browser-window-focus", () => {
