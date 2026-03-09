@@ -23,6 +23,9 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  max-height: calc(
+    90vh / var(--app-scale, 1)
+  ); /* Compensate scale to keep it 90% visually */
   transform: scale(var(--app-scale, 1));
   transform-origin: center center;
   animation: contentPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -73,9 +76,26 @@
 /* Body */
 .onboarding-body {
   padding: 28px;
-  min-height: 380px;
+  flex: 1;
+  min-height: 0; /* Allow shrinking */
+  overflow-y: auto; /* Enable vertical scrolling */
   display: flex;
   flex-direction: column;
+}
+
+/* Custom scrollbar for onboarding body */
+.onboarding-body::-webkit-scrollbar {
+  width: 6px;
+}
+.onboarding-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.onboarding-body::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+.onboarding-body::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }
 
 .step-content {

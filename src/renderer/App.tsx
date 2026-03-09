@@ -902,6 +902,12 @@ function App() {
       // Use the smaller ratio to ensure UI fits within the window
       const newScale = Math.min(widthRatio, heightRatio);
       setScale(newScale);
+
+      // Sync CSS variable for modals and other floating elements
+      document.documentElement.style.setProperty(
+        "--app-scale",
+        newScale.toString(),
+      );
     };
 
     updateScale();
