@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.0.2...1.0.3) (2026-03-09)
+
+
+### Bug Fixes
+
+* 최초 설치시 낮은 해상도에서 온보딩 가이드의 다음 버튼이 가려지는 문제 수정 ([f94abf2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f94abf2ff62a73029cc70cc8b3703e521c7eef4f))
+* 최초 설치시 낮은 해상도에서 온보딩 가이드의 다음 버튼이 가려지는 문제 수정 ([64c0b45](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/64c0b451f55578fad6f2dc56fb3cc56041f7765d))
+
 ## [1.0.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.0.1...1.0.2) (2026-03-09)
 
 
