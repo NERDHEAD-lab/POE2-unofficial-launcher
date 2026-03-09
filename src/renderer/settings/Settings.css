@@ -50,6 +50,9 @@
 .settings-modal {
   width: 900px;
   height: 650px;
+  max-height: calc(
+    90vh / var(--app-scale, 1)
+  ); /* Support for low resolution height with scale compensation */
   background: #1a1a1a;
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
