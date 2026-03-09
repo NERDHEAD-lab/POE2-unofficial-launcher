@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 
 import "./SupportLinks.css";
-import { AppConfig } from "../../shared/types";
+import { AppConfig, DebugLogPayload } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
 import iconDiscord from "../assets/icon-discord.svg?raw";
 import { VersionService, RemoteVersions } from "../services/VersionService";
@@ -261,8 +261,8 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
           try {
             const history = await window.electronAPI.getDebugHistory();
             const errorLogs = history
-              .filter((log: any) => log.isError)
-              .map((log: any) => {
+              .filter((log: DebugLogPayload) => log.isError)
+              .map((log: DebugLogPayload) => {
                 const time = new Date(log.timestamp).toLocaleTimeString();
                 return `[${time}] [${log.type}] ${log.content}`;
               })

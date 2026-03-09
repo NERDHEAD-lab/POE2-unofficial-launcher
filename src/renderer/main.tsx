@@ -55,13 +55,17 @@ export const Root = () => {
 
   useEffect(() => {
     // Listen for manual report modal trigger
-    const handleShowReport = (event: any) => {
-      setReportData(event.detail);
+    const handleShowReport = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        errorDetails: string;
+        type: "bug" | "suggestion";
+      }>;
+      setReportData(customEvent.detail);
     };
 
-    window.addEventListener("SHOW_REPORT_MODAL" as any, handleShowReport);
+    window.addEventListener("SHOW_REPORT_MODAL", handleShowReport);
     return () => {
-      window.removeEventListener("SHOW_REPORT_MODAL" as any, handleShowReport);
+      window.removeEventListener("SHOW_REPORT_MODAL", handleShowReport);
     };
   }, []);
 
