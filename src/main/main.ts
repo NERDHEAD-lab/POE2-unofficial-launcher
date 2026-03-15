@@ -214,6 +214,7 @@ process.env.VITE_PUBLIC = app.isPackaged
 let mainWindow: BrowserWindow | null;
 let gameWindow: BrowserWindow | null;
 let debugWindow: BrowserWindow | null = null; // Debug Window Reference
+let debugDestructionTimeout: NodeJS.Timeout | null = null; // [New] Delayed destruction timer
 
 // --- Account Validation State ---
 let validationModeActive = false;
@@ -1993,103 +1994,145 @@ function initDebugWindow(triggerSource: string = "Dynamic") {
     exists: !!debugWindow && !debugWindow.isDestroyed(),
   });
 
-  // 1. If we should show but window doesn't exist -> Create
-  if (shouldShow && (!debugWindow || debugWindow.isDestroyed())) {
-    isInitInProgress = true;
-    try {
-      const mainBounds = mainWindow.getBounds();
-
-      debugWindow = new BrowserWindow({
-        width: 900,
-        height: mainBounds.height,
-        parent: mainWindow,
-        title: DEBUG_APP_CONFIG.TITLE,
-        frame: false,
-        movable: false,
-        resizable: true,
-        minimizable: true,
-        closable: true,
-        autoHideMenuBar: true,
-        show: false,
-        webPreferences: {
-          preload: path.join(__dirname, "preload.js"),
-        },
-      });
-
-      // Reveal when ready
-      debugWindow.once("ready-to-show", () => {
-        if (debugWindow && !debugWindow.isDestroyed()) {
-          debugWindow.show();
-          syncDebugWindow("ReadyToShow");
-        }
-      });
-
-      // Update Context
-      context.debugWindow = debugWindow;
-
-      const debugUrl = VITE_DEV_SERVER_URL
-        ? `${VITE_DEV_SERVER_URL}${DEBUG_APP_CONFIG.HASH}`
-        : `file://${path.join(process.env.DIST as string, "index.html")}${DEBUG_APP_CONFIG.HASH}`;
-
-      debugWindow.loadURL(debugUrl);
-
-      // --- ProcessWatcher Integration for Debug Window ---
-      debugWindow.on("blur", () => {
-        if (appContext?.processWatcher) {
-          appContext.processWatcher.scheduleSuspension();
-        }
-      });
-
-      debugWindow.on("focus", () => {
-        if (appContext?.processWatcher) {
-          appContext.processWatcher.cancelSuspension();
-        }
-      });
-
-      // Enforce docking during debug window resize (only if docked)
-      debugWindow.on("resize", () => {
-        if (
-          mainWindow &&
-          !mainWindow.isDestroyed() &&
-          debugWindow &&
-          !debugWindow.isDestroyed() &&
-          !mainWindow.isFullScreen() &&
-          !mainWindow.isMaximized()
-        ) {
-          const mainBounds = mainWindow.getBounds();
-          const debugBounds = debugWindow.getBounds();
-          const targetX = mainBounds.x + mainBounds.width;
-
-          // If X or Y drifted during resize, snap back
-          if (debugBounds.x !== targetX || debugBounds.y !== mainBounds.y) {
-            debugWindow.setPosition(targetX, mainBounds.y);
-          }
-          // Height MUST match
-          if (debugBounds.height !== mainBounds.height) {
-            debugWindow.setSize(debugBounds.width, mainBounds.height);
-          }
-        }
-      });
-
-      debugWindow.on("closed", () => {
-        logger.log("[Main] Debug Window Closed event fired.");
-        debugWindow = null;
-        context.debugWindow = null;
-      });
-
-      logger.log("[Main] Debug Console Creation Finalized.");
-    } finally {
-      isInitInProgress = false;
+  if (shouldShow) {
+    // 1. Cancel pending destruction if any
+    if (debugDestructionTimeout) {
+      clearTimeout(debugDestructionTimeout);
+      debugDestructionTimeout = null;
+      logger.log(
+        `[Main][${triggerSource}] Cancelled pending destruction for Debug Window.`,
+      );
     }
-  }
-  // 2. If we should NOT show but window exists -> Close
-  else if (!shouldShow && debugWindow && !debugWindow.isDestroyed()) {
-    logger.log(
-      `[Main][${triggerSource}] Closing Debug Window (Disabled in settings or dependency failed)`,
-    );
-    debugWindow.close();
-    debugWindow = null;
-    context.debugWindow = null;
+
+    // 2. If doesn't exist or destroyed -> Create
+    if (!debugWindow || debugWindow.isDestroyed()) {
+      isInitInProgress = true;
+      try {
+        const mainBounds = mainWindow.getBounds();
+
+        debugWindow = new BrowserWindow({
+          width: 900,
+          height: mainBounds.height,
+          parent: mainWindow,
+          title: DEBUG_APP_CONFIG.TITLE,
+          frame: false,
+          movable: false,
+          resizable: true,
+          minimizable: true,
+          closable: true,
+          autoHideMenuBar: true,
+          show: false,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+          },
+        });
+
+        // Reveal when ready
+        debugWindow.once("ready-to-show", () => {
+          if (debugWindow && !debugWindow.isDestroyed()) {
+            debugWindow.show();
+            syncDebugWindow("ReadyToShow");
+          }
+        });
+
+        // Update Context
+        context.debugWindow = debugWindow;
+
+        const debugUrl = VITE_DEV_SERVER_URL
+          ? `${VITE_DEV_SERVER_URL}${DEBUG_APP_CONFIG.HASH}`
+          : `file://${path.join(process.env.DIST as string, "index.html")}${DEBUG_APP_CONFIG.HASH}`;
+
+        debugWindow.loadURL(debugUrl);
+
+        // --- ProcessWatcher Integration for Debug Window ---
+        debugWindow.on("blur", () => {
+          if (appContext?.processWatcher) {
+            appContext.processWatcher.scheduleSuspension();
+          }
+        });
+
+        debugWindow.on("focus", () => {
+          if (appContext?.processWatcher) {
+            appContext.processWatcher.cancelSuspension();
+          }
+        });
+
+        // Enforce docking during debug window resize (only if docked)
+        debugWindow.on("resize", () => {
+          if (
+            mainWindow &&
+            !mainWindow.isDestroyed() &&
+            debugWindow &&
+            !debugWindow.isDestroyed() &&
+            !mainWindow.isFullScreen() &&
+            !mainWindow.isMaximized()
+          ) {
+            const mainBounds = mainWindow.getBounds();
+            const debugBounds = debugWindow.getBounds();
+            const targetX = mainBounds.x + mainBounds.width;
+
+            // If X or Y drifted during resize, snap back
+            if (debugBounds.x !== targetX || debugBounds.y !== mainBounds.y) {
+              debugWindow.setPosition(targetX, mainBounds.y);
+            }
+            // Height MUST match
+            if (debugBounds.height !== mainBounds.height) {
+              debugWindow.setSize(debugBounds.width, mainBounds.height);
+            }
+          }
+        });
+
+        debugWindow.on("close", (e) => {
+          // Prevent physical close to avoid process/HMR issues.
+          // Instead, signal configuration change which triggers initDebugWindow (hide & delayed destroy).
+          e.preventDefault();
+          logger.log(
+            "[Main] Debug Window close prevented. Signalling config change.",
+          );
+          setConfigWithEvent("debug_console", false);
+        });
+
+        debugWindow.on("closed", () => {
+          logger.log("[Main] Debug Window Closed event fired.");
+          debugWindow = null;
+          context.debugWindow = null;
+        });
+
+        logger.log("[Main] Debug Console Creation Finalized.");
+      } finally {
+        isInitInProgress = false;
+      }
+    } else {
+      // 3. Exists but might be hidden -> Show
+      if (!debugWindow.isVisible()) {
+        logger.log(`[Main][${triggerSource}] Showing existing Debug Window.`);
+        debugWindow.show();
+        syncDebugWindow("ManualShow");
+      }
+    }
+  } else {
+    // 4. Should hide/destroy (Delayed destruction for stability)
+    if (debugWindow && !debugWindow.isDestroyed()) {
+      if (debugWindow.isVisible()) {
+        logger.log(
+          `[Main][${triggerSource}] Hiding Debug Window and scheduling destruction.`,
+        );
+        debugWindow.hide();
+      }
+
+      // Schedule destruction if not already scheduled
+      if (!debugDestructionTimeout) {
+        debugDestructionTimeout = setTimeout(() => {
+          if (debugWindow && !debugWindow.isDestroyed()) {
+            logger.log(
+              `[Main] Executing delayed destruction for Debug Window.`,
+            );
+            debugWindow.destroy();
+          }
+          debugDestructionTimeout = null;
+        }, 1000);
+      }
+    }
   }
 }
 
@@ -2306,11 +2349,11 @@ ipcMain.on("window-close", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
     if (win === mainWindow) {
-      // If main window, quit app (or close, which triggers closed event)
       win.close();
+    } else if (win === debugWindow) {
+      // Just toggle the config, initDebugWindow will handle the hide().
+      setConfigWithEvent("debug_console", false);
     } else {
-      // If debug window or others, just hide or close based on logic
-      // For debug window, we agreed to 'close' it (app keeps running).
       win.close();
     }
   }
