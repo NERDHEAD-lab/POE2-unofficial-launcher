@@ -72,17 +72,25 @@ export class PatchReservationService implements IService {
 
   private initEventListeners() {
     // [Persistent] Listen for config changes to refresh scheduled timers
-    eventBus.on(EventType.CONFIG_CHANGE, (event: ConfigChangeEvent) => {
-      if (event.payload.key === "patchReservations") {
+    // [v43 FIX] Convert to named handler and add strict key validation
+    eventBus.register({
+      id: "PatchReservationRefreshHandler",
+      targetEvent: EventType.CONFIG_CHANGE,
+      condition: (event) =>
+        (event as ConfigChangeEvent).payload?.key === "patchReservations",
+      handle: async (_event) => {
         this.refreshSchedules();
-      }
+      },
     });
 
     // Handle Retry Requests (from Abnormal Exit or Silence)
-    eventBus.on(
-      EventType.PATCH_RETRY_REQUESTED,
-      (event: PatchRetryRequestedEvent) => {
-        const { gameId, serviceId, retryCount } = event.payload;
+    eventBus.register({
+      id: "PatchReservationRetryHandler",
+      targetEvent: EventType.PATCH_RETRY_REQUESTED,
+      handle: async (event) => {
+        const { gameId, serviceId, retryCount } = (
+          event as PatchRetryRequestedEvent
+        ).payload;
         this.triggerPatch(
           {
             id: `retry_${Date.now()}`,
@@ -94,7 +102,7 @@ export class PatchReservationService implements IService {
           retryCount,
         );
       },
-    );
+    });
   }
 
   /**
@@ -103,13 +111,14 @@ export class PatchReservationService implements IService {
   private subscribeExecutionEvents() {
     this.cleanupExecutionListeners(); // Ensure clean state
 
-    const id0 = eventBus.on(
-      EventType.LOG_SESSION_START,
-      (event: LogSessionStartEvent) => {
-        const { gameId, serviceId, pid } = event.payload;
+    // [v43] Use full registration for better observability and crash prevention
+    eventBus.register({
+      id: "PR_LogSessionHandler",
+      targetEvent: EventType.LOG_SESSION_START,
+      handle: async (event) => {
+        const { gameId, serviceId, pid } = (event as LogSessionStartEvent)
+          .payload;
         const taskKey = `${gameId}_${serviceId}`;
-
-        // [v42] PID Rotation Check: Clear any "Abnormal Exit" timer if a new session starts for same task
         if (this.abnormalExitTimeouts.has(taskKey)) {
           logger.log(
             `[PatchReservation] PID Rotation detected for ${taskKey}. New PID: ${pid}. Continuing...`,
@@ -117,32 +126,35 @@ export class PatchReservationService implements IService {
           clearTimeout(this.abnormalExitTimeouts.get(taskKey));
           this.abnormalExitTimeouts.delete(taskKey);
         }
-
         this.currentActivePid = pid;
         logger.log(
           `[PatchReservation] Tracking PID ${this.currentActivePid} for current assignment.`,
         );
       },
-    );
+    });
 
-    const id1 = eventBus.on(
-      EventType.LOG_PATCH_FINISHED,
-      (event: LogPatchFinishedEvent) => {
-        this.handlePatchFinished(event.payload);
+    eventBus.register({
+      id: "PR_LogPatchFinishedHandler",
+      targetEvent: EventType.LOG_PATCH_FINISHED,
+      handle: async (event) => {
+        this.handlePatchFinished((event as LogPatchFinishedEvent).payload);
       },
-    );
+    });
 
-    const id2 = eventBus.on(
-      EventType.LOG_GAME_STARTUP,
-      (event: LogGameStartupEvent) => {
-        this.handleGameStartup(event.payload);
+    eventBus.register({
+      id: "PR_LogGameStartupHandler",
+      targetEvent: EventType.LOG_GAME_STARTUP,
+      handle: async (event) => {
+        this.handleGameStartup((event as LogGameStartupEvent).payload);
       },
-    );
+    });
 
-    const id3 = eventBus.on(
-      EventType.PATCH_RESERVATION_SUCCESS,
-      (event: PatchReservationSuccessEvent) => {
-        const { gameId, serviceId } = event.payload;
+    eventBus.register({
+      id: "PR_ReservationSuccessHandler",
+      targetEvent: EventType.PATCH_RESERVATION_SUCCESS,
+      handle: async (event) => {
+        const { gameId, serviceId } = (event as PatchReservationSuccessEvent)
+          .payload;
         const key = `${gameId}_${serviceId}`;
         const timeout = this.activeTimeouts.get(key);
         if (timeout) {
@@ -152,39 +164,66 @@ export class PatchReservationService implements IService {
             `[PatchReservation] Silence timeout cleared for ${key}. Waiting for log result...`,
           );
         }
-        // Note: Do NOT finishCurrentAndContinue() here. Wait for LOG events to trigger notification.
       },
-    );
-
-    const id4 = eventBus.on(
-      EventType.PATCH_RESERVATION_FAILED,
-      (event: PatchReservationFailedEvent) => {
-        this.notifyFailure(event.payload);
-        this.finishCurrentAndContinue();
-      },
-    );
-
-    const id5 = eventBus.on(
-      EventType.PATCH_UI_TITLE_TICK,
-      (event: PatchUiTitleTickEvent) => {
-        this.handleUiTitleTick(event.payload);
-      },
-    );
-
-    const id6 = eventBus.on(EventType.PROCESS_STOP, (event: ProcessEvent) => {
-      this.handleProcessStop(event.payload);
     });
 
-    this.dynamicListenerIds.set(EventType.LOG_SESSION_START, id0);
-    this.dynamicListenerIds.set(EventType.LOG_PATCH_FINISHED, id1);
-    this.dynamicListenerIds.set(EventType.LOG_GAME_STARTUP, id2);
-    this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_SUCCESS, id3);
-    this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_FAILED, id4);
-    this.dynamicListenerIds.set(EventType.PATCH_UI_TITLE_TICK, id5);
-    this.dynamicListenerIds.set(EventType.PROCESS_STOP, id6);
+    eventBus.register({
+      id: "PR_ReservationFailedHandler",
+      targetEvent: EventType.PATCH_RESERVATION_FAILED,
+      handle: async (event) => {
+        this.notifyFailure((event as PatchReservationFailedEvent).payload);
+        this.finishCurrentAndContinue();
+      },
+    });
+
+    eventBus.register({
+      id: "PR_UiTitleTickHandler",
+      targetEvent: EventType.PATCH_UI_TITLE_TICK,
+      handle: async (event) => {
+        this.handleUiTitleTick((event as PatchUiTitleTickEvent).payload);
+      },
+    });
+
+    eventBus.register({
+      id: "PR_ProcessStopHandler",
+      targetEvent: EventType.PROCESS_STOP,
+      handle: async (event) => {
+        this.handleProcessStop((event as ProcessEvent).payload);
+      },
+    });
+
+    // Store IDs for cleanup if needed by current logic
+    this.dynamicListenerIds.set(
+      EventType.LOG_SESSION_START,
+      "PR_LogSessionHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.LOG_PATCH_FINISHED,
+      "PR_LogPatchFinishedHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.LOG_GAME_STARTUP,
+      "PR_LogGameStartupHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.PATCH_RESERVATION_SUCCESS,
+      "PR_ReservationSuccessHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.PATCH_RESERVATION_FAILED,
+      "PR_ReservationFailedHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.PATCH_UI_TITLE_TICK,
+      "PR_UiTitleTickHandler",
+    );
+    this.dynamicListenerIds.set(
+      EventType.PROCESS_STOP,
+      "PR_ProcessStopHandler",
+    );
 
     logger.log(
-      `[PatchReservation] Dynamic execution listeners subscribed (Queue: ${this.reservationQueue.length}).`,
+      `[PatchReservation] Dynamic execution listeners registered (Queue: ${this.reservationQueue.length}).`,
     );
   }
 
@@ -613,10 +652,14 @@ export class PatchReservationService implements IService {
         pid,
       } as ProcessWillTerminateEvent["payload"]);
 
-      PowerShellManager.getInstance().execute(
-        `taskkill /PID ${pid} /F /T`,
-        useAdmin,
-      );
+      PowerShellManager.getInstance()
+        .execute(`taskkill /PID ${pid} /F /T`, useAdmin)
+        .catch((err: unknown) => {
+          logger.warn(
+            `[PatchReservation] PID Kill failed (Expected if already dead): ${pid}`,
+            err,
+          );
+        });
 
       if (this.currentActivePid === pid) {
         this.currentActivePid = null;
