@@ -43,14 +43,11 @@ import { PatchReservationModal } from "./components/modals/PatchReservationModal
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import SettingsModal from "./components/settings/SettingsModal";
+import ThemeRevalidator from "./components/ThemeRevalidator";
 
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
-import {
-  extractThemeColors,
-  applyThemeColors,
-  DEFAULT_THEME_COLORS,
-} from "./utils/theme";
+import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";
 
 // Status Message Configuration Interface
 interface StatusMessageConfig {
@@ -71,8 +68,7 @@ const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
   error: { message: "실행 오류 발생", timeout: 3000 },
 };
 
-// Keep track of revalidated backgrounds in this session to avoid redundant hashes/readbacks
-const revalidatedFiles = new Set<string>();
+// Session-level flags or refs
 
 // --- 🛠️ Testing Scenarios (Toggle as needed) ---
 // "DELAYED"   : Crash after 2 seconds (Child component)
@@ -121,10 +117,10 @@ function App() {
     console.log(badData.property_of_null); // Explicit crash
   }
 
-  const [activeTheme, setActiveTheme] = useState<
-    | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
-    | null
-  >(null);
+  // Configuration State (Unified)
+  const [config, setConfigState] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+
   const [poe1Theme, setPoe1Theme] = useState<
     | (ThemeDefinition & { assets: Record<string, string>; isRemote: boolean })
     | null
@@ -134,11 +130,14 @@ function App() {
     | null
   >(null);
 
+  const [isThemesSynced, setIsThemesSynced] = useState(false);
+
+  const activeTheme = useMemo(() => {
+    return (config?.activeGame === "POE1" ? poe1Theme : poe2Theme) || null;
+  }, [config?.activeGame, poe1Theme, poe2Theme]);
+
   // Patch Reservation State
   const [isPatchReservationOpen, setIsPatchReservationOpen] = useState(false);
-  // Configuration State (Unified)
-  const [config, setConfigState] = useState<AppConfig>(DEFAULT_CONFIG);
-  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
   // UI States (Local only)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -431,10 +430,7 @@ function App() {
 
     setPoe1Theme(t1);
     setPoe2Theme(t2);
-
-    const theme = config.activeGame === "POE1" ? t1 : t2;
-    setActiveTheme(theme);
-  }, [config.activeGame]);
+  }, []);
 
   // Update Check Effect
   useEffect(() => {
@@ -560,7 +556,8 @@ function App() {
       return activeMessage;
     }
   }, [
-    activeGameStatus,
+    activeGameStatus.gameId,
+    activeGameStatus.serviceId,
     config.activeGame,
     config.serviceChannel,
     activeMessage,
@@ -608,18 +605,12 @@ function App() {
         setConfigState(loadedConfig);
         setIsConfigLoaded(true);
 
-        const initialBg = loadedConfig.activeGame === "POE2" ? bgPoe2 : bgPoe;
+        // [Flicker Fix] Use cached background path immediately if available to avoid default assets flicker.
+        const cachedPath =
+          loadedConfig.themeCache?.[loadedConfig.activeGame]?.assetPath;
+        const initialBg =
+          cachedPath || (loadedConfig.activeGame === "POE2" ? bgPoe2 : bgPoe);
         setBgImage(initialBg);
-
-        // [Splash] Fade out and remove launcher splash screen from index.html
-        setTimeout(() => {
-          const splash = document.getElementById("launcher-splash");
-          if (splash) {
-            splash.classList.add("fade-out");
-            // Remove from DOM after transition
-            setTimeout(() => splash.remove(), 1000);
-          }
-        }, 500); // Small buffer for initial layout build
       });
 
       // 2. Listen for Changes (Reactive Observer)
@@ -645,8 +636,8 @@ function App() {
     }
   }, []);
 
-  // Effect 1: Theme Application (Reacts to game or cache changes)
-  // This is a PURE visual application effect. No setConfig or extraction here.
+  // Effect 1: Theme Application (Single Source of Truth)
+  // Re-applies CSS variables whenever the cache for the active game changes.
   useEffect(() => {
     if (!isConfigLoaded) return;
 
@@ -654,10 +645,9 @@ function App() {
     if (cached) {
       applyThemeColors(cached);
     } else {
-      // Fallback: Apply default theme colors if cache is missing
       applyThemeColors(DEFAULT_THEME_COLORS);
     }
-  }, [isConfigLoaded, config.activeGame, config.themeCache, activeTheme]);
+  }, [activeTheme, isConfigLoaded, config.activeGame, config.themeCache]);
 
   // Effect 2a: Sync Theme Data from Main (Only on app start or settings change)
   useEffect(() => {
@@ -670,6 +660,7 @@ function App() {
         ]);
         setPoe1Theme(p1Theme);
         setPoe2Theme(p2Theme);
+        setIsThemesSynced(true);
         logger.log("[Theme] Theme definitions synced from main process.");
       } catch (err) {
         logger.error("[Theme] Failed to sync themes:", err);
@@ -678,57 +669,54 @@ function App() {
     syncThemes();
   }, [isConfigLoaded, themeVersion]);
 
-  // Effect 2b: Active Theme Selection (Local state only, instant on tab switch)
+  // [Splash] Remove launcher splash screen ONLY after initial theme sync is complete
   useEffect(() => {
-    const theme = config.activeGame === "POE1" ? poe1Theme : poe2Theme;
-    // Use setTimeout to avoid synchronous setState inside effect
-    const timer = setTimeout(() => {
-      setActiveTheme(theme);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [config.activeGame, poe1Theme, poe2Theme]);
-
-  // Effect 2c: Color Extraction & Cache (Background task, only on visual change)
-  useEffect(() => {
-    const targetBg =
-      (activeTheme && activeTheme.assets?.background) ||
-      (config.activeGame === "POE2" ? bgPoe2 : bgPoe);
-
-    const checkAndExtract = async () => {
-      if (!window.electronAPI || !isConfigLoaded) return;
-
-      // Skip if already checked for this session
-      if (revalidatedFiles.has(targetBg)) return;
-
-      try {
-        const fsHash = await window.electronAPI.getFileHash(targetBg);
-        const cached = config.themeCache[config.activeGame];
-
-        if (cached && cached.hash === fsHash) {
-          revalidatedFiles.add(targetBg);
-          return;
-        }
-
-        const colors = await extractThemeColors(targetBg);
-        revalidatedFiles.add(targetBg);
-
-        const currentCache = (await window.electronAPI.getConfig(
-          CONFIG_KEYS.THEME_CACHE,
-        )) as AppConfig["themeCache"];
-
-        const updatedCache = {
-          ...(currentCache || {}),
-          [config.activeGame]: { ...colors, hash: fsHash },
-        };
-        window.electronAPI.setConfig(CONFIG_KEYS.THEME_CACHE, updatedCache);
-        logger.log(`[Theme] ${config.activeGame} colors updated in cache.`);
-      } catch (err) {
-        logger.error("[Theme] Background extraction failed:", err);
+    if (isThemesSynced) {
+      const splash = document.getElementById("launcher-splash");
+      if (splash) {
+        // [Optimization] Small delay to ensure the first themed frame is rendered
+        const timer = setTimeout(() => {
+          splash.classList.add("fade-out");
+          setTimeout(() => splash.remove(), 1000);
+          logger.log("[Splash] Theme synced. Splash screen removed.");
+        }, 300);
+        return () => clearTimeout(timer);
       }
+    }
+  }, [isThemesSynced]);
+
+  // Effect 2c: Trigger Theme Revalidation Event
+  // Only triggered when the actual background definition (path) changes.
+  useEffect(() => {
+    // [Fix] Wait for the initial theme sync to finish before triggering revalidation.
+    // This prevents re-extracting from default assets while remote themes are still loading.
+    if (!isConfigLoaded || !isThemesSynced) return;
+
+    const poe1Bg = (poe1Theme && poe1Theme.assets?.background) || bgPoe;
+    const poe2Bg = (poe2Theme && poe2Theme.assets?.background) || bgPoe2;
+
+    const dispatchRevalidate = (game: "POE1" | "POE2", assetPath: string) => {
+      window.dispatchEvent(
+        new CustomEvent("REVALIDATE_THEME_COLORS", {
+          detail: { game, assetPath },
+        }),
+      );
     };
 
-    checkAndExtract();
-  }, [activeTheme, isConfigLoaded, config.activeGame, config.themeCache]);
+    // Initial load: revalidate both to ensure cache is fresh
+    if (isFirstMount.current) {
+      dispatchRevalidate("POE1", poe1Bg);
+      dispatchRevalidate("POE2", poe2Bg);
+    }
+
+    // Background change detection:
+    // This effect runs whenever poe1Theme or poe2Theme changes (e.g. from Remote or Settings).
+    if (config.activeGame === "POE1") {
+      dispatchRevalidate("POE1", poe1Bg);
+    } else {
+      dispatchRevalidate("POE2", poe2Bg);
+    }
+  }, [isConfigLoaded, isThemesSynced, poe1Theme, poe2Theme, config.activeGame]);
 
   // [New] Refs to manage background transitions without double-flicker
   const pendingTargetRef = useRef<string | null>(null);
@@ -736,10 +724,13 @@ function App() {
 
   // Effect 3: Background Transition Visuals (Flicker-Free & Guaranteed Fade)
   useEffect(() => {
-    // Priority: Remote Theme Background > Default Assets
-    const targetBg =
-      (activeTheme && activeTheme.assets?.background) ||
-      (config.activeGame === "POE1" ? bgPoe : bgPoe2);
+    // [Flicker Fix] If themes aren't synced yet, prefer the cached path to avoid resetting to default background.
+    // This aligns targetBg with the actual colors stored in themeCache (Single Source of Truth).
+    const cachedPath = config.themeCache?.[config.activeGame]?.assetPath;
+    const targetBg = isThemesSynced
+      ? (activeTheme && activeTheme.assets?.background) ||
+        (config.activeGame === "POE1" ? bgPoe : bgPoe2)
+      : cachedPath || (config.activeGame === "POE1" ? bgPoe : bgPoe2);
 
     // Initial mount: set immediately without animation (Deferred to avoid sync setState)
     if (isFirstMount.current) {
@@ -782,7 +773,13 @@ function App() {
       // Note: We don't clear the main fadeTimerRef here (unless we want to restart on every update).
       // If we don't clear, we get a single smooth dark period even with rapid updates.
     };
-  }, [config.activeGame, activeTheme]);
+  }, [
+    isConfigLoaded,
+    isThemesSynced,
+    activeTheme,
+    config.activeGame,
+    config.themeCache,
+  ]);
 
   const handleGameChange = (game: AppConfig["activeGame"]) => {
     // 1. User triggered change moves the "Source of Truth"
@@ -1227,6 +1224,7 @@ function App() {
           </div>
         </div>
       </div>
+      <ThemeRevalidator />
     </>
   );
 }

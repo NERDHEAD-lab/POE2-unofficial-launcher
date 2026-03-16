@@ -27,7 +27,13 @@ export interface AppConfig {
   themeCache: Partial<
     Record<
       "POE1" | "POE2",
-      { text: string; accent: string; footer: string; hash: string }
+      {
+        text: string;
+        accent: string;
+        footer: string;
+        hash: string;
+        assetPath?: string;
+      }
     >
   >;
   autoFixPatchError: boolean;
@@ -164,6 +170,11 @@ export interface ChangelogItem {
 export interface AccountUpdateData {
   id?: string;
   loginRequired?: boolean;
+}
+
+export interface RevalidateThemeColorsEventDetail {
+  game: "POE1" | "POE2";
+  assetPath: string;
 }
 
 export interface ElectronAPI {
