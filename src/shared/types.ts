@@ -77,6 +77,7 @@ export interface PatchReservation {
   serviceId: AppConfig["serviceChannel"];
   targetTime: string; // ISO String
   createdAt: string; // 생성일시
+  retryCount?: number; // [v45] 패치 시도 횟수 추적용
 }
 
 export interface ThemeAssets {
