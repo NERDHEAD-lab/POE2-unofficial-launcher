@@ -1047,7 +1047,11 @@ function App() {
         {/* 1. Top Title Bar (Outside Frame, High Z-Index) */}
         <TitleBar
           title={appTitle}
-          showUpdateIcon={updateState.state === "downloaded"}
+          showUpdateIcon={
+            updateState.state === "available" ||
+            updateState.state === "downloading" ||
+            updateState.state === "downloaded"
+          }
           onUpdateClick={() => setIsUpdateModalOpen(true)}
           devMode={config.dev_mode}
           debugConsole={config.debug_console}
