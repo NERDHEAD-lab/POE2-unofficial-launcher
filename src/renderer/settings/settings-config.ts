@@ -636,9 +636,9 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     sections: [],
   }, */
   {
-    id: "automation",
-    label: "자동화",
-    icon: "smart_toy",
+    id: "game",
+    label: "게임",
+    icon: "sports_esports",
     sections: [
       {
         id: "adv_process",
