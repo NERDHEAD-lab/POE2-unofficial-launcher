@@ -314,7 +314,12 @@ export interface ElectronAPI {
 export type UpdateStatus =
   | { state: "idle" }
   | { state: "checking"; isSilent?: boolean }
-  | { state: "available"; version: string; isSilent?: boolean }
+  | {
+      state: "available";
+      version: string;
+      isSilent?: boolean;
+      changelogs?: ChangelogItem[];
+    }
   | { state: "not-available"; isSilent?: boolean }
   | { state: "error"; message?: string; isSilent?: boolean }
   | {
