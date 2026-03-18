@@ -649,7 +649,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "check",
             label: "DaumGameStarter UAC 우회",
             description:
-              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
+              "카카오게임즈 서비스로 게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
             icon: "speed",
             infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
             // [Sync] Explicitly handle init/change as requested
