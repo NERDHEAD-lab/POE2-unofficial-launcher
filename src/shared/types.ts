@@ -97,6 +97,7 @@ export interface ThemeDefinition {
   assets: ThemeAssets;
   startDate?: string;
   endDate?: string;
+  isLocalTime?: boolean;
 }
 
 export interface ThemesRemoteData {

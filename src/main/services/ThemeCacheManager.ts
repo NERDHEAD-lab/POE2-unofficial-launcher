@@ -189,11 +189,12 @@ export class ThemeCacheManager implements IService {
     const now = new Date();
 
     const correctlyFiltered = themes.filter((t) => {
+      const isLocal = !!t.isLocalTime;
       const start = t.startDate
-        ? new Date(t.startDate.replace(" ", "T") + "Z")
+        ? new Date(t.startDate.replace(" ", "T") + (isLocal ? "" : "Z"))
         : new Date(0);
       const end = t.endDate
-        ? new Date(t.endDate.replace(" ", "T") + "Z")
+        ? new Date(t.endDate.replace(" ", "T") + (isLocal ? "" : "Z"))
         : new Date(8640000000000000);
 
       return now >= start && now <= end;
@@ -203,11 +204,17 @@ export class ThemeCacheManager implements IService {
 
     // Select the one with the latest startDate (Priority)
     return correctlyFiltered.sort((a, b) => {
+      const isLocalA = !!a.isLocalTime;
+      const isLocalB = !!b.isLocalTime;
       const startA = a.startDate
-        ? new Date(a.startDate.replace(" ", "T") + "Z").getTime()
+        ? new Date(
+            a.startDate.replace(" ", "T") + (isLocalA ? "" : "Z"),
+          ).getTime()
         : 0;
       const startB = b.startDate
-        ? new Date(b.startDate.replace(" ", "T") + "Z").getTime()
+        ? new Date(
+            b.startDate.replace(" ", "T") + (isLocalB ? "" : "Z"),
+          ).getTime()
         : 0;
       return startB - startA;
     })[0];

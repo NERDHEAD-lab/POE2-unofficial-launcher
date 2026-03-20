@@ -55,9 +55,9 @@ const updateAggressiveModeDescription = (
 
 // --- Theme Settings Helpers ---
 
-const formatThemeDate = (dateStr?: string) => {
+const formatThemeDate = (dateStr?: string, isLocal?: boolean) => {
   if (!dateStr) return "";
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.replace(" ", "T") + (isLocal ? "" : "Z"));
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -85,11 +85,16 @@ const handleThemeInit = async (
       ...gameThemes
         .filter((t: ThemeDefinition) => {
           if (!t.startDate) return true;
-          return new Date(t.startDate) <= now;
+          const isLocal = !!t.isLocalTime;
+          return (
+            new Date(t.startDate.replace(" ", "T") + (isLocal ? "" : "Z")) <=
+            now
+          );
         })
         .map((t: ThemeDefinition) => {
-          const start = formatThemeDate(t.startDate);
-          const end = formatThemeDate(t.endDate);
+          const isLocal = !!t.isLocalTime;
+          const start = formatThemeDate(t.startDate, isLocal);
+          const end = formatThemeDate(t.endDate, isLocal);
           const period = start ? ` - ${start} ~ ${end}` : "";
           return {
             label: `${t.name} ( ${t.id} )${period}`,
