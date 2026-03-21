@@ -272,6 +272,7 @@ export interface ElectronAPI {
     | null
   >;
   getThemes: () => Promise<ThemesRemoteData | null>;
+  syncThemesForce: () => Promise<boolean>;
   onThemeSynced: (callback: () => void) => () => void;
 
   // [UAC Bypass API]

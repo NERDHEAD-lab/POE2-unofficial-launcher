@@ -64,6 +64,33 @@ const formatThemeDate = (dateStr?: string, isLocal?: boolean) => {
   return `${y}.${m}.${day}`;
 };
 
+const formatFullDate = (timestamp?: number) => {
+  if (!timestamp) return "기록 없음";
+  const d = new Date(timestamp);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+};
+
+const updateThemeSyncDescription = async (
+  addDescription: (text: string, variant?: DescriptionVariant) => void,
+  resetDescription: () => void,
+) => {
+  if (!window.electronAPI) return;
+  const config = (await window.electronAPI.getConfig(
+    "remoteThemeSettings",
+  )) as AppConfig["remoteThemeSettings"];
+  resetDescription();
+  addDescription(
+    "서버에서 최신 테마 리소스 정보를 즉시 가져옵니다. (4시간마다 자동 체크)",
+  );
+  addDescription(`마지막 확인: ${formatFullDate(config?.lastSync)}`, "info");
+};
+
 const handleThemeInit = async (
   game: "POE1" | "POE2",
   setValue: (v: SettingValue) => void,
@@ -391,6 +418,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               handleThemeInit("POE1", setValue, setOptions),
             onChangeListener: async (val, { showToast }) =>
               handleThemeChange("POE1", val, showToast),
+            refreshOn: ["remoteThemeSettings"],
           },
           {
             id: "theme_mode_poe2",
@@ -404,6 +432,49 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               handleThemeInit("POE2", setValue, setOptions),
             onChangeListener: async (val, { showToast }) =>
               handleThemeChange("POE2", val, showToast),
+            refreshOn: ["remoteThemeSettings"],
+          },
+          {
+            id: "theme_sync_trigger",
+            type: "button",
+            label: "테마 리소스 갱신",
+            buttonText: "업데이트 확인",
+            icon: "sync",
+            onInit: async ({ addDescription, resetDescription }) => {
+              await updateThemeSyncDescription(
+                addDescription,
+                resetDescription,
+              );
+            },
+            onClickListener: async ({
+              showToast,
+              setDisabled,
+              setButtonText,
+              addDescription,
+              resetDescription,
+            }) => {
+              if (!window.electronAPI) return;
+              try {
+                setDisabled(true);
+                setButtonText("갱신 중...");
+                const isUpdated = await window.electronAPI.syncThemesForce();
+                if (isUpdated) {
+                  showToast("테마 리소스 정보가 갱신되었습니다.", "success");
+                } else {
+                  showToast("이미 최신 상태이거나 변경 사항이 없습니다.");
+                }
+                // Always update timestamp after sync attempt
+                await updateThemeSyncDescription(
+                  addDescription,
+                  resetDescription,
+                );
+              } catch (error) {
+                showToast(`갱신 중 오류가 발생했습니다: ${error}`, "error");
+              } finally {
+                setDisabled(false);
+                setButtonText("업데이트 확인");
+              }
+            },
           },
         ],
       },

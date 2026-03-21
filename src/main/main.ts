@@ -2684,6 +2684,18 @@ ipcMain.handle("theme:get-all", async () => {
   return await themeCacheManager.getThemes();
 });
 
+ipcMain.handle("theme:sync-force", async () => {
+  const isUpdated = await themeCacheManager.syncThemes(true);
+  if (isUpdated) {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send("theme:synced");
+      }
+    });
+  }
+  return isUpdated;
+});
+
 app.whenReady().then(async () => {
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

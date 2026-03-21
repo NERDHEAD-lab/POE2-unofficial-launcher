@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getActiveTheme: (game: AppConfig["activeGame"]) =>
     ipcRenderer.invoke("theme:get-active", game),
   getThemes: () => ipcRenderer.invoke("theme:get-all"),
+  syncThemesForce: () => ipcRenderer.invoke("theme:sync-force"),
   onThemeSynced: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("theme:synced", handler);
