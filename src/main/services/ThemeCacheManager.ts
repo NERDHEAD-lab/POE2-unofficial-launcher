@@ -84,8 +84,8 @@ export class ThemeCacheManager implements IService {
     const lastSync = settings?.lastSync || 0;
     const now = Date.now();
 
-    // 24-hour cooldown check: If we have cache and it's been less than 24h (86400000ms), and not forced
-    if (!force && this.themesData && now - lastSync < 24 * 60 * 60 * 1000) {
+    // 4-hour cooldown check: If we have cache and it's been less than 4h (14400000ms), and not forced
+    if (!force && this.themesData && now - lastSync < 4 * 60 * 60 * 1000) {
       this.logger.log("Themes are still fresh (< 24h). Skipping remote sync.");
       return false;
     }
