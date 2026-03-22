@@ -95,6 +95,7 @@ export interface ThemeDefinition {
   id: string;
   name: string;
   assets: ThemeAssets;
+  assetsHashes?: Partial<ThemeAssets>;
   startDate?: string;
   endDate?: string;
   isLocalTime?: boolean;

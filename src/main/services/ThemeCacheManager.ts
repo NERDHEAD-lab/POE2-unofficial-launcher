@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -6,6 +7,7 @@ import { app } from "electron";
 import {
   ThemeDefinition,
   ThemesRemoteData,
+  ThemeAssets,
   AppConfig,
 } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
@@ -173,10 +175,10 @@ export class ThemeCacheManager implements IService {
     const allPoe2 = data.poe2 || [];
 
     for (const theme of allPoe1) {
-      await this.downloadThemeAssets("POE1", theme);
+      await this.downloadThemeAssets("POE1", theme, false);
     }
     for (const theme of allPoe2) {
-      await this.downloadThemeAssets("POE2", theme);
+      await this.downloadThemeAssets("POE2", theme, false);
     }
 
     this.logger.log("Full theme asset pre-caching completed.");
@@ -223,26 +225,58 @@ export class ThemeCacheManager implements IService {
   /**
    * Download assets for a specific theme if missing
    */
-  private async downloadThemeAssets(game: string, theme: ThemeDefinition) {
+  private async downloadThemeAssets(
+    game: string,
+    theme: ThemeDefinition,
+    force = false,
+  ) {
     const targetDir = path.join(this.themeDir, game.toLowerCase(), theme.id);
     await fs.mkdir(targetDir, { recursive: true });
 
     const assets = theme.assets;
-    for (const relPath of Object.values(assets)) {
+    for (const [key, relPath] of Object.entries(assets)) {
       const fileName = path.basename(relPath);
       const localPath = path.join(targetDir, fileName);
 
       try {
         await fs.access(localPath);
-        this.logger.silent().log(`Asset already exists: ${localPath}`);
+
+        // Hash check logic
+        const serverHash = theme.assetsHashes?.[key as keyof ThemeAssets];
+        if (serverHash && !force) {
+          const fileBuffer = await fs.readFile(localPath);
+          const localHash = crypto
+            .createHash("md5")
+            .update(fileBuffer)
+            .digest("hex")
+            .substring(0, 8);
+
+          if (localHash === serverHash) {
+            this.logger
+              .silent()
+              .log(`Asset hash matches, skipping: ${localPath}`);
+            continue;
+          }
+          this.logger.log(
+            `Hash mismatch for ${fileName} (${localHash} vs ${serverHash}). Re-downloading...`,
+          );
+        } else if (!force) {
+          // If no hash provided by server, fallback to existence check
+          this.logger
+            .silent()
+            .log(`Asset already exists (no hash provided): ${localPath}`);
+          continue;
+        }
       } catch {
-        const url = SUPPORT_URLS.ASSETS_BASE + relPath;
-        this.logger.log(`Downloading asset: ${url} -> ${localPath}`);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to download ${url}`);
-        const buffer = Buffer.from(await response.arrayBuffer());
-        await fs.writeFile(localPath, buffer);
+        // File does not exist, proceed to download
       }
+
+      const url = SUPPORT_URLS.ASSETS_BASE + relPath;
+      this.logger.log(`Downloading asset: ${url} -> ${localPath}`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to download ${url}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await fs.writeFile(localPath, buffer);
     }
   }
 
@@ -319,7 +353,7 @@ export class ThemeCacheManager implements IService {
     // Ensure assets are downloaded for the active theme
     // (This handles cases where a theme is manually selected but wasn't pre-cached because it's not the "date-active" one)
     try {
-      await this.downloadThemeAssets(game, activeTheme);
+      await this.downloadThemeAssets(game, activeTheme, force);
     } catch (err) {
       this.logger.error(
         `[Theme] ${game}: Failed to download assets for theme '${activeTheme.id}'. Falling back.`,
