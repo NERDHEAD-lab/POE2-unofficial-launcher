@@ -15,12 +15,12 @@
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth ease-out-quad feel */
   cursor: pointer;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
-  cursor: pointer;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
   -webkit-user-drag: none; /* Disable native drag to use Custom JS Drag */
   user-select: none;
   height: 140px; /* Base height for physics scaling */
   width: auto;
+  max-width: 260px; /* Further reduced from 320px based on feedback */
+  object-fit: contain;
 }
 
 /* Active State (Left Aligned, Big) */
