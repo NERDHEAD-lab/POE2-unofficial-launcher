@@ -144,9 +144,9 @@ export class LogParser {
   }
 
   /**
-   * Checks if a log line indicates patch completion
+   * Checks if a log line indicates patch check completion (preparing to actual patch/game)
    */
-  public static isPatchFinished(line: string): boolean {
+  public static isPatchCheckComplete(line: string): boolean {
     return line.includes("Finished checking files");
   }
 

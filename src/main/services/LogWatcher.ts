@@ -275,10 +275,12 @@ export class LogWatcher implements IService {
             );
           }
 
-          // [New] Check for Patch Finished
-          if (LogParser.isPatchFinished(line) && this.currentPid) {
-            this.emitLog(`Patch Finished Detected (PID: ${this.currentPid})`);
-            eventBus.emit(EventType.LOG_PATCH_FINISHED, this.context, {
+          // [New] Check for Patch Check Complete
+          if (LogParser.isPatchCheckComplete(line) && this.currentPid) {
+            this.emitLog(
+              `Patch Check Complete Detected (PID: ${this.currentPid})`,
+            );
+            eventBus.emit(EventType.LOG_PATCH_CHECK_COMPLETE, this.context, {
               gameId: this.lastCheckedGameId!,
               serviceId: this.lastCheckedServiceId!,
               pid: this.currentPid,

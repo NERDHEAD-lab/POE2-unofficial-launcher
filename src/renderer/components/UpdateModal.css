@@ -18,108 +18,99 @@
   border: 1px solid var(--theme-accent, #af944f);
   padding: 30px;
   border-radius: 8px;
-  width: 480px;
+  width: 600px; /* Match ChangelogModal width */
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
   transform: scale(var(--app-scale, 1));
   transform-origin: center center;
   animation: slideUp 0.3s ease-out;
 
   /* Low Resolution Support */
-  max-height: calc(90vh / var(--app-scale, 1));
+  max-height: calc(92vh / var(--app-scale, 1));
   display: flex;
   flex-direction: column;
 }
 
 .update-title {
   color: var(--theme-accent, #af944f);
-  font-size: 20px;
-  margin-bottom: 15px;
+  font-size: 21px;
+  margin-bottom: 25px;
   font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.update-title-version {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: normal;
+}
+
+.update-info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  overflow: hidden;
+  margin-bottom: 10px;
 }
 
 .update-message {
-  color: var(--theme-text, #c8c8c8);
-  font-size: 14px;
-  margin-bottom: 25px;
-  line-height: 1.6;
-  overflow-y: auto;
-  max-height: 300px; /* Limit message height if very long */
-}
-
-.update-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.btn-update-primary {
-  background: var(--theme-accent, #af944f);
-  color: #000;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 15px;
-  white-space: nowrap;
-}
-
-.btn-update-primary:hover {
-  background: #cbb475;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.btn-update-secondary {
-  background: transparent;
   color: #888;
-  border: 1px solid #333;
-  padding: 12px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
   font-size: 14px;
-  white-space: nowrap;
-  height: fit-content;
-  min-width: 100px;
+  line-height: 1.6;
+  text-align: left;
+  margin-bottom: 5px;
 }
 
-.btn-update-secondary:hover {
-  border-color: #555;
-  color: #aaa;
+/* Adjust reused changelog components for update modal */
+.update-changelog-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0 8px 0 0 !important; /* Fixed typo and adjusted padding */
+  background: transparent !important;
+  text-align: left;
+}
+
+/* Custom Scrollbar for Update Modal */
+.update-changelog-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.update-changelog-list::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.update-changelog-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
-@keyframes slideUp {
-  from {
-    transform: scale(var(--app-scale, 1)) translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: scale(var(--app-scale, 1)) translateY(0);
-    opacity: 1;
-  }
+.update-changelog-list::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent, #af944f);
+}
+
+.changelog-loading {
+  color: #555;
+  padding: 40px;
+  font-size: 14px;
+}
+
+/* Progress Area */
+.update-progress-wrapper {
+  margin-top: 15px;
+  padding: 10px 0;
 }
 
 .update-progress-container {
   width: 100%;
-  background: #333;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   height: 8px;
-  margin: 20px 0;
+  margin-bottom: 8px;
   overflow: hidden;
   position: relative;
 }
@@ -135,19 +126,21 @@
   color: var(--theme-accent, #af944f);
   font-size: 12px;
   font-weight: bold;
-  margin-top: -10px;
-  margin-bottom: 20px;
   display: block;
+  text-align: right;
 }
 
-.btn-update-primary.disabled {
-  background: #555;
-  color: #888;
-  cursor: not-allowed;
-  transform: none;
+/* Actions */
+.update-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* 수동 업데이트용 신규 스타일 (커밋 가독성을 위해 하단 배치) */
 .update-primary-actions {
   display: flex;
   flex-direction: row;
@@ -158,6 +151,50 @@
 .update-secondary-actions {
   display: flex;
   align-items: center;
+}
+
+.btn-update-primary {
+  background: var(--theme-accent, #af944f);
+  color: #000;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.btn-update-primary:hover {
+  filter: brightness(1.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-update-primary.disabled {
+  background: #444;
+  color: #777;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-update-secondary {
+  background: transparent;
+  color: #888;
+  border: 1px solid #333;
+  padding: 12px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.btn-update-secondary:hover {
+  border-color: #555;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .btn-update-manual {
@@ -182,54 +219,18 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
-.info-icon-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.info-icon {
-  font-size: 18px;
-  color: #555;
-  cursor: help;
-  transition: color 0.2s;
-}
-
-.info-icon:hover {
-  color: var(--theme-accent, #af944f);
-}
-
-.info-tooltip {
-  position: absolute;
-  bottom: 130%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1a1a1a;
-  color: #ccc;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  width: 220px;
-  text-align: center;
-  border: 1px solid #333;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 10001;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.6);
-}
-
-.info-tooltip::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: #333 transparent transparent transparent;
-}
-
-.info-icon-wrapper:hover .info-tooltip {
-  opacity: 1;
+@keyframes slideUp {
+  from {
+    transform: scale(var(--app-scale, 1)) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(var(--app-scale, 1)) translateY(0);
+    opacity: 1;
+  }
 }

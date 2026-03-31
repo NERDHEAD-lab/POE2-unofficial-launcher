@@ -2,7 +2,8 @@ import axios from "axios";
 import { app } from "electron";
 import { autoUpdater } from "electron-updater";
 
-import { UpdateStatus } from "../../../shared/types";
+import { UpdateStatus, ChangelogItem } from "../../../shared/types";
+import { changelogService } from "../../services/ChangelogService";
 import { logger } from "../../utils/logger";
 import { PowerShellManager } from "../../utils/powershell";
 import {
@@ -43,12 +44,23 @@ const attachUpdateListeners = (context: AppContext) => {
 
   let lastVersionInfo = "";
 
-  autoUpdater.on("update-available", (info) => {
+  autoUpdater.on("update-available", async (info) => {
     lastVersionInfo = info.version; // Store version for progress updates
     logger.log(
       `[UpdateHandler] Update available: ${info.version} (Current: ${app.getVersion()}, Silent: ${currentCheckIsSilent})`,
     );
-    sendStatus(context, { state: "available", version: info.version });
+
+    // Fetch changelogs for the update
+    const changelogs = await changelogService.fetchChangelogs(
+      info.version,
+      app.getVersion(),
+    );
+
+    sendStatus(context, {
+      state: "available",
+      version: info.version,
+      changelogs,
+    });
   });
 
   autoUpdater.on("update-not-available", (info) => {

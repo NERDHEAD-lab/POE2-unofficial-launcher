@@ -26,16 +26,15 @@ import { eventBus } from "../events/EventBus";
 import { registerAutoPatchExpectation } from "../events/handlers/AutoPatchHandler";
 import {
   AppContext,
+  AppEvent,
+  EventHandler,
   EventType,
   IService,
   LogSessionStartEvent,
-  LogPatchFinishedEvent,
+  LogPatchCheckCompleteEvent,
   LogGameStartupEvent,
   ProcessEvent,
   PatchRetryRequestedEvent,
-  PatchReservationFailedEvent,
-  PatchReservationSuccessEvent,
-  ProcessWillTerminateEvent,
   ConfigChangeEvent,
   PatchUiTitleTickEvent,
 } from "../events/types";
@@ -43,8 +42,28 @@ import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
 import { PowerShellManager } from "../utils/powershell";
 
+export enum PatchTaskStatus {
+  IDLE = "IDLE",
+  TRIGGERED = "TRIGGERED",
+  PATCH_WAITING = "PATCH_WAITING",
+  COMPLETED = "COMPLETED",
+}
+
+export type PatchTaskResult = "success" | "failure" | "no-update";
+
+interface TaskContext {
+  reservation: PatchReservation;
+  currentPid: number | null;
+}
+
 export class PatchReservationService implements IService {
   public readonly id = "PatchReservationService";
+
+  // State Management
+  private status: PatchTaskStatus = PatchTaskStatus.IDLE;
+  private currentContext: TaskContext | null = null;
+  private lastStateChangeTime: number = Date.now();
+
   // Map to store active timer for each reservation ID
   private scheduledTimers = new Map<string, NodeJS.Timeout>();
 
@@ -52,11 +71,9 @@ export class PatchReservationService implements IService {
   private reservationQueue: PatchReservation[] = [];
   private isProcessing = false;
 
-  private activeTimeouts = new Map<string, NodeJS.Timeout>();
-  private currentActivePid: number | null = null;
-  // [v42] Changed from Map (timeouts) to Set (keys) because backup timer is removed
-  private pendingResolutionKeys = new Set<string>();
-  private abnormalExitTimeouts = new Map<string, NodeJS.Timeout>();
+  // State-specific timeouts
+  private stateTimeout: NodeJS.Timeout | null = null;
+  private abnormalExitTimeout: NodeJS.Timeout | null = null;
 
   // Dynamic listener IDs for cleanup
   private dynamicListenerIds: Map<EventType, string> = new Map();
@@ -66,188 +83,295 @@ export class PatchReservationService implements IService {
   }
 
   public async init(): Promise<void> {
-    // Initial schedule refresh (also handles missed reservations)
     this.refreshSchedules();
   }
 
   private initEventListeners() {
     // [Persistent] Listen for config changes to refresh scheduled timers
-    eventBus.on(EventType.CONFIG_CHANGE, (event: ConfigChangeEvent) => {
-      if (event.payload.key === "patchReservations") {
+    eventBus.register({
+      id: "PatchReservationRefreshHandler",
+      targetEvent: EventType.CONFIG_CHANGE,
+      condition: (event) =>
+        (event as ConfigChangeEvent).payload?.key === "patchReservations",
+      handle: async (_event) => {
         this.refreshSchedules();
-      }
+      },
     });
 
-    // Handle Retry Requests (from Abnormal Exit or Silence)
-    eventBus.on(
-      EventType.PATCH_RETRY_REQUESTED,
-      (event: PatchRetryRequestedEvent) => {
-        const { gameId, serviceId, retryCount } = event.payload;
-        this.triggerPatch(
-          {
-            id: `retry_${Date.now()}`,
-            gameId: gameId as AppConfig["activeGame"],
-            serviceId: serviceId as AppConfig["serviceChannel"],
-            targetTime: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-          },
+    // Handle Retry Requests
+    eventBus.register({
+      id: "PatchReservationRetryHandler",
+      targetEvent: EventType.PATCH_RETRY_REQUESTED,
+      handle: async (event) => {
+        const { gameId, serviceId, retryCount } = (
+          event as PatchRetryRequestedEvent
+        ).payload;
+        this.enqueue({
+          id: `retry_${Date.now()}`,
+          gameId: gameId as AppConfig["activeGame"],
+          serviceId: serviceId as AppConfig["serviceChannel"],
+          targetTime: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
           retryCount,
-        );
+        } as PatchReservation);
       },
-    );
+    });
   }
 
   /**
-   * Subscribes to execution-related events only when a patch starts.
+   * Transitions the FSM to a new state and executes entry/exit logic.
    */
-  private subscribeExecutionEvents() {
-    this.cleanupExecutionListeners(); // Ensure clean state
+  private async transitionTo(
+    nextStatus: PatchTaskStatus,
+    result?: PatchTaskResult,
+  ) {
+    const prevStatus = this.status;
+    const now = Date.now();
+    const duration =
+      prevStatus !== PatchTaskStatus.IDLE
+        ? ` (Duration: ${((now - this.lastStateChangeTime) / 1000).toFixed(1)}s)`
+        : "";
 
-    const id0 = eventBus.on(
-      EventType.LOG_SESSION_START,
-      (event: LogSessionStartEvent) => {
-        const { gameId, serviceId, pid } = event.payload;
-        const taskKey = `${gameId}_${serviceId}`;
-
-        // [v42] PID Rotation Check: Clear any "Abnormal Exit" timer if a new session starts for same task
-        if (this.abnormalExitTimeouts.has(taskKey)) {
-          logger.log(
-            `[PatchReservation] PID Rotation detected for ${taskKey}. New PID: ${pid}. Continuing...`,
-          );
-          clearTimeout(this.abnormalExitTimeouts.get(taskKey));
-          this.abnormalExitTimeouts.delete(taskKey);
-        }
-
-        this.currentActivePid = pid;
-        logger.log(
-          `[PatchReservation] Tracking PID ${this.currentActivePid} for current assignment.`,
-        );
-      },
-    );
-
-    const id1 = eventBus.on(
-      EventType.LOG_PATCH_FINISHED,
-      (event: LogPatchFinishedEvent) => {
-        this.handlePatchFinished(event.payload);
-      },
-    );
-
-    const id2 = eventBus.on(
-      EventType.LOG_GAME_STARTUP,
-      (event: LogGameStartupEvent) => {
-        this.handleGameStartup(event.payload);
-      },
-    );
-
-    const id3 = eventBus.on(
-      EventType.PATCH_RESERVATION_SUCCESS,
-      (event: PatchReservationSuccessEvent) => {
-        const { gameId, serviceId } = event.payload;
-        const key = `${gameId}_${serviceId}`;
-        const timeout = this.activeTimeouts.get(key);
-        if (timeout) {
-          clearTimeout(timeout);
-          this.activeTimeouts.delete(key);
-          logger.log(
-            `[PatchReservation] Silence timeout cleared for ${key}. Waiting for log result...`,
-          );
-        }
-        // Note: Do NOT finishCurrentAndContinue() here. Wait for LOG events to trigger notification.
-      },
-    );
-
-    const id4 = eventBus.on(
-      EventType.PATCH_RESERVATION_FAILED,
-      (event: PatchReservationFailedEvent) => {
-        this.notifyFailure(event.payload);
-        this.finishCurrentAndContinue();
-      },
-    );
-
-    const id5 = eventBus.on(
-      EventType.PATCH_UI_TITLE_TICK,
-      (event: PatchUiTitleTickEvent) => {
-        this.handleUiTitleTick(event.payload);
-      },
-    );
-
-    const id6 = eventBus.on(EventType.PROCESS_STOP, (event: ProcessEvent) => {
-      this.handleProcessStop(event.payload);
-    });
-
-    this.dynamicListenerIds.set(EventType.LOG_SESSION_START, id0);
-    this.dynamicListenerIds.set(EventType.LOG_PATCH_FINISHED, id1);
-    this.dynamicListenerIds.set(EventType.LOG_GAME_STARTUP, id2);
-    this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_SUCCESS, id3);
-    this.dynamicListenerIds.set(EventType.PATCH_RESERVATION_FAILED, id4);
-    this.dynamicListenerIds.set(EventType.PATCH_UI_TITLE_TICK, id5);
-    this.dynamicListenerIds.set(EventType.PROCESS_STOP, id6);
+    this.status = nextStatus;
+    this.lastStateChangeTime = now;
 
     logger.log(
-      `[PatchReservation] Dynamic execution listeners subscribed (Queue: ${this.reservationQueue.length}).`,
+      `[FSM] Transition: [${prevStatus}] -> [${nextStatus}]${duration}${result ? ` (Result: ${result})` : ""}`,
+    );
+
+    // Stop current state timer if any
+    if (this.stateTimeout) {
+      clearTimeout(this.stateTimeout);
+      this.stateTimeout = null;
+    }
+
+    switch (nextStatus) {
+      case PatchTaskStatus.TRIGGERED:
+        await this.handleTriggeredEntry();
+        break;
+      case PatchTaskStatus.PATCH_WAITING:
+        this.handlePatchWaitingEntry();
+        break;
+      case PatchTaskStatus.COMPLETED:
+        await this.handleCompletedEntry(result || "failure");
+        break;
+      case PatchTaskStatus.IDLE:
+        this.handleIdleEntry();
+        break;
+    }
+  }
+
+  private async handleTriggeredEntry() {
+    if (!this.currentContext) return;
+    const { reservation } = this.currentContext;
+    const key = `${reservation.gameId}_${reservation.serviceId}`;
+
+    // 1. Subscribe to events
+    this.subscribeExecutionEvents();
+
+    // 2. Start game/patch
+    const retryCount = (reservation as PatchReservation).retryCount || 0;
+    registerAutoPatchExpectation(
+      reservation.gameId,
+      reservation.serviceId,
+      retryCount,
+    );
+    const res = this.currentContext?.reservation;
+    if (res) {
+      setConfigWithEvent("activeGame", res.gameId as AppConfig["activeGame"]);
+      setConfigWithEvent(
+        "serviceChannel",
+        res.serviceId as AppConfig["serviceChannel"],
+      );
+    }
+    eventBus.emit(EventType.UI_GAME_START_CLICK, this.context, undefined);
+
+    // 3. 30s Silence Timeout
+    this.stateTimeout = setTimeout(() => {
+      logger.warn(`[FSM] TRIGGERED 30s Silence timeout for ${key}.`);
+      this.transitionTo(PatchTaskStatus.COMPLETED, "failure");
+    }, 30000);
+  }
+
+  private handlePatchWaitingEntry() {
+    if (!this.currentContext) return;
+    const key = `${this.currentContext.reservation.gameId}_${this.currentContext.reservation.serviceId}`;
+    logger.log(
+      `[FSM] Entered PATCH_WAITING for ${key}. Watching UI for "Done" or PID swap...`,
     );
   }
 
-  /**
-   * Removes all dynamic execution listeners.
-   */
-  private cleanupExecutionListeners() {
-    this.dynamicListenerIds.forEach((id, type) => {
-      eventBus.off(type, id);
+  private async handleCompletedEntry(result: PatchTaskResult) {
+    if (!this.currentContext) return;
+    const { gameId, serviceId } = this.currentContext.reservation;
+
+    // 1. Unsubscribe
+    this.cleanupExecutionListeners();
+
+    // 2. Clear all state timers
+    if (this.abnormalExitTimeout) {
+      clearTimeout(this.abnormalExitTimeout);
+      this.abnormalExitTimeout = null;
+    }
+
+    // 3. Notification
+    if (result === "success" || result === "no-update") {
+      this.notifyUpdateResult(gameId, serviceId, result === "success");
+    } else {
+      this.notifyFailure({
+        gameId,
+        serviceId,
+        reason: "패치 상태 확인 불가 혹은 비정상 종료",
+      });
+    }
+
+    // 4. Cleanup context
+    this.currentContext = null;
+
+    // 5. Back to IDLE
+    this.transitionTo(PatchTaskStatus.IDLE);
+  }
+
+  private handleIdleEntry() {
+    this.reservationQueue.shift();
+    this.isProcessing = false;
+    this.processQueue();
+  }
+
+  private subscribeExecutionEvents() {
+    this.cleanupExecutionListeners();
+
+    // 1. Session Start (PID Tracking)
+    this.registerHandler({
+      id: "PR_LogSessionHandler",
+      targetEvent: EventType.LOG_SESSION_START,
+      handle: async (event: LogSessionStartEvent) => {
+        const { gameId, serviceId, pid } = event.payload;
+        if (!this.isCurrentTask(gameId as string, serviceId as string)) return;
+
+        if (this.abnormalExitTimeout) {
+          logger.log(
+            `[FSM] PID Rotation detected: ${pid}. Clearing exit timeout.`,
+          );
+          clearTimeout(this.abnormalExitTimeout);
+          this.abnormalExitTimeout = null;
+        }
+        if (this.currentContext) this.currentContext.currentPid = pid;
+        logger.log(`[FSM] Tracking PID ${pid} for ${gameId}_${serviceId}`);
+      },
     });
+
+    // 2. Patch Check Complete
+    this.registerHandler({
+      id: "PR_LogPatchCheckCompleteHandler",
+      targetEvent: EventType.LOG_PATCH_CHECK_COMPLETE,
+      handle: async (event: LogPatchCheckCompleteEvent) => {
+        const { gameId, serviceId } = event.payload;
+        if (!this.isCurrentTask(gameId as string, serviceId as string)) return;
+        if (this.status === PatchTaskStatus.TRIGGERED) {
+          this.transitionTo(PatchTaskStatus.PATCH_WAITING);
+        }
+      },
+    });
+
+    // 3. Game Startup (No-update case)
+    this.registerHandler({
+      id: "PR_LogGameStartupHandler",
+      targetEvent: EventType.LOG_GAME_STARTUP,
+      handle: async (event: LogGameStartupEvent) => {
+        const { gameId, serviceId, pid } = event.payload;
+        if (!this.isCurrentTask(gameId as string, serviceId as string)) return;
+
+        logger.log(`[FSM] Game started directly for ${gameId}_${serviceId}.`);
+        const terminate =
+          this.context.getConfig("terminateAfterPatch") !== false;
+        if (terminate)
+          await this.cleanupProcess(gameId as string, serviceId as string, pid);
+
+        this.transitionTo(PatchTaskStatus.COMPLETED, "no-update");
+      },
+    });
+
+    // 4. UI Title Detection
+    this.registerHandler({
+      id: "PR_UiTitleTickHandler",
+      targetEvent: EventType.PATCH_UI_TITLE_TICK,
+      handle: async (event: PatchUiTitleTickEvent) => {
+        const { title, gameId, serviceId, pid } = event.payload;
+        if (!this.isCurrentTask(gameId as string, serviceId as string)) return;
+        if (this.status !== PatchTaskStatus.PATCH_WAITING) return;
+
+        const isDone =
+          /Done|Pronto|Завершено|Fertig|Hecho|Terminé|완료|完了|เสร็จสิ้น|完成/i.test(
+            title,
+          );
+        if (isDone) {
+          logger.log(`[FSM] UI "Done" detected for ${gameId}_${serviceId}.`);
+          const terminate =
+            this.context.getConfig("terminateAfterPatch") !== false;
+          if (terminate)
+            await this.cleanupProcess(
+              gameId as string,
+              serviceId as string,
+              pid,
+            );
+          this.transitionTo(PatchTaskStatus.COMPLETED, "success");
+        }
+      },
+    });
+
+    // 5. Process Stop (Error/Exit detection)
+    this.registerHandler({
+      id: "PR_ProcessStopHandler",
+      targetEvent: EventType.PROCESS_STOP,
+      handle: async (event: ProcessEvent) => {
+        const { pid } = event.payload;
+        if (this.currentContext?.currentPid !== pid) return;
+
+        logger.warn(
+          `[FSM] Process ${pid} stopped. Waiting 30s for recovery/rotation...`,
+        );
+        this.abnormalExitTimeout = setTimeout(() => {
+          logger.error(`[FSM] Process did not recover after 30s. Ending task.`);
+          this.transitionTo(PatchTaskStatus.COMPLETED, "failure");
+        }, 30000);
+      },
+    });
+  }
+
+  /**
+   * Type-safe registration helper to avoid 'any' casting.
+   */
+  private registerHandler<T extends AppEvent>(handler: EventHandler<T>) {
+    eventBus.register(handler);
+    this.dynamicListenerIds.set(handler.targetEvent, handler.id);
+  }
+
+  private cleanupExecutionListeners() {
+    this.dynamicListenerIds.forEach((id, type) => eventBus.off(type, id));
     this.dynamicListenerIds.clear();
-    this.currentActivePid = null;
-    logger.log("[PatchReservation] Dynamic execution listeners unsubscribed.");
+  }
+
+  private isCurrentTask(gameId: string, serviceId: string): boolean {
+    return (
+      this.currentContext?.reservation.gameId === gameId &&
+      this.currentContext?.reservation.serviceId === serviceId
+    );
   }
 
   private refreshSchedules() {
-    // Clear all existing timers
-    for (const timer of this.scheduledTimers.values()) {
-      clearTimeout(timer);
-    }
+    for (const timer of this.scheduledTimers.values()) clearTimeout(timer);
     this.scheduledTimers.clear();
 
     const config = this.context.getConfig() as AppConfig;
     const reservations = config.patchReservations || [];
     const now = new Date();
 
-    const missed: PatchReservation[] = [];
-    const future: PatchReservation[] = [];
-
-    // Categorize reservations
     reservations.forEach((res) => {
-      if (new Date(res.targetTime) <= now) {
-        missed.push(res);
-      } else {
-        future.push(res);
-      }
-    });
-
-    // 1. Handle Missed (Catch-up) with Deduplication
-    if (missed.length > 0) {
-      // Deduplicate: same game+service -> keep latest
-      const dedupMap = new Map<string, PatchReservation>();
-      missed.forEach((m) => {
-        const key = `${m.gameId}_${m.serviceId}`;
-        const existing = dedupMap.get(key);
-        if (
-          !existing ||
-          new Date(m.targetTime) > new Date(existing.targetTime)
-        ) {
-          dedupMap.set(key, m);
-        }
-      });
-
-      // Add deduped missed to queue
-      dedupMap.forEach((res) => {
-        this.enqueue(res);
-        this.removeReservation(res.id); // Remove from config as it's now in queue
-      });
-    }
-
-    // 2. Schedule Future
-    future.forEach((res) => {
-      const delay = new Date(res.targetTime).getTime() - now.getTime();
+      const delay = Math.max(
+        0,
+        new Date(res.targetTime).getTime() - now.getTime(),
+      );
       const timer = setTimeout(() => {
         this.enqueue(res);
         this.removeReservation(res.id);
@@ -255,10 +379,6 @@ export class PatchReservationService implements IService {
       }, delay);
       this.scheduledTimers.set(res.id, timer);
     });
-
-    logger.log(
-      `[PatchReservation] Schedules refreshed. Missed: ${missed.length}, Future: ${future.length}`,
-    );
   }
 
   private enqueue(res: PatchReservation) {
@@ -268,253 +388,37 @@ export class PatchReservationService implements IService {
   }
 
   private async processQueue() {
-    if (this.isProcessing || this.reservationQueue.length === 0) {
-      return;
-    }
-
+    if (this.isProcessing || this.reservationQueue.length === 0) return;
     this.isProcessing = true;
     const nextItem = this.reservationQueue[0];
 
-    // [Subscription] Start listening for events per task
-    this.subscribeExecutionEvents();
-
-    logger.log(
-      `[PatchReservation] Processing queue - Current: ${nextItem.gameId}_${nextItem.serviceId}`,
-    );
-    await this.triggerPatch(nextItem);
+    this.currentContext = { reservation: nextItem, currentPid: null };
+    this.transitionTo(PatchTaskStatus.TRIGGERED);
   }
 
-  private finishCurrentAndContinue() {
-    this.reservationQueue.shift();
-    this.isProcessing = false;
+  private async cleanupProcess(
+    gameId: string,
+    serviceId: string,
+    pid: number | null,
+  ) {
+    const profile =
+      GAME_SERVICE_PROFILES[serviceId as AppConfig["serviceChannel"]];
+    const useAdmin = this.context.getConfig("skipDaumGameStarterUac") !== true;
 
-    // Explicit Unsubscribe after EACH task completion (triggered by notification)
-    this.cleanupExecutionListeners();
-
-    // Clear any dangling status from the finished task
-    this.pendingResolutionKeys.clear();
-
-    for (const timeout of this.abnormalExitTimeouts.values()) {
-      clearTimeout(timeout);
-    }
-    this.abnormalExitTimeouts.clear();
-
-    for (const timeout of this.activeTimeouts.values()) {
-      clearTimeout(timeout);
-    }
-    this.activeTimeouts.clear();
-
-    this.processQueue();
-  }
-
-  private async triggerPatch(res: PatchReservation, retryCount: number = 0) {
-    const key = `${res.gameId}_${res.serviceId}`;
-    logger.log(
-      `[PatchReservation] Triggering patch for ${key} (Attempt: ${retryCount + 1})`,
-    );
-
-    // 1. Register expectation in AutoPatchHandler
-    registerAutoPatchExpectation(res.gameId, res.serviceId, retryCount);
-
-    // 2. Temporarily set config to the reserved game/service
-    setConfigWithEvent("activeGame", res.gameId as AppConfig["activeGame"]);
-    setConfigWithEvent(
-      "serviceChannel",
-      res.serviceId as AppConfig["serviceChannel"],
-    );
-
-    // 3. Set silence timeout (60s)
-    if (this.activeTimeouts.has(key)) {
-      clearTimeout(this.activeTimeouts.get(key)!);
+    if (pid) {
+      eventBus.emit(EventType.PROCESS_WILL_TERMINATE, this.context, { pid });
+      PowerShellManager.getInstance()
+        .execute(`taskkill /PID ${pid} /F /T`, useAdmin)
+        .catch(() => {});
     }
 
-    const timeout = setTimeout(() => {
-      logger.warn(`[PatchReservation] Silence timeout (60s) for ${key}.`);
-      this.activeTimeouts.delete(key);
-      eventBus.emit(EventType.PATCH_RETRY_REQUESTED, this.context, {
-        gameId: res.gameId,
-        serviceId: res.serviceId,
-        retryCount: retryCount + 1,
-      });
-    }, 60000);
-
-    this.activeTimeouts.set(key, timeout);
-
-    // 4. Emit start event
-    eventBus.emit(EventType.UI_GAME_START_CLICK, this.context, undefined);
-  }
-
-  private handlePatchFinished(payload: LogPatchFinishedEvent["payload"]) {
-    const { gameId, serviceId } = payload;
-    const taskKey = `${gameId}_${serviceId}`;
-
-    // Verify this event belongs to the CURRENT reservation
-    const currentRes = this.reservationQueue[0];
-    if (
-      !currentRes ||
-      currentRes.gameId !== gameId ||
-      currentRes.serviceId !== serviceId
-    ) {
-      logger.log(
-        `[PatchReservation] Ignoring LOG_PATCH_FINISHED for ${taskKey} (Not the current reserved task)`,
-      );
-      return;
-    }
-
-    // [v42] No more 30s timeout. Just mark as waiting for UI/Startup resolution.
-    this.pendingResolutionKeys.add(taskKey);
-
-    logger.log(
-      `[PatchReservation] Patch finished detected for ${taskKey}. Waiting for UI "완료" or Game Startup...`,
-    );
-  }
-
-  private async handleGameStartup(payload: LogGameStartupEvent["payload"]) {
-    const { pid, gameId, serviceId } = payload;
-    const taskKey = `${gameId}_${serviceId}`;
-
-    const terminateAfterPatch =
-      this.context.getConfig("terminateAfterPatch") !== false;
-
-    // Case 1: Game started AFTER patch detected (within the checking phase)
-    // -> This means "No Update" because the game launched immediately after checking files.
-    if (this.pendingResolutionKeys.has(taskKey)) {
-      this.pendingResolutionKeys.delete(taskKey); // Ensure cleanup
-      logger.log(
-        `[PatchReservation] Game startup detected after patch check for ${taskKey}. No update found.`,
-      );
-      this.notifyUpdateResult(gameId, serviceId, false);
-
-      if (terminateAfterPatch) {
-        await this.cleanupProcess(gameId, serviceId, pid);
-      } else {
-        logger.log(
-          `[PatchReservation] No update found but terminateAfterPatch is disabled. PID ${pid} remains alive.`,
-        );
+    if (profile) {
+      for (const keyword of profile.processKeywords) {
+        PowerShellManager.getInstance()
+          .execute(`taskkill /IM "${keyword}.exe" /F /T`, useAdmin)
+          .catch(() => {});
       }
-
-      this.finishCurrentAndContinue();
-      return;
     }
-
-    // Case 2: Game started DIRECTLY (No Update)
-    if (this.currentActivePid === pid) {
-      logger.log(
-        `[PatchReservation] Game startup detected directly (No Update) for PID ${pid}.`,
-      );
-      this.notifyUpdateResult(gameId, serviceId, false);
-
-      if (terminateAfterPatch) {
-        await this.cleanupProcess(gameId, serviceId, pid);
-      } else {
-        logger.log(
-          `[PatchReservation] Direct startup detected but terminateAfterPatch is disabled. PID ${pid} remains alive.`,
-        );
-      }
-
-      this.finishCurrentAndContinue();
-    }
-  }
-
-  private async handleUiTitleTick(payload: PatchUiTitleTickEvent["payload"]) {
-    const { title, gameId, serviceId, pid } = payload;
-    const taskKey = `${gameId}_${serviceId}`;
-
-    const currentRes = this.reservationQueue[0];
-    if (
-      !currentRes ||
-      currentRes.gameId !== gameId ||
-      currentRes.serviceId !== serviceId
-    ) {
-      return;
-    }
-
-    // [v42] Optimization: Trigger "Update Success" immediately if UI says "완료" (Done)
-    // ONLY use the following user-provided completion strings
-    const isDone =
-      /Done|Pronto|Завершено|Fertig|Hecho|Terminé|완료|完了|เสร็จสิ้น|完成/i.test(
-        title,
-      );
-
-    if (
-      isDone &&
-      this.pendingResolutionKeys.has(taskKey) &&
-      gameId &&
-      serviceId
-    ) {
-      logger.log(
-        `[PatchReservation] UI status "완료" detected for ${taskKey}. Closing patcher...`,
-      );
-      this.pendingResolutionKeys.delete(taskKey);
-
-      this.notifyUpdateResult(gameId, serviceId, true);
-
-      // [v42 FIX] Always attempt cleanup if title "완료" is seen, respecting config
-      const terminateAfterPatch =
-        this.context.getConfig("terminateAfterPatch") !== false;
-      if (terminateAfterPatch) {
-        await this.cleanupProcess(gameId, serviceId, pid);
-      } else {
-        logger.log(
-          `[PatchReservation] terminateAfterPatch is disabled. PID ${pid} remains alive.`,
-        );
-      }
-
-      this.finishCurrentAndContinue();
-    }
-  }
-
-  private handleProcessStop(payload: { pid: number; name: string }) {
-    const { pid } = payload;
-
-    // If the process we were tracking just stopped
-    if (this.currentActivePid === pid) {
-      logger.log(`[PatchReservation] Process stopped: PID ${pid}`);
-
-      // [v42] Case A: PID Rotation Check -> Wait 10s
-      // If the process stops while reservation is active, we MUST wait for potential PID rotation (Starter -> Patcher)
-      // or check if it was truly finished (which should have been handled by handleUiTitleTick).
-      const currentRes = this.reservationQueue[0];
-      if (currentRes) {
-        const taskKey = `${currentRes.gameId}_${currentRes.serviceId}`;
-        logger.warn(
-          `[PatchReservation] Process stopped for ${taskKey}. Waiting 10s for PID Rotation or confirming exit...`,
-        );
-
-        const timeout = setTimeout(() => {
-          // If 10s passed and we are still in this state, it's a FAILURE
-          // because if it were successful, handleUiTitleTick or handleGameStartup would have cleared these states.
-          logger.error(
-            `[PatchReservation] No new process detected after 10s for ${taskKey}. Marking as FAILED.`,
-          );
-          this.abnormalExitTimeouts.delete(taskKey);
-
-          this.notifyFailure({
-            gameId: currentRes.gameId,
-            serviceId: currentRes.serviceId,
-            reason:
-              "사용자 중단 혹은 프로세스가 비정상 종료되었습니다. (완료 확인 불가)",
-          });
-          this.finishCurrentAndContinue();
-        }, 10000);
-
-        this.abnormalExitTimeouts.set(taskKey, timeout);
-        return;
-      }
-
-      this.currentActivePid = null;
-    }
-  }
-
-  private emitLog(content: string) {
-    logger.log(`[PatchReservation] ${content}`);
-  }
-
-  private formatTime(isoString: string): string {
-    const date = new Date(isoString);
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
   }
 
   private notifyUpdateResult(
@@ -522,57 +426,27 @@ export class PatchReservationService implements IService {
     serviceId: string,
     isUpdated: boolean,
   ) {
-    logger.log(
-      `[PatchReservation-DEBUG] notifyUpdateResult called. gameId: ${gameId}, serviceId: ${serviceId}, isUpdated (success): ${isUpdated}`,
-    );
-    try {
-      throw new Error("TRACE_LOG");
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        logger.log(
-          `[PatchReservation-DEBUG] Stack trace for notifyUpdateResult(${isUpdated}):\n${e.stack}`,
-        );
-      }
-    }
-
     const config = this.context.getConfig() as AppConfig;
     const isSilent = config.silentPatchNotification === true;
-
-    const currentRes = this.reservationQueue[0];
-    const timePrefix = currentRes
-      ? `[${this.formatTime(currentRes.targetTime)}] `
-      : "";
-
     const title = isUpdated ? "예약 패치 완료" : "업데이트 없음";
-    const body = isUpdated
-      ? `${timePrefix}[${serviceId}] ${gameId} 패치 예약 동작이 성공적으로 완료되었습니다.`
-      : `${timePrefix}[${serviceId}] ${gameId} 패치를 시도했으나 업데이트가 없었습니다.`;
+    const body = `[${serviceId}] ${gameId} ${isUpdated ? "패치 예약 동작이 성공적으로 완료되었습니다." : "패치를 시도했으나 업데이트가 없었습니다."}`;
 
     if (!isSilent && Notification.isSupported()) {
-      new Notification({
-        title,
-        body,
-        timeoutType: "never",
-      }).show();
+      new Notification({ title, body, timeoutType: "never" }).show();
     }
-
-    logger.log(
-      `[PatchReservation] ${isSilent ? "(SILENT) " : ""}Notification: ${body}`,
-    );
+    logger.log(`[PatchReservation] Notification: ${body}`);
   }
 
-  private notifyFailure(payload: PatchReservationFailedEvent["payload"]) {
+  private notifyFailure(payload: {
+    gameId: string;
+    serviceId: string;
+    reason: string;
+  }) {
     const config = this.context.getConfig() as AppConfig;
     const isSilent = config.silentPatchNotification === true;
-
-    const currentRes = this.reservationQueue[0];
-    const timePrefix = currentRes
-      ? `[${this.formatTime(currentRes.targetTime)}] `
-      : "";
-
     const { gameId, serviceId, reason } = payload;
     const title = "예약 패치 실패";
-    const body = `${timePrefix}[${serviceId}] ${gameId} 패치 예약에 실패했습니다.\n사유: ${reason}`;
+    const body = `[${serviceId}] ${gameId} 패치 예약에 실패했습니다.\n사유: ${reason}`;
 
     if (!isSilent && Notification.isSupported()) {
       new Notification({
@@ -582,62 +456,7 @@ export class PatchReservationService implements IService {
         timeoutType: "never",
       }).show();
     }
-
-    logger.error(
-      `[PatchReservation] ${isSilent ? "(SILENT) " : ""}FINAL FAILURE: ${body}`,
-    );
-
-    const key = `${gameId}_${serviceId}`;
-    if (this.activeTimeouts.get(key)) {
-      clearTimeout(this.activeTimeouts.get(key)!);
-      this.activeTimeouts.delete(key);
-    }
-  }
-
-  private async cleanupProcess(
-    gameId: string,
-    serviceId: string,
-    pid: number | null,
-  ) {
-    logger.log(
-      `[PatchReservation] Cleaning up process for ${gameId} (${serviceId}). Target PID: ${pid}`,
-    );
-
-    const uacBypassEnabled =
-      this.context.getConfig("skipDaumGameStarterUac") === true;
-    const useAdmin = !uacBypassEnabled;
-
-    // [v34 FIX] Try to kill by PID first if provided
-    if (pid) {
-      eventBus.emit(EventType.PROCESS_WILL_TERMINATE, this.context, {
-        pid,
-      } as ProcessWillTerminateEvent["payload"]);
-
-      PowerShellManager.getInstance().execute(
-        `taskkill /PID ${pid} /F /T`,
-        useAdmin,
-      );
-
-      if (this.currentActivePid === pid) {
-        this.currentActivePid = null;
-      }
-    }
-
-    // [v34 FIX] Also kill ALL related processes for the game/service to handle PID changes (Kakao Games case)
-    const profile =
-      GAME_SERVICE_PROFILES[serviceId as AppConfig["serviceChannel"]];
-    if (profile) {
-      this.emitLog(
-        `[PatchReservation] Performing broad cleanup for ${serviceId} keywords: ${profile.processKeywords.join(", ")}`,
-      );
-      for (const keyword of profile.processKeywords) {
-        PowerShellManager.getInstance()
-          .execute(`taskkill /IM "${keyword}.exe" /F /T`, useAdmin)
-          .catch(() => {
-            // Silently ignore if no processes found with that name
-          });
-      }
-    }
+    logger.error(`[PatchReservation] FINAL FAILURE: ${body}`);
   }
 
   private removeReservation(id: string) {
@@ -659,25 +478,14 @@ export class PatchReservationService implements IService {
   }
 
   public async stop(): Promise<void> {
-    for (const timer of this.scheduledTimers.values()) {
-      clearTimeout(timer);
-    }
+    for (const timer of this.scheduledTimers.values()) clearTimeout(timer);
     this.scheduledTimers.clear();
-
-    this.pendingResolutionKeys.clear();
-
-    for (const timeout of this.abnormalExitTimeouts.values()) {
-      clearTimeout(timeout);
-    }
-    this.abnormalExitTimeouts.clear();
-
-    for (const timeout of this.activeTimeouts.values()) {
-      clearTimeout(timeout);
-    }
-    this.activeTimeouts.clear();
-
-    this.cleanupExecutionListeners(); // Cleanup on stop
+    if (this.stateTimeout) clearTimeout(this.stateTimeout);
+    if (this.abnormalExitTimeout) clearTimeout(this.abnormalExitTimeout);
+    this.cleanupExecutionListeners();
     this.reservationQueue = [];
     this.isProcessing = false;
+    this.currentContext = null;
+    this.status = PatchTaskStatus.IDLE;
   }
 }

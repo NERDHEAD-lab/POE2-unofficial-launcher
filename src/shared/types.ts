@@ -27,7 +27,13 @@ export interface AppConfig {
   themeCache: Partial<
     Record<
       "POE1" | "POE2",
-      { text: string; accent: string; footer: string; hash: string }
+      {
+        text: string;
+        accent: string;
+        footer: string;
+        hash: string;
+        assetPath?: string;
+      }
     >
   >;
   autoFixPatchError: boolean;
@@ -77,6 +83,7 @@ export interface PatchReservation {
   serviceId: AppConfig["serviceChannel"];
   targetTime: string; // ISO String
   createdAt: string; // 생성일시
+  retryCount?: number; // [v45] 패치 시도 횟수 추적용
 }
 
 export interface ThemeAssets {
@@ -88,8 +95,10 @@ export interface ThemeDefinition {
   id: string;
   name: string;
   assets: ThemeAssets;
+  assetsHashes?: Partial<ThemeAssets>;
   startDate?: string;
   endDate?: string;
+  isLocalTime?: boolean;
 }
 
 export interface ThemesRemoteData {
@@ -163,6 +172,11 @@ export interface ChangelogItem {
 export interface AccountUpdateData {
   id?: string;
   loginRequired?: boolean;
+}
+
+export interface RevalidateThemeColorsEventDetail {
+  game: "POE1" | "POE2";
+  assetPath: string;
 }
 
 export interface ElectronAPI {
@@ -259,6 +273,7 @@ export interface ElectronAPI {
     | null
   >;
   getThemes: () => Promise<ThemesRemoteData | null>;
+  syncThemesForce: () => Promise<boolean>;
   onThemeSynced: (callback: () => void) => () => void;
 
   // [UAC Bypass API]
@@ -302,7 +317,12 @@ export interface ElectronAPI {
 export type UpdateStatus =
   | { state: "idle" }
   | { state: "checking"; isSilent?: boolean }
-  | { state: "available"; version: string; isSilent?: boolean }
+  | {
+      state: "available";
+      version: string;
+      isSilent?: boolean;
+      changelogs?: ChangelogItem[];
+    }
   | { state: "not-available"; isSilent?: boolean }
   | { state: "error"; message?: string; isSilent?: boolean }
   | {

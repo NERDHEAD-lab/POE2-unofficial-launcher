@@ -90,3 +90,23 @@
 
 - **현상**: 기본 배경 이미지 등 정적 자산에 대해서도 매번 `fs.readFile`을 통해 MD5를 추출함.
 - **개선안**: 빌드 시점에 기본 자산의 MD5를 매니페스트 형태로 생성하여, 런타임 시 파일 IO 없이 즉시 캐시 유효성을 검증하도록 개선.
+93: 
+94: ### [ ] 테마 캐시 업데이트 레이스 컨디션의 근본적 해결
+95: 
+
+### [ ] 테마 캐시 업데이트 레이스 컨디션의 근본적 해결
+
+- **현상**: `ThemeRevalidator`에서 `getConfig` 후 `setConfig` 사이의 찰나의 순간에 다른 프로세스가 설정을 바꾸면 데이터가 유실될 수 있음 (현재는 `latestConfig` 재조회로 완화).
+- **개선안**: `electron-store`의 메인 프로세스 핸들러에 원자적 업데이트(Atomic Update) API를 추가하여 렌더러에서 '부분 업데이트' 신호만 보내도록 개선.
+
+### [ ] FSM 기반 상태 전이 시 UI 마이크로 인터랙션 추가
+
+- **현상**: 상태가 바뀔 때 UI가 즉각적으로 변하지만, 시각적인 부드러움(Transition)이 부족할 수 있음.
+- **개선안**: `PatchReservationService`의 상태 변경 알림과 연동하여, 각 단계(AUTHENTICATING -> READY 등)로 넘어갈 때 아이콘 애니메이션이나 프로그레스 바의 부드러운 전이 효과 추가.
+
+### [ ] 테마 스키마(themes.schema.json) 자동 생성 및 배포 자동화
+
+- **현상**: 현재 `ThemeDefinition` 인터페이스가 변경될 때 `gh-pages`의 `themes.schema.json`을 수동으로 업데이트해야 함.
+- **개선안**: 
+  - `typescript-json-schema` 등을 사용하여 TS 인터페이스로부터 JSON Schema를 자동 생성하는 빌드 스크립트 추가.
+  - GitHub Actions 워크플로우를 확장하여 `master` 브랜치 변경 시 자동으로 `gh-pages`에 스키마를 배포하도록 자동화.

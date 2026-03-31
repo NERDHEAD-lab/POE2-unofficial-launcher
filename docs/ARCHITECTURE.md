@@ -75,11 +75,9 @@
   - **Reactive Observer Pattern**:
     - 메인 프로세스의 `store.onDidChange` 이벤트를 구독하여 설정 변경 시 `mainWindow`, `debugWindow`, `gameWindow` 등 모든 활성 창으로 즉시 알림(`config-changed`)을 브로드캐스트함.
     - 렌더러는 설정 데이터를 로컬 React State로 동기화하여 관리함.
-- **Theme Optimization**:
-  - **Zero-latency Application**: 로컬 State(`themeCache`)를 즉시 참조하여 게임 전환 시 테마를 **0ms** 반응 속도로 적용함.
-  - **Hash-first Validation**: 렌더러에서 무거운 이미지를 로드하기 전, 메인 프로세스를 통해 이미지 파일의 **MD5 해시**를 먼저 비교함.
   - **Asset-Specific Indexing**: 이미지 경로 대신 `gameId`('POE1', 'POE2')를 키로 사용하여 각 게임당 최적의 테마 데이터를 유지하고 관리 복잡도를 낮춤.
-- **결과**: 앱 설정이 영구 저장되며, 리소스 낭비(불필요한 이미지 디코딩)가 없는 매끄러운 사용자 경험을 제공함.
+  - **Zero-Flicker Startup Sequence**: (NEW) 런처 시동 시 캐시된 `assetPath`를 즉시 배경으로 로드하고, 원격 테마 동기화(`isThemesSynced`)가 완료될 때까지 Splash 화면을 유지하여 시각적 정합성을 100% 보장함.
+- **결과**: 앱 설정이 영구 저장되며, 리소스 낭비(불필요한 이미지 디코딩)나 시동 시 배경 깜빡임이 없는 프리미엄한 사용자 경험을 제공함.
 
 #### ADR-004: Type-Safe Event Bus (Pub-Sub Pattern)
 
@@ -277,6 +275,15 @@
   - **gh-pages Branch as Source**: 개발자가 공지사항(`.md`)을 `gh-pages` 브랜치의 `notice/` 폴더에 직접 업로드하는 모델을 채택함.
   - **Hybrid GitHub Actions**: `.github/workflows/automate-notice-list.yml`이 `gh-pages` 브랜치에 푸시될 때 트리거되도록 설정함. 액션은 `master` 브랜치에서 최신 생성 스크립트를 가져와 `gh-pages` 브랜치 상의 `list.json`을 자동 갱신함.
 - **결과**: 개발자는 배포 브랜치(`gh-pages`)에 파일만 올리면 자동으로 인덱싱되어 런처에 반영되는 완전 자동화된 공지사항 파이프라인을 확보함.
+281: 
+282: #### ADR-021: FSM-Based State Management (Patch Reservation)
+283: 
+284: - **상황**: 패치 예약 및 자동 실행 로직이 복잡한 비동기 작업(인증, 패치 검사, 프로세스 대기 등)으로 얽혀 있어, 상태 전환 시점의 모호함과 레이스 컨디션 발생 가능성이 존재함.
+285: - **결정**:
+286:   - **FSM (Finite State Machine) 도입**: `PatchReservationService.ts`에 명확한 상태 정의(`IDLE`, `PREPARING`, `AUTHENTICATING` 등)와 전이 규칙을 적용함.
+287:   - **State Transition Logging**: 상태가 바뀔 때마다 각 상태에서의 체류 시간을 측정하여 로깅함으로써 문제 발생 시 병목 지점을 빠르게 파악할 수 있도록 함.
+288:   - **Type-Safe Handler Registry**: `any` 타입을 배제하고 상태별 전용 핸들러를 등록(`registerHandler`)하여 로직의 응집도를 높이고 부수 효과를 제어함.
+289: - **결과**: 복잡한 서비스 로직의 흐름을 한눈에 파악할 수 있게 되었으며, 예외 상황에서도 안전하게 `IDLE` 상태로 복구되는 높은 서비스 신뢰성을 확보함.
 
 ## 5. Settings System
 

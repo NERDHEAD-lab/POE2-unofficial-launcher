@@ -1,7 +1,10 @@
 import React from "react";
 
-import "./UpdateModal.css";
+import ChangelogView from "./ui/ChangelogView";
 import { UpdateStatus } from "../../shared/types";
+
+import "./UpdateModal.css";
+import "./ui/ChangelogView.css";
 
 interface UpdateModalProps {
   isOpen: boolean;
@@ -22,37 +25,58 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const currentVersion = __APP_VERSION__;
+  const isAvailable = status.state === "available";
   const isDownloading = status.state === "downloading";
   const isDownloaded = status.state === "downloaded";
   const progress = status.state === "downloading" ? status.progress : 0;
+  const changelogs = isAvailable ? status.changelogs || [] : [];
 
   return (
     <div className="update-modal-overlay">
       <div className="update-modal-content">
         <h2 className="update-title">
           {isDownloaded ? "업데이트 준비 완료!" : "새로운 업데이트가 있습니다!"}
-        </h2>
-        <p className="update-message">
-          {isDownloaded ? (
-            <>
-              새로운 버전 <strong>v{version}</strong>의 다운로드가
-              완료되었습니다.
-              <br />
-              런처를 재시작하여 설치를 완료할까요?
-            </>
-          ) : (
-            <>
-              새로운 버전 <strong>v{version}</strong>을 사용할 수 있습니다.
-              <br />
-              {isDownloading
-                ? "파일을 다운로드 중입니다..."
-                : "지금 업데이트하시겠습니까?"}
-            </>
+          {!isDownloaded && (
+            <span className="update-title-version">
+              (v{currentVersion} → v{version})
+            </span>
           )}
-        </p>
+        </h2>
+
+        <div className="update-info-container">
+          <p className="update-message">
+            {isDownloaded ? (
+              <>
+                다운로드가 완료되었습니다.
+                <br />
+                런처를 재시작하여 설치를 완료할까요?
+              </>
+            ) : (
+              <>
+                PoE Unofficial Launcher의 새로운 버전이 출시되었습니다.
+                <br />
+                지금 업데이트하시겠습니까?
+              </>
+            )}
+          </p>
+
+          {/* Content Area - Reuse ChangelogView */}
+          {isAvailable && (
+            <div className="update-changelog-list">
+              {changelogs.length > 0 ? (
+                <ChangelogView changelogs={changelogs} />
+              ) : (
+                <div className="changelog-loading">
+                  변경 사항을 불러오는 중...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {isDownloading && (
-          <>
+          <div className="update-progress-wrapper">
             <div className="update-progress-container">
               <div
                 className="update-progress-bar"
@@ -62,7 +86,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
             <span className="update-progress-text">
               {Math.round(progress)}%
             </span>
-          </>
+          </div>
         )}
 
         <div className="update-actions">
@@ -80,15 +104,6 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
                   onClick={() => onInstall(false)}
                 >
                   <span>수동 업데이트</span>
-                  <div className="info-icon-wrapper">
-                    <span className="material-symbols-outlined info-icon">
-                      info
-                    </span>
-                    <div className="info-tooltip">
-                      재시작 후 업데이트가 정상적으로 진행되지 않을 경우
-                      사용하세요.
-                    </div>
-                  </div>
                 </button>
               </>
             ) : (

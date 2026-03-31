@@ -55,13 +55,40 @@ const updateAggressiveModeDescription = (
 
 // --- Theme Settings Helpers ---
 
-const formatThemeDate = (dateStr?: string) => {
+const formatThemeDate = (dateStr?: string, isLocal?: boolean) => {
   if (!dateStr) return "";
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.replace(" ", "T") + (isLocal ? "" : "Z"));
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}.${m}.${day}`;
+};
+
+const formatFullDate = (timestamp?: number) => {
+  if (!timestamp) return "기록 없음";
+  const d = new Date(timestamp);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+};
+
+const updateThemeSyncDescription = async (
+  addDescription: (text: string, variant?: DescriptionVariant) => void,
+  resetDescription: () => void,
+) => {
+  if (!window.electronAPI) return;
+  const config = (await window.electronAPI.getConfig(
+    "remoteThemeSettings",
+  )) as AppConfig["remoteThemeSettings"];
+  resetDescription();
+  addDescription(
+    "서버에서 최신 테마 리소스 정보를 즉시 가져옵니다. (4시간마다 자동 체크)",
+  );
+  addDescription(`마지막 확인: ${formatFullDate(config?.lastSync)}`, "info");
 };
 
 const handleThemeInit = async (
@@ -85,11 +112,16 @@ const handleThemeInit = async (
       ...gameThemes
         .filter((t: ThemeDefinition) => {
           if (!t.startDate) return true;
-          return new Date(t.startDate) <= now;
+          const isLocal = !!t.isLocalTime;
+          return (
+            new Date(t.startDate.replace(" ", "T") + (isLocal ? "" : "Z")) <=
+            now
+          );
         })
         .map((t: ThemeDefinition) => {
-          const start = formatThemeDate(t.startDate);
-          const end = formatThemeDate(t.endDate);
+          const isLocal = !!t.isLocalTime;
+          const start = formatThemeDate(t.startDate, isLocal);
+          const end = formatThemeDate(t.endDate, isLocal);
           const period = start ? ` - ${start} ~ ${end}` : "";
           return {
             label: `${t.name} ( ${t.id} )${period}`,
@@ -386,6 +418,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               handleThemeInit("POE1", setValue, setOptions),
             onChangeListener: async (val, { showToast }) =>
               handleThemeChange("POE1", val, showToast),
+            refreshOn: ["remoteThemeSettings"],
           },
           {
             id: "theme_mode_poe2",
@@ -399,6 +432,49 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               handleThemeInit("POE2", setValue, setOptions),
             onChangeListener: async (val, { showToast }) =>
               handleThemeChange("POE2", val, showToast),
+            refreshOn: ["remoteThemeSettings"],
+          },
+          {
+            id: "theme_sync_trigger",
+            type: "button",
+            label: "테마 리소스 갱신",
+            buttonText: "업데이트 확인",
+            icon: "sync",
+            onInit: async ({ addDescription, resetDescription }) => {
+              await updateThemeSyncDescription(
+                addDescription,
+                resetDescription,
+              );
+            },
+            onClickListener: async ({
+              showToast,
+              setDisabled,
+              setButtonText,
+              addDescription,
+              resetDescription,
+            }) => {
+              if (!window.electronAPI) return;
+              try {
+                setDisabled(true);
+                setButtonText("갱신 중...");
+                const isUpdated = await window.electronAPI.syncThemesForce();
+                if (isUpdated) {
+                  showToast("테마 리소스 정보가 갱신되었습니다.", "success");
+                } else {
+                  showToast("이미 최신 상태이거나 변경 사항이 없습니다.");
+                }
+                // Always update timestamp after sync attempt
+                await updateThemeSyncDescription(
+                  addDescription,
+                  resetDescription,
+                );
+              } catch (error) {
+                showToast(`갱신 중 오류가 발생했습니다: ${error}`, "error");
+              } finally {
+                setDisabled(false);
+                setButtonText("업데이트 확인");
+              }
+            },
           },
         ],
       },
@@ -636,9 +712,9 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
     sections: [],
   }, */
   {
-    id: "automation",
-    label: "자동화",
-    icon: "smart_toy",
+    id: "game",
+    label: "게임",
+    icon: "sports_esports",
     sections: [
       {
         id: "adv_process",
@@ -649,7 +725,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             type: "check",
             label: "DaumGameStarter UAC 우회",
             description:
-              "게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
+              "카카오게임즈 서비스로 게임 실행 시 발생하는 '사용자 계정 컨트롤' 팝업을 제거합니다. (관리자 권한 불필요)",
             icon: "speed",
             infoImage: imgUacTooltip, // [Restore] UAC Explanation Tooltip Image
             // [Sync] Explicitly handle init/change as requested

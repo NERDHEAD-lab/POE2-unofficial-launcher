@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -6,6 +7,7 @@ import { app } from "electron";
 import {
   ThemeDefinition,
   ThemesRemoteData,
+  ThemeAssets,
   AppConfig,
 } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
@@ -84,8 +86,8 @@ export class ThemeCacheManager implements IService {
     const lastSync = settings?.lastSync || 0;
     const now = Date.now();
 
-    // 24-hour cooldown check: If we have cache and it's been less than 24h (86400000ms), and not forced
-    if (!force && this.themesData && now - lastSync < 24 * 60 * 60 * 1000) {
+    // 4-hour cooldown check: If we have cache and it's been less than 4h (14400000ms), and not forced
+    if (!force && this.themesData && now - lastSync < 4 * 60 * 60 * 1000) {
       this.logger.log("Themes are still fresh (< 24h). Skipping remote sync.");
       return false;
     }
@@ -173,27 +175,49 @@ export class ThemeCacheManager implements IService {
     const allPoe2 = data.poe2 || [];
 
     for (const theme of allPoe1) {
-      await this.downloadThemeAssets("POE1", theme);
+      await this.downloadThemeAssets("POE1", theme, false);
     }
     for (const theme of allPoe2) {
-      await this.downloadThemeAssets("POE2", theme);
+      await this.downloadThemeAssets("POE2", theme, false);
     }
 
     this.logger.log("Full theme asset pre-caching completed.");
   }
 
   /**
-   * Find the most appropriate theme based on current UTC time
+   * Robustly parse date strings from themes.json
+   */
+  private parseThemeDate(dateStr: string, isLocal: boolean): Date {
+    if (isLocal) {
+      // "YYYY-MM-DD HH:mm:ss" -> Parse as Local
+      try {
+        const [d, t] = dateStr.split(" ");
+        const [y, m, day] = d.split("-").map(Number);
+        const [h, min, s] = t.split(":").map(Number);
+        return new Date(y, m - 1, day, h, min, s);
+      } catch (e) {
+        this.logger.error(`Failed to parse local date: ${dateStr}`, e);
+        return new Date(0);
+      }
+    } else {
+      // Parse as UTC
+      return new Date(dateStr.replace(" ", "T") + "Z");
+    }
+  }
+
+  /**
+   * Find the most appropriate theme based on current time
    */
   private findActiveTheme(themes: ThemeDefinition[]): ThemeDefinition | null {
     const now = new Date();
 
     const correctlyFiltered = themes.filter((t) => {
-      const start = t.startDate
-        ? new Date(t.startDate.replace(" ", "T") + "Z")
-        : new Date(0);
+      if (!t.startDate) return true; // Default themes without date always match
+
+      const isLocal = !!t.isLocalTime;
+      const start = this.parseThemeDate(t.startDate, isLocal);
       const end = t.endDate
-        ? new Date(t.endDate.replace(" ", "T") + "Z")
+        ? this.parseThemeDate(t.endDate, isLocal)
         : new Date(8640000000000000);
 
       return now >= start && now <= end;
@@ -203,11 +227,13 @@ export class ThemeCacheManager implements IService {
 
     // Select the one with the latest startDate (Priority)
     return correctlyFiltered.sort((a, b) => {
+      const isLocalA = !!a.isLocalTime;
+      const isLocalB = !!b.isLocalTime;
       const startA = a.startDate
-        ? new Date(a.startDate.replace(" ", "T") + "Z").getTime()
+        ? this.parseThemeDate(a.startDate, isLocalA).getTime()
         : 0;
       const startB = b.startDate
-        ? new Date(b.startDate.replace(" ", "T") + "Z").getTime()
+        ? this.parseThemeDate(b.startDate, isLocalB).getTime()
         : 0;
       return startB - startA;
     })[0];
@@ -216,26 +242,58 @@ export class ThemeCacheManager implements IService {
   /**
    * Download assets for a specific theme if missing
    */
-  private async downloadThemeAssets(game: string, theme: ThemeDefinition) {
+  private async downloadThemeAssets(
+    game: string,
+    theme: ThemeDefinition,
+    force = false,
+  ) {
     const targetDir = path.join(this.themeDir, game.toLowerCase(), theme.id);
     await fs.mkdir(targetDir, { recursive: true });
 
     const assets = theme.assets;
-    for (const relPath of Object.values(assets)) {
+    for (const [key, relPath] of Object.entries(assets)) {
       const fileName = path.basename(relPath);
       const localPath = path.join(targetDir, fileName);
 
       try {
         await fs.access(localPath);
-        this.logger.silent().log(`Asset already exists: ${localPath}`);
+
+        // Hash check logic
+        const serverHash = theme.assetsHashes?.[key as keyof ThemeAssets];
+        if (serverHash && !force) {
+          const fileBuffer = await fs.readFile(localPath);
+          const localHash = crypto
+            .createHash("md5")
+            .update(fileBuffer)
+            .digest("hex")
+            .substring(0, 8);
+
+          if (localHash === serverHash) {
+            this.logger
+              .silent()
+              .log(`Asset hash matches, skipping: ${localPath}`);
+            continue;
+          }
+          this.logger.log(
+            `Hash mismatch for ${fileName} (${localHash} vs ${serverHash}). Re-downloading...`,
+          );
+        } else if (!force) {
+          // If no hash provided by server, fallback to existence check
+          this.logger
+            .silent()
+            .log(`Asset already exists (no hash provided): ${localPath}`);
+          continue;
+        }
       } catch {
-        const url = SUPPORT_URLS.ASSETS_BASE + relPath;
-        this.logger.log(`Downloading asset: ${url} -> ${localPath}`);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to download ${url}`);
-        const buffer = Buffer.from(await response.arrayBuffer());
-        await fs.writeFile(localPath, buffer);
+        // File does not exist, proceed to download
       }
+
+      const url = SUPPORT_URLS.ASSETS_BASE + relPath;
+      this.logger.log(`Downloading asset: ${url} -> ${localPath}`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to download ${url}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await fs.writeFile(localPath, buffer);
     }
   }
 
@@ -243,7 +301,7 @@ export class ThemeCacheManager implements IService {
    * Get public URLs for theme assets (for Renderer)
    * Uses file:// protocol or local asset mapping
    */
-  async getActiveTheme(game: "POE1" | "POE2") {
+  async getActiveTheme(game: "POE1" | "POE2", force = false) {
     if (!this.themesData) await this.loadThemesFromLocalStorage();
 
     const themes =
@@ -312,7 +370,7 @@ export class ThemeCacheManager implements IService {
     // Ensure assets are downloaded for the active theme
     // (This handles cases where a theme is manually selected but wasn't pre-cached because it's not the "date-active" one)
     try {
-      await this.downloadThemeAssets(game, activeTheme);
+      await this.downloadThemeAssets(game, activeTheme, force);
     } catch (err) {
       this.logger.error(
         `[Theme] ${game}: Failed to download assets for theme '${activeTheme.id}'. Falling back.`,

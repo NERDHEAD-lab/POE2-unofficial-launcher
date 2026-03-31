@@ -27,7 +27,7 @@ export enum EventType {
   LOG_ERROR_DETECTED = "LOG:ERROR_DETECTED",
   PATCH_PROGRESS = "PATCH:PROGRESS",
   CONFIG_DELETE = "CONFIG:DELETE",
-  LOG_PATCH_FINISHED = "LOG:PATCH_FINISHED",
+  LOG_PATCH_CHECK_COMPLETE = "LOG:PATCH_CHECK_COMPLETE",
   LOG_GAME_STARTUP = "LOG:GAME_STARTUP",
   // Changelog
   SHOW_CHANGELOG = "UI:SHOW_CHANGELOG",
@@ -110,8 +110,8 @@ export interface LogErrorDetectedEvent {
   timestamp?: number;
 }
 
-export interface LogPatchFinishedEvent {
-  type: EventType.LOG_PATCH_FINISHED;
+export interface LogPatchCheckCompleteEvent {
+  type: EventType.LOG_PATCH_CHECK_COMPLETE;
   payload: {
     gameId: AppConfig["activeGame"];
     serviceId: AppConfig["serviceChannel"];
@@ -286,7 +286,7 @@ export type AppEvent =
   | UpdateWindowTitleEvent
   | ShowChangelogEvent
   | LogGameStartupEvent
-  | LogPatchFinishedEvent
+  | LogPatchCheckCompleteEvent
   | ToolForceRepairEvent
   | ProcessWillTerminateEvent
   | PatchRetryRequestedEvent

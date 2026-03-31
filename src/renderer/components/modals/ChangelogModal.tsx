@@ -1,11 +1,9 @@
-import DOMPurify from "dompurify";
-import { marked } from "marked";
 import React, { useEffect, useState } from "react";
-import "github-markdown-css/github-markdown-dark.css"; // Force dark theme
 
 import { ChangelogItem } from "../../../shared/types";
+import ChangelogView from "../ui/ChangelogView";
 
-import "./ChangelogModal.css";
+import "../ui/ChangelogView.css";
 
 interface ChangelogModalProps {
   changelogs: ChangelogItem[];
@@ -13,19 +11,6 @@ interface ChangelogModalProps {
   newVersion?: string;
   onClose: () => void;
 }
-
-/**
- * Filters out technical commit hash links from the changelog body.
- * Pattern: " ([hash](github_url))"
- */
-const filterChangelogBody = (body: string): string => {
-  return body
-    .replace(/^##\s*\[v?[\d.]+\]\(.*?\)\s*\(.*?\)\s*\n?/gm, "") // Remove H2 version header with link (e.g., ## [0.6.3](...) (2026-02-03))
-    .replace(
-      / \(\[[0-9a-f]+\]\(https:\/\/github\.com\/.*?\/commit\/[0-9a-f]+\)\)/g,
-      "",
-    ); // Remove commit hash links
-};
 
 const ChangelogModal: React.FC<ChangelogModalProps> = ({
   changelogs,
@@ -36,23 +21,6 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Configure marked to open links in new tab (external browser)
-    marked.use({
-      gfm: true,
-      breaks: true,
-      renderer: {
-        link(token) {
-          const { href, title, text } = token;
-          const isExternal = href.startsWith("http");
-          const target = isExternal
-            ? ' target="_blank" rel="noopener noreferrer"'
-            : "";
-          const titleAttr = title ? ` title="${title}"` : "";
-          return `<a href="${href}"${target}${titleAttr}>${text}</a>`;
-        },
-      },
-    });
-
     // Fade-in animation
     const timer = setTimeout(() => setIsVisible(true), 10);
     return () => clearTimeout(timer);
@@ -86,46 +54,9 @@ const ChangelogModal: React.FC<ChangelogModalProps> = ({
           </button>
         </div>
 
-        {/* Content Area */}
+        {/* Content Area - Reuse ChangelogView */}
         <div className="changelog-content">
-          {changelogs.map((log) => {
-            const filteredBody = filterChangelogBody(log.body || "");
-
-            return (
-              <div key={log.version} className="changelog-item">
-                <div className="changelog-item-header">
-                  <div className="changelog-version-info">
-                    <span className="changelog-version">v{log.version}</span>
-                    <span className="changelog-date">
-                      {new Date(log.date).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      window.open(log.htmlUrl, "_blank");
-                    }}
-                    className="changelog-github-link"
-                  >
-                    GitHub에서 보기 &rarr;
-                  </a>
-                </div>
-                <div className="markdown-body changelog-markdown-body">
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(
-                        marked.parse(filteredBody) as string,
-                        {
-                          ADD_ATTR: ["target", "rel"],
-                        },
-                      ),
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+          <ChangelogView changelogs={changelogs} />
         </div>
 
         {/* Footer */}
