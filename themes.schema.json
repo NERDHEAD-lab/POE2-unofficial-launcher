@@ -23,15 +23,20 @@
         },
         "startDate": { 
           "type": "string", 
-          "description": "Theme start date (UTC). Format: YYYY-MM-DD HH:mm:ss",
+          "description": "Theme start date. UTC by default, local time if isLocalTime is true. Format: YYYY-MM-DD HH:mm:ss",
           "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
           "examples": ["2025-10-31 16:00:00"]
         },
         "endDate": { 
           "type": "string", 
-          "description": "Theme end date (UTC). Format: YYYY-MM-DD HH:mm:ss",
+          "description": "Theme end date. UTC by default, local time if isLocalTime is true. Format: YYYY-MM-DD HH:mm:ss",
           "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
           "examples": ["2025-11-30 23:59:59"]
+        },
+        "isLocalTime": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, startDate/endDate will be interpreted as the user's local system time. Defaults to false (UTC)."
         }
       },
       "required": ["id", "name", "assets"],
