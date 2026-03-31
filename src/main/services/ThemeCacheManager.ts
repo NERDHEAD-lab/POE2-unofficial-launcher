@@ -185,18 +185,39 @@ export class ThemeCacheManager implements IService {
   }
 
   /**
-   * Find the most appropriate theme based on current UTC time
+   * Robustly parse date strings from themes.json
+   */
+  private parseThemeDate(dateStr: string, isLocal: boolean): Date {
+    if (isLocal) {
+      // "YYYY-MM-DD HH:mm:ss" -> Parse as Local
+      try {
+        const [d, t] = dateStr.split(" ");
+        const [y, m, day] = d.split("-").map(Number);
+        const [h, min, s] = t.split(":").map(Number);
+        return new Date(y, m - 1, day, h, min, s);
+      } catch (e) {
+        this.logger.error(`Failed to parse local date: ${dateStr}`, e);
+        return new Date(0);
+      }
+    } else {
+      // Parse as UTC
+      return new Date(dateStr.replace(" ", "T") + "Z");
+    }
+  }
+
+  /**
+   * Find the most appropriate theme based on current time
    */
   private findActiveTheme(themes: ThemeDefinition[]): ThemeDefinition | null {
     const now = new Date();
 
     const correctlyFiltered = themes.filter((t) => {
+      if (!t.startDate) return true; // Default themes without date always match
+
       const isLocal = !!t.isLocalTime;
-      const start = t.startDate
-        ? new Date(t.startDate.replace(" ", "T") + (isLocal ? "" : "Z"))
-        : new Date(0);
+      const start = this.parseThemeDate(t.startDate, isLocal);
       const end = t.endDate
-        ? new Date(t.endDate.replace(" ", "T") + (isLocal ? "" : "Z"))
+        ? this.parseThemeDate(t.endDate, isLocal)
         : new Date(8640000000000000);
 
       return now >= start && now <= end;
@@ -209,14 +230,10 @@ export class ThemeCacheManager implements IService {
       const isLocalA = !!a.isLocalTime;
       const isLocalB = !!b.isLocalTime;
       const startA = a.startDate
-        ? new Date(
-            a.startDate.replace(" ", "T") + (isLocalA ? "" : "Z"),
-          ).getTime()
+        ? this.parseThemeDate(a.startDate, isLocalA).getTime()
         : 0;
       const startB = b.startDate
-        ? new Date(
-            b.startDate.replace(" ", "T") + (isLocalB ? "" : "Z"),
-          ).getTime()
+        ? this.parseThemeDate(b.startDate, isLocalB).getTime()
         : 0;
       return startB - startA;
     })[0];
@@ -284,7 +301,7 @@ export class ThemeCacheManager implements IService {
    * Get public URLs for theme assets (for Renderer)
    * Uses file:// protocol or local asset mapping
    */
-  async getActiveTheme(game: "POE1" | "POE2") {
+  async getActiveTheme(game: "POE1" | "POE2", force = false) {
     if (!this.themesData) await this.loadThemesFromLocalStorage();
 
     const themes =
