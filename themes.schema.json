@@ -37,6 +37,13 @@
           "type": "boolean",
           "default": false,
           "description": "If true, startDate/endDate will be interpreted as the user's local system time. Defaults to false (UTC)."
+        },
+        "assetsHashes": {
+          "type": "object",
+          "properties": {
+            "background": { "type": "string", "description": "8-character MD5 hash of the background image." },
+            "logo": { "type": "string", "description": "8-character MD5 hash of the logo image." }
+          }
         }
       },
       "required": ["id", "name", "assets"],
