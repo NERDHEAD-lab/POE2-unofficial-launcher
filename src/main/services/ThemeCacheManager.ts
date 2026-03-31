@@ -16,6 +16,9 @@ import { getConfig } from "../store";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { Logger } from "../utils/logger";
 
+// Themes sync configuration
+const SYNC_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 /**
  * Manages remote theme assets caching in %appdata%
  * Logic: Sync -> Load from Cache -> Fallback
@@ -60,7 +63,7 @@ export class ThemeCacheManager implements IService {
       // 1. Always load local cache first to ensure immediate UI feedback based on cache/fallback
       await this.loadThemesFromLocalStorage();
 
-      // 2. Sync from remote (respecting 24h cooldown)
+      // 2. Sync from remote (respecting defined cooldown interval)
       await this.syncThemes();
     } catch (error) {
       this.logger.error("Failed to initialize ThemeCacheManager:", error);
@@ -86,9 +89,13 @@ export class ThemeCacheManager implements IService {
     const lastSync = settings?.lastSync || 0;
     const now = Date.now();
 
-    // 4-hour cooldown check: If we have cache and it's been less than 4h (14400000ms), and not forced
-    if (!force && this.themesData && now - lastSync < 4 * 60 * 60 * 1000) {
-      this.logger.log("Themes are still fresh (< 24h). Skipping remote sync.");
+    // Cooldown check: If we have cache and it's been less than SYNC_INTERVAL_MS, and not forced
+    // Cooldown check: If we have cache and it's been less than defined interval, and not forced
+    if (!force && this.themesData && now - lastSync < SYNC_INTERVAL_MS) {
+      const hours = Math.round(SYNC_INTERVAL_MS / (60 * 60 * 1000));
+      this.logger.log(
+        `Themes are still fresh (< ${hours}h). Skipping remote sync.`,
+      );
       return false;
     }
 
