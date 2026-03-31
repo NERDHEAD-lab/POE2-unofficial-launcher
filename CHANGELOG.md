@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.0.3...1.1.0) (2026-03-31)
+
+
+### Features
+
+* DaumGameStarter UAC 우회 설정이 카카오게임즈 관련이라는 부분을 설명에 추가 ([ab77d42](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ab77d423e08a796cd03f63a1fd79f276c10faa51))
+* 게임 예약 패치 성능 최적화 ([4536cfe](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4536cfe14a555b7a8b4a71d6faf20686dee6d53d))
+* 설정 - 화면에 테마 리소스 업데이트 확인 버튼 추가 ([4e21a78](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4e21a78de2f65365e98532758f7e5be6622cd939))
+* 설정 내 자동화 카테고리명을 게임으로 변경 ([825343b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/825343b4bb0aa7cf2591063425e38357c886c22c))
+* 업데이트 알림 팝업 UI 개선 ([fbda686](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/fbda686d3fae894f7a2f40fea3e8e37cd76b15fa))
+* 테마 리소스 업데이트 확인 주기를 24시간에서 4시간으로 조정 ([f1bd3c9](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f1bd3c92ec4b0a5149fd36f46b983687ee1f551c))
+* 테마 이미지 리소스 변경을 감지 할 수 있도록 개선 ([ecd56aa](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ecd56aa3360f96dfcc80df7309e25331782ce2de))
+* 테마 적용 기간을 현지 시각 기준으로도 설정 할 수 있도록 기능 개선 ([b6e1dc8](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/b6e1dc877bbc5b784fc5bea96a373ef1df228d64))
+* 테마 적용 기간을 현지 시각 기준으로도 설정 할 수 있도록 기능 개선 - 2 ([47a78a5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/47a78a5e2443151055b1aff9ff2f2b19b6256d06))
+
+
+### Bug Fixes
+
+* 동적 UI의 테마 색상이 간헐적으로 잘못 표현되는 문제 수정 ([1d2d317](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1d2d31785db10a7b9d433db81758c5d2f68910d3))
+* 디버그 콘솔이 닫길 때 런쳐가 같이 닫기는 문제 수정 ([961811f](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/961811fd72f1302891730fd44c656edc45cecfc7))
+* 업데이트를 다운로드 하지 않고 닫았을 때는 업데이트 버튼이 노출 되지 않는 문제 수정 ([632b74d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/632b74d5b4f8697bd93b307a7610564639e38314))
+* 테마에 설정된 로고의 너비에 따라 동작이 매끄럽지 않은 문제 수정 ([1ba3055](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/1ba3055d14a5477f43be7e3a96704d668ef09802))
+
 ## [1.0.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.0.2...1.0.3) (2026-03-09)
 
 
