@@ -38,5 +38,13 @@
     "date": "2026-03-31",
     "priority": false,
     "hash": "bb71b21eaa4e43960fe82cbd904d2fec"
+  },
+  {
+    "id": 10,
+    "title": "만우절 테마 관련 안내",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]만우절 테마 관련 안내.md",
+    "date": "2026-03-31",
+    "priority": true,
+    "hash": "aa4c607f0b898d4aef73acad955ddd85"
   }
 ]
