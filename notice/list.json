@@ -11,17 +11,9 @@
     "id": 3,
     "title": "PoE & PoE 2 Unofficial Launcher 로드맵 공지",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]PoE & PoE 2 Unofficial Launcher 로드맵 공지.md",
-    "date": "2026-04-03",
+    "date": "2026-04-04",
     "priority": true,
-    "hash": "15b6333c37896c62cbb5e701c19ada5f"
-  },
-  {
-    "id": 7,
-    "title": "[공지] 게임 실행 후 홈 화면 노출 및 지연 경고 현상 수정 안내",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/게임 실행 단계에서 흰 화면만 표시되는 현상 조치 가이드.md",
-    "date": "2026-03-06",
-    "priority": false,
-    "hash": "b7e4a9aad32678451720e597b92c5151"
+    "hash": "80db8411e1311e86a23067b26c773b9d"
   },
   {
     "id": 8,
@@ -38,13 +30,5 @@
     "date": "2026-03-31",
     "priority": false,
     "hash": "bb71b21eaa4e43960fe82cbd904d2fec"
-  },
-  {
-    "id": 10,
-    "title": "만우절 테마 관련 안내",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]만우절 테마 관련 안내.md",
-    "date": "2026-03-31",
-    "priority": true,
-    "hash": "aa4c607f0b898d4aef73acad955ddd85"
   }
 ]
