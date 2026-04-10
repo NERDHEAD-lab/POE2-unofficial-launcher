@@ -1,4 +1,4 @@
-name: Global Font Asset Sync
+name: Update Font List
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  process-fonts:
+  update-list:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages
