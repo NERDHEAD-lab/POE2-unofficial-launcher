@@ -37,7 +37,7 @@ jobs:
           # gh-pages 브랜치에는 스크립트 소스가 없으므로 master 브랜치에서 로직을 가져와 실행
           mkdir -p scripts
           curl -s https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/generate-font-assets.ts -o scripts/generate-font-assets.ts
-          npx ts-node --transpile-only scripts/generate-font-assets.ts
+          npx ts-node --skip-project --transpile-only scripts/generate-font-assets.ts
 
       - name: Commit and push changes
         run: |
