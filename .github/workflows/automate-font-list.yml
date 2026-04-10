@@ -1,4 +1,4 @@
-name: Global Font Asset Sync
+name: Update Font List
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  process-fonts:
+  update-list:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages
@@ -30,14 +30,14 @@ jobs:
 
       - name: Install Node Dependencies
         run: |
-          npm install opentype.js canvas ts-node typescript @types/node
+          npm install opentype.js canvas ts-node typescript @types/node @types/opentype.js
 
       - name: Generate Font Index & Previews
         run: |
           # gh-pages 브랜치에는 스크립트 소스가 없으므로 master 브랜치에서 로직을 가져와 실행
           mkdir -p scripts
           curl -s https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/generate-font-assets.ts -o scripts/generate-font-assets.ts
-          npx ts-node scripts/generate-font-assets.ts
+          npx ts-node --transpile-only scripts/generate-font-assets.ts
 
       - name: Commit and push changes
         run: |
