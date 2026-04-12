@@ -2,7 +2,11 @@
   {
     "id": "c3611c9f6047b231e3cbe165bb873743bfb0a0eec1316959e1f2cb7780e5a926",
     "fileName": "Binggrae-Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Binggrae Bold",
+      "ko": "빙그레체 Bold"
+    },
+    "familyNames": {
       "en": "Binggrae",
       "ko": "빙그레체"
     },
@@ -12,13 +16,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "http://www.YoonDesign.com/license",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "ac8ce15f3f0b0498889c9e8dd723d5ce2c9b3ac1ac358e6ffe4713fb172ea08f",
     "fileName": "Binggrae.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Binggrae",
+      "ko": "빙그레체"
+    },
+    "familyNames": {
       "en": "Binggrae",
       "ko": "빙그레체"
     },
@@ -28,13 +36,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "http://www.YoonDesign.com/license",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "c906b3ab3490b6450106ec1be5bef344a63c4d40cacef508a2c74e34ecc22fe7",
     "fileName": "DNFForgedBlade-Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "DNF Forged Blade Bold",
+      "ko": "던파 연단된 칼날 Bold"
+    },
+    "familyNames": {
       "en": "DNF Forged Blade Bold",
       "ko": "던파 연단된 칼날 Bold"
     },
@@ -44,13 +56,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "http://www.yoondesign.com",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "92803f69e1212603717e62a01dfbf3ff6a9d72ebaaabc0abca7282e62b42087b",
     "fileName": "DNFForgedBlade-Light.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "DNF Forged Blade Light",
+      "ko": "던파 연단된 칼날 Light"
+    },
+    "familyNames": {
       "en": "DNF Forged Blade Light",
       "ko": "던파 연단된 칼날 Light"
     },
@@ -60,13 +76,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "http://www.yoondesign.com",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "364ea508e7f58114052406369bc9c6e5c7dfdc09e3693bd20f14ce35aef66af9",
     "fileName": "DNFForgedBlade-Medium.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "DNF Forged Blade Medium",
+      "ko": "던파 연단된 칼날 Medium"
+    },
+    "familyNames": {
       "en": "DNF Forged Blade Medium",
       "ko": "던파 연단된 칼날 Medium"
     },
@@ -76,13 +96,76 @@
       "en": "Unknown License"
     },
     "licenseUrl": "http://www.yoondesign.com",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
+  },
+  {
+    "id": "b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e",
+    "fileName": "esamanru Bold.ttf",
+    "fullNames": {
+      "en": "esamanru Bold",
+      "ko": "이사만루체 Bold"
+    },
+    "familyNames": {
+      "en": "esamanru Bold",
+      "ko": "이사만루체 Bold"
+    },
+    "previewPath": "preview/b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e.png",
+    "fileSize": 2064036,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
+  },
+  {
+    "id": "aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9",
+    "fileName": "esamanru Light.ttf",
+    "fullNames": {
+      "en": "esamanru Light",
+      "ko": "이사만루체 Light"
+    },
+    "familyNames": {
+      "en": "esamanru Light",
+      "ko": "이사만루체 Light"
+    },
+    "previewPath": "preview/aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9.png",
+    "fileSize": 2168048,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
+  },
+  {
+    "id": "cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295",
+    "fileName": "esamanru Medium.ttf",
+    "fullNames": {
+      "en": "esamanru Medium",
+      "ko": "이사만루체 Medium"
+    },
+    "familyNames": {
+      "en": "esamanru Medium",
+      "ko": "이사만루체 Medium"
+    },
+    "previewPath": "preview/cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295.png",
+    "fileSize": 2114512,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "2c709890595668f7bdb6df408420fda957dde0288e95b31a1cc17a2ab98b4b4f",
     "fileName": "Galmuri11.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Galmuri11 Regular"
+    },
+    "familyNames": {
       "en": "Galmuri11 Regular"
     },
     "previewPath": "preview/2c709890595668f7bdb6df408420fda957dde0288e95b31a1cc17a2ab98b4b4f.png",
@@ -92,13 +175,16 @@
       "ko": "이 폰트 소프트웨어는 SIL 오픈 폰트 라이선스 1.1에 따라 사용이 허가됩니다."
     },
     "licenseUrl": "https://openfontlicense.org",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "5cb68052ee0a15571747e91c20f145e24b51bb459c6cd58226fafee78d9c0b16",
     "fileName": "Galmuri9.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Galmuri9 Regular"
+    },
+    "familyNames": {
       "en": "Galmuri9 Regular"
     },
     "previewPath": "preview/5cb68052ee0a15571747e91c20f145e24b51bb459c6cd58226fafee78d9c0b16.png",
@@ -108,13 +194,37 @@
       "ko": "이 폰트 소프트웨어는 SIL 오픈 폰트 라이선스 1.1에 따라 사용이 허가됩니다."
     },
     "licenseUrl": "https://openfontlicense.org",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
+  },
+  {
+    "id": "72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229",
+    "fileName": "kodia.ttf",
+    "fullNames": {
+      "en": "kodia",
+      "ko": "kodia Regular"
+    },
+    "familyNames": {
+      "en": "kodia",
+      "ko": "kodia"
+    },
+    "previewPath": "preview/72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229.png",
+    "fileSize": 3670556,
+    "license": {
+      "ko": "본 폰트 소프트웨어는 블리자드(계약번호 : CT2021122001) 전체프로젝트(기존 및 신규 모든 프로젝트) 게임 라이선스."
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "f79848d204b44b0698d6933f9b49162e87e9517368c53c5bd61523ecc335165d",
     "fileName": "Kostar.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Kostar",
+      "ko": "Kostar"
+    },
+    "familyNames": {
       "en": "Kostar",
       "ko": "Kostar"
     },
@@ -125,13 +235,17 @@
       "ko": "YoonDesign Inc."
     },
     "licenseUrl": "http://www.yoonfont.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "a64181160f16f0a7347823a1af140e5cbfacd8b25594d8660cc5b46e6106e518",
     "fileName": "Mabinogi_Classic_TTF.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Mabinogi_Classic Regular",
+      "ko": "마비옛체 Regular"
+    },
+    "familyNames": {
       "en": "Mabinogi_Classic",
       "ko": "마비옛체"
     },
@@ -141,13 +255,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "837e4b9316581fd0bbbb0bd4e9ccda65a319568611feb1f9ec9d031b57ba949c",
     "fileName": "NEXON_Warhaven_Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Warhaven Bold",
+      "ko": "워헤이븐 Bold"
+    },
+    "familyNames": {
       "en": "Warhaven Bold",
       "ko": "워헤이븐 Bold"
     },
@@ -157,13 +275,17 @@
       "en": "Unknown License"
     },
     "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "393303b19636d7eba160f8357bc3321b7df4b2c3d445972ae2a37d583879c7df",
     "fileName": "NEXON_Warhaven_Regular.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Warhaven Regular",
+      "ko": "워헤이븐 Regular"
+    },
+    "familyNames": {
       "en": "Warhaven Regular",
       "ko": "워헤이븐 Regular"
     },
@@ -173,13 +295,16 @@
       "en": "Unknown License"
     },
     "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "94628b0bcea8936b6e5c30d98d685eb9bbaffb0fe2ed255542ecc656c248e021",
     "fileName": "Pretendard-Black.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Black"
+    },
+    "familyNames": {
       "en": "Pretendard Black"
     },
     "previewPath": "preview/94628b0bcea8936b6e5c30d98d685eb9bbaffb0fe2ed255542ecc656c248e021.png",
@@ -188,13 +313,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "2e91915fab54df71cc9598ebf608b2bdb54c6fe3c066ac61dff0bc44fca71cc7",
     "fileName": "Pretendard-Bold.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Bold"
+    },
+    "familyNames": {
       "en": "Pretendard"
     },
     "previewPath": "preview/2e91915fab54df71cc9598ebf608b2bdb54c6fe3c066ac61dff0bc44fca71cc7.png",
@@ -203,13 +331,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "c35fe941b7568d52a96010561540e47f9d3948dfde66ba25bc1908233e0a40cd",
     "fileName": "Pretendard-ExtraBold.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard ExtraBold"
+    },
+    "familyNames": {
       "en": "Pretendard ExtraBold"
     },
     "previewPath": "preview/c35fe941b7568d52a96010561540e47f9d3948dfde66ba25bc1908233e0a40cd.png",
@@ -218,13 +349,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "e2837078f57079de2742e83c394a70b8a80b9662bc8ff4e96e7b791d6bd7cdbb",
     "fileName": "Pretendard-ExtraLight.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard ExtraLight"
+    },
+    "familyNames": {
       "en": "Pretendard ExtraLight"
     },
     "previewPath": "preview/e2837078f57079de2742e83c394a70b8a80b9662bc8ff4e96e7b791d6bd7cdbb.png",
@@ -233,13 +367,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "51418ee96ef96e9059db88d7da82f24fada1f4aca70d5157c878ea6b460dd343",
     "fileName": "Pretendard-Light.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Light"
+    },
+    "familyNames": {
       "en": "Pretendard Light"
     },
     "previewPath": "preview/51418ee96ef96e9059db88d7da82f24fada1f4aca70d5157c878ea6b460dd343.png",
@@ -248,13 +385,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "d39e50e4bb52b4993b6a4eeb821a171254745bd824446af01e1f616b89fface0",
     "fileName": "Pretendard-Medium.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Medium"
+    },
+    "familyNames": {
       "en": "Pretendard Medium"
     },
     "previewPath": "preview/d39e50e4bb52b4993b6a4eeb821a171254745bd824446af01e1f616b89fface0.png",
@@ -263,13 +403,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "3ffbacde6ab8411f1d2db54bb9b1f0b3ee2a738932033722cf0388c06aed1c93",
     "fileName": "Pretendard-Regular.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Regular"
+    },
+    "familyNames": {
       "en": "Pretendard"
     },
     "previewPath": "preview/3ffbacde6ab8411f1d2db54bb9b1f0b3ee2a738932033722cf0388c06aed1c93.png",
@@ -278,13 +421,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "c89bc43027dc7cde5726e96223376f8eec09302b2fc1f8147fd5b57cfc376118",
     "fileName": "Pretendard-SemiBold.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard SemiBold"
+    },
+    "familyNames": {
       "en": "Pretendard SemiBold"
     },
     "previewPath": "preview/c89bc43027dc7cde5726e96223376f8eec09302b2fc1f8147fd5b57cfc376118.png",
@@ -293,13 +439,16 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "635354dcdcc133318be74f9a83cb59d29652c56d463bcd34e20a8cd6e01f3af9",
     "fileName": "Pretendard-Thin.otf",
-    "displayNames": {
+    "fullNames": {
+      "en": "Pretendard Thin"
+    },
+    "familyNames": {
       "en": "Pretendard Thin"
     },
     "previewPath": "preview/635354dcdcc133318be74f9a83cb59d29652c56d463bcd34e20a8cd6e01f3af9.png",
@@ -308,77 +457,17 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e",
-    "fileName": "esamanru Bold.ttf",
-    "displayNames": {
-      "en": "esamanru Bold",
-      "ko": "이사만루체 Bold"
-    },
-    "previewPath": "preview/b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e.png",
-    "fileSize": 2064036,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9",
-    "fileName": "esamanru Light.ttf",
-    "displayNames": {
-      "en": "esamanru Light",
-      "ko": "이사만루체 Light"
-    },
-    "previewPath": "preview/aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9.png",
-    "fileSize": 2168048,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295",
-    "fileName": "esamanru Medium.ttf",
-    "displayNames": {
-      "en": "esamanru Medium",
-      "ko": "이사만루체 Medium"
-    },
-    "previewPath": "preview/cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295.png",
-    "fileSize": 2114512,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229",
-    "fileName": "kodia.ttf",
-    "displayNames": {
-      "en": "kodia",
-      "ko": "kodia"
-    },
-    "previewPath": "preview/72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229.png",
-    "fileSize": 3670556,
-    "license": {
-      "ko": "본 폰트 소프트웨어는 블리자드(계약번호 : CT2021122001) 전체프로젝트(기존 및 신규 모든 프로젝트) 게임 라이선스."
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "df13902fb156d207d8b9f3e63e21099311e77cdb4de6e7868fe24ce941bbe6e3",
     "fileName": "경기천년바탕_Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiBatang Bold",
+      "ko": "경기천년바탕 Bold"
+    },
+    "familyNames": {
       "en": "GyeonggiBatang Bold",
       "ko": "경기천년바탕 Bold"
     },
@@ -389,13 +478,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "95dd0601a69fbeb37d90f4a79bb4155fb788d8cd4ef68a42dc9d0852fd104f94",
     "fileName": "경기천년바탕_Regular.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiBatang Regular",
+      "ko": "경기천년바탕 Regular"
+    },
+    "familyNames": {
       "en": "GyeonggiBatang Regular",
       "ko": "경기천년바탕 Regular"
     },
@@ -406,13 +499,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "e44479d33486f1b16a9e28e003bef09779ff7f928cbe9495f07b0c6b13c3de1f",
     "fileName": "경기천년제목V_Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiTitleV Bold",
+      "ko": "경기천년제목V Bold"
+    },
+    "familyNames": {
       "en": "GyeonggiTitleV Bold",
       "ko": "경기천년제목V Bold"
     },
@@ -423,13 +520,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "f490194d9bf161f70076d01c9fb0a24d0019a324102de46c5fef579188ee96e6",
     "fileName": "경기천년제목_Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiTitle Bold",
+      "ko": "경기천년제목 Bold"
+    },
+    "familyNames": {
       "en": "GyeonggiTitle Bold",
       "ko": "경기천년제목 Bold"
     },
@@ -440,13 +541,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "7b6e388d92d1ba8a146d4124d8e2ba2728ca8810979c128c275ac1b85df2f41d",
     "fileName": "경기천년제목_Light.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiTitle Light",
+      "ko": "경기천년제목 Light"
+    },
+    "familyNames": {
       "en": "GyeonggiTitle Light",
       "ko": "경기천년제목 Light"
     },
@@ -457,13 +562,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "da6fc2e29f3fdc1f25a1f94e18549040acef06ac8d7d9dc373e0f6eabbcae8da",
     "fileName": "경기천년제목_Medium.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "GyeonggiTitle Medium",
+      "ko": "경기천년제목 Medium"
+    },
+    "familyNames": {
       "en": "GyeonggiTitle Medium",
       "ko": "경기천년제목 Medium"
     },
@@ -474,13 +583,17 @@
       "ko": "http://www.typolab.co.kr/license"
     },
     "licenseUrl": "http://www.typolab.co.kr",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "96bed0df63c4130f2a3f511331469f5e147656f8531878f6a0cdbce72adeff04",
     "fileName": "에이투지체-1Thin.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 1 Thin",
+      "ko": "A2Z 1 Thin"
+    },
+    "familyNames": {
       "en": "A2Z 1 Thin",
       "ko": "에이투지체 1 Thin"
     },
@@ -491,13 +604,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "75a3585e52d3e36733d099f04dc2947990aeaceb1447c9c1518633769a1f7435",
     "fileName": "에이투지체-2ExtraLight.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 2 ExtraLight",
+      "ko": "A2Z 2 ExtraLight"
+    },
+    "familyNames": {
       "en": "A2Z 2 ExtraLight",
       "ko": "에이투지체 2 ExtraLight"
     },
@@ -508,13 +625,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "e617e3f794dfde9ecfcf72b2a24f8b4f3d70247556232e4140e072a47abb7c11",
     "fileName": "에이투지체-3Light.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 3 Light",
+      "ko": "A2Z 3 Light"
+    },
+    "familyNames": {
       "en": "A2Z 3 Light",
       "ko": "에이투지체 3 Light"
     },
@@ -525,13 +646,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "8172b59884cc9d4bad8f271e2557a6ad343a9dd595feb705d96e3f990c37c86f",
     "fileName": "에이투지체-4Regular.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 4 Regular",
+      "ko": "A2Z 4 Regular"
+    },
+    "familyNames": {
       "en": "A2Z 4 Regular",
       "ko": "에이투지체 4 Regular"
     },
@@ -542,13 +667,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "7d206a775b46a8ee9a3da0a44f103284ccddd5c80ae30a835fd4bc1ed3157125",
     "fileName": "에이투지체-5Medium.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 5 Medium",
+      "ko": "A2Z 5 Medium"
+    },
+    "familyNames": {
       "en": "A2Z 5 Medium",
       "ko": "에이투지체 5 Medium"
     },
@@ -559,13 +688,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "4d6098e2b9ad6d44be133f2752773b45aeccb9be1a8a2448073e667ccecf5cec",
     "fileName": "에이투지체-6SemiBold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 6 SemiBold",
+      "ko": "A2Z 6 SemiBold"
+    },
+    "familyNames": {
       "en": "A2Z 6 SemiBold",
       "ko": "에이투지체 6 SemiBold"
     },
@@ -576,13 +709,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "c583020b85288aaf79c71d880ab6b12dfe5f7c49a895ceac16ffeaa5f468587f",
     "fileName": "에이투지체-7Bold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 7 Bold",
+      "ko": "A2Z 7 Bold"
+    },
+    "familyNames": {
       "en": "A2Z 7 Bold",
       "ko": "에이투지체 7 Bold"
     },
@@ -593,13 +730,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "bfb96807ea89761240eb70f5ed4652c36fa73c0d7e734acac09678dd3a607d44",
     "fileName": "에이투지체-8ExtraBold.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 8 ExtraBold",
+      "ko": "A2Z 8 ExtraBold"
+    },
+    "familyNames": {
       "en": "A2Z 8 ExtraBold",
       "ko": "에이투지체 8 ExtraBold"
     },
@@ -610,13 +751,17 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   },
   {
     "id": "c0d35c98ee4913f7a0b2f6968d69bd5564f95e5ae4b46816c4794ee1e98ecfc7",
     "fileName": "에이투지체-9Black.ttf",
-    "displayNames": {
+    "fullNames": {
+      "en": "A2Z 9 Black",
+      "ko": "A2Z 9 Black"
+    },
+    "familyNames": {
       "en": "A2Z 9 Black",
       "ko": "에이투지체 9 Black"
     },
@@ -627,7 +772,7 @@
       "ko": "이 글꼴은 SIL Open Font License 1.1로 배포하고 있습니다. "
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
+    "createdAt": "2026-04-12T04:23:05.764Z",
+    "updatedAt": "2026-04-12T04:23:05.764Z"
   }
 ]
