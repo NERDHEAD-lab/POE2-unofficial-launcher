@@ -80,54 +80,6 @@
     "updatedAt": "2026-04-12T03:06:24.191Z"
   },
   {
-    "id": "b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e",
-    "fileName": "esamanru Bold.ttf",
-    "displayNames": {
-      "en": "esamanru Bold",
-      "ko": "이사만루체 Bold"
-    },
-    "previewPath": "preview/b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e.png",
-    "fileSize": 2064036,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9",
-    "fileName": "esamanru Light.ttf",
-    "displayNames": {
-      "en": "esamanru Light",
-      "ko": "이사만루체 Light"
-    },
-    "previewPath": "preview/aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9.png",
-    "fileSize": 2168048,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295",
-    "fileName": "esamanru Medium.ttf",
-    "displayNames": {
-      "en": "esamanru Medium",
-      "ko": "이사만루체 Medium"
-    },
-    "previewPath": "preview/cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295.png",
-    "fileSize": 2114512,
-    "license": {
-      "en": "Unknown License"
-    },
-    "licenseUrl": "",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
     "id": "2c709890595668f7bdb6df408420fda957dde0288e95b31a1cc17a2ab98b4b4f",
     "fileName": "Galmuri11.ttf",
     "displayNames": {
@@ -156,22 +108,6 @@
       "ko": "이 폰트 소프트웨어는 SIL 오픈 폰트 라이선스 1.1에 따라 사용이 허가됩니다."
     },
     "licenseUrl": "https://openfontlicense.org",
-    "createdAt": "2026-04-12T03:06:24.191Z",
-    "updatedAt": "2026-04-12T03:06:24.191Z"
-  },
-  {
-    "id": "72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229",
-    "fileName": "kodia.ttf",
-    "displayNames": {
-      "en": "kodia",
-      "ko": "kodia"
-    },
-    "previewPath": "preview/72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229.png",
-    "fileSize": 3670556,
-    "license": {
-      "ko": "본 폰트 소프트웨어는 블리자드(계약번호 : CT2021122001) 전체프로젝트(기존 및 신규 모든 프로젝트) 게임 라이선스."
-    },
-    "licenseUrl": "",
     "createdAt": "2026-04-12T03:06:24.191Z",
     "updatedAt": "2026-04-12T03:06:24.191Z"
   },
@@ -372,6 +308,70 @@
       "en": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL"
     },
     "licenseUrl": "http://scripts.sil.org/OFL",
+    "createdAt": "2026-04-12T03:06:24.191Z",
+    "updatedAt": "2026-04-12T03:06:24.191Z"
+  },
+  {
+    "id": "b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e",
+    "fileName": "esamanru Bold.ttf",
+    "displayNames": {
+      "en": "esamanru Bold",
+      "ko": "이사만루체 Bold"
+    },
+    "previewPath": "preview/b2f067a34ca812e54dddf209ee3ba8886d78ebe5e051f74d90255ddd2d87953e.png",
+    "fileSize": 2064036,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T03:06:24.191Z",
+    "updatedAt": "2026-04-12T03:06:24.191Z"
+  },
+  {
+    "id": "aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9",
+    "fileName": "esamanru Light.ttf",
+    "displayNames": {
+      "en": "esamanru Light",
+      "ko": "이사만루체 Light"
+    },
+    "previewPath": "preview/aa294b6b0cc4907cbc50b9c0fd1ba69b138a01bb25da63e27371bd9452844ed9.png",
+    "fileSize": 2168048,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T03:06:24.191Z",
+    "updatedAt": "2026-04-12T03:06:24.191Z"
+  },
+  {
+    "id": "cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295",
+    "fileName": "esamanru Medium.ttf",
+    "displayNames": {
+      "en": "esamanru Medium",
+      "ko": "이사만루체 Medium"
+    },
+    "previewPath": "preview/cec145f8fb9dc333b9585856c724303d37ea85f53613b173340fccdcff733295.png",
+    "fileSize": 2114512,
+    "license": {
+      "en": "Unknown License"
+    },
+    "licenseUrl": "",
+    "createdAt": "2026-04-12T03:06:24.191Z",
+    "updatedAt": "2026-04-12T03:06:24.191Z"
+  },
+  {
+    "id": "72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229",
+    "fileName": "kodia.ttf",
+    "displayNames": {
+      "en": "kodia",
+      "ko": "kodia"
+    },
+    "previewPath": "preview/72a423e2d651b8582e2e781d58a074027f5f6c0e3467213597666b82ea0e4229.png",
+    "fileSize": 3670556,
+    "license": {
+      "ko": "본 폰트 소프트웨어는 블리자드(계약번호 : CT2021122001) 전체프로젝트(기존 및 신규 모든 프로젝트) 게임 라이선스."
+    },
+    "licenseUrl": "",
     "createdAt": "2026-04-12T03:06:24.191Z",
     "updatedAt": "2026-04-12T03:06:24.191Z"
   },
