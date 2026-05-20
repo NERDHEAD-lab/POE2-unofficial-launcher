@@ -1,4 +1,4 @@
-/* eslint-disable import/order */
+/* eslint-disable import-x/order */
 import React, {
   useState,
   useEffect,
@@ -24,30 +24,28 @@ import iconGithub from "./assets/icon-github.svg";
 import bannerBottom from "./assets/layout/banner-bottom.png";
 import bgPoe from "./assets/poe1/bg-keepers.png";
 import bgPoe2 from "./assets/poe2/bg-forest.webp";
-
 import GameSelector from "./components/GameSelector";
 import GameStartButton from "./components/GameStartButton";
-import OfficialLinkButtons from "./components/OfficialLinkButtons";
-import ServiceChannelSelector from "./components/ServiceChannelSelector";
-import SupportLinks from "./components/SupportLinks";
-import TitleBar from "./components/TitleBar";
-import UpdateModal from "./components/UpdateModal";
 import ChangelogModal from "./components/modals/ChangelogModal";
+import FontCatalogModal from "./components/modals/FontCatalogModal";
+import FontManagerModal from "./components/modals/FontManagerModal";
+import FontMigrationModal from "./components/modals/FontMigrationModal";
 import { ForcedRepairModal } from "./components/modals/ForcedRepairModal";
 import MigrationModal from "./components/modals/MigrationModal";
-import FontMigrationModal from "./components/modals/FontMigrationModal";
 import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import { PatchReservationModal } from "./components/modals/PatchReservationModal";
-import FontManagerModal from "./components/modals/FontManagerModal";
-import FontCatalogModal from "./components/modals/FontCatalogModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
+import OfficialLinkButtons from "./components/OfficialLinkButtons";
+import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
+import SupportLinks from "./components/SupportLinks";
 import ThemeRevalidator from "./components/ThemeRevalidator";
+import TitleBar from "./components/TitleBar";
+import UpdateModal from "./components/UpdateModal";
 import { useGameState } from "./contexts/GameStateContext";
-
 import { VersionService, RemoteVersions } from "./services/VersionService";
 import { logger } from "./utils/logger";
 import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";

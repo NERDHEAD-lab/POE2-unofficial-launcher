@@ -1,6 +1,6 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
-import importPlugin from "eslint-plugin-import";
+import importPlugin from "eslint-plugin-import-x";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
@@ -23,7 +23,7 @@ export default [
       },
     },
     plugins: {
-      import: importPlugin,
+      "import-x": importPlugin,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
     },
@@ -33,7 +33,7 @@ export default [
         "warn",
         { allowConstantExport: true },
       ],
-      "import/order": [
+      "import-x/order": [
         "error",
         {
           groups: [
@@ -57,8 +57,8 @@ export default [
           },
         },
       ],
-      "import/first": "error",
-      "import/newline-after-import": ["error", { count: 1 }],
+      "import-x/first": "error",
+      "import-x/newline-after-import": ["error", { count: 1 }],
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -126,10 +126,10 @@ export default [
       },
     },
     plugins: {
-      import: importPlugin,
+      "import-x": importPlugin,
     },
     rules: {
-      "import/order": [
+      "import-x/order": [
         "error",
         {
           groups: [
@@ -147,7 +147,7 @@ export default [
           },
         },
       ],
-      "import/newline-after-import": ["error", { count: 1 }],
+      "import-x/newline-after-import": ["error", { count: 1 }],
     },
   },
   prettier,
