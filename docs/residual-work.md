@@ -88,6 +88,30 @@
 - UI 노출 시 추가로 `settings-management` 스킬.
 - 누락 시 ORPHANED config 발생.
 
+### 2.5 RTK가 `npm run lint` 출력에 lint 대상 외 파일을 섞어 보여줌
+
+- `package.json`의 lint 스크립트는 `eslint src`라 **`src/` 만 검사 대상**.
+- 그러나 `npm run lint`(RTK 후킹 경유)의 요약 출력에는 `scripts/` 등
+  **lint 대상이 아닌 파일이 issues 목록에 포함되어 표시됨**.
+- 2026-05-21 재현 결과:
+  - RTK 출력 상단: `ESLint: 9 errors, 1 warnings in 3 files` /
+    `font-test-suite.ts`, `generate-notice-list.js`, `generate-theme-hashes.js`
+    가 "Top files" 섹션에 나열됨 (모두 `scripts/` 소속).
+  - RTK 우회 직접 실행: `node node_modules/eslint/bin/eslint.js src` →
+    출력 없음, **exit 0 (실제로는 깨끗)**.
+- 즉 RTK 요약이 lint 대상 범위를 잘못 표시 → "내 변경이 새 lint 에러를
+  만들었나?" 같은 잘못된 진단을 유발할 수 있다.
+- **회피**: 의심될 때 `node node_modules/eslint/bin/eslint.js <범위>`로
+  직접 실행해 exit code와 실제 결과를 확인.
+- **RTK 저장소 보고용 재현 시나리오**:
+  - 환경: WSL2 (`Linux 6.6.87.2-microsoft-standard`) + bash + Claude
+    Code Bash hook + RTK 후킹.
+  - 프로젝트의 `package.json` lint 스크립트가 디렉터리 한정 (`eslint src`).
+  - `npm run lint` 실행 시 RTK 요약 출력에 검사 대상 외 디렉터리
+    (`scripts/`)의 파일이 포함되어 나옴.
+  - `node node_modules/eslint/bin/eslint.js src`로 직접 돌리면 결과
+    상이 (실제 깨끗).
+
 ---
 
 ## 3. 박제 핵심 (재함정 방지)
