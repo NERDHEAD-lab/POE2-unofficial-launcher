@@ -57,6 +57,7 @@
     "cross-env": "^10.1.0",
     "electron": "^40.0.0",
     "electron-builder": "^26.0.0",
+    "esbuild": "^0.27.7",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
