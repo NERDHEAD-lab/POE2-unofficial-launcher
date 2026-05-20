@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 
 import ConfirmModal, { ConfirmModalProps } from "../ui/ConfirmModal";
 import { ButtonItem } from "./items/SettingButton";
@@ -78,22 +84,18 @@ const SettingItemRenderer: React.FC<{
   });
 
   const itemRef = useRef<HTMLDivElement>(null);
-  const isFirstRender = useRef(true);
 
-  // Initialize description blocks from item.description (string)
-  useEffect(() => {
-    // Skip the first run as lazy init handled it
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    if (item.description) {
-      setDescriptionBlocks([{ text: item.description, variant: "default" }]);
-    } else {
-      setDescriptionBlocks([]);
-    }
-  }, [item.description]); // Reset when prop changes
+  // Reset description blocks when item.description prop changes.
+  // Inline render-phase update avoids an effect that would trigger a cascading render.
+  const [prevDescription, setPrevDescription] = useState<string | undefined>(
+    item.description,
+  );
+  if (item.description !== prevDescription) {
+    setPrevDescription(item.description);
+    setDescriptionBlocks(
+      item.description ? [{ text: item.description, variant: "default" }] : [],
+    );
+  }
 
   const [disabled, setDisabled] = useState<boolean>(!!item.disabled);
   const [isVisible, setIsVisible] = useState<boolean>(true);
@@ -115,9 +117,11 @@ const SettingItemRenderer: React.FC<{
   );
 
   const buttonTextRef = useRef(buttonText);
-  buttonTextRef.current = buttonText;
   const variantRef = useRef(variant);
-  variantRef.current = variant;
+  useLayoutEffect(() => {
+    buttonTextRef.current = buttonText;
+    variantRef.current = variant;
+  });
 
   // Track if onInit has taken control to avoid store-override race conditions
   const [authorityClaimed, setAuthorityClaimed] = useState(false);
@@ -140,6 +144,18 @@ const SettingItemRenderer: React.FC<{
   const refreshOnValues = JSON.stringify(
     item.refreshOn?.map((id) => config[id]) || [],
   );
+
+  // Reset dynamic description blocks before onInit re-runs, so addDescription calls
+  // start from the static baseline rather than accumulating across re-inits.
+  // Done in render phase (not in effect) to avoid cascading renders.
+  const [prevOnInitKey, setPrevOnInitKey] = useState<string | null>(null);
+  const onInitKey = item.onInit ? refreshOnValues : null;
+  if (item.onInit && onInitKey !== prevOnInitKey) {
+    setPrevOnInitKey(onInitKey);
+    setDescriptionBlocks(
+      item.description ? [{ text: item.description, variant: "default" }] : [],
+    );
+  }
 
   // Helper to add description
   const addDescription = useCallback(
@@ -165,9 +181,9 @@ const SettingItemRenderer: React.FC<{
     if (item.onInit) {
       logger.log(`[Settings] Running onInit for ${item.id}`);
 
-      // Auto-clear dynamic descriptions before re-running onInit
-      // This ensures we start with the base static description
-      resetDescription();
+      // NOTE: description blocks are pre-reset in render phase via prevOnInitKey
+      // comparison above. Calling resetDescription() here would trigger a cascading
+      // render (react-hooks/set-state-in-effect).
 
       const initResult = item.onInit({
         setValue: (newValue) => {

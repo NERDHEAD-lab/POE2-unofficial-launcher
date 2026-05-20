@@ -29,12 +29,6 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // TODO(fix/react-hooks-violations): eslint-plugin-react-hooks 7.1에서
-      // 새로 추가된 두 룰이 기존 코드의 hook 패턴 14건을 잡아낸다.
-      // eslint v10 업그레이드와 코드 수정 PR을 분리하기 위해 임시 off.
-      // 별도 PR에서 위반 정리 후 이 두 줄 삭제할 것.
-      "react-hooks/set-state-in-effect": "off",
-      "react-hooks/refs": "off",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

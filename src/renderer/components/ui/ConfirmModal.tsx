@@ -28,10 +28,20 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     timeoutSeconds,
   );
 
+  // Reset countdown when the modal (re)opens or the timeout prop changes.
+  // Render-phase comparison avoids a cascading render from inside an effect.
+  const [prevSessionKey, setPrevSessionKey] = React.useState<string>(
+    `${isOpen}|${timeoutSeconds ?? ""}`,
+  );
+  const sessionKey = `${isOpen}|${timeoutSeconds ?? ""}`;
+  if (sessionKey !== prevSessionKey) {
+    setPrevSessionKey(sessionKey);
+    setTimeLeft(timeoutSeconds);
+  }
+
   React.useEffect(() => {
     if (!isOpen || timeoutSeconds === undefined) return;
 
-    setTimeLeft(timeoutSeconds);
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev !== undefined && prev <= 1) {

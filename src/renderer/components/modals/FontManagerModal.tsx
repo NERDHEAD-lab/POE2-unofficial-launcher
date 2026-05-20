@@ -54,7 +54,7 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
   const [showDetailSettings, setShowDetailSettings] = useState(false);
   const flashTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const modalRef = React.useRef<HTMLDivElement>(null);
+  const [modalEl, setModalEl] = useState<HTMLDivElement | null>(null);
   const { getActiveGameState, syncGameState } = useGameState();
 
   const isKakaoRunning =
@@ -153,7 +153,9 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
 
   useEffect(() => {
     if (isVisible) {
-      fetchFonts();
+      // Deferred via microtask so the synchronous setFonts/setAssignments inside
+      // fetchFonts doesn't trigger a cascading render from this effect.
+      void Promise.resolve().then(() => fetchFonts());
       syncGameState(gameId, "Kakao Games");
       syncGameState(gameId, "GGG");
     }
@@ -297,13 +299,13 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
     >
       <div
         className={`font-modal ${isVisible ? "visible" : ""}`}
-        ref={modalRef}
+        ref={setModalEl}
         onClick={(e) => e.stopPropagation()}
       >
         <Toast
           message={toastMsg}
           visible={toastVisible}
-          container={modalRef.current}
+          container={modalEl}
           variant={toastVariant}
         />
 

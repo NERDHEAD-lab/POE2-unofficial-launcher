@@ -45,7 +45,7 @@ const FontCatalogModal: React.FC<FontCatalogModalProps> = ({
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [modalEl, setModalEl] = useState<HTMLDivElement | null>(null);
 
   const [pendingLocalPath, setPendingLocalPath] = useState<string | null>(null);
   const [analyzedLocalName, setAnalyzedLocalName] = useState("");
@@ -138,7 +138,9 @@ const FontCatalogModal: React.FC<FontCatalogModalProps> = ({
 
   useEffect(() => {
     if (isVisible) {
-      loadCatalog();
+      // Deferred via microtask so the synchronous setIsLoading inside loadCatalog
+      // doesn't trigger a cascading render from this effect.
+      void Promise.resolve().then(() => loadCatalog());
     }
   }, [isVisible, loadCatalog]);
 
@@ -246,12 +248,12 @@ const FontCatalogModal: React.FC<FontCatalogModalProps> = ({
       <div
         className="font-catalog-modal"
         onClick={(e) => e.stopPropagation()}
-        ref={modalRef}
+        ref={setModalEl}
       >
         <Toast
           message={toastMsg}
           visible={toastVisible}
-          container={modalRef.current}
+          container={modalEl}
           variant={toastVariant}
         />
         <header className="catalog-header">

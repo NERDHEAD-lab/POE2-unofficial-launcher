@@ -14,7 +14,7 @@ export interface ConfigViewerProps {
   initialValue: unknown;
   editValue: string;
   saveError: string | null;
-  editorRef: React.RefObject<HTMLTextAreaElement>;
+  ref?: React.Ref<HTMLTextAreaElement>;
   startEditing: (key: string, value: unknown) => void;
   cancelEditing: () => void;
   saveConfig: (key: string) => Promise<void>;
@@ -29,7 +29,7 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
   initialValue,
   editValue,
   saveError,
-  editorRef,
+  ref,
   startEditing,
   cancelEditing,
   saveConfig,
@@ -188,7 +188,7 @@ const ConfigViewer: React.FC<ConfigViewerProps> = ({
         {isEditing ? (
           <div>
             <textarea
-              ref={editorRef}
+              ref={ref}
               value={editValue}
               onChange={(e) => {
                 setEditValue(e.target.value);

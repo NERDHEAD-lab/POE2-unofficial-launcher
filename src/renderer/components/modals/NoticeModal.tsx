@@ -16,6 +16,17 @@ const NoticeModal: React.FC<NoticeModalProps> = ({ item, onClose }) => {
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Reset visibility/content when the item prop disappears.
+  // Done in render phase so the effect body avoids a cascading setState.
+  const [prevItemId, setPrevItemId] = useState<string | null>(item?.id ?? null);
+  if (!item && prevItemId !== null) {
+    setPrevItemId(null);
+    setIsVisible(false);
+    setContent(null);
+  } else if (item && item.id !== prevItemId) {
+    setPrevItemId(item.id);
+  }
+
   const loadContent = useCallback(async () => {
     if (!item) return;
     setIsLoading(true);
@@ -64,13 +75,11 @@ const NoticeModal: React.FC<NoticeModalProps> = ({ item, onClose }) => {
       // Fade-in animation
       const timer = setTimeout(() => setIsVisible(true), 10);
 
-      // Load content
-      loadContent();
+      // Load content (deferred via microtask so the synchronous setIsLoading inside
+      // loadContent doesn't trigger a cascading render from this effect).
+      void Promise.resolve().then(loadContent);
 
       return () => clearTimeout(timer);
-    } else {
-      setIsVisible(false);
-      setContent(null);
     }
   }, [item, loadContent]);
 

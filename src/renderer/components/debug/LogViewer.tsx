@@ -8,14 +8,10 @@ export interface LogViewerProps {
     byType: { [key: string]: LogEntry[] };
   };
   filter: string;
-  bottomRef: React.RefObject<HTMLDivElement>;
+  ref?: React.Ref<HTMLDivElement>;
 }
 
-const LogViewer: React.FC<LogViewerProps> = ({
-  logState,
-  filter,
-  bottomRef,
-}) => {
+const LogViewer: React.FC<LogViewerProps> = ({ logState, filter, ref }) => {
   const groupedLogs = useMemo(() => {
     const logs =
       filter === "ALL" ? logState.all : logState.byType[filter] || [];
@@ -143,7 +139,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           </React.Fragment>
         );
       })}
-      <div ref={bottomRef} />
+      <div ref={ref} />
     </div>
   );
 };

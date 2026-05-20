@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 
-import { ConfigViewerProps } from "./debug/ConfigViewer";
+import ConfigViewer, { ConfigViewerProps } from "./debug/ConfigViewer";
 import ExportModal from "./debug/ExportModal";
 import { mergeLog } from "./debug/helpers";
-import { LogViewerProps } from "./debug/LogViewer";
+import LogViewer, { LogViewerProps } from "./debug/LogViewer";
 import { LogModule, ConfigModule } from "./debug/modules";
 import { LogEntry, DebugModule } from "./debug/types";
 import { AppConfig } from "../../shared/types";
@@ -117,28 +117,6 @@ const DebugConsole: React.FC = () => {
       await window.electronAPI.deleteConfig(key);
     }
   };
-
-  // Specific helpers to get typed props
-  const getLogViewerProps = (tabId: string): LogViewerProps => ({
-    logState,
-    filter: tabId,
-    bottomRef: bottomRef as React.RefObject<HTMLDivElement>,
-  });
-
-  const getConfigViewerProps = (/* tabId unused */): ConfigViewerProps => ({
-    currentConfig,
-    editingKey,
-    initialValue,
-    editValue,
-    saveError,
-    editorRef: editorRef as React.RefObject<HTMLTextAreaElement>,
-    startEditing,
-    cancelEditing,
-    saveConfig,
-    deleteConfig,
-    setEditValue,
-    setSaveError,
-  });
 
   const handleExport = async (selectedIds: string[]) => {
     const allSources = modules.flatMap((m) => {
@@ -389,16 +367,25 @@ const DebugConsole: React.FC = () => {
       >
         {activeModule && (
           <>
-            {activeModule.id === "log-module" &&
-              (activeModule as typeof LogModule).renderPanel(
-                filter,
-                getLogViewerProps(filter),
-              )}
-            {activeModule.id === "config-module" &&
-              (activeModule as typeof ConfigModule).renderPanel(
-                filter,
-                getConfigViewerProps(),
-              )}
+            {activeModule.id === "log-module" && (
+              <LogViewer logState={logState} filter={filter} ref={bottomRef} />
+            )}
+            {activeModule.id === "config-module" && (
+              <ConfigViewer
+                currentConfig={currentConfig}
+                editingKey={editingKey}
+                initialValue={initialValue}
+                editValue={editValue}
+                saveError={saveError}
+                ref={editorRef}
+                startEditing={startEditing}
+                cancelEditing={cancelEditing}
+                saveConfig={saveConfig}
+                deleteConfig={deleteConfig}
+                setEditValue={setEditValue}
+                setSaveError={setSaveError}
+              />
+            )}
           </>
         )}
 
