@@ -346,25 +346,58 @@ export class NewsService {
         root.querySelector(".newsPost .content") ||
         root.querySelector(".content-container .content");
 
-      if (!content)
-        return "내용을 불러올 수 없습니다. (게시글이 삭제되었거나 형식이 다를 수 있습니다.)";
+      let cleanHtml = "";
 
-      // Remove unnecessary elements (author info, buttons, etc.)
-      const unwantedSelectors = [
-        ".post_author_info",
-        ".report_button",
-        ".content-footer",
-        ".social-buttons",
-        "script",
-        "style",
-      ];
-      unwantedSelectors.forEach((sel) => {
-        content.querySelectorAll(sel).forEach((el) => el.remove());
-      });
+      if (!content) {
+        // 대체제 (.lbox-container 조각들) 확인 및 병합 시도
+        const lboxContainers = root.querySelectorAll(".lbox-container");
+        if (lboxContainers.length > 0) {
+          this.logger.log(
+            `[NewsService] Basic content selector missed for post ${id}. ` +
+            `Falling back to merging ${lboxContainers.length} .lbox-container elements.`
+          );
 
-      const cleanHtml = content.innerHTML.trim();
+          const unwantedSelectors = [
+            ".post_author_info",
+            ".report_button",
+            ".content-footer",
+            ".social-buttons",
+            "script",
+            "style",
+          ];
+
+          lboxContainers.forEach((container) => {
+            unwantedSelectors.forEach((sel) => {
+              container.querySelectorAll(sel).forEach((el) => el.remove());
+            });
+          });
+
+          cleanHtml = lboxContainers.map((container) => container.innerHTML.trim()).join("\n");
+        } else {
+          // 대체제도 없는 최종적인 구조 붕괴 상황에만 예외 발생
+          throw new Error(
+            `게시글 본문(content) 및 대체 컨테이너(lbox-container)를 모두 찾을 수 없습니다. (HTML 구조 붕괴 또는 글 삭제)\n` +
+            `Target URL: ${link}\n` +
+            `Tested Selectors: .forumPost .content, .newsPost .content, .content-container .content, .lbox-container`
+          );
+        }
+      } else {
+        // Remove unnecessary elements (author info, buttons, etc.)
+        const unwantedSelectors = [
+          ".post_author_info",
+          ".report_button",
+          ".content-footer",
+          ".social-buttons",
+          "script",
+          "style",
+        ];
+        unwantedSelectors.forEach((sel) => {
+          content.querySelectorAll(sel).forEach((el) => el.remove());
+        });
+        cleanHtml = content.innerHTML.trim();
+      }
+
       this.updateCache(id, cleanHtml);
-
       this.logger.log(`Successfully fetched content for post ${id}.`);
 
       return cleanHtml;
