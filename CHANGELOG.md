@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.2.4...1.2.5) (2026-05-23)
+
+
+### Bug Fixes
+
+* **main:** 정상 해상도에서 저해상도 문구가 간헐적으로 오표시되는 오류 수정 (resolutionMode 기준 동기화) ([3efe685](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3efe685a8b82f11f49ea30fa7dea1d304eca70f2))
+
 ## [1.2.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.2.3...1.2.4) (2026-05-22)
 
 
