@@ -1545,9 +1545,9 @@ function broadcastTitleUpdate() {
 
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  const isLowRes =
-    screen.getDisplayNearestPoint(mainWindow.getBounds()).workAreaSize.width <
-    BASE_WIDTH + 10;
+  const resolutionMode = (getEffectiveConfig("resolutionMode") ||
+    "1440x960") as string;
+  const isLowRes = resolutionMode !== "1440x960";
 
   const title = getLauncherTitle(gameName, version, isLowRes);
 
