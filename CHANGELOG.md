@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.6](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.2.5...1.2.6) (2026-05-24)
+
+
+### Bug Fixes
+
+* **main:** 화면 잠금 해제 후 정상 해상도인데도 타이틀바에 저해상도 모드가 오표시되는 오류 수정 ([#174](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/174)) ([4205329](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/42053295cbc28e7b24bcdb2598f87990aca4a3db))
+
 ## [1.2.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.2.4...1.2.5) (2026-05-23)
 
 
