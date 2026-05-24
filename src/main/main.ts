@@ -2622,9 +2622,16 @@ eventBus.register({
         source: "ConfigChange",
       });
     }
+  },
+});
 
-    // [Trigger Point 3] Broadcast Title Update when Active Game changes
-    if (key === "activeGame") {
+// Register Handler to update Window Title when configuration changes
+eventBus.register({
+  id: "WindowTitleSyncManager",
+  targetEvent: EventType.CONFIG_CHANGE,
+  handle: async (event: ConfigChangeEvent) => {
+    const { key } = event.payload;
+    if (key === "activeGame" || key === "resolutionMode") {
       broadcastTitleUpdate();
     }
   },
