@@ -336,4 +336,32 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.off("font:download-progress", handler);
     },
   },
+  remoteVersion: {
+    resolve: (gameId: AppConfig["activeGame"]) =>
+      ipcRenderer.invoke("version:resolveRemote", gameId),
+    peek: (gameId: AppConfig["activeGame"]) =>
+      ipcRenderer.invoke("version:peekRemote", gameId),
+    onUpdated: (
+      callback: (payload: {
+        gameId: AppConfig["activeGame"];
+        webRoot: string;
+        version: string;
+        source: "master-socket" | "gh-pages";
+        fetchedAt: number;
+      }) => void,
+    ) => {
+      const handler = (
+        _event: IpcRendererEvent,
+        payload: {
+          gameId: AppConfig["activeGame"];
+          webRoot: string;
+          version: string;
+          source: "master-socket" | "gh-pages";
+          fetchedAt: number;
+        },
+      ) => callback(payload);
+      ipcRenderer.on("remote-version:updated", handler);
+      return () => ipcRenderer.off("remote-version:updated", handler);
+    },
+  },
 });

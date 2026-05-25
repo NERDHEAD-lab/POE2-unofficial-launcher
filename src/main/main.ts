@@ -120,6 +120,7 @@ import { LogParser } from "./utils/LogParser";
 import { PowerShellManager } from "./utils/powershell";
 import { getGameInstallPath, isGameInstalled } from "./utils/registry";
 import { syncInstallLocation } from "./utils/registry";
+import { RemoteVersionResolver } from "./utils/RemoteVersionResolver";
 import { LegacyUacManager, SimpleUacBypass } from "./utils/uac/uac-migration";
 import {
   applyResolutionRules,
@@ -839,6 +840,23 @@ ipcMain.handle("session:logout", async () => {
     return false;
   }
 });
+
+// --- Remote Version IPC ---
+ipcMain.handle(
+  "version:resolveRemote",
+  async (_event, gameId: AppConfig["activeGame"]) => {
+    if (gameId !== "POE1" && gameId !== "POE2") return null;
+    return RemoteVersionResolver.resolve(gameId);
+  },
+);
+
+ipcMain.handle(
+  "version:peekRemote",
+  async (_event, gameId: AppConfig["activeGame"]) => {
+    if (gameId !== "POE1" && gameId !== "POE2") return null;
+    return RemoteVersionResolver.peekCache(gameId) ?? null;
+  },
+);
 
 // --- Support Tools IPC ---
 ipcMain.handle(
@@ -2770,5 +2788,28 @@ app.whenReady().then(async () => {
         });
       }
     });
+
+    // Refresh remote version cache (10-min TTL) so renderer can compare with local log.
+    for (const gameId of ["POE1", "POE2"] as const) {
+      if (RemoteVersionResolver.isFresh(gameId)) continue;
+      RemoteVersionResolver.resolve(gameId).then((entry) => {
+        if (!entry) return;
+        const payload = {
+          gameId: entry.gameId,
+          webRoot: entry.webRoot,
+          version: entry.version,
+          source: entry.source,
+          fetchedAt: entry.fetchedAt,
+        };
+        if (appContext) {
+          eventBus.emit(EventType.REMOTE_VERSION_UPDATED, appContext, payload);
+        }
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send("remote-version:updated", payload);
+          }
+        });
+      });
+    }
   });
 });

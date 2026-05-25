@@ -45,6 +45,9 @@ export enum EventType {
   PATCH_RESERVATION_FAILED = "PATCH:RESERVATION_FAILED",
   PATCH_RESERVATION_SUCCESS = "PATCH:RESERVATION_SUCCESS",
   PATCH_UI_TITLE_TICK = "PATCH:UI_TITLE_TICK",
+
+  // Remote version (master socket / gh-pages)
+  REMOTE_VERSION_UPDATED = "REMOTE:VERSION_UPDATED",
 }
 
 export interface ToolForceRepairEvent {
@@ -292,7 +295,20 @@ export type AppEvent =
   | PatchRetryRequestedEvent
   | PatchReservationFailedEvent
   | PatchReservationSuccessEvent
-  | PatchUiTitleTickEvent;
+  | PatchUiTitleTickEvent
+  | RemoteVersionUpdatedEvent;
+
+export interface RemoteVersionUpdatedEvent {
+  type: EventType.REMOTE_VERSION_UPDATED;
+  payload: {
+    gameId: AppConfig["activeGame"];
+    webRoot: string;
+    version: string;
+    source: "master-socket" | "gh-pages";
+    fetchedAt: number;
+  };
+  timestamp?: number;
+}
 
 export interface PatchUiTitleTickEvent {
   type: EventType.PATCH_UI_TITLE_TICK;
