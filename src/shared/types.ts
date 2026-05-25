@@ -436,6 +436,27 @@ export interface ElectronAPI {
 
   // [Font Management]
   font: FontAPI;
+
+  // [Remote Version] master socket / gh-pages fallback, refreshed on window focus
+  remoteVersion: {
+    resolve: (
+      gameId: AppConfig["activeGame"],
+    ) => Promise<RemoteWebRootPayload | null>;
+    peek: (
+      gameId: AppConfig["activeGame"],
+    ) => Promise<RemoteWebRootPayload | null>;
+    onUpdated: (
+      callback: (payload: RemoteWebRootPayload) => void,
+    ) => () => void;
+  };
+}
+
+export interface RemoteWebRootPayload {
+  gameId: AppConfig["activeGame"];
+  webRoot: string;
+  version: string;
+  source: "master-socket" | "gh-pages";
+  fetchedAt: number;
 }
 
 export type UpdateStatus =

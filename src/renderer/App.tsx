@@ -243,17 +243,50 @@ function App() {
   } | null>(null);
 
   // === Remote Version State ===
+  // Sources: main process RemoteVersionResolver (master socket -> gh-pages fallback),
+  // refreshed on window focus (10-min TTL). Renderer just listens.
   const [remoteVersions, setRemoteVersions] = useState<RemoteVersions | null>(
     null,
   );
 
   useEffect(() => {
-    VersionService.fetchRemoteVersions().then((versions) => {
-      if (versions) {
-        setRemoteVersions(versions);
-        logger.log("[App] Remote versions loaded:", Object.keys(versions));
-      }
+    const games: AppConfig["activeGame"][] = ["POE1", "POE2"];
+    const applyEntry = (entry: {
+      gameId: AppConfig["activeGame"];
+      webRoot: string;
+      version: string;
+      fetchedAt: number;
+    }) => {
+      setRemoteVersions((prev) => ({
+        ...(prev ?? {}),
+        [entry.gameId]: {
+          version: entry.version,
+          webRoot: entry.webRoot,
+          timestamp: entry.fetchedAt,
+        },
+      }));
+    };
+
+    // Initial resolve (uses cache if fresh, otherwise triggers fetch).
+    Promise.all(
+      games.map((gameId) => window.electronAPI.remoteVersion.resolve(gameId)),
+    ).then((results) => {
+      results.forEach((entry) => {
+        if (entry) applyEntry(entry);
+      });
+      logger.log("[App] Remote versions loaded:", results.filter(Boolean));
     });
+
+    // Push updates when main refreshes the cache (e.g. window regains focus).
+    const unsubscribe = window.electronAPI.remoteVersion.onUpdated(
+      (payload) => {
+        applyEntry(payload);
+      },
+    );
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   // Handle Manual Force Repair Request (from SupportLinks)
@@ -626,6 +659,24 @@ function App() {
     // Idle / Error -> Enabled
     return false;
   }, [activeGameStatus, config.activeGame, config.serviceChannel]);
+
+  // Whether the install needs patching: local last-seen version differs from remote latest.
+  // Only meaningful when game is installed and we have both versions.
+  const isUpdateNeeded = useMemo(() => {
+    if (activeGameStatus.status === "uninstalled") return false;
+    const key = `${config.activeGame}_${config.serviceChannel}`;
+    const localVersion = config.knownGameVersions?.[key]?.version;
+    const remoteVersion = remoteVersions?.[config.activeGame]?.version;
+    if (!localVersion || !remoteVersion) return false;
+    if (localVersion === "unknown" || remoteVersion === "unknown") return false;
+    return VersionService.compareVersions(remoteVersion, localVersion) > 0;
+  }, [
+    activeGameStatus.status,
+    config.activeGame,
+    config.serviceChannel,
+    config.knownGameVersions,
+    remoteVersions,
+  ]);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -1181,7 +1232,9 @@ function App() {
                   label={
                     activeGameStatus.status === "uninstalled"
                       ? "설치하기"
-                      : "게임 시작"
+                      : isUpdateNeeded
+                        ? "업데이트"
+                        : "게임 시작"
                   }
                   className={isButtonDisabled ? "disabled" : ""}
                   style={
