@@ -9,6 +9,7 @@ import { eventBus } from "../events/EventBus";
 import { AppContext, EventType, PatchProgressEvent } from "../events/types";
 import { Logger } from "../utils/logger";
 import { LogParser } from "../utils/LogParser";
+import { RemoteVersionResolver } from "../utils/RemoteVersionResolver";
 
 interface ParsedLogInfo {
   webRoot: string | null;
@@ -48,6 +49,7 @@ export class PatchManager {
   public async startSelfDiagnosis(
     installPath: string,
     serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
     overrides?: { webRoot?: string; backupWebRoot?: string },
   ): Promise<boolean> {
     // Prevent re-entrancy / double-execution
@@ -98,7 +100,21 @@ export class PatchManager {
       }
 
       if (!logInfo.webRoot) {
-        throw new Error("최근 로그에서 Web Root 정보를 찾을 수 없습니다.");
+        // Fallback: 로그에 Web Root가 없으면 master 소켓(또는 gh-pages)에서 가져온다.
+        // 게임을 한 번도 켜본 적 없는 사용자도 강제 복구를 시도할 수 있게 함.
+        const remote = await RemoteVersionResolver.resolve(gameId);
+        if (remote) {
+          this.logger.log(
+            `[Diagnosis] Web Root 폴백 적용 (source=${remote.source}, version=${remote.version})`,
+          );
+          logInfo = {
+            webRoot: remote.webRoot,
+            backupWebRoot: logInfo.backupWebRoot,
+            filesToDownload: logInfo.filesToDownload,
+          };
+        } else {
+          throw new Error("최근 로그에서 Web Root 정보를 찾을 수 없습니다.");
+        }
       }
 
       let targetFiles = logInfo.filesToDownload;
@@ -125,7 +141,7 @@ export class PatchManager {
 
       await this.processDownloads(
         installPath,
-        logInfo.webRoot,
+        logInfo.webRoot!,
         targetFiles,
         logInfo.backupWebRoot,
       );

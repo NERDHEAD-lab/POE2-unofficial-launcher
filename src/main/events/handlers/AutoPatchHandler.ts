@@ -177,7 +177,7 @@ export async function triggerPendingManualPatches(context: AppContext) {
 
       // Start safely
       manager
-        .startSelfDiagnosis(installPath, serviceId, {
+        .startSelfDiagnosis(installPath, serviceId, gameId, {
           webRoot,
           backupWebRoot,
         })
@@ -414,6 +414,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             const success = await manager.startSelfDiagnosis(
               installPath,
               serviceId,
+              gameId,
               {
                 webRoot,
                 backupWebRoot,

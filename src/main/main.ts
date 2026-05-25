@@ -2213,7 +2213,7 @@ ipcMain.on(
       });
 
       activeManualPatchManager
-        .startSelfDiagnosis(installPath, serviceId)
+        .startSelfDiagnosis(installPath, serviceId, activeGame)
         .finally(() => {
           // Cleanup reference if it finished (optional, but good for GC)
           // But we have to check if IT is the same instance
