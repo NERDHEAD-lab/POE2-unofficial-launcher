@@ -409,6 +409,10 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           {
             id: "theme_mode_poe1",
             type: "select",
+            // Value is stored in remoteThemeSettings.selectedThemes, not in a
+            // top-level config key. defaultValue marks this as not store-backed
+            // for the integrity test.
+            defaultValue: "auto",
             label: "Path of Exile 1 테마",
             description:
               "런처에서 Path of Exile 1 선택 시 적용될 테마를 설정합니다.",
@@ -423,6 +427,7 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
           {
             id: "theme_mode_poe2",
             type: "select",
+            defaultValue: "auto",
             label: "Path of Exile 2 테마",
             description:
               "런처에서 Path of Exile 2 선택 시 적용될 테마를 설정합니다.",
@@ -786,8 +791,8 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             icon: "font_download",
             onClickListener: () => {
               window.dispatchEvent(new CustomEvent("open-font-manager-modal"));
-            }
-          }
+            },
+          },
         ],
       },
       {
