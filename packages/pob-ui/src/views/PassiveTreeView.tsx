@@ -26,7 +26,6 @@ import {
   getNodeFrameDrawSize,
   getNodeHitRadius,
   getNodeIconDrawSize,
-  isDdsFile,
   pngImageKey,
   resolveDdsAssetRef,
   resolveTreeAssetFilename,
@@ -46,12 +45,25 @@ import {
   getTreeNodeVisualState,
   isTreeDependencyConnector,
 } from "./passiveTreePreview";
+import {
+  asTreeMetadata,
+  buildPassiveTreeResourceManifest,
+  classifyPassiveTreeLoadScenario,
+  defaultPassiveTreePerfReporter,
+  loadPassiveTreeResources,
+  passiveTreeResourceCacheKeyToString,
+  timePassiveTreeStage,
+  type PassiveTreeLoadContext,
+  type PassiveTreeMetadata,
+  type PassiveTreeLoadScenario,
+  type TreeImage,
+} from "./passiveTreeResourceCache";
 import { buildTreeSearchMatchIds } from "./passiveTreeSearch";
 import { translateTreeSnapshot } from "./repoeTranslations";
-import { decodeDdsZstLayers } from "../utils/DdsDecoder";
 
 interface PassiveTreeViewProps {
   active: boolean;
+  sessionKey: string;
   translations: PobRepoeTranslationsSnapshot;
 }
 
@@ -65,36 +77,6 @@ type LoadState =
       vaultPath: string;
     }
   | { status: "error"; reason: string };
-
-interface PassiveTreeMetadata {
-  assets?: Record<string, unknown>;
-  connectors?: unknown[] | Record<string, unknown>;
-  ddsCoords?: unknown;
-  skillSprites?: unknown;
-  classBackground?: TreeArtPlacement | null;
-  ascendancyBackgrounds?: TreeArtPlacement[];
-  groupBackgrounds?: TreeArtPlacement[];
-}
-
-interface TreeArtPlacement {
-  image?: string | null;
-  x?: number | null;
-  y?: number | null;
-  width?: number | null;
-  height?: number | null;
-  active?: { width?: number | null; height?: number | null } | null;
-  bg?: { width?: number | null; height?: number | null } | null;
-  selected?: boolean | null;
-  isHalfImage?: boolean | null;
-  startNodeX?: number | null;
-  startNodeY?: number | null;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const asTreeMetadata = (value: unknown): PassiveTreeMetadata =>
-  isRecord(value) ? (value as PassiveTreeMetadata) : {};
 
 const ZOOM_LEVEL_MIN = 0;
 const ZOOM_LEVEL_MAX = 20;
@@ -122,8 +104,6 @@ const treeTooltipLineClass = (line: PobTreeTooltipLine): string => {
   }
   return classes.join(" ");
 };
-
-type TreeImage = HTMLImageElement | HTMLCanvasElement;
 
 interface ProjectedNode extends PobTreeNode {
   screenX: number;
@@ -234,8 +214,11 @@ const projectScene = (
   return { scale, offsetX, offsetY, nodes, edges };
 };
 
+let lastPassiveTreeLoadContext: PassiveTreeLoadContext | null = null;
+
 export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   active,
+  sessionKey,
   translations,
 }) => {
   const { t } = useTranslation();
@@ -264,6 +247,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [busy, setBusy] = useState(false);
   const projectionRef = useRef<Projection | null>(null);
+  const resourceKeyRef = useRef<string | null>(null);
+  const loadScenarioRef = useRef<PassiveTreeLoadScenario>("cold-start");
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -285,9 +270,20 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         }
         return;
       }
+      setState({ status: "loading" });
       const [result, metaResult] = await Promise.all([
-        api.session.treeSnapshot(),
-        api.session.treeMetadata(),
+        timePassiveTreeStage(
+          loadScenarioRef.current,
+          "snapshot",
+          () => api.session.treeSnapshot(),
+          defaultPassiveTreePerfReporter,
+        ),
+        timePassiveTreeStage(
+          loadScenarioRef.current,
+          "metadata",
+          () => api.session.treeMetadata(),
+          defaultPassiveTreePerfReporter,
+        ),
       ]);
       if (cancelled) return;
       if (result.status === "error") {
@@ -341,11 +337,18 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     return () => observer.disconnect();
   }, [state.status]);
 
+  const translatedSnapshot = useMemo(
+    () =>
+      state.status === "ready"
+        ? translateTreeSnapshot(state.snapshot, translations)
+        : null,
+    [state, translations],
+  );
+
   const projection = useMemo(() => {
-    if (state.status !== "ready") return null;
-    const snapshot = translateTreeSnapshot(state.snapshot, translations);
+    if (!translatedSnapshot) return null;
     return projectScene(
-      snapshot,
+      translatedSnapshot,
       size.width,
       size.height,
       zoomFromLevel(view.zoomLevel),
@@ -353,8 +356,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       view.pan.y,
     );
   }, [
-    state,
-    translations,
+    translatedSnapshot,
     size.width,
     size.height,
     view.zoomLevel,
@@ -362,129 +364,72 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     view.pan.y,
   ]);
 
+  const metadata = state.status === "ready" ? state.metadata : null;
+  const ddsLookup = useMemo(
+    () => (metadata ? buildDdsAssetLookup(extractDdsCoords(metadata)) : null),
+    [metadata],
+  );
+  const connectorMap = useMemo(
+    () => (metadata ? buildConnectorMap(metadata.connectors) : new Map()),
+    [metadata],
+  );
+
   useEffect(() => {
-    if (state.status !== "ready" || !state.metadata) return;
-
+    if (state.status !== "ready") return;
     let cancelled = false;
-    const ddsLookup = buildDdsAssetLookup(extractDdsCoords(state.metadata));
-    const ddsToLoad = new Map<string, { file: string; layer: number }>();
-    const pngToLoad = new Map<string, string>();
-
-    const addDds = (
-      assetName: string | null | undefined,
-      disabled: boolean,
-    ) => {
-      const ref = resolveDdsAssetRef(ddsLookup, assetName, disabled);
-      if (ref) {
-        ddsToLoad.set(ddsImageKey(ref), { file: ref.file, layer: ref.layer });
-      }
+    const loadInput = {
+      snapshot: state.snapshot,
+      metadata: state.metadata,
+      vaultPath: state.vaultPath,
     };
+    const manifest = buildPassiveTreeResourceManifest(loadInput);
+    if (!manifest) return;
 
-    addDds("Background2", false);
-    addDds(state.metadata.classBackground?.image, false);
-    addDds("BGTreeActive", false);
-    addDds("BGTree", false);
-    addDds("AscendancyMiddle", false);
-    for (const art of state.metadata.ascendancyBackgrounds ?? []) {
-      addDds(art.image, false);
-    }
-    for (const art of state.metadata.groupBackgrounds ?? []) {
-      addDds(art.image, false);
-    }
+    const currentContext = {
+      buildKey: sessionKey,
+      resourceKey: manifest.cacheKey,
+    };
+    const scenario = classifyPassiveTreeLoadScenario(
+      lastPassiveTreeLoadContext,
+      currentContext,
+    );
+    loadScenarioRef.current = scenario;
+    lastPassiveTreeLoadContext = currentContext;
 
-    for (const node of state.snapshot.nodes) {
-      addDds(node.icon, !node.alloc);
-      addDds(node.icon, node.alloc);
-      addDds(node.activeEffectImage, false);
-      addDds(getNodeFrameAssetName(node), false);
-      addDds(node.overlay?.alloc, false);
-      addDds(node.overlay?.unalloc, false);
-      addDds(node.overlay?.path, false);
+    const resourceKey = passiveTreeResourceCacheKeyToString(manifest.cacheKey);
+    if (resourceKeyRef.current !== resourceKey) {
+      resourceKeyRef.current = resourceKey;
+      setImages({});
     }
 
-    if (state.metadata.assets) {
-      for (const filename of Object.values(state.metadata.assets)) {
-        if (typeof filename === "string") {
-          if (!isDdsFile(filename))
-            pngToLoad.set(pngImageKey(filename), filename);
-        } else if (Array.isArray(filename) && typeof filename[0] === "string") {
-          if (!isDdsFile(filename[0])) {
-            pngToLoad.set(pngImageKey(filename[0]), filename[0]);
-          }
-        } else if (typeof filename === "object" && filename !== null) {
-          const val =
-            (filename as Record<string, unknown>)["1"] ||
-            Object.values(filename).find((v) => typeof v === "string");
-          if (typeof val === "string" && !isDdsFile(val)) {
-            pngToLoad.set(pngImageKey(val), val);
-          }
-        }
-      }
-    }
-
-    const treeVersion = state.snapshot.treeVersion;
-    if (!treeVersion) return;
-
-    const vaultPath = state.vaultPath.replace(/\\/g, "/");
-    const assetUrl = (filename: string) =>
-      `pob-asset://asset/?path=${encodeURIComponent(
-        `${vaultPath}/TreeData/${treeVersion}/${filename}`,
-      )}`;
-
-    const ddsByFile = new Map<string, Array<{ key: string; layer: number }>>();
-    ddsToLoad.forEach(({ file, layer }, key) => {
-      const entries = ddsByFile.get(file) ?? [];
-      entries.push({ key, layer });
-      ddsByFile.set(file, entries);
-    });
-
-    ddsByFile.forEach((entries, file) => {
-      fetch(assetUrl(file))
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.arrayBuffer();
-        })
-        .then((buffer) =>
-          decodeDdsZstLayers(
-            buffer,
-            entries.map((entry) => entry.layer),
-          ),
-        )
-        .then((layers) => {
-          if (cancelled) return;
-          setImages((prev) => {
-            const next = { ...prev };
-            for (const entry of entries) {
-              const canvas = layers.get(entry.layer);
-              if (canvas) next[entry.key] = canvas;
-            }
-            return next;
-          });
-        })
-        .catch((e) => {
-          console.error("Failed to decode DDS:", file, e);
-        });
-    });
-
-    pngToLoad.forEach((filename, key) => {
-      const img = new Image();
-      img.onload = () => {
-        if (!cancelled) setImages((prev) => ({ ...prev, [key]: img }));
-      };
-      img.src = assetUrl(filename);
+    void loadPassiveTreeResources(loadInput, {
+      scenario,
+      onImage: (key, image) => {
+        if (cancelled) return;
+        setImages((prev) =>
+          prev[key] === image ? prev : { ...prev, [key]: image },
+        );
+      },
+    }).catch((error: unknown) => {
+      console.error("Failed to load passive tree resources:", error);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [state]);
+  }, [state, sessionKey]);
 
   useEffect(() => {
     projectionRef.current = projection;
     const canvas = canvasRef.current;
     if (!canvas || !projection || state.status !== "ready") return;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx || !ddsLookup) return;
+    const drawStartedAt =
+      typeof performance !== "undefined" &&
+      typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
 
     canvas.width = size.width;
     canvas.height = size.height;
@@ -492,7 +437,6 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     ctx.fillStyle = "#0e1116";
     ctx.fillRect(0, 0, size.width, size.height);
 
-    const ddsLookup = buildDdsAssetLookup(extractDdsCoords(state.metadata));
     const getDdsImage = (
       assetName: string | null | undefined,
       disabled = false,
@@ -533,7 +477,6 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     ctx.lineWidth = 1;
     ctx.strokeStyle = "rgba(140, 152, 168, 0.35)";
 
-    const connectorMap = buildConnectorMap(state.metadata.connectors);
     const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
     const pathPreview = buildTreePathPreview(hoveredNode);
     const searchMatchIds = buildTreeSearchMatchIds(
@@ -897,12 +840,23 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         ctx.stroke();
       }
     }
+    defaultPassiveTreePerfReporter({
+      scenario: loadScenarioRef.current,
+      stage: "canvas-draw",
+      durationMs:
+        (typeof performance !== "undefined" &&
+        typeof performance.now === "function"
+          ? performance.now()
+          : Date.now()) - drawStartedAt,
+    });
   }, [
     projection,
     size.width,
     size.height,
     state,
     images,
+    ddsLookup,
+    connectorMap,
     hoveredNode,
     treeSearch,
     view.zoomLevel,
@@ -1194,7 +1148,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     );
   }
 
-  const snapshot = translateTreeSnapshot(state.snapshot, translations);
+  const snapshot = translatedSnapshot ?? state.snapshot;
   const zoomPercent = Math.round(zoomFromLevel(view.zoomLevel) * 100);
   const richTooltip =
     hoveredNode !== null && hoverTooltip?.nodeId === hoveredNode.id

@@ -32,6 +32,7 @@ import { ItemsView } from "./ItemsView";
 import { LegacyModeView } from "./LegacyModeView";
 import { NotesView } from "./NotesView";
 import { PartyView } from "./PartyView";
+import { prewarmPassiveTreeResources } from "./passiveTreeResourceCache";
 import { PassiveTreeView } from "./PassiveTreeView";
 import { EMPTY_REPOE_TRANSLATIONS } from "./repoeTranslations";
 import { SkillsView } from "./SkillsView";
@@ -494,6 +495,17 @@ export const BuildEditView = forwardRef<
     );
 
     const ready = loadState.status === "ready";
+    const passiveTreeSessionKey = `${subPath}/${fileName ?? `draft:${draftKey}`}:${sessionRevision}`;
+
+    useEffect(() => {
+      if (!ready || uiMode === "legacy" || activeMode === "tree") return;
+      const api = window.pobAPI;
+      if (!api) return;
+      void prewarmPassiveTreeResources(api.session).catch((error: unknown) => {
+        console.debug("Passive tree prewarm skipped:", error);
+      });
+    }, [activeMode, ready, sessionRevision, uiMode]);
+
     const importExportSnapshot =
       importExportSnapshotState.status === "ready"
         ? importExportSnapshotState.snapshot
@@ -870,7 +882,11 @@ export const BuildEditView = forwardRef<
             ) : uiMode === "legacy" ? (
               <LegacyModeView activeMode={activeMode} />
             ) : activeMode === "tree" ? (
-              <PassiveTreeView active translations={repoeTranslations} />
+              <PassiveTreeView
+                active
+                sessionKey={passiveTreeSessionKey}
+                translations={repoeTranslations}
+              />
             ) : activeMode === "items" ? (
               <ItemsView
                 active
