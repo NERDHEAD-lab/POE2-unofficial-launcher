@@ -13,6 +13,8 @@ import type {
   PobBuildMetadataClassChangeConfirmation,
   PobBuildMetadataClassConfirmationMode,
   PobBuildMetadataSnapshot,
+  PobBuildImportMode,
+  PobImportExportSnapshot,
   BuildsMutationResult,
   PobBuildSummary,
 } from "@poe2-launcher/shared/types";
@@ -69,6 +71,12 @@ type BuildCodeStatus = {
   message: string;
 } | null;
 
+type ImportExportSnapshotState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; snapshot: PobImportExportSnapshot }
+  | { status: "error"; reason: string };
+
 type ClassChangeConfirmationState = {
   confirmation: PobBuildMetadataClassChangeConfirmation;
 } | null;
@@ -80,6 +88,9 @@ const formatNumber = (value: number | null): string => {
 
 const present = (value: string | null | undefined): string =>
   value && value.trim() ? value : "-";
+
+const isBuildShareUrl = (value: string): boolean =>
+  /^https?:\/\//i.test(value.trim());
 
 const toErrorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
@@ -120,6 +131,11 @@ export const BuildEditView = forwardRef<
     const [buildCodeBusy, setBuildCodeBusy] = useState(false);
     const [buildCodeStatus, setBuildCodeStatus] =
       useState<BuildCodeStatus>(null);
+    const [importExportSnapshotState, setImportExportSnapshotState] =
+      useState<ImportExportSnapshotState>({ status: "idle" });
+    const [buildImportMode, setBuildImportMode] =
+      useState<PobBuildImportMode>("current");
+    const [exportSupportBusy, setExportSupportBusy] = useState(false);
     const [mainSkillSummaryRevision, setMainSkillSummaryRevision] = useState(0);
     const [repoeTranslations, setRepoeTranslations] = useState(
       EMPTY_REPOE_TRANSLATIONS,
@@ -323,6 +339,49 @@ export const BuildEditView = forwardRef<
       sessionRevision,
     ]);
 
+    useEffect(() => {
+      if (
+        loadState.status !== "ready" ||
+        activeBuildAction !== "importExport"
+      ) {
+        setImportExportSnapshotState({ status: "idle" });
+        return;
+      }
+
+      let cancelled = false;
+      const loadImportExportSnapshot = async () => {
+        const api = window.pobAPI;
+        if (!api) {
+          setImportExportSnapshotState({
+            status: "error",
+            reason: t("buildEdit.importExport.error.api"),
+          });
+          return;
+        }
+
+        setImportExportSnapshotState({ status: "loading" });
+        const result = await api.session.importExportSnapshot();
+        if (cancelled) return;
+        if (result.status === "ok") {
+          setImportExportSnapshotState({
+            status: "ready",
+            snapshot: result.snapshot,
+          });
+          setBuildImportMode(result.snapshot.importControls.selectedMode);
+        } else {
+          setImportExportSnapshotState({
+            status: "error",
+            reason: result.reason,
+          });
+        }
+      };
+
+      void loadImportExportSnapshot();
+      return () => {
+        cancelled = true;
+      };
+    }, [activeBuildAction, loadState.status, sessionRevision, t]);
+
     const markBuildMutated = useCallback(() => {
       onDirtyChange(true);
       setMainSkillSummaryRevision((value) => value + 1);
@@ -430,6 +489,13 @@ export const BuildEditView = forwardRef<
     );
 
     const ready = loadState.status === "ready";
+    const importExportSnapshot =
+      importExportSnapshotState.status === "ready"
+        ? importExportSnapshotState.snapshot
+        : null;
+    const selectedImportMode = importExportSnapshot?.importControls.modes.find(
+      (mode) => mode.id === buildImportMode,
+    );
 
     const handleGenerateBuildCode = async () => {
       const api = window.pobAPI;
@@ -485,6 +551,42 @@ export const BuildEditView = forwardRef<
       }
     };
 
+    const handleExportSupportChange = async (value: boolean) => {
+      const api = window.pobAPI;
+      if (!api) {
+        setBuildCodeStatus({
+          kind: "error",
+          message: t("buildEdit.importExport.error.api"),
+        });
+        return;
+      }
+
+      setExportSupportBusy(true);
+      setBuildCodeStatus(null);
+      try {
+        const result = await api.session.importExportAction({
+          type: "setExportSupport",
+          value,
+        });
+        if (result.status === "ok") {
+          setImportExportSnapshotState({
+            status: "ready",
+            snapshot: result.snapshot,
+          });
+          markBuildMutated();
+        } else {
+          setBuildCodeStatus({
+            kind: "error",
+            message: result.reason,
+          });
+        }
+      } catch (err) {
+        setBuildCodeStatus({ kind: "error", message: toErrorMessage(err) });
+      } finally {
+        setExportSupportBusy(false);
+      }
+    };
+
     const handleImportBuildCode = async () => {
       const code = buildCodeInput.trim();
       const api = window.pobAPI;
@@ -502,6 +604,13 @@ export const BuildEditView = forwardRef<
         });
         return;
       }
+      if (isBuildShareUrl(code)) {
+        setBuildCodeStatus({
+          kind: "error",
+          message: t("buildEdit.importExport.error.urlUnsupported"),
+        });
+        return;
+      }
 
       setBuildCodeBusy(true);
       setBuildCodeStatus({
@@ -509,22 +618,46 @@ export const BuildEditView = forwardRef<
         message: t("buildEdit.importExport.importing"),
       });
       try {
-        const result = await api.session.loadBuildCode({
+        const result = await api.session.importExportAction({
+          type: "importBuildCode",
           code,
-          name: buildName,
+          mode: buildImportMode,
+          name:
+            buildImportMode === "comparison"
+              ? "Imported comparison"
+              : buildName,
         });
         if (result.status === "error") {
           setBuildCodeStatus({ kind: "error", message: result.reason });
           return;
         }
+        if (result.status === "unsupported") {
+          setImportExportSnapshotState({
+            status: "ready",
+            snapshot: result.snapshot,
+          });
+          setBuildCodeStatus({ kind: "error", message: result.reason });
+          return;
+        }
 
-        setLoadState({ status: "ready", summary: result.summary });
-        setSessionRevision((value) => value + 1);
-        onActiveModeChange("tree");
-        onDirtyChange(true);
+        setImportExportSnapshotState({
+          status: "ready",
+          snapshot: result.snapshot,
+        });
+        if (result.summary) {
+          setLoadState({ status: "ready", summary: result.summary });
+        }
+        if (result.mode !== "comparison") {
+          setSessionRevision((value) => value + 1);
+          onActiveModeChange("tree");
+          onDirtyChange(true);
+        }
         setBuildCodeStatus({
           kind: "success",
-          message: t("buildEdit.importExport.imported"),
+          message:
+            result.mode === "comparison"
+              ? t("buildEdit.importExport.importedComparison")
+              : t("buildEdit.importExport.imported"),
         });
       } catch (err) {
         setBuildCodeStatus({ kind: "error", message: toErrorMessage(err) });
@@ -785,12 +918,46 @@ export const BuildEditView = forwardRef<
                 <ConfigView active onMutated={markBuildMutated} />
               ) : (
                 <div className="pob-build-share">
+                  {importExportSnapshotState.status === "loading" && (
+                    <div className="pob-build-share-status is-info">
+                      {t("buildEdit.importExport.loading")}
+                    </div>
+                  )}
+                  {importExportSnapshotState.status === "error" && (
+                    <div className="pob-build-share-status is-error">
+                      {importExportSnapshotState.reason}
+                    </div>
+                  )}
                   <section className="pob-build-share-section">
                     <header className="pob-build-share-header">
                       <strong>
-                        {t("buildEdit.importExport.generateTitle")}
+                        {importExportSnapshot?.exportControls.generateLabel ??
+                          t("buildEdit.importExport.generateTitle")}
                       </strong>
                       <div className="pob-build-share-actions">
+                        {importExportSnapshot && (
+                          <label className="pob-build-share-check">
+                            <input
+                              type="checkbox"
+                              checked={
+                                importExportSnapshot.exportControls
+                                  .exportSupport.checked
+                              }
+                              disabled={buildCodeBusy || exportSupportBusy}
+                              onChange={(event) =>
+                                void handleExportSupportChange(
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                            <span>
+                              {
+                                importExportSnapshot.exportControls
+                                  .exportSupport.label
+                              }
+                            </span>
+                          </label>
+                        )}
                         <button
                           type="button"
                           className="pob-edit-action"
@@ -815,25 +982,81 @@ export const BuildEditView = forwardRef<
                       value={buildCodeOutput}
                       placeholder={t("buildEdit.importExport.codePlaceholder")}
                     />
-                  </section>
-
-                  <section className="pob-build-share-section">
-                    <header className="pob-build-share-header">
-                      <strong>{t("buildEdit.importExport.importTitle")}</strong>
-                      <div className="pob-build-share-actions">
-                        <select
-                          className="pob-build-share-select"
-                          value="current"
-                          disabled
-                        >
-                          <option value="current">
-                            {t("buildEdit.importExport.importMode.current")}
-                          </option>
+                    {importExportSnapshot && (
+                      <div className="pob-build-share-row">
+                        <select className="pob-build-share-select" disabled>
+                          {importExportSnapshot.exportControls.exportSites.map(
+                            (site) => (
+                              <option key={site.id} value={site.id}>
+                                {site.label}
+                              </option>
+                            ),
+                          )}
                         </select>
                         <button
                           type="button"
                           className="pob-edit-action"
+                          disabled
+                          title={t(
+                            "buildEdit.importExport.error.shareUnsupported",
+                          )}
+                        >
+                          {
+                            importExportSnapshot.exportControls.shareButton
+                              .label
+                          }
+                        </button>
+                        <span className="pob-build-share-muted">
+                          {t("buildEdit.importExport.error.shareUnsupported")}
+                        </span>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="pob-build-share-section">
+                    <header className="pob-build-share-header">
+                      <strong>
+                        {importExportSnapshot?.importControls.inputLabel ??
+                          t("buildEdit.importExport.importTitle")}
+                      </strong>
+                      <div className="pob-build-share-actions">
+                        <select
+                          className="pob-build-share-select"
+                          value={buildImportMode}
                           disabled={buildCodeBusy}
+                          onChange={(event) =>
+                            setBuildImportMode(
+                              event.currentTarget.value as PobBuildImportMode,
+                            )
+                          }
+                        >
+                          {(
+                            importExportSnapshot?.importControls.modes ?? [
+                              {
+                                id: "current" as const,
+                                label: t(
+                                  "buildEdit.importExport.importMode.current",
+                                ),
+                                enabled: true,
+                              },
+                            ]
+                          ).map((mode) => (
+                            <option
+                              key={mode.id}
+                              value={mode.id}
+                              disabled={!mode.enabled}
+                            >
+                              {mode.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="pob-edit-action"
+                          disabled={
+                            buildCodeBusy ||
+                            selectedImportMode?.enabled === false
+                          }
                           onClick={() => void handleImportBuildCode()}
                         >
                           {t("buildEdit.importExport.import")}
@@ -851,7 +1074,112 @@ export const BuildEditView = forwardRef<
                         "buildEdit.importExport.importPlaceholder",
                       )}
                     />
+                    {importExportSnapshot && (
+                      <div className="pob-build-share-row">
+                        <span className="pob-build-share-muted">
+                          {t("buildEdit.importExport.error.urlUnsupported")}
+                        </span>
+                      </div>
+                    )}
                   </section>
+
+                  {importExportSnapshot && (
+                    <section className="pob-build-share-section is-compact">
+                      <header className="pob-build-share-header">
+                        <strong>
+                          {importExportSnapshot.characterImport.sectionLabel}
+                        </strong>
+                        <span className="pob-build-share-muted">
+                          {importExportSnapshot.characterImport.statusLabel}
+                        </span>
+                      </header>
+                      <div className="pob-build-share-row">
+                        <button
+                          type="button"
+                          className="pob-edit-action"
+                          disabled
+                          title={t(
+                            "buildEdit.importExport.error.characterUnsupported",
+                          )}
+                        >
+                          {
+                            importExportSnapshot.characterImport
+                              .authenticateButton.label
+                          }
+                        </button>
+                        <select className="pob-build-share-select" disabled>
+                          {importExportSnapshot.characterImport.realmOptions.map(
+                            (realm) => (
+                              <option key={realm.id} value={realm.id}>
+                                {realm.label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                        <span className="pob-build-share-muted">
+                          {t(
+                            "buildEdit.importExport.error.characterUnsupported",
+                          )}
+                        </span>
+                      </div>
+                      <div className="pob-build-share-row">
+                        <button
+                          type="button"
+                          className="pob-edit-action"
+                          disabled
+                        >
+                          {
+                            importExportSnapshot.characterImport
+                              .importTreeButton.label
+                          }
+                        </button>
+                        <button
+                          type="button"
+                          className="pob-edit-action"
+                          disabled
+                        >
+                          {
+                            importExportSnapshot.characterImport
+                              .importItemsButton.label
+                          }
+                        </button>
+                        <label className="pob-build-share-check is-disabled">
+                          <input
+                            type="checkbox"
+                            checked={
+                              importExportSnapshot.characterImport.clearJewels
+                                .checked
+                            }
+                            disabled
+                            readOnly
+                          />
+                          <span>
+                            {
+                              importExportSnapshot.characterImport.clearJewels
+                                .label
+                            }
+                          </span>
+                        </label>
+                        <label className="pob-build-share-check is-disabled">
+                          <input
+                            type="checkbox"
+                            checked={
+                              importExportSnapshot.characterImport.clearSkills
+                                .checked
+                            }
+                            disabled
+                            readOnly
+                          />
+                          <span>
+                            {
+                              importExportSnapshot.characterImport.clearSkills
+                                .label
+                            }
+                          </span>
+                        </label>
+                      </div>
+                    </section>
+                  )}
 
                   {buildCodeStatus && (
                     <div

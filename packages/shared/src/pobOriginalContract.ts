@@ -1,6 +1,7 @@
 import type {
   PobBuildMetadataActionResult,
   PobBuildMetadataSnapshot,
+  PobImportExportSnapshot,
   PobCalcsBreakdown,
   PobCalcsSnapshot,
   PobItemsDbList,
@@ -170,6 +171,22 @@ export const POB_ORIGINAL_BUILD_MODES = [
 
 export type PobOriginalBuildMode = (typeof POB_ORIGINAL_BUILD_MODES)[number];
 
+export const POB_ORIGINAL_BUILD_IMPORT_MODES = [
+  "current",
+  "new",
+  "comparison",
+] as const;
+
+export type PobOriginalBuildImportMode =
+  (typeof POB_ORIGINAL_BUILD_IMPORT_MODES)[number];
+
+export const POB_ORIGINAL_IMPORT_EXPORT_UNSUPPORTED_FEATURES = [
+  "urlShare",
+  "urlDownload",
+  "characterImport",
+  "comparisonImport",
+] as const;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -257,6 +274,10 @@ const skillSortGemFields = new Set<string>(POB_ORIGINAL_SKILL_SORT_GEM_FIELDS);
 const calcsColours = new Set<string>(POB_ORIGINAL_CALCS_COLOURS);
 const treeTooltipColours = new Set<string>(POB_ORIGINAL_TREE_TOOLTIP_COLOURS);
 const calcsBuffModes = new Set<string>(POB_ORIGINAL_CALCS_BUFF_MODES);
+const buildImportModes = new Set<string>(POB_ORIGINAL_BUILD_IMPORT_MODES);
+const importExportUnsupportedFeatures = new Set<string>(
+  POB_ORIGINAL_IMPORT_EXPORT_UNSUPPORTED_FEATURES,
+);
 const calcsGroups = new Set<number>();
 for (const value of Object.values(POB_ORIGINAL_CALCS_GROUP_FILTERS)) {
   if (value !== null) calcsGroups.add(value);
@@ -1327,6 +1348,261 @@ const assertPartyCheckbox = (value: unknown, path: string): void => {
   assertNullableString(value.tooltip, `${path}.tooltip`);
   assertBoolean(value.checked, `${path}.checked`);
 };
+
+const assertImportExportSite = (value: unknown, path: string): void => {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, [
+    "id",
+    "label",
+    "canImport",
+    "canExport",
+    "matchPattern",
+  ]);
+  assertString(value.id, `${path}.id`);
+  assertString(value.label, `${path}.label`);
+  assertBoolean(value.canImport, `${path}.canImport`);
+  assertBoolean(value.canExport, `${path}.canExport`);
+  assertNullableString(value.matchPattern, `${path}.matchPattern`);
+};
+
+export function assertPobImportExportSnapshot(
+  value: unknown,
+): asserts value is PobImportExportSnapshot {
+  assertRecord(value, "importExport");
+  assertKnownKeys(value, "importExport", [
+    "exportControls",
+    "importControls",
+    "characterImport",
+    "unsupportedFeatures",
+  ]);
+
+  assertRecord(value.exportControls, "importExport.exportControls");
+  assertKnownKeys(value.exportControls, "importExport.exportControls", [
+    "sectionLabel",
+    "generateLabel",
+    "generateButton",
+    "copyButton",
+    "shareButton",
+    "exportSupport",
+    "exportSites",
+    "selectedExportSiteId",
+    "output",
+    "outputPlaceholder",
+    "note",
+  ]);
+  assertString(
+    value.exportControls.sectionLabel,
+    "importExport.exportControls.sectionLabel",
+  );
+  assertString(
+    value.exportControls.generateLabel,
+    "importExport.exportControls.generateLabel",
+  );
+  assertPartyButton(
+    value.exportControls.generateButton,
+    "importExport.exportControls.generateButton",
+  );
+  assertPartyButton(
+    value.exportControls.copyButton,
+    "importExport.exportControls.copyButton",
+  );
+  assertPartyButton(
+    value.exportControls.shareButton,
+    "importExport.exportControls.shareButton",
+  );
+  assertPartyCheckbox(
+    value.exportControls.exportSupport,
+    "importExport.exportControls.exportSupport",
+  );
+  assertArray(
+    value.exportControls.exportSites,
+    "importExport.exportControls.exportSites",
+  );
+  value.exportControls.exportSites.forEach((site, index) =>
+    assertImportExportSite(
+      site,
+      `importExport.exportControls.exportSites[${index}]`,
+    ),
+  );
+  assertNullableString(
+    value.exportControls.selectedExportSiteId,
+    "importExport.exportControls.selectedExportSiteId",
+  );
+  assertString(
+    value.exportControls.output,
+    "importExport.exportControls.output",
+  );
+  assertString(
+    value.exportControls.outputPlaceholder,
+    "importExport.exportControls.outputPlaceholder",
+  );
+  assertString(value.exportControls.note, "importExport.exportControls.note");
+
+  assertRecord(value.importControls, "importExport.importControls");
+  assertKnownKeys(value.importControls, "importExport.importControls", [
+    "inputLabel",
+    "input",
+    "detail",
+    "valid",
+    "fetching",
+    "importButton",
+    "modes",
+    "selectedMode",
+    "supportedSites",
+  ]);
+  assertString(
+    value.importControls.inputLabel,
+    "importExport.importControls.inputLabel",
+  );
+  assertString(value.importControls.input, "importExport.importControls.input");
+  assertString(
+    value.importControls.detail,
+    "importExport.importControls.detail",
+  );
+  assertBoolean(
+    value.importControls.valid,
+    "importExport.importControls.valid",
+  );
+  assertBoolean(
+    value.importControls.fetching,
+    "importExport.importControls.fetching",
+  );
+  assertPartyButton(
+    value.importControls.importButton,
+    "importExport.importControls.importButton",
+  );
+  assertArray(value.importControls.modes, "importExport.importControls.modes");
+  value.importControls.modes.forEach((mode, index) => {
+    const path = `importExport.importControls.modes[${index}]`;
+    assertRecord(mode, path);
+    assertKnownKeys(mode, path, ["id", "label", "enabled"]);
+    assertString(mode.id, `${path}.id`);
+    if (!buildImportModes.has(mode.id))
+      fail(`${path}.id`, "a PoB build import mode");
+    assertString(mode.label, `${path}.label`);
+    assertBoolean(mode.enabled, `${path}.enabled`);
+  });
+  assertString(
+    value.importControls.selectedMode,
+    "importExport.importControls.selectedMode",
+  );
+  if (!buildImportModes.has(value.importControls.selectedMode)) {
+    fail("importExport.importControls.selectedMode", "a PoB build import mode");
+  }
+  assertArray(
+    value.importControls.supportedSites,
+    "importExport.importControls.supportedSites",
+  );
+  value.importControls.supportedSites.forEach((site, index) =>
+    assertImportExportSite(
+      site,
+      `importExport.importControls.supportedSites[${index}]`,
+    ),
+  );
+
+  assertRecord(value.characterImport, "importExport.characterImport");
+  assertKnownKeys(value.characterImport, "importExport.characterImport", [
+    "sectionLabel",
+    "statusLabel",
+    "status",
+    "mode",
+    "authenticateButton",
+    "logoutButton",
+    "startButton",
+    "realmOptions",
+    "selectedRealmId",
+    "leagueOptions",
+    "characterOptions",
+    "importTreeButton",
+    "importItemsButton",
+    "clearJewels",
+    "clearSkills",
+    "clearItems",
+    "ignoreWeaponSwap",
+  ]);
+  assertString(
+    value.characterImport.sectionLabel,
+    "importExport.characterImport.sectionLabel",
+  );
+  assertString(
+    value.characterImport.statusLabel,
+    "importExport.characterImport.statusLabel",
+  );
+  assertString(
+    value.characterImport.status,
+    "importExport.characterImport.status",
+  );
+  assertString(value.characterImport.mode, "importExport.characterImport.mode");
+  assertPartyButton(
+    value.characterImport.authenticateButton,
+    "importExport.characterImport.authenticateButton",
+  );
+  assertPartyButton(
+    value.characterImport.logoutButton,
+    "importExport.characterImport.logoutButton",
+  );
+  assertPartyButton(
+    value.characterImport.startButton,
+    "importExport.characterImport.startButton",
+  );
+  assertArray(
+    value.characterImport.realmOptions,
+    "importExport.characterImport.realmOptions",
+  );
+  value.characterImport.realmOptions.forEach((site, index) =>
+    assertImportExportSite(
+      site,
+      `importExport.characterImport.realmOptions[${index}]`,
+    ),
+  );
+  assertNullableString(
+    value.characterImport.selectedRealmId,
+    "importExport.characterImport.selectedRealmId",
+  );
+  assertStringArray(
+    value.characterImport.leagueOptions,
+    "importExport.characterImport.leagueOptions",
+  );
+  assertStringArray(
+    value.characterImport.characterOptions,
+    "importExport.characterImport.characterOptions",
+  );
+  assertPartyButton(
+    value.characterImport.importTreeButton,
+    "importExport.characterImport.importTreeButton",
+  );
+  assertPartyButton(
+    value.characterImport.importItemsButton,
+    "importExport.characterImport.importItemsButton",
+  );
+  assertPartyCheckbox(
+    value.characterImport.clearJewels,
+    "importExport.characterImport.clearJewels",
+  );
+  assertPartyCheckbox(
+    value.characterImport.clearSkills,
+    "importExport.characterImport.clearSkills",
+  );
+  assertPartyCheckbox(
+    value.characterImport.clearItems,
+    "importExport.characterImport.clearItems",
+  );
+  assertPartyCheckbox(
+    value.characterImport.ignoreWeaponSwap,
+    "importExport.characterImport.ignoreWeaponSwap",
+  );
+
+  assertArray(value.unsupportedFeatures, "importExport.unsupportedFeatures");
+  value.unsupportedFeatures.forEach((feature, index) => {
+    assertString(feature, `importExport.unsupportedFeatures[${index}]`);
+    if (!importExportUnsupportedFeatures.has(feature)) {
+      fail(
+        `importExport.unsupportedFeatures[${index}]`,
+        "a known unsupported Import/Export feature",
+      );
+    }
+  });
+}
 
 const assertPartySection = (value: unknown, path: string): void => {
   assertRecord(value, path);

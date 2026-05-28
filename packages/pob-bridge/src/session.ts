@@ -38,6 +38,10 @@ import {
   PobConfigSnapshotResult,
   PobExportBuildCodeResult,
   PobGame,
+  PobImportExportAction,
+  PobImportExportActionResult,
+  PobImportExportSnapshot,
+  PobImportExportSnapshotResult,
   PobItemCopyLocale,
   PobItemsAction,
   PobItemsDbKey,
@@ -274,6 +278,27 @@ export class PoBSession {
   async exportBuildCode(): Promise<PobExportBuildCodeSessionResult> {
     const result = await this.exportBuildXml();
     return { code: encodePobBuildCodeXml(result.xml) };
+  }
+
+  importExportSnapshot(): Promise<PobImportExportSnapshot> {
+    return this.call<PobImportExportSnapshot>("pob.importExport.snapshot");
+  }
+
+  importExportAction(
+    action: PobImportExportAction,
+  ): Promise<PobImportExportActionResult> {
+    if (action.type === "importBuildCode") {
+      return this.call<PobImportExportActionResult>("pob.importExport.action", {
+        type: "importBuildXml",
+        xml: decodePobBuildCodeXml(action.code),
+        mode: action.mode,
+        name: action.name,
+      });
+    }
+    return this.call<PobImportExportActionResult>(
+      "pob.importExport.action",
+      action,
+    );
   }
 
   saveBuildXml(): Promise<PobExportBuildXmlResult> {
@@ -906,6 +931,38 @@ export function registerPobSessionHandlers(
         return { status: "ok", code: result.code };
       } catch (err) {
         logger.warn("[PoBSession] export-build-code failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:import-export-snapshot",
+    async (event): Promise<PobImportExportSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).importExportSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] import-export-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:import-export-action",
+    async (event, action: unknown): Promise<PobImportExportActionResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:import-export-action requires action.type");
+        }
+        return await getPobSession(getGameFromSender(event)).importExportAction(
+          action as PobImportExportAction,
+        );
+      } catch (err) {
+        logger.warn("[PoBSession] import-export-action failed:", err);
         return toSessionError(err);
       }
     },

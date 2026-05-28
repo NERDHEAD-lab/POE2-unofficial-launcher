@@ -48,4 +48,29 @@ describe("PoBSession build code API", () => {
     expect(call).toHaveBeenCalledWith("pob.exportBuildXml");
     expect(decodePobBuildCodeXml(result.code)).toBe(xml);
   });
+
+  it("decodes build code before dispatching an Import/Export action", async () => {
+    const xml = '<PathOfBuilding2><Build level="1" /></PathOfBuilding2>';
+    const code = encodePobBuildCodeXml(xml);
+    const session = new PoBSession({ installLocation: "C:\\PoB" });
+    const call = vi.spyOn(session, "call").mockResolvedValue({
+      status: "ok",
+      snapshot: {},
+      mode: "comparison",
+    });
+
+    await session.importExportAction({
+      type: "importBuildCode",
+      code,
+      mode: "comparison",
+      name: "Imported comparison",
+    });
+
+    expect(call).toHaveBeenCalledWith("pob.importExport.action", {
+      type: "importBuildXml",
+      xml,
+      mode: "comparison",
+      name: "Imported comparison",
+    });
+  });
 });

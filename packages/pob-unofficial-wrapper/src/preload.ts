@@ -6,6 +6,7 @@ import type {
   PobConfigAction,
   PobDetectedPayload,
   PobGame,
+  PobImportExportAction,
   PobItemsAction,
   PobItemsDbKey,
   PobItemsParseAndAddRequest,
@@ -82,6 +83,9 @@ contextBridge.exposeInMainWorld("pobAPI", {
     newBuild: (name?: string) => invoke("pob:new-build", name),
     saveBuildXml: () => invoke("pob:save-build-xml"),
     exportBuildCode: () => invoke("pob:export-build-code"),
+    importExportSnapshot: () => invoke("pob:import-export-snapshot"),
+    importExportAction: (action: PobImportExportAction) =>
+      invoke("pob:import-export-action", action),
     buildMetadata: () => invoke("pob:build-metadata"),
     buildMetadataAction: (action: PobBuildMetadataAction) =>
       invoke("pob:build-metadata-action", action),

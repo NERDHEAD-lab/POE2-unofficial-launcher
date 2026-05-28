@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildCodesRepresentSameXml,
   decodePobBuildCodeXml,
   encodePobBuildCodeXml,
 } from "@poe2-launcher/pob-repoe/buildCode";
@@ -13,6 +14,7 @@ import type { PoBVault } from "@poe2-launcher/pob-vault";
 import {
   assertPobBuildMetadataActionResult,
   assertPobBuildMetadataSnapshot,
+  assertPobImportExportSnapshot,
   assertPobCalcsBreakdown,
   assertPobCalcsSnapshot,
   assertPobItemsDbList,
@@ -429,6 +431,43 @@ describe("PoBSession Imported Build2 contract", () => {
         ).toBe("---------------------------\n");
         expect(JSON.stringify(party)).not.toContain("^7");
 
+        const importExport = await session.importExportSnapshot();
+        assertPobImportExportSnapshot(importExport);
+        expect(importExport.exportControls.exportSupport.label).toBe(
+          "Export Support",
+        );
+        expect(importExport.exportControls.exportSupport.checked).toBe(false);
+        expect(
+          importExport.exportControls.exportSites.map((site) => site.id),
+        ).toEqual(["Maxroll", "POBBin", "PoeNinja", "PoE2DB"]);
+        expect(
+          importExport.importControls.modes.map((mode) => mode.id),
+        ).toEqual(["current", "new", "comparison"]);
+        expect(importExport.characterImport.mode).toBe("AUTHENTICATION");
+        expect(importExport.unsupportedFeatures).toEqual(
+          expect.arrayContaining([
+            "urlShare",
+            "urlDownload",
+            "characterImport",
+          ]),
+        );
+
+        const exportSupportImportExport = await session.importExportAction({
+          type: "setExportSupport",
+          value: true,
+        });
+        expect(exportSupportImportExport.status).toBe("ok");
+        if (exportSupportImportExport.status === "ok") {
+          assertPobImportExportSnapshot(exportSupportImportExport.snapshot);
+          expect(
+            exportSupportImportExport.snapshot.exportControls.exportSupport
+              .checked,
+          ).toBe(true);
+        }
+        const partyAfterImportExportAction = await session.partySnapshot();
+        assertPobPartySnapshot(partyAfterImportExportAction);
+        expect(partyAfterImportExportAction.enableExportBuffs).toBe(true);
+
         const advancedParty = await session.partyAction({
           type: "setShowAdvanced",
           value: true,
@@ -619,6 +658,22 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(decodePobBuildCodeXml(exported.code)).toContain(
           "<PathOfBuilding2",
         );
+
+        const comparison = await session.importExportAction({
+          type: "importBuildCode",
+          code: exported.code,
+          mode: "comparison",
+          name: "Imported comparison",
+        });
+        expect(comparison.status).toBe("ok");
+        if (comparison.status === "ok") {
+          assertPobImportExportSnapshot(comparison.snapshot);
+          expect(comparison.mode).toBe("comparison");
+        }
+        const afterComparison = await session.exportBuildCode();
+        expect(
+          buildCodesRepresentSameXml(exported.code, afterComparison.code),
+        ).toBe(true);
       } finally {
         await session.dispose();
       }

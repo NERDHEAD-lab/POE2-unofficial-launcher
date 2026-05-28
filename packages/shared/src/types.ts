@@ -459,6 +459,128 @@ export type PobExportBuildCodeResult =
   | { status: "ok"; code: string }
   | { status: "error"; reason: string };
 
+export type PobBuildImportMode = "current" | "new" | "comparison";
+
+export type PobImportExportUnsupportedFeature =
+  | "urlShare"
+  | "urlDownload"
+  | "characterImport"
+  | "comparisonImport";
+
+export interface PobImportExportButton {
+  label: string;
+  shown: boolean;
+  enabled: boolean;
+  tooltip: string | null;
+}
+
+export interface PobImportExportCheckbox extends PobImportExportButton {
+  checked: boolean;
+}
+
+export interface PobImportExportSite {
+  id: string;
+  label: string;
+  canImport: boolean;
+  canExport: boolean;
+  matchPattern: string | null;
+}
+
+export interface PobBuildImportModeOption {
+  id: PobBuildImportMode;
+  label: string;
+  enabled: boolean;
+}
+
+export interface PobBuildSharingControls {
+  sectionLabel: string;
+  generateLabel: string;
+  generateButton: PobImportExportButton;
+  copyButton: PobImportExportButton;
+  shareButton: PobImportExportButton;
+  exportSupport: PobImportExportCheckbox;
+  exportSites: PobImportExportSite[];
+  selectedExportSiteId: string | null;
+  output: string;
+  outputPlaceholder: string;
+  note: string;
+}
+
+export interface PobBuildImportControls {
+  inputLabel: string;
+  input: string;
+  detail: string;
+  valid: boolean;
+  fetching: boolean;
+  importButton: PobImportExportButton;
+  modes: PobBuildImportModeOption[];
+  selectedMode: PobBuildImportMode;
+  supportedSites: PobImportExportSite[];
+}
+
+export type PobCharacterImportMode =
+  | "AUTHENTICATION"
+  | "GETACCOUNTNAME"
+  | "DOWNLOADCHARLIST"
+  | "SELECTCHAR"
+  | "IMPORTING"
+  | "GETSESSIONID";
+
+export interface PobCharacterImportControls {
+  sectionLabel: string;
+  statusLabel: string;
+  status: string;
+  mode: PobCharacterImportMode | string;
+  authenticateButton: PobImportExportButton;
+  logoutButton: PobImportExportButton;
+  startButton: PobImportExportButton;
+  realmOptions: PobImportExportSite[];
+  selectedRealmId: string | null;
+  leagueOptions: string[];
+  characterOptions: string[];
+  importTreeButton: PobImportExportButton;
+  importItemsButton: PobImportExportButton;
+  clearJewels: PobImportExportCheckbox;
+  clearSkills: PobImportExportCheckbox;
+  clearItems: PobImportExportCheckbox;
+  ignoreWeaponSwap: PobImportExportCheckbox;
+}
+
+export interface PobImportExportSnapshot {
+  exportControls: PobBuildSharingControls;
+  importControls: PobBuildImportControls;
+  characterImport: PobCharacterImportControls;
+  unsupportedFeatures: PobImportExportUnsupportedFeature[];
+}
+
+export type PobImportExportSnapshotResult =
+  | { status: "ok"; snapshot: PobImportExportSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobImportExportAction =
+  | { type: "setExportSupport"; value: boolean }
+  | {
+      type: "importBuildCode";
+      code: string;
+      mode: PobBuildImportMode;
+      name?: string;
+    };
+
+export type PobImportExportActionResult =
+  | {
+      status: "ok";
+      snapshot: PobImportExportSnapshot;
+      mode?: PobBuildImportMode;
+      summary?: PobBuildSummary;
+    }
+  | {
+      status: "unsupported";
+      feature: PobImportExportUnsupportedFeature;
+      reason: string;
+      snapshot: PobImportExportSnapshot;
+    }
+  | { status: "error"; reason: string };
+
 export type PobMainSkillSummaryResult =
   | { status: "ok"; snapshot: PobMainSkillSummarySnapshot }
   | { status: "error"; reason: string };
@@ -1291,6 +1413,10 @@ export interface PobSessionAPI {
   newBuild: (name?: string) => Promise<PobLoadBuildResult>;
   saveBuildXml: () => Promise<PobSaveBuildResult>;
   exportBuildCode: () => Promise<PobExportBuildCodeResult>;
+  importExportSnapshot: () => Promise<PobImportExportSnapshotResult>;
+  importExportAction: (
+    action: PobImportExportAction,
+  ) => Promise<PobImportExportActionResult>;
   buildMetadata: () => Promise<PobBuildMetadataResult>;
   buildMetadataAction: (
     action: PobBuildMetadataAction,

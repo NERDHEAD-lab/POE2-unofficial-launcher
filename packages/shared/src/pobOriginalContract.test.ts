@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertPobBuildMetadataActionResult,
   assertPobBuildMetadataSnapshot,
+  assertPobImportExportSnapshot,
   assertPobCalcsBreakdown,
   assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
@@ -294,5 +295,100 @@ describe("pobOriginalContract strict shape assertions", () => {
     };
 
     expect(() => assertPobPartySnapshot(snapshot)).not.toThrow();
+  });
+
+  it("validates Import/Export projection shape", () => {
+    const button = {
+      label: "Import",
+      shown: true,
+      enabled: false,
+      tooltip: null,
+    };
+    const checkbox = {
+      ...button,
+      label: "Export Support",
+      checked: false,
+    };
+    const site = {
+      id: "POBBin",
+      label: "pobb.in",
+      canImport: true,
+      canExport: true,
+      matchPattern: "^https://pobb%.in/.+",
+    };
+    const snapshot = {
+      exportControls: {
+        sectionLabel: "Build Sharing",
+        generateLabel:
+          "Generate a code to share this build with other Path of Building users:",
+        generateButton: { ...button, label: "Generate", enabled: true },
+        copyButton: { ...button, label: "Copy" },
+        shareButton: { ...button, label: "Share" },
+        exportSupport: checkbox,
+        exportSites: [site],
+        selectedExportSiteId: "POBBin",
+        output: "",
+        outputPlaceholder: "Code",
+        note: "Note: this code can be very long; you can use 'Share' to shrink it.",
+      },
+      importControls: {
+        inputLabel: "To import a build, enter URL or code here:",
+        input: "",
+        detail: "",
+        valid: false,
+        fetching: false,
+        importButton: button,
+        modes: [
+          { id: "current", label: "Import to this build", enabled: true },
+          { id: "new", label: "Import to a new build", enabled: true },
+          { id: "comparison", label: "Import as comparison", enabled: true },
+        ],
+        selectedMode: "current",
+        supportedSites: [site],
+      },
+      characterImport: {
+        sectionLabel: "Character Import",
+        statusLabel: "Character import status: Not authenticated",
+        status: "Not authenticated",
+        mode: "AUTHENTICATION",
+        authenticateButton: {
+          ...button,
+          label: "Authorize with Path of Exile",
+          shown: true,
+          enabled: true,
+        },
+        logoutButton: {
+          ...button,
+          label: "Logout from Path of Exile API",
+          shown: false,
+        },
+        startButton: { ...button, label: "Start" },
+        realmOptions: [
+          {
+            id: "PoE2",
+            label: "PoE2",
+            canImport: false,
+            canExport: false,
+            matchPattern: null,
+          },
+        ],
+        selectedRealmId: "PoE2",
+        leagueOptions: [],
+        characterOptions: [],
+        importTreeButton: { ...button, label: "Passive Tree and Jewels" },
+        importItemsButton: { ...button, label: "Items and Skills" },
+        clearJewels: { ...checkbox, label: "Delete jewels:", checked: true },
+        clearSkills: { ...checkbox, label: "Delete skills:", checked: true },
+        clearItems: { ...checkbox, label: "Delete equipment:", checked: true },
+        ignoreWeaponSwap: {
+          ...checkbox,
+          label: "Ignore weapon swap:",
+          checked: false,
+        },
+      },
+      unsupportedFeatures: ["urlShare", "urlDownload", "characterImport"],
+    };
+
+    expect(() => assertPobImportExportSnapshot(snapshot)).not.toThrow();
   });
 });

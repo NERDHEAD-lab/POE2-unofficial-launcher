@@ -2270,6 +2270,257 @@ local function party_action(action)
 	return party_snapshot()
 end
 
+local IMPORT_MODE_BY_INDEX = { "current", "new", "comparison" }
+local IMPORT_MODE_LABELS = {
+	current = "Import to this build",
+	new = "Import to a new build",
+	comparison = "Import as comparison",
+}
+
+local function read_control_label(control, fallbackLabel)
+	local label = control and control.label
+	if type(label) == "function" then
+		local ok, value = pcall(label)
+		if ok then label = value end
+	end
+	return strip_colour_codes(safe_string(label) or fallbackLabel or "")
+end
+
+local function read_status_text(value)
+	if type(value) == "function" then
+		local ok, result = pcall(value)
+		if ok then value = result end
+	end
+	return strip_colour_codes(safe_string(value) or "")
+end
+
+local function import_export_button_payload(control, fallbackLabel)
+	return {
+		label = read_control_label(control, fallbackLabel),
+		shown = control_is_shown(control),
+		enabled = control_is_enabled(control),
+		tooltip = control_tooltip(control),
+	}
+end
+
+local function import_export_checkbox_payload(control, fallbackLabel)
+	local payload = import_export_button_payload(control, fallbackLabel)
+	payload.checked = control and control.state and true or false
+	return payload
+end
+
+local function import_export_tab()
+	local b = current_build()
+	return b and b.importTab or nil
+end
+
+local function build_site_payload(site)
+	return {
+		id = safe_string(site and site.id) or "",
+		label = safe_string(site and site.label) or "",
+		canImport = site and site.matchURL ~= nil and site.regexURL ~= nil and site.downloadURL ~= nil or false,
+		canExport = site and site.postUrl ~= nil and site.postFields ~= nil and site.codeOut ~= nil or false,
+		matchPattern = json_nullable_text(site and site.matchURL),
+	}
+end
+
+local function build_site_list(includeExportOnly)
+	local sites = {}
+	local list = buildSites and buildSites.websiteList or {}
+	for _, site in ipairs(list) do
+		local payload = build_site_payload(site)
+		if not includeExportOnly or payload.canExport then
+			sites[#sites + 1] = payload
+		end
+	end
+	return sites
+end
+
+local function selected_table_id(control)
+	if not control or type(control.list) ~= "table" then
+		return json.null
+	end
+	local entry = control.list[selected_dropdown_index(control) or 1]
+	if type(entry) == "table" then
+		return json_nullable_text(entry.id)
+	end
+	return json.null
+end
+
+local function selected_export_site_id(control)
+	if not control or type(control.list) ~= "table" then
+		return json.null
+	end
+	local entry = control.list[selected_dropdown_index(control) or 1]
+	if type(entry) == "table" then
+		return json_nullable_text(entry.id)
+	end
+	return json.null
+end
+
+local function realm_options(control)
+	local options = {}
+	local list = control and control.list or {}
+	for _, entry in ipairs(list) do
+		if type(entry) == "table" then
+			options[#options + 1] = {
+				id = safe_string(entry.id) or safe_string(entry.realmCode) or "",
+				label = safe_string(entry.label) or "",
+				canImport = false,
+				canExport = false,
+				matchPattern = json.null,
+			}
+		end
+	end
+	return options
+end
+
+local function dropdown_string_labels(control)
+	local labels = {}
+	for _, option in ipairs(dropdown_options(control)) do
+		labels[#labels + 1] = option.label
+	end
+	return labels
+end
+
+local function import_mode_options(b)
+	local hasCompare = b and b.compareTab and true or false
+	return {
+		{ id = "current", label = IMPORT_MODE_LABELS.current, enabled = true },
+		{ id = "new", label = IMPORT_MODE_LABELS.new, enabled = true },
+		{ id = "comparison", label = IMPORT_MODE_LABELS.comparison, enabled = hasCompare },
+	}
+end
+
+local function import_export_snapshot()
+	local tab = import_export_tab()
+	if not tab or not tab.controls then
+		error("No active import/export tab")
+	end
+	local b = current_build()
+	local controls = tab.controls
+	local unsupported = { "urlShare", "urlDownload", "characterImport" }
+	if not (b and b.compareTab) then
+		unsupported[#unsupported + 1] = "comparisonImport"
+	end
+	local mode = IMPORT_MODE_BY_INDEX[selected_dropdown_index(controls.importCodeMode) or 1] or "current"
+
+	return {
+		exportControls = {
+			sectionLabel = read_control_label(controls.sectionBuild, "Build Sharing"),
+			generateLabel = read_control_label(controls.generateCodeLabel, "Generate a code to share this build with other Path of Building users:"),
+			generateButton = import_export_button_payload(controls.generateCode, "Generate"),
+			copyButton = import_export_button_payload(controls.generateCodeCopy, "Copy"),
+			shareButton = import_export_button_payload(controls.generateCodeByLink, "Share"),
+			exportSupport = import_export_checkbox_payload(controls.enablePartyExportBuffs, "Export Support"),
+			exportSites = build_site_list(true),
+			selectedExportSiteId = selected_export_site_id(controls.exportFrom),
+			output = strip_colour_codes(safe_string(controls.generateCodeOut and controls.generateCodeOut.buf) or ""),
+			outputPlaceholder = "Code",
+			note = read_control_label(controls.generateCodeNote, "Note: this code can be very long; you can use 'Share' to shrink it."),
+		},
+		importControls = {
+			inputLabel = read_control_label(controls.importCodeHeader, "To import a build, enter URL or code here:"),
+			input = strip_colour_codes(safe_string(controls.importCodeIn and controls.importCodeIn.buf) or ""),
+			detail = strip_colour_codes(safe_string(tab.importCodeDetail) or ""),
+			valid = tab.importCodeValid and true or false,
+			fetching = tab.importCodeFetching and true or false,
+			importButton = import_export_button_payload(controls.importCodeGo, "Import"),
+			modes = import_mode_options(b),
+			selectedMode = mode,
+			supportedSites = build_site_list(false),
+		},
+		characterImport = {
+			sectionLabel = read_control_label(controls.sectionCharImport, "Character Import"),
+			statusLabel = read_control_label(controls.charImportStatusLabel, "Character import status:"),
+			status = read_status_text(tab.charImportStatus),
+			mode = safe_string(tab.charImportMode) or "AUTHENTICATION",
+			authenticateButton = import_export_button_payload(controls.authenticateButton, "Authorize with Path of Exile"),
+			logoutButton = import_export_button_payload(controls.logoutApiButton, "Logout from Path of Exile API"),
+			startButton = import_export_button_payload(controls.accountNameGo, "Start"),
+			realmOptions = realm_options(controls.accountRealm),
+			selectedRealmId = selected_table_id(controls.accountRealm),
+			leagueOptions = dropdown_string_labels(controls.charSelectLeague),
+			characterOptions = dropdown_string_labels(controls.charSelect),
+			importTreeButton = import_export_button_payload(controls.charImportTree, "Passive Tree and Jewels"),
+			importItemsButton = import_export_button_payload(controls.charImportItems, "Items and Skills"),
+			clearJewels = import_export_checkbox_payload(controls.charImportTreeClearJewels, "Delete jewels:"),
+			clearSkills = import_export_checkbox_payload(controls.charImportItemsClearSkills, "Delete skills:"),
+			clearItems = import_export_checkbox_payload(controls.charImportItemsClearItems, "Delete equipment:"),
+			ignoreWeaponSwap = import_export_checkbox_payload(controls.charImportItemsIgnoreWeaponSwap, "Ignore weapon swap:"),
+		},
+		unsupportedFeatures = unsupported,
+	}
+end
+
+local function import_export_action(action)
+	if type(action) ~= "table" or type(action.type) ~= "string" then
+		error("pob.importExport.action requires action.type")
+	end
+	local tab = import_export_tab()
+	if not tab or not tab.controls then
+		error("No active import/export tab")
+	end
+	local b = current_build()
+
+	if action.type == "setExportSupport" then
+		local state = action.value and true or false
+		tab.controls.enablePartyExportBuffs.state = state
+		if b and b.partyTab then
+			b.partyTab.enableExportBuffs = state
+		end
+		if b then b.buildFlag = true end
+		if type(sync_build_frame) == "function" then sync_build_frame() end
+		return { status = "ok", snapshot = import_export_snapshot() }
+	elseif action.type == "importBuildXml" then
+		if type(action.xml) ~= "string" then
+			error("importBuildXml requires xml")
+		end
+		local mode = safe_string(action.mode) or "current"
+		if mode == "comparison" then
+			if not (b and b.compareTab and type(b.compareTab.ImportBuild) == "function") then
+				return {
+					status = "unsupported",
+					feature = "comparisonImport",
+					reason = "Compare tab is unavailable in this PoB session.",
+					snapshot = import_export_snapshot(),
+				}
+			end
+			if not b.compareTab:ImportBuild(action.xml, safe_string(action.name) or "Imported comparison") then
+				error("Failed to import build for comparison.")
+			end
+			if type(sync_build_frame) == "function" then sync_build_frame() end
+			return {
+				status = "ok",
+				mode = "comparison",
+				summary = build_summary(),
+				snapshot = import_export_snapshot(),
+			}
+		elseif mode == "current" then
+			loadBuildFromXML(action.xml, safe_string(action.name) or (b and b.buildName) or "Imported build")
+			build = current_build()
+			return {
+				status = "ok",
+				mode = "current",
+				summary = build_summary(),
+				snapshot = import_export_snapshot(),
+			}
+		elseif mode == "new" then
+			loadBuildFromXML(action.xml, safe_string(action.name) or "Imported build")
+			build = current_build()
+			return {
+				status = "ok",
+				mode = "new",
+				summary = build_summary(),
+				snapshot = import_export_snapshot(),
+			}
+		end
+		error("Unknown import mode: " .. tostring(mode))
+	end
+
+	error("Unknown import/export action: " .. tostring(action.type))
+end
+
 local function refresh_skill_select(tab)
 	local section = tab.sectionList and tab.sectionList[1]
 	if section and tab.build and type(tab.build.RefreshSkillSelectControls) == "function" then
@@ -3192,6 +3443,10 @@ local function handle_method(method, params)
 		return party_snapshot()
 	elseif method == "pob.party.action" then
 		return party_action(params)
+	elseif method == "pob.importExport.snapshot" then
+		return import_export_snapshot()
+	elseif method == "pob.importExport.action" then
+		return import_export_action(params)
 	elseif method == "pob.loadBuildXml" then
 		if type(params.xml) ~= "string" then
 			error("pob.loadBuildXml requires params.xml")
