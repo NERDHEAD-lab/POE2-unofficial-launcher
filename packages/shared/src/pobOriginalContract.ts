@@ -1,8 +1,12 @@
 import type {
+  PobBuildMetadataActionResult,
+  PobBuildMetadataSnapshot,
   PobCalcsBreakdown,
   PobCalcsSnapshot,
   PobItemsDbList,
   PobItemsSnapshot,
+  PobMainSkillSummarySnapshot,
+  PobPartySnapshot,
   PobSkillsSnapshot,
   PobTreeSnapshot,
 } from "./types";
@@ -137,6 +141,16 @@ export const POB_ORIGINAL_CONFIG_OPTION_KINDS = [
 
 export type PobOriginalConfigOptionKind =
   (typeof POB_ORIGINAL_CONFIG_OPTION_KINDS)[number];
+
+export const POB_ORIGINAL_BUILD_MODES = [
+  "tree",
+  "skills",
+  "items",
+  "calcs",
+  "party",
+] as const;
+
+export type PobOriginalBuildMode = (typeof POB_ORIGINAL_BUILD_MODES)[number];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -293,6 +307,7 @@ const assertItemSummary = (
   ]);
   if (expectedIdType === "number") assertNumber(value.id, `${path}.id`);
   else assertString(value.id, `${path}.id`);
+  assertString(value.raw, `${path}.raw`);
   assertString(value.name, `${path}.name`);
   assertString(value.rarity, `${path}.rarity`);
   if (!itemRarities.has(value.rarity)) fail(`${path}.rarity`, "a PoB rarity");
@@ -1033,4 +1048,279 @@ export function assertPobCalcsBreakdown(
       });
     }
   });
+}
+
+export function assertPobBuildMetadataSnapshot(
+  value: unknown,
+): asserts value is PobBuildMetadataSnapshot {
+  assertRecord(value, "buildMetadata");
+  assertKnownKeys(value, "buildMetadata", [
+    "level",
+    "levelAutoMode",
+    "classId",
+    "className",
+    "ascendClassId",
+    "ascendClassName",
+    "classes",
+  ]);
+  assertNumber(value.level, "buildMetadata.level");
+  assertBoolean(value.levelAutoMode, "buildMetadata.levelAutoMode");
+  assertNullableNumber(value.classId, "buildMetadata.classId");
+  assertNullableString(value.className, "buildMetadata.className");
+  assertNullableNumber(value.ascendClassId, "buildMetadata.ascendClassId");
+  assertNullableString(value.ascendClassName, "buildMetadata.ascendClassName");
+  assertArray(value.classes, "buildMetadata.classes");
+  value.classes.forEach((classOption, classIndex) => {
+    const classPath = `buildMetadata.classes[${classIndex}]`;
+    assertRecord(classOption, classPath);
+    assertKnownKeys(classOption, classPath, ["id", "label", "ascendancies"]);
+    assertNumber(classOption.id, `${classPath}.id`);
+    assertString(classOption.label, `${classPath}.label`);
+    assertArray(classOption.ascendancies, `${classPath}.ascendancies`);
+    classOption.ascendancies.forEach((ascendancy, ascendancyIndex) => {
+      const ascendancyPath = `${classPath}.ascendancies[${ascendancyIndex}]`;
+      assertRecord(ascendancy, ascendancyPath);
+      assertKnownKeys(ascendancy, ascendancyPath, ["id", "label"]);
+      assertNumber(ascendancy.id, `${ascendancyPath}.id`);
+      assertString(ascendancy.label, `${ascendancyPath}.label`);
+    });
+  });
+}
+
+export function assertPobBuildMetadataActionResult(
+  value: unknown,
+): asserts value is PobBuildMetadataActionResult {
+  assertRecord(value, "buildMetadataAction");
+  assertKnownKeys(value, "buildMetadataAction", [
+    "status",
+    "snapshot",
+    "confirmation",
+    "reason",
+  ]);
+  assertString(value.status, "buildMetadataAction.status");
+
+  if (value.status === "ok") {
+    assertKnownKeys(value, "buildMetadataAction", ["status", "snapshot"]);
+    assertPobBuildMetadataSnapshot(value.snapshot);
+    return;
+  }
+
+  if (value.status === "confirm") {
+    assertKnownKeys(value, "buildMetadataAction", [
+      "status",
+      "snapshot",
+      "confirmation",
+    ]);
+    assertPobBuildMetadataSnapshot(value.snapshot);
+    assertRecord(value.confirmation, "buildMetadataAction.confirmation");
+    assertKnownKeys(value.confirmation, "buildMetadataAction.confirmation", [
+      "type",
+      "classId",
+      "classLabel",
+      "message",
+      "confirmLabel",
+      "alternateLabel",
+    ]);
+    if (value.confirmation.type !== "classChange") {
+      fail("buildMetadataAction.confirmation.type", "classChange");
+    }
+    assertNumber(
+      value.confirmation.classId,
+      "buildMetadataAction.confirmation.classId",
+    );
+    assertString(
+      value.confirmation.classLabel,
+      "buildMetadataAction.confirmation.classLabel",
+    );
+    assertString(
+      value.confirmation.message,
+      "buildMetadataAction.confirmation.message",
+    );
+    assertString(
+      value.confirmation.confirmLabel,
+      "buildMetadataAction.confirmation.confirmLabel",
+    );
+    assertString(
+      value.confirmation.alternateLabel,
+      "buildMetadataAction.confirmation.alternateLabel",
+    );
+    return;
+  }
+
+  if (value.status === "error") {
+    assertKnownKeys(value, "buildMetadataAction", ["status", "reason"]);
+    assertString(value.reason, "buildMetadataAction.reason");
+    return;
+  }
+
+  fail("buildMetadataAction.status", "ok|confirm|error");
+}
+
+export function assertPobMainSkillSummarySnapshot(
+  value: unknown,
+): asserts value is PobMainSkillSummarySnapshot {
+  assertRecord(value, "mainSkillSummary");
+  assertKnownKeys(value, "mainSkillSummary", [
+    "socketGroupLabel",
+    "mainSkillLabel",
+    "rows",
+    "warnings",
+  ]);
+  assertNullableString(
+    value.socketGroupLabel,
+    "mainSkillSummary.socketGroupLabel",
+  );
+  assertNullableString(value.mainSkillLabel, "mainSkillSummary.mainSkillLabel");
+  assertArray(value.rows, "mainSkillSummary.rows");
+  value.rows.forEach((row, index) => {
+    const path = `mainSkillSummary.rows[${index}]`;
+    assertRecord(row, path);
+    assertKnownKeys(row, path, ["kind", "label", "value", "text", "height"]);
+    assertString(row.kind, `${path}.kind`);
+    if (row.kind !== "stat" && row.kind !== "text" && row.kind !== "spacer") {
+      fail(`${path}.kind`, "a PoB main skill summary row kind");
+    }
+    assertNullableString(row.label, `${path}.label`);
+    assertNullableString(row.value, `${path}.value`);
+    assertNullableString(row.text, `${path}.text`);
+    assertNumber(row.height, `${path}.height`);
+  });
+  assertStringArray(value.warnings, "mainSkillSummary.warnings");
+}
+
+const partySectionKeys = new Set<string>([
+  "auras",
+  "warcry",
+  "link",
+  "partyMemberStats",
+  "enemyConditions",
+  "enemyModifiers",
+  "curses",
+]);
+
+const assertPartyButton = (value: unknown, path: string): void => {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, ["label", "shown", "enabled", "tooltip"]);
+  assertString(value.label, `${path}.label`);
+  assertBoolean(value.shown, `${path}.shown`);
+  assertBoolean(value.enabled, `${path}.enabled`);
+  assertNullableString(value.tooltip, `${path}.tooltip`);
+};
+
+const assertPartyCheckbox = (value: unknown, path: string): void => {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, [
+    "label",
+    "shown",
+    "enabled",
+    "tooltip",
+    "checked",
+  ]);
+  assertString(value.label, `${path}.label`);
+  assertBoolean(value.shown, `${path}.shown`);
+  assertBoolean(value.enabled, `${path}.enabled`);
+  assertNullableString(value.tooltip, `${path}.tooltip`);
+  assertBoolean(value.checked, `${path}.checked`);
+};
+
+const assertPartySection = (value: unknown, path: string): void => {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, [
+    "key",
+    "label",
+    "text",
+    "simpleText",
+    "advancedVisible",
+  ]);
+  assertString(value.key, `${path}.key`);
+  if (!partySectionKeys.has(value.key)) {
+    fail(`${path}.key`, "a Party section key");
+  }
+  assertString(value.label, `${path}.label`);
+  assertString(value.text, `${path}.text`);
+  assertString(value.simpleText, `${path}.simpleText`);
+  assertBoolean(value.advancedVisible, `${path}.advancedVisible`);
+};
+
+export function assertPobPartySnapshot(
+  value: unknown,
+): asserts value is PobPartySnapshot {
+  assertRecord(value, "party");
+  assertKnownKeys(value, "party", [
+    "notes",
+    "enableExportBuffs",
+    "importControls",
+    "leftSections",
+    "rightSections",
+  ]);
+  assertString(value.notes, "party.notes");
+  assertBoolean(value.enableExportBuffs, "party.enableExportBuffs");
+
+  assertRecord(value.importControls, "party.importControls");
+  assertKnownKeys(value.importControls, "party.importControls", [
+    "inputLabel",
+    "code",
+    "detail",
+    "valid",
+    "fetching",
+    "destinations",
+    "selectedDestination",
+    "destinationTooltip",
+    "importButton",
+    "append",
+    "clear",
+    "showAdvanced",
+    "disableEffects",
+    "rebuild",
+  ]);
+  assertString(
+    value.importControls.inputLabel,
+    "party.importControls.inputLabel",
+  );
+  assertString(value.importControls.code, "party.importControls.code");
+  assertString(value.importControls.detail, "party.importControls.detail");
+  assertBoolean(value.importControls.valid, "party.importControls.valid");
+  assertBoolean(value.importControls.fetching, "party.importControls.fetching");
+  assertStringArray(
+    value.importControls.destinations,
+    "party.importControls.destinations",
+  );
+  assertNumber(
+    value.importControls.selectedDestination,
+    "party.importControls.selectedDestination",
+  );
+  assertNullableString(
+    value.importControls.destinationTooltip,
+    "party.importControls.destinationTooltip",
+  );
+  assertPartyButton(
+    value.importControls.importButton,
+    "party.importControls.importButton",
+  );
+  assertPartyCheckbox(
+    value.importControls.append,
+    "party.importControls.append",
+  );
+  assertPartyButton(value.importControls.clear, "party.importControls.clear");
+  assertPartyCheckbox(
+    value.importControls.showAdvanced,
+    "party.importControls.showAdvanced",
+  );
+  assertPartyButton(
+    value.importControls.disableEffects,
+    "party.importControls.disableEffects",
+  );
+  assertPartyButton(
+    value.importControls.rebuild,
+    "party.importControls.rebuild",
+  );
+
+  assertArray(value.leftSections, "party.leftSections");
+  value.leftSections.forEach((section, index) =>
+    assertPartySection(section, `party.leftSections[${index}]`),
+  );
+  assertArray(value.rightSections, "party.rightSections");
+  value.rightSections.forEach((section, index) =>
+    assertPartySection(section, `party.rightSections[${index}]`),
+  );
 }

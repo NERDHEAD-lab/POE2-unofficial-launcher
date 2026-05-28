@@ -11,10 +11,14 @@ import {
 import { parseItemCopyText } from "@poe2-launcher/pob-repoe/itemCopyParser";
 import type { PoBVault } from "@poe2-launcher/pob-vault";
 import {
+  assertPobBuildMetadataActionResult,
+  assertPobBuildMetadataSnapshot,
   assertPobCalcsBreakdown,
   assertPobCalcsSnapshot,
   assertPobItemsDbList,
   assertPobItemsSnapshot,
+  assertPobMainSkillSummarySnapshot,
+  assertPobPartySnapshot,
   assertPobSkillsSnapshot,
   assertPobTreeSnapshot,
   POB_ORIGINAL_CALCS_BUFF_MODE_LABELS,
@@ -106,6 +110,83 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(loaded.playerStats.TotalDPS).toBeGreaterThan(0);
         expect(loaded.mainSkillDPS).toBe(loaded.playerStats.CombinedDPS);
 
+        const buildMetadata = await session.buildMetadata();
+        assertPobBuildMetadataSnapshot(buildMetadata);
+        expect(buildMetadata.level).toBe(loaded.level);
+        expect(buildMetadata.className).toBe(loaded.className);
+        expect(buildMetadata.ascendClassName).toBe(loaded.ascendClassName);
+        expect(buildMetadata.classes.length).toBeGreaterThan(0);
+        expect(
+          buildMetadata.classes.some(
+            (classOption) => classOption.id === buildMetadata.classId,
+          ),
+        ).toBe(true);
+
+        const levelChange = await session.buildMetadataAction({
+          type: "setLevel",
+          value: 82,
+        });
+        assertPobBuildMetadataActionResult(levelChange);
+        expect(levelChange.status).toBe("ok");
+        if (levelChange.status === "ok") {
+          expect(levelChange.snapshot.level).toBe(82);
+          expect(levelChange.snapshot.levelAutoMode).toBe(false);
+        }
+
+        const autoModeChange = await session.buildMetadataAction({
+          type: "setLevelAutoMode",
+          value: true,
+        });
+        assertPobBuildMetadataActionResult(autoModeChange);
+        expect(autoModeChange.status).toBe("ok");
+        if (autoModeChange.status === "ok") {
+          expect(autoModeChange.snapshot.levelAutoMode).toBe(true);
+        }
+
+        const currentClass = buildMetadata.classes.find(
+          (classOption) => classOption.id === buildMetadata.classId,
+        );
+        const alternateAscendancy = currentClass?.ascendancies.find(
+          (ascendancy) => ascendancy.id !== buildMetadata.ascendClassId,
+        );
+        expect(alternateAscendancy).toBeDefined();
+        if (alternateAscendancy) {
+          const ascendancyChange = await session.buildMetadataAction({
+            type: "setAscendClass",
+            ascendClassId: alternateAscendancy.id,
+          });
+          assertPobBuildMetadataActionResult(ascendancyChange);
+          expect(ascendancyChange.status).toBe("ok");
+          if (ascendancyChange.status === "ok") {
+            expect(ascendancyChange.snapshot.ascendClassId).toBe(
+              alternateAscendancy.id,
+            );
+          }
+        }
+
+        const alternateClass = buildMetadata.classes.find(
+          (classOption) => classOption.id !== buildMetadata.classId,
+        );
+        expect(alternateClass).toBeDefined();
+        if (alternateClass) {
+          const classChange = await session.buildMetadataAction({
+            type: "setClass",
+            classId: alternateClass.id,
+          });
+          assertPobBuildMetadataActionResult(classChange);
+          expect(classChange.status).toBe("confirm");
+          if (classChange.status === "confirm") {
+            expect(classChange.confirmation).toMatchObject({
+              type: "classChange",
+              classId: alternateClass.id,
+              classLabel: alternateClass.label,
+              confirmLabel: "Continue",
+              alternateLabel: "Connect Path",
+            });
+            expect(classChange.snapshot.classId).toBe(buildMetadata.classId);
+          }
+        }
+
         const tree = await session.treeSnapshot();
         assertPobTreeSnapshot(tree);
         expect(tree.nodes.length).toBeGreaterThan(0);
@@ -118,17 +199,130 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(items.items.length + items.sharedItems.length).toBeGreaterThan(
           0,
         );
+        expect(items.items.some((item) => item.raw.includes("Rarity:"))).toBe(
+          true,
+        );
         for (const dbKey of POB_ORIGINAL_ITEMS_DB_KEYS) {
           const list = await session.itemsDbList(dbKey);
           assertPobItemsDbList(list);
           expect(
             list.entries.every((entry) => typeof entry.id === "string"),
           ).toBe(true);
+          expect(
+            list.entries.every((entry) => entry.raw.includes("Rarity:")),
+          ).toBe(true);
         }
 
         const skills = await session.skillsSnapshot();
         assertPobSkillsSnapshot(skills);
         expect(skills.groups.length).toBeGreaterThan(0);
+
+        const mainSkillSummary = await session.mainSkillSummary();
+        assertPobMainSkillSummarySnapshot(mainSkillSummary);
+        expect(mainSkillSummary.mainSkillLabel).not.toBeNull();
+        expect(mainSkillSummary.rows.some((row) => row.kind === "stat")).toBe(
+          true,
+        );
+        expect(JSON.stringify(mainSkillSummary)).not.toContain("^x");
+
+        const party = await session.partySnapshot();
+        assertPobPartySnapshot(party);
+        expect(party.enableExportBuffs).toBe(false);
+        expect(party.notes).toContain(
+          'To import a build it must be exported with "Export support" enabled',
+        );
+        expect(party.importControls.inputLabel).toBe(
+          "Enter a build code/URL below:",
+        );
+        expect(party.importControls.destinations).toEqual([
+          "All",
+          "Party Member Stats",
+          "Aura",
+          "Curse",
+          "Warcry Skills",
+          "Link Skills",
+          "EnemyConditions",
+          "EnemyMods",
+        ]);
+        expect(party.importControls.selectedDestination).toBe(1);
+        expect(party.importControls.append.checked).toBe(false);
+        expect(party.importControls.showAdvanced.checked).toBe(false);
+        expect(party.leftSections.map((section) => section.label)).toEqual([
+          "Auras",
+          "Warcry Skills",
+          "Link Skills",
+        ]);
+        expect(party.rightSections.map((section) => section.label)).toEqual([
+          "Party Member Stats",
+          "Enemy Conditions",
+          "Enemy Modifiers",
+          "Curses",
+        ]);
+        expect(party.leftSections.every((section) => section.text === "")).toBe(
+          true,
+        );
+        expect(
+          party.rightSections.every((section) => section.text === ""),
+        ).toBe(true);
+        expect(
+          party.rightSections.find(
+            (section) => section.key === "enemyConditions",
+          )?.simpleText,
+        ).toBe("---------------------------\n");
+        expect(JSON.stringify(party)).not.toContain("^7");
+
+        const advancedParty = await session.partyAction({
+          type: "setShowAdvanced",
+          value: true,
+        });
+        assertPobPartySnapshot(advancedParty);
+        expect(advancedParty.importControls.showAdvanced.checked).toBe(true);
+        expect(
+          advancedParty.rightSections.every(
+            (section) => section.advancedVisible,
+          ),
+        ).toBe(true);
+
+        const appendedParty = await session.partyAction({
+          type: "setAppend",
+          value: true,
+        });
+        assertPobPartySnapshot(appendedParty);
+        expect(appendedParty.importControls.append.checked).toBe(true);
+
+        const enemyDestination = await session.partyAction({
+          type: "setDestination",
+          value: "EnemyConditions",
+        });
+        assertPobPartySnapshot(enemyDestination);
+        expect(enemyDestination.importControls.selectedDestination).toBe(7);
+
+        const editedParty = await session.partyAction({
+          type: "setSectionText",
+          key: "enemyConditions",
+          value: "Condition:Blinded",
+        });
+        assertPobPartySnapshot(editedParty);
+        expect(
+          editedParty.rightSections.find(
+            (section) => section.key === "enemyConditions",
+          )?.text,
+        ).toBe("Condition:Blinded");
+
+        const clearedParty = await session.partyAction({ type: "clear" });
+        assertPobPartySnapshot(clearedParty);
+        expect(
+          clearedParty.rightSections.find(
+            (section) => section.key === "enemyConditions",
+          )?.text,
+        ).toBe("");
+
+        const exportSupportParty = await session.partyAction({
+          type: "setExportSupport",
+          value: true,
+        });
+        assertPobPartySnapshot(exportSupportParty);
+        expect(exportSupportParty.enableExportBuffs).toBe(true);
 
         const calcs = await session.calcsSnapshot();
         assertPobCalcsSnapshot(calcs);
@@ -357,8 +551,28 @@ describe("PoBSession Imported Build2 contract", () => {
             expect.objectContaining({
               name: "Wrapped Quarterstaff",
               baseName: "Wrapped Quarterstaff",
+              raw: expect.stringContaining("Rarity: NORMAL"),
             }),
           ]),
+        );
+
+        const itemId = snapshot.items[0]?.id;
+        expect(itemId).toBeTypeOf("number");
+        if (typeof itemId !== "number") return;
+
+        const edited = await session.itemsAction({
+          type: "saveCustom",
+          itemId,
+          raw: "Rarity: Rare\nStorm Grasp\nWrapped Quarterstaff",
+        });
+        const saved = edited.items.find((item) => item.id === itemId);
+        expect(saved).toEqual(
+          expect.objectContaining({
+            name: "Storm Grasp, Wrapped Quarterstaff",
+            title: "Storm Grasp",
+            baseName: "Wrapped Quarterstaff",
+            raw: expect.stringContaining("Rarity: RARE"),
+          }),
         );
       } finally {
         await session.dispose();

@@ -44,6 +44,7 @@ const translations: PobRepoeTranslationsSnapshot = {
 };
 
 const itemBase = {
+  raw: "Rarity: Unique\nBramblejack\nPlate Vest",
   rarity: "UNIQUE",
   title: null,
   itemLevel: 12,

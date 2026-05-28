@@ -27,6 +27,7 @@ const slot = ({
 
 const item = (): PobItemSummary => ({
   id: 1,
+  raw: "Rarity: Rare\nTest Item",
   name: "Test Item",
   rarity: "RARE",
   baseName: null,

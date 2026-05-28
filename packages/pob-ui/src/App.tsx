@@ -28,6 +28,7 @@ import {
 import type { BuildEditViewHandle } from "./views/BuildEditView";
 import type { BuildMode } from "./views/buildModes";
 import type { BuildTarget, SortKey } from "./views/folderTree";
+import type { MainSkillSummaryPanelState } from "./views/mainSkillSummaryPanel";
 
 const LANGS = ["ko", "en"] as const;
 type Lang = (typeof LANGS)[number];
@@ -76,6 +77,10 @@ const App: React.FC = () => {
     null,
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mainSkillSummary, setMainSkillSummary] =
+    useState<MainSkillSummaryPanelState>({
+      status: "idle",
+    });
   const [vaultGenerationsState, setVaultGenerationsState] =
     useState<VaultGenerationsState>({ status: "idle", generations: [] });
   const [vaultRefreshState, setVaultRefreshState] = useState<VaultRefreshState>(
@@ -578,6 +583,7 @@ const App: React.FC = () => {
           selectedFile={target.fileName}
           autosave={autosave}
           collapsed={sidebarCollapsed}
+          mainSkillSummary={mainSkillSummary}
           sortKey={sortKey}
           refreshToken={refreshToken}
           onAutosaveChange={handleAutosaveChange}
@@ -596,6 +602,7 @@ const App: React.FC = () => {
             activeMode={activeMode}
             onActiveModeChange={setActiveMode}
             onDirtyChange={setDirty}
+            onMainSkillSummaryChange={setMainSkillSummary}
             onSavedAs={handleSavedAs}
           />
         </section>

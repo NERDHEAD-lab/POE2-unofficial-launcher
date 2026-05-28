@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -16,14 +22,24 @@ import {
   joinSubPath,
   sortBuildEntries,
 } from "./folderTree";
+import {
+  MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT,
+  MAIN_SKILL_SUMMARY_MIN_HEIGHT,
+  buildMainSkillSummaryRows,
+  clampMainSkillSummaryHeight,
+  getMainSkillSummaryMaxHeight,
+  getMainSkillSummaryTitle,
+} from "./mainSkillSummaryPanel";
 
 import type { BuildTarget, SidebarItemRef, SortKey } from "./folderTree";
+import type { MainSkillSummaryPanelState } from "./mainSkillSummaryPanel";
 
 interface SidebarProps {
   currentPath: string;
   selectedFile: string | null;
   autosave: boolean;
   collapsed: boolean;
+  mainSkillSummary: MainSkillSummaryPanelState;
   sortKey: SortKey;
   refreshToken: number;
   onAutosaveChange: (enabled: boolean) => void;
@@ -73,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedFile,
   autosave,
   collapsed,
+  mainSkillSummary,
   sortKey,
   refreshToken,
   onAutosaveChange,
@@ -99,6 +116,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<PromptState | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [mainSkillCollapsed, setMainSkillCollapsed] = useState(false);
+  const [mainSkillPanelHeight, setMainSkillPanelHeight] = useState(
+    MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT,
+  );
+  const [mainSkillPanelMaxHeight, setMainSkillPanelMaxHeight] = useState(() =>
+    getMainSkillSummaryMaxHeight(window.innerHeight),
+  );
+  const mainSkillResizeRef = useRef<{
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const syncMaxHeight = () => {
+      const nextMax = getMainSkillSummaryMaxHeight(window.innerHeight);
+      setMainSkillPanelMaxHeight(nextMax);
+      setMainSkillPanelHeight((height) =>
+        clampMainSkillSummaryHeight(height, nextMax),
+      );
+    };
+
+    syncMaxHeight();
+    window.addEventListener("resize", syncMaxHeight);
+    return () => window.removeEventListener("resize", syncMaxHeight);
+  }, []);
 
   const loadPath = useCallback(
     async (subPath: string) => {
@@ -638,6 +680,138 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
+  const setClampedMainSkillHeight = useCallback(
+    (height: number) => {
+      setMainSkillPanelHeight(
+        clampMainSkillSummaryHeight(height, mainSkillPanelMaxHeight),
+      );
+    },
+    [mainSkillPanelMaxHeight],
+  );
+
+  const handleMainSkillResizeStart = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (mainSkillCollapsed) return;
+      event.preventDefault();
+      mainSkillResizeRef.current = {
+        startY: event.clientY,
+        startHeight: mainSkillPanelHeight,
+      };
+
+      const handleMove = (moveEvent: MouseEvent) => {
+        const resize = mainSkillResizeRef.current;
+        if (!resize) return;
+        setClampedMainSkillHeight(
+          resize.startHeight - (moveEvent.clientY - resize.startY),
+        );
+      };
+
+      const handleUp = () => {
+        mainSkillResizeRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [mainSkillCollapsed, mainSkillPanelHeight, setClampedMainSkillHeight],
+  );
+
+  const handleMainSkillResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (mainSkillCollapsed) return;
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setClampedMainSkillHeight(mainSkillPanelHeight + 16);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setClampedMainSkillHeight(mainSkillPanelHeight - 16);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setClampedMainSkillHeight(MAIN_SKILL_SUMMARY_MIN_HEIGHT);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setClampedMainSkillHeight(mainSkillPanelMaxHeight);
+      }
+    },
+    [
+      mainSkillCollapsed,
+      mainSkillPanelHeight,
+      mainSkillPanelMaxHeight,
+      setClampedMainSkillHeight,
+    ],
+  );
+
+  const renderMainSkillSummary = (): React.ReactNode => {
+    if (mainSkillSummary.status === "idle") {
+      return (
+        <p className="pob-sidebar-main-skill-status">
+          {t("sidebar.mainSkillSummary.empty")}
+        </p>
+      );
+    }
+
+    if (mainSkillSummary.status === "loading") {
+      return (
+        <p className="pob-sidebar-main-skill-status">
+          {t("sidebar.mainSkillSummary.loading")}
+        </p>
+      );
+    }
+
+    if (mainSkillSummary.status === "error") {
+      return (
+        <p className="pob-sidebar-main-skill-status is-error">
+          {t("buildList.error.generic", { reason: mainSkillSummary.reason })}
+        </p>
+      );
+    }
+
+    const rows = buildMainSkillSummaryRows(mainSkillSummary.snapshot);
+    if (rows.length === 0 && mainSkillSummary.snapshot.warnings.length === 0) {
+      return (
+        <p className="pob-sidebar-main-skill-status">
+          {t("sidebar.mainSkillSummary.empty")}
+        </p>
+      );
+    }
+
+    return (
+      <>
+        {rows.length > 0 && (
+          <div className="pob-sidebar-main-skill-rows">
+            {rows.map((row) =>
+              row.kind === "spacer" ? (
+                <div
+                  key={row.id}
+                  className="pob-sidebar-main-skill-spacer"
+                  aria-hidden="true"
+                />
+              ) : row.kind === "text" ? (
+                <div key={row.id} className="pob-sidebar-main-skill-text">
+                  {row.text}
+                </div>
+              ) : (
+                <div key={row.id} className="pob-sidebar-main-skill-row">
+                  <span>{row.label}</span>
+                  <strong>{row.value}</strong>
+                </div>
+              ),
+            )}
+          </div>
+        )}
+        {mainSkillSummary.snapshot.warnings.length > 0 && (
+          <ul className="pob-sidebar-main-skill-warnings">
+            {mainSkillSummary.snapshot.warnings.map((warning, index) => (
+              <li key={`${warning}-${index}`}>{warning}</li>
+            ))}
+          </ul>
+        )}
+      </>
+    );
+  };
+
   const renderTreeNode = (subPath: string, depth: number): React.ReactNode => {
     const rootLabel = t("buildList.breadcrumb.root");
     const entries = getVisibleEntries(subPath);
@@ -861,6 +1035,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="pob-sidebar-body">
             <div className="pob-tree">{renderTreeNode("", 0)}</div>
           </div>
+
+          {!mainSkillCollapsed && (
+            <div
+              className="pob-sidebar-main-skill-resizer"
+              role="separator"
+              aria-label={t("sidebar.mainSkillSummary.resize")}
+              aria-orientation="horizontal"
+              aria-valuemin={MAIN_SKILL_SUMMARY_MIN_HEIGHT}
+              aria-valuemax={mainSkillPanelMaxHeight}
+              aria-valuenow={mainSkillPanelHeight}
+              tabIndex={0}
+              onMouseDown={handleMainSkillResizeStart}
+              onKeyDown={handleMainSkillResizeKeyDown}
+            />
+          )}
+
+          <section
+            className={
+              "pob-sidebar-main-skill" +
+              (mainSkillCollapsed ? " is-collapsed" : "")
+            }
+            aria-label={t("sidebar.mainSkillSummary.title")}
+            style={
+              mainSkillCollapsed ? undefined : { height: mainSkillPanelHeight }
+            }
+          >
+            <header className="pob-sidebar-main-skill-header">
+              <span className="pob-rail-icon panel" aria-hidden="true" />
+              <strong>
+                {mainSkillSummary.status === "ready"
+                  ? getMainSkillSummaryTitle(
+                      mainSkillSummary.snapshot,
+                      t("sidebar.mainSkillSummary.title"),
+                    )
+                  : t("sidebar.mainSkillSummary.title")}
+              </strong>
+              <button
+                type="button"
+                className="pob-sidebar-main-skill-toggle"
+                aria-expanded={!mainSkillCollapsed}
+                onClick={() => setMainSkillCollapsed((value) => !value)}
+                title={t(
+                  mainSkillCollapsed
+                    ? "sidebar.mainSkillSummary.expand"
+                    : "sidebar.mainSkillSummary.collapse",
+                )}
+              >
+                <span
+                  className={
+                    "pob-rail-icon " +
+                    (mainSkillCollapsed ? "chevron-up" : "chevron-down")
+                  }
+                  aria-hidden="true"
+                />
+              </button>
+            </header>
+            {!mainSkillCollapsed && (
+              <div className="pob-sidebar-main-skill-body">
+                {renderMainSkillSummary()}
+              </div>
+            )}
+          </section>
 
           <div className="pob-sidebar-bottom">
             <label className="pob-check">

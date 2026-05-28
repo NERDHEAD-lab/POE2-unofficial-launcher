@@ -23,6 +23,10 @@ import {
   normalizePobVaultGenerationLimit,
 } from "@poe2-launcher/shared/pobSettings";
 import {
+  PobBuildMetadataAction,
+  PobBuildMetadataActionResult,
+  PobBuildMetadataResult,
+  PobBuildMetadataSnapshot,
   PobBuildSummary,
   PobCalcsAction,
   PobCalcsBreakdown,
@@ -46,6 +50,11 @@ import {
   PobItemsSnapshot,
   PobItemsSnapshotResult,
   PobLoadBuildResult,
+  PobMainSkillSummaryResult,
+  PobMainSkillSummarySnapshot,
+  PobPartyAction,
+  PobPartySnapshot,
+  PobPartySnapshotResult,
   PobRepoeLocale,
   PobRepoeTranslationsResult,
   PobSaveBuildResult,
@@ -258,6 +267,25 @@ export class PoBSession {
     return this.call<PobExportBuildXmlResult>("pob.saveBuildXml");
   }
 
+  buildMetadata(): Promise<PobBuildMetadataSnapshot> {
+    return this.call<PobBuildMetadataSnapshot>("pob.buildMetadata.snapshot");
+  }
+
+  buildMetadataAction(
+    action: PobBuildMetadataAction,
+  ): Promise<PobBuildMetadataActionResult> {
+    return this.call<PobBuildMetadataActionResult>(
+      "pob.buildMetadata.action",
+      action,
+    );
+  }
+
+  mainSkillSummary(): Promise<PobMainSkillSummarySnapshot> {
+    return this.call<PobMainSkillSummarySnapshot>(
+      "pob.mainSkillSummary.snapshot",
+    );
+  }
+
   treeSnapshot(): Promise<PobTreeSnapshot> {
     return this.call<PobTreeSnapshot>("pob.tree.snapshot");
   }
@@ -315,6 +343,14 @@ export class PoBSession {
 
   configAction(action: PobConfigAction): Promise<PobConfigSnapshot> {
     return this.call<PobConfigSnapshot>("pob.config.action", action);
+  }
+
+  partySnapshot(): Promise<PobPartySnapshot> {
+    return this.call<PobPartySnapshot>("pob.party.snapshot");
+  }
+
+  partyAction(action: PobPartyAction): Promise<PobPartySnapshot> {
+    return this.call<PobPartySnapshot>("pob.party.action", action);
   }
 
   async dispose(): Promise<void> {
@@ -842,6 +878,56 @@ export function registerPobSessionHandlers(
     },
   );
 
+  ipcMain.handle(
+    "pob:build-metadata",
+    async (event): Promise<PobBuildMetadataResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).buildMetadata();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] build-metadata failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:build-metadata-action",
+    async (
+      event,
+      action: PobBuildMetadataAction,
+    ): Promise<PobBuildMetadataActionResult> => {
+      try {
+        if (!action || typeof action.type !== "string") {
+          throw new Error("pob:build-metadata-action requires action.type");
+        }
+        return await getPobSession(
+          getGameFromSender(event),
+        ).buildMetadataAction(action);
+      } catch (err) {
+        logger.warn("[PoBSession] build-metadata-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:main-skill-summary",
+    async (event): Promise<PobMainSkillSummaryResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).mainSkillSummary();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] main-skill-summary failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
   const callTree = async (
     event: Electron.IpcMainInvokeEvent,
     op: "snapshot" | "allocate" | "deallocate",
@@ -1113,6 +1199,39 @@ export function registerPobSessionHandlers(
         return { status: "ok", snapshot };
       } catch (err) {
         logger.warn("[PoBSession] config-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:party-snapshot",
+    async (event): Promise<PobPartySnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).partySnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] party-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:party-action",
+    async (event, action: unknown): Promise<PobPartySnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:party-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).partyAction(action as PobPartyAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] party-action failed:", err);
         return toSessionError(err);
       }
     },

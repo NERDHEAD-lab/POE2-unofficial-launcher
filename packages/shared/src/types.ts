@@ -373,6 +373,65 @@ export interface PobBuildSummary {
   playerStats: Record<string, number>;
 }
 
+export interface PobBuildMetadataAscendancyOption {
+  id: number;
+  label: string;
+}
+
+export interface PobBuildMetadataClassOption {
+  id: number;
+  label: string;
+  ascendancies: PobBuildMetadataAscendancyOption[];
+}
+
+export interface PobBuildMetadataSnapshot {
+  level: number;
+  levelAutoMode: boolean;
+  classId: number | null;
+  className: string | null;
+  ascendClassId: number | null;
+  ascendClassName: string | null;
+  classes: PobBuildMetadataClassOption[];
+}
+
+export type PobBuildMetadataClassConfirmationMode = "continue" | "connectPath";
+
+export interface PobBuildMetadataClassChangeConfirmation {
+  type: "classChange";
+  classId: number;
+  classLabel: string;
+  message: string;
+  confirmLabel: string;
+  alternateLabel: string;
+}
+
+export type PobBuildMetadataAction =
+  | { type: "setLevelAutoMode"; value: boolean }
+  | { type: "setLevel"; value: number }
+  | {
+      type: "setClass";
+      classId: number;
+      confirmation?: PobBuildMetadataClassConfirmationMode;
+    }
+  | { type: "setAscendClass"; ascendClassId: number };
+
+export type PobMainSkillSummaryRowKind = "stat" | "text" | "spacer";
+
+export interface PobMainSkillSummaryRow {
+  kind: PobMainSkillSummaryRowKind;
+  label: string | null;
+  value: string | null;
+  text: string | null;
+  height: number;
+}
+
+export interface PobMainSkillSummarySnapshot {
+  socketGroupLabel: string | null;
+  mainSkillLabel: string | null;
+  rows: PobMainSkillSummaryRow[];
+  warnings: string[];
+}
+
 export type PobSessionResult =
   | { status: "ok" }
   | { status: "error"; reason: string };
@@ -397,6 +456,23 @@ export interface PobLoadBuildCodeRequest {
 
 export type PobExportBuildCodeResult =
   | { status: "ok"; code: string }
+  | { status: "error"; reason: string };
+
+export type PobMainSkillSummaryResult =
+  | { status: "ok"; snapshot: PobMainSkillSummarySnapshot }
+  | { status: "error"; reason: string };
+
+export type PobBuildMetadataResult =
+  | { status: "ok"; snapshot: PobBuildMetadataSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobBuildMetadataActionResult =
+  | { status: "ok"; snapshot: PobBuildMetadataSnapshot }
+  | {
+      status: "confirm";
+      snapshot: PobBuildMetadataSnapshot;
+      confirmation: PobBuildMetadataClassChangeConfirmation;
+    }
   | { status: "error"; reason: string };
 
 export interface PobTreeNode {
@@ -556,6 +632,7 @@ export type PobItemRarity = PobOriginalItemRarity;
 
 export interface PobItemSummary {
   id: number;
+  raw: string;
   name: string;
   rarity: PobItemRarity;
   baseName: string | null;
@@ -625,7 +702,8 @@ export type PobItemsAction =
   | { type: "addDbItem"; db: PobItemsDbKey; itemId: string; equip: boolean }
   | { type: "addSharedItem"; index: number; equip: boolean }
   | { type: "deleteSharedItem"; index: number }
-  | { type: "createCustom"; raw: string; equip: boolean };
+  | { type: "createCustom"; raw: string; equip: boolean }
+  | { type: "saveCustom"; itemId: number; raw: string };
 
 export interface PobItemsDbList {
   entries: PobItemDbSummary[];
@@ -1081,6 +1159,73 @@ export type PobConfigAction =
   | { type: "renameConfigSet"; setId: number; title: string }
   | { type: "deleteConfigSet"; setId: number };
 
+export type PobPartySectionKey =
+  | "auras"
+  | "warcry"
+  | "link"
+  | "partyMemberStats"
+  | "enemyConditions"
+  | "enemyModifiers"
+  | "curses";
+
+export interface PobPartyButton {
+  label: string;
+  shown: boolean;
+  enabled: boolean;
+  tooltip: string | null;
+}
+
+export interface PobPartyCheckbox extends PobPartyButton {
+  checked: boolean;
+}
+
+export interface PobPartyImportControls {
+  inputLabel: string;
+  code: string;
+  detail: string;
+  valid: boolean;
+  fetching: boolean;
+  destinations: string[];
+  selectedDestination: number;
+  destinationTooltip: string | null;
+  importButton: PobPartyButton;
+  append: PobPartyCheckbox;
+  clear: PobPartyButton;
+  showAdvanced: PobPartyCheckbox;
+  disableEffects: PobPartyButton;
+  rebuild: PobPartyButton;
+}
+
+export interface PobPartySection {
+  key: PobPartySectionKey;
+  label: string;
+  text: string;
+  simpleText: string;
+  advancedVisible: boolean;
+}
+
+export interface PobPartySnapshot {
+  notes: string;
+  enableExportBuffs: boolean;
+  importControls: PobPartyImportControls;
+  leftSections: PobPartySection[];
+  rightSections: PobPartySection[];
+}
+
+export type PobPartySnapshotResult =
+  | { status: "ok"; snapshot: PobPartySnapshot }
+  | { status: "error"; reason: string };
+
+export type PobPartyAction =
+  | { type: "setDestination"; value: string }
+  | { type: "setAppend"; value: boolean }
+  | { type: "setShowAdvanced"; value: boolean }
+  | { type: "setExportSupport"; value: boolean }
+  | { type: "setSectionText"; key: PobPartySectionKey; value: string }
+  | { type: "clear" }
+  | { type: "disableEffects" }
+  | { type: "rebuild" };
+
 export interface PobSessionAPI {
   ensure: () => Promise<PobSessionResult>;
   loadBuild: (request: PobLoadBuildRequest) => Promise<PobLoadBuildResult>;
@@ -1090,6 +1235,11 @@ export interface PobSessionAPI {
   newBuild: (name?: string) => Promise<PobLoadBuildResult>;
   saveBuildXml: () => Promise<PobSaveBuildResult>;
   exportBuildCode: () => Promise<PobExportBuildCodeResult>;
+  buildMetadata: () => Promise<PobBuildMetadataResult>;
+  buildMetadataAction: (
+    action: PobBuildMetadataAction,
+  ) => Promise<PobBuildMetadataActionResult>;
+  mainSkillSummary: () => Promise<PobMainSkillSummaryResult>;
   treeSnapshot: () => Promise<PobTreeResult>;
   treeMetadata: () => Promise<PobTreeMetadataResult>;
   treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
@@ -1113,6 +1263,8 @@ export interface PobSessionAPI {
   calcsAction: (action: PobCalcsAction) => Promise<PobCalcsSnapshotResult>;
   configSnapshot: () => Promise<PobConfigSnapshotResult>;
   configAction: (action: PobConfigAction) => Promise<PobConfigSnapshotResult>;
+  partySnapshot: () => Promise<PobPartySnapshotResult>;
+  partyAction: (action: PobPartyAction) => Promise<PobPartySnapshotResult>;
 }
 
 export interface PobWindowAPI {

@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { normalizePobSettings } from "@poe2-launcher/shared/pobSettings";
 import type {
   AppConfig,
+  PobBuildMetadataAction,
   PobCalcsAction,
   PobConfigAction,
   PobGame,
@@ -12,6 +13,7 @@ import type {
   PobItemsParseCopyTextRequest,
   PobLoadBuildCodeRequest,
   PobLoadBuildRequest,
+  PobPartyAction,
   PobRepoeLocale,
   PobSettings,
   PobSkillsAction,
@@ -108,6 +110,10 @@ contextBridge.exposeInMainWorld("pobAPI", {
     newBuild: (name?: string) => ipcRenderer.invoke("pob:new-build", name),
     saveBuildXml: () => ipcRenderer.invoke("pob:save-build-xml"),
     exportBuildCode: () => ipcRenderer.invoke("pob:export-build-code"),
+    buildMetadata: () => ipcRenderer.invoke("pob:build-metadata"),
+    buildMetadataAction: (action: PobBuildMetadataAction) =>
+      ipcRenderer.invoke("pob:build-metadata-action", action),
+    mainSkillSummary: () => ipcRenderer.invoke("pob:main-skill-summary"),
     treeSnapshot: () => ipcRenderer.invoke("pob:tree-snapshot"),
     treeMetadata: () => ipcRenderer.invoke("pob:tree-metadata"),
     treeAllocate: (nodeId: number) =>
@@ -136,5 +142,8 @@ contextBridge.exposeInMainWorld("pobAPI", {
     configSnapshot: () => ipcRenderer.invoke("pob:config-snapshot"),
     configAction: (action: PobConfigAction) =>
       ipcRenderer.invoke("pob:config-action", action),
+    partySnapshot: () => ipcRenderer.invoke("pob:party-snapshot"),
+    partyAction: (action: PobPartyAction) =>
+      ipcRenderer.invoke("pob:party-action", action),
   },
 });

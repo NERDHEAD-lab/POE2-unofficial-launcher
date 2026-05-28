@@ -21,7 +21,12 @@ import {
   isEditablePasteTarget,
   readItemCopyTextFromClipboard,
 } from "./itemsPaste";
+import {
+  buildItemDetailEditAction,
+  type ItemDetailMode,
+} from "./itemsViewDetailMode";
 import { canInspectSlotItem, isVisibleItemSlot } from "./itemsViewSlots";
+import { buildItemTooltipSections } from "./itemsViewTooltip";
 import {
   translateItemDbEntries,
   translateItemsSnapshot,
@@ -92,6 +97,14 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   });
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
   const [customRaw, setCustomRaw] = useState("");
+  const [detailModeState, setDetailModeState] = useState<{
+    key: string;
+    mode: ItemDetailMode;
+  }>({ key: "", mode: "viewer" });
+  const [detailRawState, setDetailRawState] = useState<{
+    key: string;
+    raw: string;
+  }>({ key: "", raw: "" });
 
   useEffect(() => {
     if (!active) return;
@@ -188,6 +201,16 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     }
     return null;
   }, [dbEntries, itemsById, selectedItemRef, snapshot]);
+
+  const selectedItemKey = selectedItemRef
+    ? `${selectedItemRef.source}:${String(selectedItemRef.id)}`
+    : "";
+  const detailMode =
+    detailModeState.key === selectedItemKey ? detailModeState.mode : "viewer";
+  const detailRaw =
+    detailRawState.key === selectedItemKey
+      ? detailRawState.raw
+      : (selectedItem?.raw ?? "");
 
   const runAction = async (action: PobItemsAction): Promise<void> => {
     const api = window.pobAPI;
@@ -424,7 +447,20 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
 
         <aside className="pob-items-detail">
           {selectedItem ? (
-            <ItemDetail item={selectedItem} />
+            <ItemDetail
+              item={selectedItem}
+              source={selectedItemRef?.source ?? "custom"}
+              mode={detailMode}
+              rawValue={detailRaw}
+              busy={busy}
+              onModeChange={(mode) =>
+                setDetailModeState({ key: selectedItemKey, mode })
+              }
+              onRawChange={(raw) =>
+                setDetailRawState({ key: selectedItemKey, raw })
+              }
+              onAction={(action) => void runAction(action)}
+            />
           ) : (
             <p className="pob-mode-placeholder-body">
               {t("buildEdit.items.detail.empty")}
@@ -884,75 +920,125 @@ function ItemRows({
 
 interface ItemDetailProps {
   item: PobItemSummary | PobItemDbSummary;
+  source: SelectedItemRef["source"];
+  mode: ItemDetailMode;
+  rawValue: string;
+  busy: boolean;
+  onModeChange: (mode: ItemDetailMode) => void;
+  onRawChange: (raw: string) => void;
+  onAction: (action: PobItemsAction) => void;
 }
 
-function ItemDetail({ item }: ItemDetailProps) {
+function ItemDetail({
+  item,
+  source,
+  mode,
+  rawValue,
+  busy,
+  onModeChange,
+  onRawChange,
+  onAction,
+}: ItemDetailProps) {
   const { t } = useTranslation();
-  const flags: string[] = [];
-  if (item.corrupted) flags.push(t("buildEdit.items.detail.flag.corrupted"));
-  if (item.mirrored) flags.push(t("buildEdit.items.detail.flag.mirrored"));
-  if (item.shaper) flags.push(t("buildEdit.items.detail.flag.shaper"));
-  if (item.elder) flags.push(t("buildEdit.items.detail.flag.elder"));
-  if (item.fractured) flags.push(t("buildEdit.items.detail.flag.fractured"));
+  const sections = buildItemTooltipSections(item, {
+    baseType: t("buildEdit.items.detail.baseType"),
+    itemLevel: t("buildEdit.items.detail.itemLevel"),
+    quality: t("buildEdit.items.detail.quality"),
+    corrupted: t("buildEdit.items.detail.flag.corrupted"),
+    mirrored: t("buildEdit.items.detail.flag.mirrored"),
+    shaper: t("buildEdit.items.detail.flag.shaper"),
+    elder: t("buildEdit.items.detail.flag.elder"),
+    fractured: t("buildEdit.items.detail.flag.fractured"),
+  });
+  const editAction = buildItemDetailEditAction(source, item.id, rawValue);
 
   return (
-    <div className={`pob-items-detail-body ${rarityClass(item.rarity)}`}>
-      <div className="pob-items-detail-header">
-        <div className="pob-items-detail-name">{item.name}</div>
-        {item.title && item.title !== item.name && (
-          <div className="pob-items-detail-title">{item.title}</div>
-        )}
-        <div className="pob-items-detail-rarity">
-          {formatRarity(t, item.rarity)}
-        </div>
+    <>
+      <div
+        className="pob-items-detail-switch"
+        role="tablist"
+        aria-label={t("buildEdit.items.detail.modeLabel")}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "viewer"}
+          className={mode === "viewer" ? "is-active" : ""}
+          onClick={() => onModeChange("viewer")}
+        >
+          {t("buildEdit.items.detail.mode.view")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "editor"}
+          className={mode === "editor" ? "is-active" : ""}
+          onClick={() => onModeChange("editor")}
+        >
+          {t("buildEdit.items.detail.mode.edit")}
+        </button>
       </div>
-      <dl className="pob-items-detail-stats">
-        {item.baseName && (
-          <>
-            <dt>{t("buildEdit.items.detail.baseType")}</dt>
-            <dd>{item.baseName}</dd>
-          </>
-        )}
-        {item.itemLevel !== null && (
-          <>
-            <dt>{t("buildEdit.items.detail.itemLevel")}</dt>
-            <dd>{item.itemLevel}</dd>
-          </>
-        )}
-        {item.quality !== null && item.quality > 0 && (
-          <>
-            <dt>{t("buildEdit.items.detail.quality")}</dt>
-            <dd>{item.quality}%</dd>
-          </>
-        )}
-        {flags.length > 0 && (
-          <>
-            <dt>{t("buildEdit.items.detail.flags")}</dt>
-            <dd>{flags.join(", ")}</dd>
-          </>
-        )}
-      </dl>
-      {item.implicitLines.length > 0 && (
-        <section>
-          <h4>{t("buildEdit.items.detail.implicit")}</h4>
-          <ul>
-            {item.implicitLines.map((line, idx) => (
-              <li key={`impl-${idx}`}>{line}</li>
-            ))}
-          </ul>
-        </section>
+
+      {mode === "viewer" ? (
+        <div className={`pob-item-tooltip ${rarityClass(item.rarity)}`}>
+          <div className="pob-item-tooltip-rarity">
+            {formatRarity(t, item.rarity)}
+          </div>
+          {sections.map((section, sectionIndex) => (
+            <section key={section.id} className={`is-${section.id}`}>
+              {sectionIndex > 0 && (
+                <div className="pob-item-tooltip-separator" />
+              )}
+              {section.lines.map((line, lineIndex) => (
+                <div
+                  className={`pob-item-tooltip-line is-${line.tone}`}
+                  key={`${section.id}-${lineIndex}-${line.text}`}
+                >
+                  {line.text}
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="pob-items-detail-editor">
+          <label>
+            <span>{t("buildEdit.items.detail.rawLabel")}</span>
+            <textarea
+              value={rawValue}
+              onChange={(event) => onRawChange(event.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <div className="pob-items-detail-editor-actions">
+            <button
+              type="button"
+              className="pob-button"
+              onClick={() => {
+                onRawChange(item.raw);
+                onModeChange("viewer");
+              }}
+            >
+              {t("buildEdit.items.detail.cancel")}
+            </button>
+            <button
+              type="button"
+              className="pob-button"
+              disabled={busy || !editAction}
+              onClick={() => {
+                if (editAction) onAction(editAction);
+              }}
+            >
+              {t(
+                source === "custom"
+                  ? "buildEdit.items.detail.save"
+                  : "buildEdit.items.detail.addToBuild",
+              )}
+            </button>
+          </div>
+        </div>
       )}
-      {item.explicitLines.length > 0 && (
-        <section>
-          <h4>{t("buildEdit.items.detail.explicit")}</h4>
-          <ul>
-            {item.explicitLines.map((line, idx) => (
-              <li key={`expl-${idx}`}>{line}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
+    </>
   );
 }
 
