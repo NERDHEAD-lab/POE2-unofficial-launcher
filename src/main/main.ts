@@ -101,6 +101,7 @@ import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { PatchReservationService } from "./services/PatchReservationService";
 import { registerPobLauncherHandlers } from "./services/pobLauncher";
+import { registerPobSessionHandlers } from "./services/pobSession";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import { serviceManager } from "./services/ServiceManager";
 import { themeCacheManager } from "./services/ThemeCacheManager";
@@ -2741,6 +2742,7 @@ app.whenReady().then(async () => {
   // Register PoB launcher + builds IPC handlers
   registerPobLauncherHandlers();
   registerBuildsHandlers();
+  registerPobSessionHandlers();
 
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

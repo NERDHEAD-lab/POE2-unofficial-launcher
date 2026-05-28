@@ -3,6 +3,7 @@ import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 
 import { verifyPobInstallation } from "./pobInstallVerifier";
+import { disposePobSession } from "./pobSession";
 import {
   AppConfig,
   PobConfirmDetectedResult,
@@ -89,6 +90,7 @@ const createPobWindow = (game: PobGame): BrowserWindow => {
 
   win.on("closed", () => {
     pobWindows.delete(game);
+    void disposePobSession(game);
   });
 
   pobWindows.set(game, win);

@@ -307,6 +307,10 @@ export type BuildsMutationResult =
   | { status: "ok" }
   | { status: "error"; reason: string };
 
+export type BuildXmlReadResult =
+  | { status: "ok"; xml: string }
+  | { status: "error"; reason: string };
+
 export interface BuildsAPI {
   list: (subPath: string) => Promise<BuildsListResult>;
   newFolder: (subPath: string, name: string) => Promise<BuildsMutationResult>;
@@ -336,6 +340,46 @@ export interface BuildsAPI {
     subPath: string,
     fileName: string,
   ) => Promise<BuildsMutationResult>;
+  readXml: (subPath: string, fileName: string) => Promise<BuildXmlReadResult>;
+  saveXml: (
+    subPath: string,
+    fileName: string,
+    xml: string,
+  ) => Promise<BuildsMutationResult>;
+}
+
+export interface PobBuildSummary {
+  ok: boolean;
+  className: string;
+  ascendClassName: string;
+  level: number;
+  mainSkillName: string | null;
+  mainSkillDPS: number | null;
+  playerStats: Record<string, number>;
+}
+
+export type PobSessionResult =
+  | { status: "ok" }
+  | { status: "error"; reason: string };
+
+export type PobLoadBuildResult =
+  | { status: "ok"; summary: PobBuildSummary }
+  | { status: "error"; reason: string };
+
+export type PobSaveBuildResult =
+  | { status: "ok"; xml: string }
+  | { status: "error"; reason: string };
+
+export interface PobLoadBuildRequest {
+  xml: string;
+  name?: string;
+}
+
+export interface PobSessionAPI {
+  ensure: () => Promise<PobSessionResult>;
+  loadBuild: (request: PobLoadBuildRequest) => Promise<PobLoadBuildResult>;
+  newBuild: (name?: string) => Promise<PobLoadBuildResult>;
+  saveBuildXml: () => Promise<PobSaveBuildResult>;
 }
 
 export interface PobWindowAPI {
@@ -344,6 +388,7 @@ export interface PobWindowAPI {
   minimizeWindow: () => void;
   closeWindow: () => void;
   builds: BuildsAPI;
+  session: PobSessionAPI;
   settings: {
     get: () => Promise<PobSettings>;
     set: (settings: Partial<PobSettings>) => Promise<PobSettings>;

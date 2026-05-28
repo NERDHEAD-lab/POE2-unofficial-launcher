@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { AppConfig, PobGame, PobSettings } from "../shared/types";
+import type {
+  AppConfig,
+  PobGame,
+  PobLoadBuildRequest,
+  PobSettings,
+} from "../shared/types";
 
 const DEFAULT_POB_SETTINGS: PobSettings = {
   autosaveDrafts: false,
@@ -71,5 +76,16 @@ contextBridge.exposeInMainWorld("pobAPI", {
     ) => ipcRenderer.invoke("builds:move", srcSubPath, name, kind, dstSubPath),
     saveStub: (subPath: string, fileName: string) =>
       ipcRenderer.invoke("builds:save-stub", subPath, fileName),
+    readXml: (subPath: string, fileName: string) =>
+      ipcRenderer.invoke("builds:read-xml", subPath, fileName),
+    saveXml: (subPath: string, fileName: string, xml: string) =>
+      ipcRenderer.invoke("builds:save-xml", subPath, fileName, xml),
+  },
+  session: {
+    ensure: () => ipcRenderer.invoke("pob:session-ensure"),
+    loadBuild: (request: PobLoadBuildRequest) =>
+      ipcRenderer.invoke("pob:load-build", request),
+    newBuild: (name?: string) => ipcRenderer.invoke("pob:new-build", name),
+    saveBuildXml: () => ipcRenderer.invoke("pob:save-build-xml"),
   },
 });

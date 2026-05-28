@@ -13,6 +13,12 @@ vi.mock("electron", () => ({
     getAppPath: () => process.cwd(),
     getPath: () => process.cwd(),
   },
+  BrowserWindow: {
+    fromWebContents: () => null,
+  },
+  ipcMain: {
+    handle: vi.fn(),
+  },
 }));
 
 const installLocation = process.env.POB_INSTALL_LOCATION;

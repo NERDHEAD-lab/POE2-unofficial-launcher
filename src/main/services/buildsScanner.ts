@@ -7,6 +7,7 @@ import {
   BuildEntry,
   BuildsListResult,
   BuildsMutationResult,
+  BuildXmlReadResult,
   PobGame,
 } from "../../shared/types";
 import { logger } from "../utils/logger";
@@ -168,6 +169,19 @@ const tryMutation = async (
   }
 };
 
+const tryReadXml = async (
+  label: string,
+  fn: () => Promise<string>,
+): Promise<BuildXmlReadResult> => {
+  try {
+    return { status: "ok", xml: await fn() };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.warn(`[Builds] ${label} failed:`, reason);
+    return { status: "error", reason };
+  }
+};
+
 export const registerBuildsHandlers = (): void => {
   ipcMain.handle(
     "builds:list",
@@ -287,6 +301,34 @@ export const registerBuildsHandlers = (): void => {
             flag: "wx",
           },
         );
+      }),
+  );
+
+  ipcMain.handle(
+    "builds:read-xml",
+    (event, subPath: string, fileName: string) =>
+      tryReadXml("read-xml", async () => {
+        assertSafeBuildName(fileName);
+        const game = getGameFromSender(event);
+        return fs.readFile(
+          path.join(resolveFolder(game, subPath), ensureXml(fileName)),
+          "utf8",
+        );
+      }),
+  );
+
+  ipcMain.handle(
+    "builds:save-xml",
+    (event, subPath: string, fileName: string, xml: string) =>
+      tryMutation("save-xml", async () => {
+        assertSafeBuildName(fileName);
+        if (typeof xml !== "string") throw new Error("invalid xml");
+        const game = getGameFromSender(event);
+        const dir = resolveFolder(game, subPath);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(path.join(dir, ensureXml(fileName)), xml, {
+          flag: "wx",
+        });
       }),
   );
 };

@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { BuildsMutationResult } from "../../shared/types";
+import type { BuildsMutationResult, PobBuildSummary } from "../../shared/types";
 
 export interface BuildEditViewHandle {
   saveDraftAs: (fileName: string) => Promise<BuildsMutationResult>;
@@ -21,45 +21,104 @@ interface BuildEditViewProps {
   onSavedAs: (fileName: string) => void;
 }
 
+type LoadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; summary: PobBuildSummary }
+  | { status: "error"; reason: string };
+
+const formatNumber = (value: number | null): string => {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return new Intl.NumberFormat().format(Math.round(value));
+};
+
+const present = (value: string | null | undefined): string =>
+  value && value.trim() ? value : "-";
+
 export const BuildEditView = forwardRef<
   BuildEditViewHandle,
   BuildEditViewProps
 >(({ subPath, fileName, draftKey, onDirtyChange, onSavedAs }, ref) => {
   const { t } = useTranslation();
-  const [draftName, setDraftName] = useState("");
-  const [draftMemo, setDraftMemo] = useState("");
+  const [loadState, setLoadState] = useState<LoadState>({ status: "idle" });
+
+  const buildName = fileName ?? t("buildEdit.empty.title");
+  const isUserDraft = fileName === null && draftKey > 0;
 
   useEffect(() => {
-    setDraftName("");
-    setDraftMemo("");
+    let cancelled = false;
+
+    const loadBuild = async () => {
+      const api = window.pobAPI;
+      if (!api) throw new Error("pobAPI unavailable");
+
+      if (fileName === null) {
+        const created = await api.session.newBuild(buildName);
+        if (created.status === "error") throw new Error(created.reason);
+        return created.summary;
+      }
+
+      const read = await api.builds.readXml(subPath, fileName);
+      if (read.status === "error") throw new Error(read.reason);
+
+      const ensured = await api.session.ensure();
+      if (ensured.status === "error") throw new Error(ensured.reason);
+
+      const loaded = await api.session.loadBuild({
+        xml: read.xml,
+        name: fileName,
+      });
+      if (loaded.status === "error") throw new Error(loaded.reason);
+      return loaded.summary;
+    };
+
+    setLoadState({ status: "loading" });
     onDirtyChange(false);
-  }, [draftKey, fileName, onDirtyChange, subPath]);
+    if (fileName === null && !isUserDraft) {
+      setLoadState({ status: "idle" });
+      return () => {
+        cancelled = true;
+      };
+    }
 
-  const dirty = useMemo(
-    () =>
-      fileName === null &&
-      (draftName.trim().length > 0 || draftMemo.trim().length > 0),
-    [draftMemo, draftName, fileName],
-  );
+    void loadBuild()
+      .then((summary) => {
+        if (cancelled) return;
+        setLoadState({ status: "ready", summary });
+        onDirtyChange(isUserDraft);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const reason = err instanceof Error ? err.message : String(err);
+        setLoadState({ status: "error", reason });
+        onDirtyChange(false);
+      });
 
-  useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
+    return () => {
+      cancelled = true;
+    };
+  }, [buildName, draftKey, fileName, isUserDraft, onDirtyChange, subPath]);
 
   useImperativeHandle(
     ref,
     () => ({
       saveDraftAs: async (nextFileName: string) => {
-        const result = await window.pobAPI?.builds.saveStub(
-          subPath,
-          nextFileName,
-        );
-        if (!result) {
+        const api = window.pobAPI;
+        if (!api) {
           return { status: "error", reason: "pobAPI unavailable" };
         }
+
+        const exported = await api.session.saveBuildXml();
+        if (exported.status === "error") {
+          return { status: "error", reason: exported.reason };
+        }
+
+        const result = await api.builds.saveXml(
+          subPath,
+          nextFileName,
+          exported.xml,
+        );
         if (result.status === "ok") {
-          setDraftName("");
-          setDraftMemo("");
           onDirtyChange(false);
           onSavedAs(nextFileName);
         }
@@ -69,51 +128,80 @@ export const BuildEditView = forwardRef<
     [onDirtyChange, onSavedAs, subPath],
   );
 
-  if (fileName !== null) {
-    return (
-      <div className="pob-edit">
-        <div className="pob-edit-header">
-          <div>
-            <h2>{fileName}</h2>
-            <p>{t("buildEdit.placeholder.body")}</p>
-          </div>
-        </div>
-        <pre className="pob-edit-path">
-          {subPath || "/"} :: {fileName}
-        </pre>
-      </div>
-    );
-  }
+  const summary = loadState.status === "ready" ? loadState.summary : null;
+  const stats = useMemo(
+    () => [
+      {
+        label: t("buildEdit.summary.class"),
+        value: present(summary?.className),
+      },
+      {
+        label: t("buildEdit.summary.ascendancy"),
+        value: present(summary?.ascendClassName),
+      },
+      {
+        label: t("buildEdit.summary.level"),
+        value: summary ? String(summary.level) : "-",
+      },
+      {
+        label: t("buildEdit.summary.mainSkill"),
+        value: present(summary?.mainSkillName),
+      },
+      {
+        label: t("buildEdit.summary.mainSkillDps"),
+        value: formatNumber(summary?.mainSkillDPS ?? null),
+      },
+    ],
+    [summary, t],
+  );
 
   return (
-    <div className="pob-edit pob-edit-empty">
+    <div className="pob-edit">
       <div className="pob-edit-header">
         <div>
-          <h2>{t("buildEdit.empty.title")}</h2>
-          <p>{t("buildEdit.empty.body")}</p>
+          <h2>{buildName}</h2>
+          <p>
+            {loadState.status === "loading"
+              ? t("buildEdit.loading")
+              : loadState.status === "idle"
+                ? t("buildEdit.empty.body")
+                : t("buildEdit.placeholder.body")}
+          </p>
         </div>
+        {isUserDraft && (
+          <span className="pob-edit-dirty">{t("buildEdit.unsaved")}</span>
+        )}
       </div>
-      <div className="pob-draft-form">
-        <label>
-          {t("buildEdit.empty.nameLabel")}
-          <input
-            type="text"
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            placeholder={t("buildEdit.empty.namePlaceholder")}
-          />
-        </label>
-        <label>
-          {t("buildEdit.empty.memoLabel")}
-          <textarea
-            value={draftMemo}
-            onChange={(event) => setDraftMemo(event.target.value)}
-            placeholder={t("buildEdit.empty.memoPlaceholder")}
-          />
-        </label>
+
+      {loadState.status === "error" ? (
+        <div className="pob-error">
+          {t("buildList.error.generic", { reason: loadState.reason })}
+        </div>
+      ) : (
+        <div
+          className="pob-edit-summary"
+          aria-busy={loadState.status === "loading"}
+        >
+          {stats.map((item) => (
+            <div className="pob-edit-stat" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="pob-mode-placeholder">
+        <div className="pob-mode-tabs" aria-label={t("buildEdit.modes.label")}>
+          {["Tree", "Items", "Skills", "Calcs", "Config"].map((mode) => (
+            <span key={mode}>{mode}</span>
+          ))}
+        </div>
+        <p>{t("buildEdit.modes.placeholder")}</p>
       </div>
+
       <pre className="pob-edit-path">
-        {subPath || "/"} :: {t("buildEdit.empty.unsaved")}
+        {subPath || "/"} :: {fileName ?? t("buildEdit.empty.unsaved")}
       </pre>
     </div>
   );
