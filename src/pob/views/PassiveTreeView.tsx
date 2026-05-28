@@ -21,12 +21,18 @@ import {
   pngImageKey,
   resolveDdsAssetRef,
 } from "./passiveTreeAssets";
+import { translateTreeSnapshot } from "./repoeTranslations";
 import { decodeDdsZstLayers } from "../utils/DdsDecoder";
 
-import type { PobTreeNode, PobTreeSnapshot } from "../../shared/types";
+import type {
+  PobRepoeTranslationsSnapshot,
+  PobTreeNode,
+  PobTreeSnapshot,
+} from "../../shared/types";
 
 interface PassiveTreeViewProps {
   active: boolean;
+  translations: PobRepoeTranslationsSnapshot;
 }
 
 type LoadState =
@@ -233,7 +239,10 @@ const projectScene = (
   return { scale, offsetX, offsetY, nodes, edges };
 };
 
-export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
+export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
+  active,
+  translations,
+}) => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -243,6 +252,12 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
     zoomLevel: ZOOM_LEVEL_INIT,
     pan: { x: 0, y: 0 },
   });
+  const [hoveredNode, setHoveredNode] = useState<{
+    id: number;
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [busy, setBusy] = useState(false);
   const projectionRef = useRef<Projection | null>(null);
@@ -325,15 +340,24 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
 
   const projection = useMemo(() => {
     if (state.status !== "ready") return null;
+    const snapshot = translateTreeSnapshot(state.snapshot, translations);
     return projectScene(
-      state.snapshot,
+      snapshot,
       size.width,
       size.height,
       zoomFromLevel(view.zoomLevel),
       view.pan.x,
       view.pan.y,
     );
-  }, [state, size.width, size.height, view.zoomLevel, view.pan.x, view.pan.y]);
+  }, [
+    state,
+    translations,
+    size.width,
+    size.height,
+    view.zoomLevel,
+    view.pan.x,
+    view.pan.y,
+  ]);
 
   useEffect(() => {
     if (state.status !== "ready" || !state.metadata) return;
@@ -862,6 +886,20 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const node = hitTest(
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+        );
+        setHoveredNode(
+          node?.name
+            ? { id: node.id, name: node.name, x: node.screenX, y: node.screenY }
+            : null,
+        );
+      }
+
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
       const dx = event.clientX - drag.startX;
@@ -879,8 +917,12 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
         pan: clampPan({ x: drag.panX + dx, y: drag.panY + dy }, prev.zoomLevel),
       }));
     },
-    [clampPan],
+    [clampPan, hitTest],
   );
+
+  const handlePointerLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, []);
 
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -967,8 +1009,15 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
     );
   }
 
-  const { snapshot } = state;
+  const snapshot = translateTreeSnapshot(state.snapshot, translations);
   const zoomPercent = Math.round(zoomFromLevel(view.zoomLevel) * 100);
+  const tooltipStyle =
+    hoveredNode === null
+      ? undefined
+      : {
+          left: Math.max(8, Math.min(size.width - 220, hoveredNode.x + 12)),
+          top: Math.max(8, Math.min(size.height - 48, hoveredNode.y + 12)),
+        };
   return (
     <div className="pob-passive-tree-pane">
       <div className="pob-passive-tree-toolbar">
@@ -1022,11 +1071,17 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({ active }) => {
           className="pob-passive-tree-canvas"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
+          onPointerLeave={handlePointerLeave}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           onWheel={handleWheel}
           aria-busy={busy}
         />
+        {hoveredNode && (
+          <div className="pob-passive-tree-tooltip" style={tooltipStyle}>
+            {hoveredNode.name}
+          </div>
+        )}
       </div>
       <div className="pob-passive-tree-legend" aria-hidden="true">
         <span className="pob-passive-tree-legend-item pob-passive-tree-legend--allocated">

@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { canInspectSlotItem, isVisibleItemSlot } from "./itemsViewSlots";
+import {
+  translateItemDbEntries,
+  translateItemsSnapshot,
+} from "./repoeTranslations";
 
 import type {
   PobItemsAction,
@@ -10,6 +14,7 @@ import type {
   PobItemDbSummary,
   PobItemSlot,
   PobItemSummary,
+  PobRepoeTranslationsSnapshot,
 } from "../../shared/types";
 
 type LoadState =
@@ -38,6 +43,7 @@ type SelectedItemRef =
 
 interface ItemsViewProps {
   active: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onMutated: () => void;
 }
 
@@ -64,7 +70,7 @@ const isSameSelection = (
   id: number | string,
 ): boolean => selectedItemRef?.source === source && selectedItemRef.id === id;
 
-export function ItemsView({ active, onMutated }: ItemsViewProps) {
+export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [selectedItemRef, setSelectedItemRef] =
@@ -129,7 +135,21 @@ export function ItemsView({ active, onMutated }: ItemsViewProps) {
     };
   }, [active, tab]);
 
-  const snapshot = state.status === "ready" ? state.snapshot : null;
+  const sourceSnapshot = state.status === "ready" ? state.snapshot : null;
+  const snapshot = useMemo(
+    () =>
+      sourceSnapshot
+        ? translateItemsSnapshot(sourceSnapshot, translations)
+        : null,
+    [sourceSnapshot, translations],
+  );
+  const dbEntries = useMemo(
+    () =>
+      dbState.status === "ready"
+        ? translateItemDbEntries(dbState.entries, translations)
+        : null,
+    [dbState, translations],
+  );
   const busy = actionState.status === "running";
 
   const itemsById = useMemo(() => {
@@ -153,13 +173,11 @@ export function ItemsView({ active, onMutated }: ItemsViewProps) {
         null
       );
     }
-    if (dbState.status === "ready") {
-      return (
-        dbState.entries.find((item) => item.id === selectedItemRef.id) ?? null
-      );
+    if (dbEntries) {
+      return dbEntries.find((item) => item.id === selectedItemRef.id) ?? null;
     }
     return null;
-  }, [dbState, itemsById, selectedItemRef, snapshot]);
+  }, [dbEntries, itemsById, selectedItemRef, snapshot]);
 
   const runAction = async (action: PobItemsAction): Promise<void> => {
     const api = window.pobAPI;
@@ -310,6 +328,7 @@ export function ItemsView({ active, onMutated }: ItemsViewProps) {
             <DbPane
               dbKey={tab}
               state={dbState}
+              entries={dbEntries}
               formatRarityLabel={(r) => formatRarity(t, r)}
               selectedItemRef={selectedItemRef}
               busy={busy}
@@ -672,6 +691,7 @@ function CustomPane({
 interface DbPaneProps {
   dbKey: PobItemsDbKey;
   state: DbState;
+  entries: PobItemDbSummary[] | null;
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
@@ -682,6 +702,7 @@ interface DbPaneProps {
 function DbPane({
   dbKey,
   state,
+  entries,
   formatRarityLabel,
   selectedItemRef,
   busy,
@@ -744,6 +765,7 @@ function DbPane({
       <DbList
         dbKey={dbKey}
         state={state}
+        entries={entries}
         formatRarityLabel={formatRarityLabel}
         selectedItemRef={selectedItemRef}
         busy={busy}
@@ -893,6 +915,7 @@ function ItemDetail({ item }: ItemDetailProps) {
 interface DbListProps {
   dbKey: PobItemsDbKey;
   state: DbState;
+  entries: PobItemDbSummary[] | null;
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
@@ -903,6 +926,7 @@ interface DbListProps {
 function DbList({
   dbKey,
   state,
+  entries,
   formatRarityLabel,
   selectedItemRef,
   busy,
@@ -925,7 +949,9 @@ function DbList({
       </p>
     );
   }
-  if (state.entries.length === 0) {
+  const renderedEntries =
+    entries ?? (state.status === "ready" ? state.entries : []);
+  if (renderedEntries.length === 0) {
     return (
       <p className="pob-mode-placeholder-body">
         {t("buildEdit.items.dbEmpty")}
@@ -934,7 +960,7 @@ function DbList({
   }
   return (
     <ul className="pob-items-db-list">
-      {state.entries.map((entry) => (
+      {renderedEntries.map((entry) => (
         <li key={entry.id}>
           <button
             type="button"

@@ -648,6 +648,23 @@ export type PobSkillsSnapshotResult =
   | { status: "ok"; snapshot: PobSkillsSnapshot }
   | { status: "error"; reason: string };
 
+export type PobRepoeLocale = "en" | "ko";
+
+export interface PobRepoeTranslationsSnapshot {
+  locale: PobRepoeLocale;
+  available: boolean;
+  nodeNamesById: Record<string, string>;
+  itemNamesById: Record<string, string>;
+  itemNamesByEnglishName: Record<string, string>;
+  gemNamesById: Record<string, string>;
+  gemNamesBySkillId: Record<string, string>;
+  gemNamesByEnglishName: Record<string, string>;
+}
+
+export type PobRepoeTranslationsResult =
+  | { status: "ok"; snapshot: PobRepoeTranslationsSnapshot }
+  | { status: "error"; reason: string };
+
 export interface PobSkillGroupPatch {
   label?: string;
   slot?: string;
@@ -916,6 +933,9 @@ export interface PobSessionAPI {
   treeMetadata: () => Promise<PobTreeMetadataResult>;
   treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
   treeDeallocate: (nodeId: number) => Promise<PobTreeResult>;
+  repoeTranslations: (
+    locale: PobRepoeLocale,
+  ) => Promise<PobRepoeTranslationsResult>;
   itemsSnapshot: () => Promise<PobItemsSnapshotResult>;
   itemsDbList: (db: PobItemsDbKey) => Promise<PobItemsDbListResult>;
   itemsAction: (action: PobItemsAction) => Promise<PobItemsSnapshotResult>;

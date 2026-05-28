@@ -11,6 +11,7 @@ import { CalcsView } from "./CalcsView";
 import { ConfigView } from "./ConfigView";
 import { ItemsView } from "./ItemsView";
 import { PassiveTreeView } from "./PassiveTreeView";
+import { EMPTY_REPOE_TRANSLATIONS } from "./repoeTranslations";
 import { SkillsView } from "./SkillsView";
 
 import type { BuildsMutationResult, PobBuildSummary } from "../../shared/types";
@@ -52,6 +53,9 @@ export const BuildEditView = forwardRef<
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: "idle" });
   const [activeMode, setActiveMode] = useState<BuildMode>("tree");
+  const [repoeTranslations, setRepoeTranslations] = useState(
+    EMPTY_REPOE_TRANSLATIONS,
+  );
 
   const buildName = fileName ?? t("buildEdit.empty.title");
   const isUserDraft = fileName === null && draftKey > 0;
@@ -138,6 +142,29 @@ export const BuildEditView = forwardRef<
     }),
     [onDirtyChange, onSavedAs, subPath],
   );
+
+  useEffect(() => {
+    if (loadState.status !== "ready") {
+      setRepoeTranslations(EMPTY_REPOE_TRANSLATIONS);
+      return;
+    }
+
+    let cancelled = false;
+    const loadTranslations = async () => {
+      const api = window.pobAPI;
+      if (!api) return;
+      const result = await api.session.repoeTranslations("ko");
+      if (cancelled) return;
+      setRepoeTranslations(
+        result.status === "ok" ? result.snapshot : EMPTY_REPOE_TRANSLATIONS,
+      );
+    };
+
+    void loadTranslations();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadState.status]);
 
   const summary = loadState.status === "ready" ? loadState.summary : null;
   const stats = useMemo(
@@ -230,11 +257,19 @@ export const BuildEditView = forwardRef<
               {t("buildEdit.modes.placeholder")}
             </p>
           ) : activeMode === "tree" ? (
-            <PassiveTreeView active />
+            <PassiveTreeView active translations={repoeTranslations} />
           ) : activeMode === "items" ? (
-            <ItemsView active onMutated={() => onDirtyChange(true)} />
+            <ItemsView
+              active
+              translations={repoeTranslations}
+              onMutated={() => onDirtyChange(true)}
+            />
           ) : activeMode === "skills" ? (
-            <SkillsView active onMutated={() => onDirtyChange(true)} />
+            <SkillsView
+              active
+              translations={repoeTranslations}
+              onMutated={() => onDirtyChange(true)}
+            />
           ) : activeMode === "calcs" ? (
             <CalcsView active />
           ) : (

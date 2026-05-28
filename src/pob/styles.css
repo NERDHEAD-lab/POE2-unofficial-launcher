@@ -1059,6 +1059,21 @@ textarea {
   cursor: grabbing;
 }
 
+.pob-passive-tree-tooltip {
+  position: absolute;
+  z-index: 2;
+  max-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(10, 13, 18, 0.94);
+  color: #f4f0df;
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
 .pob-passive-tree-legend {
   display: flex;
   gap: 12px;

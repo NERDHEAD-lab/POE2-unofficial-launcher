@@ -8,6 +8,7 @@ import type {
   PobItemsAction,
   PobItemsDbKey,
   PobLoadBuildRequest,
+  PobRepoeLocale,
   PobSettings,
   PobSkillsAction,
 } from "../shared/types";
@@ -98,6 +99,8 @@ contextBridge.exposeInMainWorld("pobAPI", {
       ipcRenderer.invoke("pob:tree-allocate", nodeId),
     treeDeallocate: (nodeId: number) =>
       ipcRenderer.invoke("pob:tree-deallocate", nodeId),
+    repoeTranslations: (locale: PobRepoeLocale) =>
+      ipcRenderer.invoke("pob:repoe-translations", locale),
     itemsSnapshot: () => ipcRenderer.invoke("pob:items-snapshot"),
     itemsDbList: (db: PobItemsDbKey) =>
       ipcRenderer.invoke("pob:items-db-list", db),

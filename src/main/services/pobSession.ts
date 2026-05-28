@@ -4,6 +4,7 @@ import * as zlib from "node:zlib";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
+import { loadRePoeTranslations } from "./pobRepoe/translations";
 import { PoBVault, pobVault } from "./pobVault";
 import {
   PobBuildSummary,
@@ -23,6 +24,8 @@ import {
   PobItemsSnapshot,
   PobItemsSnapshotResult,
   PobLoadBuildResult,
+  PobRepoeLocale,
+  PobRepoeTranslationsResult,
   PobSaveBuildResult,
   PobSessionResult,
   PobSkillsAction,
@@ -97,6 +100,9 @@ const errorMessage = (err: unknown): string =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const isPobRepoeLocale = (value: unknown): value is PobRepoeLocale =>
+  value === "en" || value === "ko";
 
 export const inflateRawBase64 = (data: string): string =>
   zlib.inflateRawSync(Buffer.from(data, "base64")).toString("base64");
@@ -632,6 +638,21 @@ export function registerPobSessionHandlers(): void {
       return toSessionError(err);
     }
   });
+
+  ipcMain.handle(
+    "pob:repoe-translations",
+    async (_event, locale: unknown): Promise<PobRepoeTranslationsResult> => {
+      try {
+        if (!isPobRepoeLocale(locale)) {
+          throw new Error("pob:repoe-translations requires locale = en|ko");
+        }
+        return { status: "ok", snapshot: await loadRePoeTranslations(locale) };
+      } catch (err) {
+        logger.warn("[PoBSession] repoe-translations failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
 
   ipcMain.handle(
     "pob:items-snapshot",

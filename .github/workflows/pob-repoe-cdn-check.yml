@@ -1,0 +1,60 @@
+name: pob-repoe-cdn-check
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  cdn-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run RePoE CDN baseline
+        env:
+          POB_REPOE_CDN_BASELINE: "1"
+        run: npm test -- src/main/services/pobRepoe/__tests__/cdn-baseline.spec.ts
+
+      - name: Open or update CDN failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="RePoE CDN baseline check failed"
+          body="$(cat <<EOF
+          RePoE CDN baseline validation failed.
+
+          Run: $RUN_URL
+
+          Scope:
+          - version.txt HEAD
+          - Korean/English passive tree HEAD
+          - ggpk.exposed PoE2 version HEAD
+          - Korean/English passive tree JSON shape and passive id overlap
+          EOF
+          )"
+
+          gh label create "pob-repoe" --color "5319e7" --description "PoB RePoE integration" || true
+          gh label create "cdn-broken" --color "d73a4a" --description "External CDN validation failed" || true
+
+          existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label "pob-repoe" --label "cdn-broken"
+          fi

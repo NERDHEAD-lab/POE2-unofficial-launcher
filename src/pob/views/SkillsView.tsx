@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { translateSkillsSnapshot } from "./repoeTranslations";
+
 import type {
+  PobRepoeTranslationsSnapshot,
   PobSkillGem,
   PobSkillGemCatalogEntry,
   PobSkillGroup,
@@ -22,6 +25,7 @@ type ActionState =
 
 interface SkillsViewProps {
   active: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onMutated: () => void;
 }
 
@@ -40,7 +44,11 @@ const gemToneClass = (color: string): string => {
   return "";
 };
 
-export function SkillsView({ active, onMutated }: SkillsViewProps) {
+export function SkillsView({
+  active,
+  translations,
+  onMutated,
+}: SkillsViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(1);
@@ -78,7 +86,14 @@ export function SkillsView({ active, onMutated }: SkillsViewProps) {
     };
   }, [active]);
 
-  const snapshot = state.status === "ready" ? state.snapshot : null;
+  const sourceSnapshot = state.status === "ready" ? state.snapshot : null;
+  const snapshot = useMemo(
+    () =>
+      sourceSnapshot
+        ? translateSkillsSnapshot(sourceSnapshot, translations)
+        : null,
+    [sourceSnapshot, translations],
+  );
   const busy = actionState.status === "running";
 
   const selectedGroup = useMemo(() => {
@@ -193,6 +208,7 @@ export function SkillsView({ active, onMutated }: SkillsViewProps) {
             <GroupDetail
               group={selectedGroup}
               snapshot={snapshot}
+              rawAvailableGems={sourceSnapshot?.availableGems ?? []}
               busy={busy}
               onAction={(action, nextIndex) =>
                 void runAction(action, nextIndex)
@@ -451,11 +467,18 @@ function GemOptions({ snapshot, busy, onAction }: GemOptionsProps) {
 interface GroupDetailProps {
   group: PobSkillGroup;
   snapshot: PobSkillsSnapshot;
+  rawAvailableGems: PobSkillGemCatalogEntry[];
   busy: boolean;
   onAction: (action: PobSkillsAction, nextIndex?: number) => void;
 }
 
-function GroupDetail({ group, snapshot, busy, onAction }: GroupDetailProps) {
+function GroupDetail({
+  group,
+  snapshot,
+  rawAvailableGems,
+  busy,
+  onAction,
+}: GroupDetailProps) {
   const { t } = useTranslation();
   const gemRows = group.canDelete
     ? [
@@ -640,10 +663,11 @@ function GroupDetail({ group, snapshot, busy, onAction }: GroupDetailProps) {
         </div>
         {gemRows.map((gem) => (
           <GemRow
-            key={`${group.index}-${gem.index}-${gem.gemId ?? gem.nameSpec}`}
+            key={`${group.index}-${gem.index}-${gem.gemId ?? gem.nameSpec}-${gem.displayName}`}
             group={group}
             gem={gem}
             availableGems={snapshot.availableGems}
+            rawAvailableGems={rawAvailableGems}
             busy={busy}
             onAction={onAction}
           />
@@ -657,11 +681,19 @@ interface GemRowProps {
   group: PobSkillGroup;
   gem: PobSkillGem;
   availableGems: PobSkillGemCatalogEntry[];
+  rawAvailableGems: PobSkillGemCatalogEntry[];
   busy: boolean;
   onAction: (action: PobSkillsAction, nextIndex?: number) => void;
 }
 
-function GemRow({ group, gem, availableGems, busy, onAction }: GemRowProps) {
+function GemRow({
+  group,
+  gem,
+  availableGems,
+  rawAvailableGems,
+  busy,
+  onAction,
+}: GemRowProps) {
   const { t } = useTranslation();
   const [nameValue, setNameValue] = useState(gem.displayName || gem.nameSpec);
   const datalistId = `pob-skills-gem-list-${group.index}-${gem.index}`;
@@ -669,7 +701,9 @@ function GemRow({ group, gem, availableGems, busy, onAction }: GemRowProps) {
   const commitName = () => {
     const value = nameValue.trim();
     if (!value && !gem.gemId && !gem.nameSpec) return;
-    const match = availableGems.find((entry) => entry.name === value);
+    const match =
+      availableGems.find((entry) => entry.name === value) ??
+      rawAvailableGems.find((entry) => entry.name === value);
     onAction({
       type: "setGem",
       groupIndex: group.index,
@@ -826,6 +860,15 @@ function GemRow({ group, gem, availableGems, busy, onAction }: GemRowProps) {
         {availableGems.map((entry) => (
           <option key={entry.id} value={entry.name} />
         ))}
+        {rawAvailableGems
+          .filter((entry) =>
+            availableGems.every(
+              (displayEntry) => displayEntry.name !== entry.name,
+            ),
+          )
+          .map((entry) => (
+            <option key={`raw-${entry.id}`} value={entry.name} />
+          ))}
       </datalist>
     </div>
   );
