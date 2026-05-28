@@ -1,13 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  VaultSettingsModal,
+  type VaultGenerationsState,
+} from "./components/VaultSettingsModal";
 import { BuildEditView } from "./views/BuildEditView";
 import { getNextUnnamedBuildName, isSameTarget } from "./views/folderTree";
 import { Sidebar } from "./views/Sidebar";
 import iconUrl from "../renderer/assets/icon.ico";
+import { DEFAULT_POB_SETTINGS } from "../shared/pobSettings";
 
 import type { BuildEditViewHandle } from "./views/BuildEditView";
 import type { BuildTarget, SortKey } from "./views/folderTree";
+import type {
+  PobSettings,
+  PobVaultRefreshSnapshot,
+  PobVaultStatusSnapshot,
+} from "../shared/types";
 
 const LANGS = ["ko", "en"] as const;
 type Lang = (typeof LANGS)[number];
@@ -23,32 +33,142 @@ interface PendingAction {
 
 const INITIAL_TARGET: BuildTarget = { subPath: "", fileName: null };
 
+type VaultRefreshState =
+  | { status: "idle" }
+  | { status: "running" }
+  | { status: "ready"; result: PobVaultRefreshSnapshot }
+  | { status: "error"; reason: string };
+
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const editRef = useRef<BuildEditViewHandle>(null);
+  const autoRefreshKeyRef = useRef<string | null>(null);
   const [target, setTarget] = useState<BuildTarget>(INITIAL_TARGET);
   const [history, setHistory] = useState<BuildTarget[]>([INITIAL_TARGET]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [autosave, setAutosave] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pobSettings, setPobSettings] =
+    useState<PobSettings>(DEFAULT_POB_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [refreshToken, setRefreshToken] = useState(0);
   const [draftKey, setDraftKey] = useState(0);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [vaultStatus, setVaultStatus] = useState<PobVaultStatusSnapshot | null>(
+    null,
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [vaultGenerationsState, setVaultGenerationsState] =
+    useState<VaultGenerationsState>({ status: "idle", generations: [] });
+  const [vaultRefreshState, setVaultRefreshState] = useState<VaultRefreshState>(
+    { status: "idle" },
+  );
 
   useEffect(() => {
     let cancelled = false;
     void window.pobAPI?.settings.get().then((settings) => {
       if (cancelled) return;
+      setPobSettings(settings);
       setAutosave(settings.autosaveDrafts);
       setSidebarCollapsed(settings.sidebarCollapsed);
+      setSettingsLoaded(true);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const reloadVaultStatus = useCallback(() => {
+    const api = window.pobAPI;
+    if (!api) return;
+    void api.vault.status().then((result) => {
+      if (result.status !== "ok") return;
+      setVaultStatus(result.snapshot);
+    });
+  }, []);
+
+  useEffect(() => {
+    reloadVaultStatus();
+  }, [reloadVaultStatus]);
+
+  const reloadVaultGenerations = useCallback(() => {
+    const api = window.pobAPI;
+    if (!api) {
+      setVaultGenerationsState({
+        status: "error",
+        generations: [],
+        reason: "pobAPI unavailable",
+      });
+      return;
+    }
+
+    setVaultGenerationsState({ status: "loading", generations: [] });
+    void api.vault.generations().then((result) => {
+      if (result.status === "ok") {
+        setVaultGenerationsState({
+          status: "ready",
+          generations: result.generations,
+        });
+        return;
+      }
+      setVaultGenerationsState({
+        status: "error",
+        generations: [],
+        reason: result.reason,
+      });
+    });
+  }, []);
+
+  const refreshVault = useCallback(
+    (force: boolean) => {
+      const api = window.pobAPI;
+      if (!api) {
+        setVaultRefreshState({
+          status: "error",
+          reason: "pobAPI unavailable",
+        });
+        return;
+      }
+
+      setVaultRefreshState({ status: "running" });
+      void api.vault
+        .refresh({
+          autoUpdate: pobSettings.autoVaultUpdate,
+          generationLimit: pobSettings.vaultGenerationLimit,
+          force,
+        })
+        .then((result) => {
+          if (result.status === "ok") {
+            setVaultRefreshState({ status: "ready", result: result.result });
+            reloadVaultStatus();
+            reloadVaultGenerations();
+            return;
+          }
+          setVaultRefreshState({ status: "error", reason: result.reason });
+          reloadVaultStatus();
+        });
+    },
+    [pobSettings, reloadVaultGenerations, reloadVaultStatus],
+  );
+
+  useEffect(() => {
+    if (!settingsLoaded || !pobSettings.autoVaultUpdate || !vaultStatus) return;
+    if (vaultStatus.state === "ok" || vaultStatus.state === "not-configured") {
+      return;
+    }
+
+    const key = [
+      vaultStatus.state,
+      vaultStatus.active?.version ?? "none",
+      vaultStatus.installVersion?.version ?? "none",
+    ].join(":");
+    if (autoRefreshKeyRef.current === key) return;
+    autoRefreshKeyRef.current = key;
+    refreshVault(false);
+  }, [pobSettings.autoVaultUpdate, refreshVault, settingsLoaded, vaultStatus]);
 
   const setLang = (lng: Lang) => {
     void i18n.changeLanguage(lng);
@@ -226,18 +346,44 @@ const App: React.FC = () => {
     setPending(null);
   }, [commitNavigation, pending]);
 
-  const handleAutosaveChange = useCallback((enabled: boolean) => {
-    setAutosave(enabled);
-    void window.pobAPI?.settings.set({ autosaveDrafts: enabled });
+  const updatePobSettings = useCallback((settings: Partial<PobSettings>) => {
+    const api = window.pobAPI;
+    if (!api) return;
+    void api.settings.set(settings).then((next) => {
+      setPobSettings(next);
+      setAutosave(next.autosaveDrafts);
+      setSidebarCollapsed(next.sidebarCollapsed);
+    });
   }, []);
+
+  const handleAutosaveChange = useCallback(
+    (enabled: boolean) => {
+      setAutosave(enabled);
+      updatePobSettings({ autosaveDrafts: enabled });
+    },
+    [updatePobSettings],
+  );
+
+  const handleVaultSettingsChange = useCallback(
+    (settings: Partial<PobSettings>) => {
+      setPobSettings((prev) => ({ ...prev, ...settings }));
+      updatePobSettings(settings);
+    },
+    [updatePobSettings],
+  );
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+    reloadVaultGenerations();
+  }, [reloadVaultGenerations]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
-      void window.pobAPI?.settings.set({ sidebarCollapsed: next });
+      updatePobSettings({ sidebarCollapsed: next });
       return next;
     });
-  }, []);
+  }, [updatePobSettings]);
 
   const handleHistory = useCallback(
     (delta: -1 | 1) => {
@@ -274,6 +420,28 @@ const App: React.FC = () => {
     setRefreshToken((value) => value + 1);
   }, []);
 
+  const vaultBadge =
+    vaultStatus?.state === "fallback"
+      ? {
+          className: "pob-titlebar-vault is-warning",
+          label: t("vault.status.fallback", {
+            version: vaultStatus.active?.version ?? "-",
+          }),
+          title: t("vault.status.fallbackTitle", {
+            activeVersion: vaultStatus.active?.version ?? "-",
+            installVersion: vaultStatus.installVersion?.version ?? "-",
+          }),
+        }
+      : vaultStatus?.state === "uninitialized"
+        ? {
+            className: "pob-titlebar-vault is-pending",
+            label: t("vault.status.uninitialized"),
+            title: t("vault.status.uninitializedTitle", {
+              installVersion: vaultStatus.installVersion?.version ?? "-",
+            }),
+          }
+        : null;
+
   return (
     <div className="pob-app">
       <header className="pob-titlebar">
@@ -281,6 +449,11 @@ const App: React.FC = () => {
           <img src={iconUrl} alt="" className="pob-titlebar-icon" />
           <span className="pob-titlebar-title">{t("app.title")}</span>
           <span className="pob-titlebar-beta">{t("app.beta")}</span>
+          {vaultBadge && (
+            <span className={vaultBadge.className} title={vaultBadge.title}>
+              {vaultBadge.label}
+            </span>
+          )}
         </div>
         <div className="pob-titlebar-right">
           <div className="pob-lang">
@@ -296,6 +469,14 @@ const App: React.FC = () => {
               ))}
             </select>
           </div>
+          <button
+            className="pob-titlebar-tool"
+            onClick={openSettings}
+            title={t("settings.open")}
+            aria-label={t("settings.open")}
+          >
+            &#9881;
+          </button>
           <div className="pob-window-controls">
             <button
               className="pob-window-btn"
@@ -373,6 +554,17 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {settingsOpen && (
+        <VaultSettingsModal
+          settings={pobSettings}
+          generationsState={vaultGenerationsState}
+          refreshState={vaultRefreshState}
+          onSettingsChange={handleVaultSettingsChange}
+          onReloadGenerations={reloadVaultGenerations}
+          onForceRefresh={() => refreshVault(true)}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
     </div>
   );

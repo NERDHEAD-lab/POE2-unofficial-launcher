@@ -1,3 +1,4 @@
+import { DEFAULT_POB_SETTINGS } from "./pobSettings";
 import { AppConfig, ConfigDefinition } from "./types";
 
 export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
@@ -287,10 +288,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   fontScaleSpoqa: 100,
   fontMutationSchema: 1,
   pob: {
-    settings: {
-      autosaveDrafts: false,
-      sidebarCollapsed: false,
-    },
+    settings: DEFAULT_POB_SETTINGS,
   },
 };
 

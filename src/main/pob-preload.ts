@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+import { normalizePobSettings } from "../shared/pobSettings";
+
 import type {
   AppConfig,
   PobCalcsAction,
@@ -14,12 +16,11 @@ import type {
   PobRepoeLocale,
   PobSettings,
   PobSkillsAction,
+  PobVaultGenerationsResult,
+  PobVaultRefreshRequest,
+  PobVaultRefreshResult,
+  PobVaultStatusResult,
 } from "../shared/types";
-
-const DEFAULT_POB_SETTINGS: PobSettings = {
-  autosaveDrafts: false,
-  sidebarCollapsed: false,
-};
 
 type PobConfig = NonNullable<AppConfig["pob"]>;
 
@@ -40,15 +41,14 @@ contextBridge.exposeInMainWorld("pobAPI", {
   settings: {
     get: async (): Promise<PobSettings> => {
       const pob = await getPobConfig();
-      return { ...DEFAULT_POB_SETTINGS, ...pob?.settings };
+      return normalizePobSettings(pob.settings);
     },
     set: async (settings: Partial<PobSettings>): Promise<PobSettings> => {
       const pob = await getPobConfig();
-      const nextSettings = {
-        ...DEFAULT_POB_SETTINGS,
+      const nextSettings = normalizePobSettings({
         ...pob.settings,
         ...settings,
-      };
+      });
       await ipcRenderer.invoke("config:set", "pob", {
         ...pob,
         settings: nextSettings,
@@ -89,6 +89,16 @@ contextBridge.exposeInMainWorld("pobAPI", {
       ipcRenderer.invoke("builds:read-xml", subPath, fileName),
     saveXml: (subPath: string, fileName: string, xml: string) =>
       ipcRenderer.invoke("builds:save-xml", subPath, fileName, xml),
+  },
+  vault: {
+    status: (): Promise<PobVaultStatusResult> =>
+      ipcRenderer.invoke("pob:vault-status"),
+    generations: (): Promise<PobVaultGenerationsResult> =>
+      ipcRenderer.invoke("pob:vault-generations"),
+    refresh: (
+      request?: PobVaultRefreshRequest,
+    ): Promise<PobVaultRefreshResult> =>
+      ipcRenderer.invoke("pob:vault-refresh", request),
   },
   session: {
     ensure: () => ipcRenderer.invoke("pob:session-ensure"),

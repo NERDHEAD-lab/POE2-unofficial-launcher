@@ -119,13 +119,25 @@ local function read_main_skill_name(b)
 end
 
 local function read_main_skill_dps(b, stats)
-	local output = b and b.calcsTab and b.calcsTab.mainOutput
-	if type(output) == "table" then
+	local function first_dps_value(source, require_non_zero)
+		if type(source) ~= "table" then
+			return nil
+		end
 		for _, key in ipairs({ "FullDPS", "CombinedDPS", "TotalDPS" }) do
-			if type(output[key]) == "number" then
-				return output[key]
+			local value = source[key]
+			if type(value) == "number" and (not require_non_zero or value ~= 0) then
+				return value
 			end
 		end
+		return nil
+	end
+
+	local output = b and b.calcsTab and b.calcsTab.mainOutput
+	local non_zero_output = first_dps_value(output, true)
+	if non_zero_output then
+		return non_zero_output
+	end
+	if type(output) == "table" then
 		if type(output.SkillDPS) == "table" then
 			local best = nil
 			for _, skillData in ipairs(output.SkillDPS) do
@@ -142,12 +154,7 @@ local function read_main_skill_dps(b, stats)
 			end
 		end
 	end
-	for _, key in ipairs({ "FullDPS", "CombinedDPS", "TotalDPS" }) do
-		if type(stats[key]) == "number" then
-			return stats[key]
-		end
-	end
-	return nil
+	return first_dps_value(stats, true) or first_dps_value(output, false) or first_dps_value(stats, false)
 end
 
 local function build_summary()

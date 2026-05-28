@@ -11,7 +11,17 @@ import {
 import { parseItemCopyText } from "./pobRepoe/itemCopyParser";
 import { loadItemCopyParserData } from "./pobRepoe/itemCopyParserData";
 import { loadRePoeTranslations } from "./pobRepoe/translations";
-import { PoBVault, pobVault } from "./pobVault";
+import {
+  getPobVaultGenerations,
+  getPobVaultStatus,
+  PoBVault,
+  pobVault,
+  refreshPobVault,
+} from "./pobVault";
+import {
+  DEFAULT_POB_SETTINGS,
+  normalizePobVaultGenerationLimit,
+} from "../../shared/pobSettings";
 import {
   PobBuildSummary,
   PobCalcsAction,
@@ -45,6 +55,10 @@ import {
   PobSkillsSnapshotResult,
   PobTreeResult,
   PobTreeSnapshot,
+  PobVaultGenerationsResult,
+  PobVaultRefreshRequest,
+  PobVaultRefreshResult,
+  PobVaultStatusResult,
 } from "../../shared/types";
 import { logger } from "../utils/logger";
 import { getPobInstallPath } from "../utils/registry";
@@ -592,6 +606,19 @@ const readItemCopyParseAndAddRequest = (
   };
 };
 
+const readPobVaultRefreshRequest = (
+  request: unknown,
+): Required<PobVaultRefreshRequest> => ({
+  autoUpdate:
+    isRecord(request) && typeof request.autoUpdate === "boolean"
+      ? request.autoUpdate
+      : DEFAULT_POB_SETTINGS.autoVaultUpdate,
+  generationLimit: normalizePobVaultGenerationLimit(
+    isRecord(request) ? request.generationLimit : undefined,
+  ),
+  force: isRecord(request) && request.force === true,
+});
+
 export function registerPobSessionHandlers(): void {
   ipcMain.handle(
     "pob:session-ensure",
@@ -601,6 +628,64 @@ export function registerPobSessionHandlers(): void {
         return { status: "ok" };
       } catch (err) {
         logger.warn("[PoBSession] ensure failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:vault-status",
+    async (event): Promise<PobVaultStatusResult> => {
+      try {
+        const game = getGameFromSender(event);
+        const detected = await getPobInstallPath(game);
+        const snapshot = await getPobVaultStatus({
+          vault: pobVault,
+          installLocation: detected.installLocation,
+        });
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] vault-status failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:vault-generations",
+    async (): Promise<PobVaultGenerationsResult> => {
+      try {
+        const generations = await getPobVaultGenerations(pobVault);
+        return { status: "ok", generations };
+      } catch (err) {
+        logger.warn("[PoBSession] vault-generations failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:vault-refresh",
+    async (event, request: unknown): Promise<PobVaultRefreshResult> => {
+      try {
+        const game = getGameFromSender(event);
+        const detected = await getPobInstallPath(game);
+        const refreshRequest = readPobVaultRefreshRequest(request);
+        const result = await refreshPobVault({
+          installLocation: detected.installLocation,
+          settings: {
+            autoVaultUpdate: refreshRequest.autoUpdate,
+            vaultGenerationLimit: refreshRequest.generationLimit,
+          },
+          force: refreshRequest.force,
+          vault: pobVault,
+        });
+        if (result.status === "promoted") {
+          await disposePobSession(game);
+        }
+        return { status: "ok", result };
+      } catch (err) {
+        logger.warn("[PoBSession] vault-refresh failed:", err);
         return toSessionError(err);
       }
     },

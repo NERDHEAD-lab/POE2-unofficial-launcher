@@ -34,6 +34,11 @@
       to: "lua",
       filter: ["**/*"],
     },
+    {
+      from: "src/main/services/__fixtures__/pob",
+      to: "pob",
+      filter: ["Imported Build2.xml"],
+    },
   ],
   publish: {
     provider: "github",

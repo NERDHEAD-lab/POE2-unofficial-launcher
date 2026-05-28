@@ -74,6 +74,10 @@ describe("PoBSession Imported Build2 contract", () => {
       try {
         const loaded = await session.loadBuildXml(xml, "Imported Build2");
         expect(loaded.ok).toBe(true);
+        expect(loaded.playerStats.FullDPS).toBe(0);
+        expect(loaded.playerStats.CombinedDPS).toBeGreaterThan(0);
+        expect(loaded.playerStats.TotalDPS).toBeGreaterThan(0);
+        expect(loaded.mainSkillDPS).toBe(loaded.playerStats.CombinedDPS);
 
         const tree = await session.treeSnapshot();
         assertPobTreeSnapshot(tree);

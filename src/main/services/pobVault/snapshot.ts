@@ -46,12 +46,17 @@ export interface CreateSnapshotResult {
   metadata: PobVaultMetadata;
 }
 
-export const createSnapshot = async ({
+export interface StageSnapshotResult {
+  version: string;
+  stagingPath: string;
+  metadata: PobVaultMetadata;
+}
+
+export const stageSnapshot = async ({
   installLocation,
   vaultRoot,
   version,
-}: CreateSnapshotOptions): Promise<CreateSnapshotResult> => {
-  const vaultPath = path.join(vaultRoot, version);
+}: CreateSnapshotOptions): Promise<StageSnapshotResult> => {
   const stagingPath = path.join(
     vaultRoot,
     `.staging-${version}-${process.pid}-${Date.now()}`,
@@ -69,6 +74,15 @@ export const createSnapshot = async ({
     hash: null,
   };
   await writeVaultMetadata(stagingPath, metadata);
+
+  return { version, stagingPath, metadata };
+};
+
+export const createSnapshot = async (
+  options: CreateSnapshotOptions,
+): Promise<CreateSnapshotResult> => {
+  const { version, stagingPath, metadata } = await stageSnapshot(options);
+  const vaultPath = path.join(options.vaultRoot, version);
 
   try {
     await fs.rename(stagingPath, vaultPath);

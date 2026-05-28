@@ -37,6 +37,8 @@ export type PobGame = "POE1" | "POE2";
 export interface PobSettings {
   autosaveDrafts: boolean;
   sidebarCollapsed: boolean;
+  autoVaultUpdate: boolean;
+  vaultGenerationLimit: number;
 }
 
 export interface AppConfig {
@@ -454,6 +456,95 @@ export type PobTreeResult =
 
 export type PobTreeMetadataResult =
   | { status: "ok"; metadata: unknown; vaultPath: string }
+  | { status: "error"; reason: string };
+
+export type PobVaultVersionSource = "manifest" | "executable" | "unknown";
+
+export interface PobVaultDetectedVersion {
+  version: string;
+  source: PobVaultVersionSource;
+}
+
+export interface PobVaultActiveEntry {
+  version: string;
+  vaultPath: string;
+}
+
+export type PobVaultStatusState =
+  | "ok"
+  | "fallback"
+  | "uninitialized"
+  | "not-configured";
+
+export interface PobVaultStatusSnapshot {
+  state: PobVaultStatusState;
+  installLocation: string | null;
+  installVersion: PobVaultDetectedVersion | null;
+  active: PobVaultActiveEntry | null;
+  checkedAt: string;
+}
+
+export type PobVaultStatusResult =
+  | { status: "ok"; snapshot: PobVaultStatusSnapshot }
+  | { status: "error"; reason: string };
+
+export interface PobVaultGenerationSnapshot {
+  version: string;
+  vaultPath: string;
+  sizeBytes: number;
+  active: boolean;
+  copiedAt: string | null;
+  smokeTestPassedAt: string | null;
+}
+
+export type PobVaultGenerationsResult =
+  | { status: "ok"; generations: PobVaultGenerationSnapshot[] }
+  | { status: "error"; reason: string };
+
+export type PobVaultRefreshStatus =
+  | "up-to-date"
+  | "update-available"
+  | "promoted"
+  | "fallback";
+
+export type PobVaultSmokeStepId =
+  | "ping"
+  | "build-dps"
+  | "xml-roundtrip"
+  | "build-code-decode";
+
+export interface PobVaultSmokeStepSnapshot {
+  id: PobVaultSmokeStepId;
+  label: string;
+  ok: boolean;
+  durationMs: number;
+  detail: string | null;
+}
+
+export interface PobVaultSmokeTestSnapshot {
+  ok: boolean;
+  vaultPath: string;
+  steps: PobVaultSmokeStepSnapshot[];
+}
+
+export interface PobVaultRefreshSnapshot {
+  status: PobVaultRefreshStatus;
+  installVersion: PobVaultDetectedVersion;
+  previousActive: PobVaultActiveEntry | null;
+  active: PobVaultActiveEntry | null;
+  promoted: PobVaultActiveEntry | null;
+  smokeTest: PobVaultSmokeTestSnapshot | null;
+  error: string | null;
+}
+
+export interface PobVaultRefreshRequest {
+  autoUpdate?: boolean;
+  generationLimit?: number;
+  force?: boolean;
+}
+
+export type PobVaultRefreshResult =
+  | { status: "ok"; result: PobVaultRefreshSnapshot }
   | { status: "error"; reason: string };
 
 export type PobItemRarity = PobOriginalItemRarity;
@@ -1014,6 +1105,13 @@ export interface PobWindowAPI {
   closeWindow: () => void;
   builds: BuildsAPI;
   session: PobSessionAPI;
+  vault: {
+    status: () => Promise<PobVaultStatusResult>;
+    generations: () => Promise<PobVaultGenerationsResult>;
+    refresh: (
+      request?: PobVaultRefreshRequest,
+    ) => Promise<PobVaultRefreshResult>;
+  };
   settings: {
     get: () => Promise<PobSettings>;
     set: (settings: Partial<PobSettings>) => Promise<PobSettings>;
