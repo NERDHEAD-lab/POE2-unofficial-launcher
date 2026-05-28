@@ -230,6 +230,15 @@ process.on("unhandledRejection", (reason) => {
   handleFatalError(reason, "unhandledRejection");
 });
 
+process.on("message", (message) => {
+  if (message !== "electron-vite&type=hot-reload") return;
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) continue;
+    win.webContents.reload();
+  }
+});
+
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
 process.env.DIST = path.join(__dirname, "../dist");

@@ -28,20 +28,21 @@ To work with the wiki visible as read context: `claude --add-dir ~/project_llm_w
 
 ### WSL execution rules (detect at session start)
 
-If `uname -r` contains `microsoft`/`WSL`, this is WSL — WSL is the development primary (edit/git/lint/rtk) and Windows is the build/run primary (Electron + actual POE / POE2 game test, which Linux cannot run). Both OSes share the same `node_modules` under `D:\project_poe2\POE2-unofficial-launcher\`.
+If `uname -r` contains `microsoft`/`WSL`, this is WSL. Use WSL as the primary environment for editing, searching, light git inspection, and rtk. Use Windows as the execution environment for npm scripts, Electron, actual POE / POE2 game tests, and git commits that may run hooks. Both OSes share the same `node_modules` under `D:\project_poe2\POE2-unofficial-launcher\`.
 
 Split commands by where they belong:
 
-- WSL bash, direct: 순수 Node 스크립트만 (예: `node -e ...`로 가설 검증). 같은 `node_modules`를 공유하지만 **eslint/vitest 모두 Linux 네이티브 바이너리(`unrs-resolver`, `@rolldown/binding-linux-x64-gnu`)를 요구해서 WSL에선 실패**한다 — 시도하지 말 것.
-- Windows PowerShell, never WSL: `npm install`, `npm ci`, `npm run build`, `npm run build:check`, `npm run dev`, `npm run lint`, `npm run lint:fix`, `npm test`.
+- WSL bash, direct: pure Node scripts only, such as `node -e ...` for quick hypothesis checks. Because both OSes share the same `node_modules`, **eslint and vitest require Linux-native binaries (`unrs-resolver`, `@rolldown/binding-linux-x64-gnu`) and can fail from WSL**. Do not run them directly in WSL.
+- Windows PowerShell, never WSL: `npm install`, `npm ci`, `npm run build`, `npm run build:check`, `npm run dev`, `npm run lint`, `npm run lint:fix`, `npm test`, and `git commit` when hooks may execute npm/lint-staged.
   - Prefer `pwsh.exe` (PowerShell 7); fall back to `powershell.exe` (5.1) if absent.
   - Detect: `command -v pwsh.exe >/dev/null && PS=pwsh.exe || PS=powershell.exe`
   - Invoke: `"$PS" -NoProfile -Command "cd 'D:\project_poe2\POE2-unofficial-launcher'; npm run <script>"`
-  - On failure (e.g. native module mismatch), fall back to asking the user to run it on Windows.
+  - For git commit: stage only the intended code files, then invoke the commit from the same Windows PowerShell wrapper if hooks may run. Do not ask the user to commit just because this session is WSL.
+  - If the sandbox blocks `pwsh.exe` / `powershell.exe`, request escalation and rerun the same command. Only fall back to asking the user to run it when Windows PowerShell itself is unavailable or the command requires live/manual UI interaction.
 
-Why `npm install`/`npm ci` must not run in WSL: WSL's npm writes only POSIX symlinks under `node_modules/.bin/` and does not create the Windows wrappers (`.cmd`, `.ps1`). The next `npm run build` / `npm run dev` from Windows then fails with `'tsc' is not recognized` / `'vite' is not recognized`. If dependencies need reinstalling (lock conflict, native binding error, pre-commit hook failing on unrs-resolver, etc.), ask the user to run `npm ci` from Windows pwsh — do not auto-repair from WSL.
+Why `npm install`/`npm ci` must not run in WSL: WSL's npm writes only POSIX symlinks under `node_modules/.bin/` and does not create the Windows wrappers (`.cmd`, `.ps1`). The next `npm run build` / `npm run dev` from Windows then fails with `'tsc' is not recognized` / `'vite' is not recognized`. If dependencies need reinstalling (lock conflict, native binding error, pre-commit hook failing on unrs-resolver, etc.), ask for user approval first, then run `npm ci` through the Windows PowerShell wrapper. Do not auto-repair from WSL.
 
-If a pre-commit hook fails in WSL due to native-binding mismatch, do not try to fix the environment. Either ask the user to commit from Windows, or get explicit approval for `--no-verify` for that single commit.
+If a pre-commit hook fails in WSL due to native-binding mismatch, do not try to fix the environment and do not ask the user to commit from Windows. Retry the commit through the Windows PowerShell wrapper. If that still fails, report the exact failure; use `--no-verify` only with explicit user approval for that single commit.
 
 Tasks requiring in-game verification (e.g. font work, launcher boot): a passing build is not sufficient — always request the user's live check on Windows.
 
