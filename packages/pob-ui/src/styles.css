@@ -127,6 +127,35 @@ textarea {
   letter-spacing: 0.5px;
 }
 
+.pob-ui-mode-switch {
+  display: inline-flex;
+  height: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(223, 207, 153, 0.28);
+  border-radius: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.pob-ui-mode-switch button {
+  min-width: 64px;
+  padding: 0 8px;
+  color: #b8b0a0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 0;
+  border-right: 1px solid rgba(223, 207, 153, 0.18);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.pob-ui-mode-switch button:last-child {
+  border-right: 0;
+}
+
+.pob-ui-mode-switch button.is-active {
+  color: var(--pob-bg);
+  background: var(--pob-accent);
+}
+
 .pob-titlebar-vault {
   max-width: min(260px, 30vw);
   overflow: hidden;
@@ -3679,6 +3708,76 @@ textarea {
 .pob-note-template-editor textarea {
   min-height: 230px;
   resize: vertical;
+}
+
+.pob-legacy-shell {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  background: var(--pob-bg);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-legacy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--pob-muted);
+  font-size: 12px;
+}
+
+.pob-legacy-header strong {
+  color: var(--pob-accent);
+  font-weight: 600;
+}
+
+.pob-legacy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.pob-legacy-cell {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 9px 10px;
+  background: var(--pob-panel);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-legacy-cell span {
+  color: var(--pob-muted);
+  font-size: 12px;
+}
+
+.pob-legacy-cell strong {
+  color: var(--pob-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pob-legacy-followup {
+  color: var(--pob-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pob-legacy-followup h3 {
+  margin: 0 0 6px;
+  color: var(--pob-text);
+  font-size: 13px;
+}
+
+.pob-legacy-followup ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 /* Config tab (PR-6.5) */

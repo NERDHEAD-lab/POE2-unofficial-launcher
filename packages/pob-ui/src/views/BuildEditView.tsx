@@ -29,6 +29,7 @@ import { POB_BUILD_MODES } from "./buildModes";
 import { CalcsView } from "./CalcsView";
 import { ConfigView } from "./ConfigView";
 import { ItemsView } from "./ItemsView";
+import { LegacyModeView } from "./LegacyModeView";
 import { NotesView } from "./NotesView";
 import { PartyView } from "./PartyView";
 import { PassiveTreeView } from "./PassiveTreeView";
@@ -38,6 +39,7 @@ import { SkillsView } from "./SkillsView";
 import type { BuildAction } from "./buildActions";
 import type { BuildMode } from "./buildModes";
 import type { MainSkillSummaryPanelState } from "./mainSkillSummaryPanel";
+import type { PobUiMode } from "./uiMode";
 
 export interface BuildEditViewHandle {
   saveCurrent: () => Promise<BuildsMutationResult>;
@@ -49,6 +51,7 @@ interface BuildEditViewProps {
   fileName: string | null;
   draftKey: number;
   activeMode: BuildMode;
+  uiMode: PobUiMode;
   onActiveModeChange: (mode: BuildMode) => void;
   onDirtyChange: (dirty: boolean) => void;
   onMainSkillSummaryChange: (state: MainSkillSummaryPanelState) => void;
@@ -106,6 +109,7 @@ export const BuildEditView = forwardRef<
       fileName,
       draftKey,
       activeMode,
+      uiMode,
       onActiveModeChange,
       onDirtyChange,
       onMainSkillSummaryChange,
@@ -863,6 +867,8 @@ export const BuildEditView = forwardRef<
               <p className="pob-mode-placeholder-body">
                 {t("buildEdit.modes.placeholder")}
               </p>
+            ) : uiMode === "legacy" ? (
+              <LegacyModeView activeMode={activeMode} />
             ) : activeMode === "tree" ? (
               <PassiveTreeView active translations={repoeTranslations} />
             ) : activeMode === "items" ? (

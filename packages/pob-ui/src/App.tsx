@@ -20,6 +20,7 @@ import {
 import { BuildEditView } from "./views/BuildEditView";
 import { getNextUnnamedBuildName, isSameTarget } from "./views/folderTree";
 import { Sidebar } from "./views/Sidebar";
+import { DEFAULT_POB_UI_MODE, POB_UI_MODES } from "./views/uiMode";
 import {
   createWrapperLastLocation,
   restoreWrapperLocation,
@@ -29,6 +30,7 @@ import type { BuildEditViewHandle } from "./views/BuildEditView";
 import type { BuildMode } from "./views/buildModes";
 import type { BuildTarget, SortKey } from "./views/folderTree";
 import type { MainSkillSummaryPanelState } from "./views/mainSkillSummaryPanel";
+import type { PobUiMode } from "./views/uiMode";
 
 const LANGS = ["ko", "en"] as const;
 type Lang = (typeof LANGS)[number];
@@ -59,6 +61,7 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<BuildTarget[]>([INITIAL_TARGET]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [activeMode, setActiveMode] = useState<BuildMode>("tree");
+  const [uiMode, setUiMode] = useState<PobUiMode>(DEFAULT_POB_UI_MODE);
   const [dirty, setDirty] = useState(false);
   const [autosave, setAutosave] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -526,6 +529,23 @@ const App: React.FC = () => {
           <img src={iconUrl} alt="" className="pob-titlebar-icon" />
           <span className="pob-titlebar-title">{t("app.title")}</span>
           <span className="pob-titlebar-beta">{t("app.beta")}</span>
+          <div
+            className="pob-ui-mode-switch"
+            role="group"
+            aria-label={t("uiMode.label")}
+          >
+            {POB_UI_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={uiMode === mode}
+                className={uiMode === mode ? "is-active" : ""}
+                onClick={() => setUiMode(mode)}
+              >
+                {t(`uiMode.${mode}`)}
+              </button>
+            ))}
+          </div>
           {vaultBadge && (
             <span className={vaultBadge.className} title={vaultBadge.title}>
               {vaultBadge.label}
@@ -600,6 +620,7 @@ const App: React.FC = () => {
             fileName={target.fileName}
             draftKey={draftKey}
             activeMode={activeMode}
+            uiMode={uiMode}
             onActiveModeChange={setActiveMode}
             onDirtyChange={setDirty}
             onMainSkillSummaryChange={setMainSkillSummary}

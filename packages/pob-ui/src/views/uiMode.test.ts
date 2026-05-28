@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  POB_UI_MODE_POLICIES,
+  createPobSnapshotProjection,
+  preservePobActionPayload,
+} from "./uiMode";
+
+describe("uiMode facade", () => {
+  it("documents every build mode policy boundary", () => {
+    expect(POB_UI_MODE_POLICIES.map((policy) => policy.mode)).toEqual([
+      "tree",
+      "skills",
+      "items",
+      "calcs",
+      "party",
+      "notes",
+    ]);
+    expect(
+      POB_UI_MODE_POLICIES.every(
+        (policy) =>
+          policy.legacyParityRequired.length > 0 &&
+          policy.renewedLayoutAllowed.length > 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("wraps PoB snapshots without transforming source identifiers", () => {
+    const snapshot = {
+      sectionId: "HitDamage",
+      actionPayload: { type: "setOption", var: "conditionFullLife" },
+    };
+
+    const projection = createPobSnapshotProjection("legacy", "calcs", snapshot);
+
+    expect(projection.source).toBe("pob-original");
+    expect(projection.snapshot).toBe(snapshot);
+    expect(projection.snapshot.sectionId).toBe("HitDamage");
+  });
+
+  it("keeps PoB action payloads pass-through", () => {
+    const action = {
+      type: "setSectionText",
+      key: "enemyConditions",
+      value: "Condition:Blinded",
+    };
+
+    expect(preservePobActionPayload(action)).toBe(action);
+  });
+});
