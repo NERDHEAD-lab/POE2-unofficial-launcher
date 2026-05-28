@@ -39,6 +39,7 @@
     "electron-store": "^11.0.2",
     "electron-updater": "^6.1.7",
     "fonteditor-core": "^2.6.3",
+    "fzstd": "^0.1.1",
     "github-markdown-css": "^5.9.0",
     "i18next": "^26.2.0",
     "jszip": "^3.10.1",

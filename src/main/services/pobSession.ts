@@ -7,16 +7,36 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { PoBVault, pobVault } from "./pobVault";
 import {
   PobBuildSummary,
+  PobCalcsAction,
+  PobCalcsBreakdown,
+  PobCalcsBreakdownResult,
+  PobCalcsSnapshot,
+  PobCalcsSnapshotResult,
+  PobConfigAction,
+  PobConfigSnapshot,
+  PobConfigSnapshotResult,
   PobGame,
+  PobItemsAction,
+  PobItemsDbKey,
+  PobItemsDbList,
+  PobItemsDbListResult,
+  PobItemsSnapshot,
+  PobItemsSnapshotResult,
   PobLoadBuildResult,
   PobSaveBuildResult,
   PobSessionResult,
+  PobSkillsAction,
+  PobSkillsSnapshot,
+  PobSkillsSnapshotResult,
+  PobTreeResult,
+  PobTreeSnapshot,
 } from "../../shared/types";
 import { logger } from "../utils/logger";
 import { getPobInstallPath } from "../utils/registry";
 
 const LUA_PATH =
-  ".\\?.lua;.\\?\\init.lua;.\\lua\\?.lua;.\\lua\\?\\init.lua;.\\runtime\\lua\\?.lua;.\\runtime\\lua\\?\\init.lua";
+  ".\\?.lua;.\\?\\init.lua;.\\lua\\?.lua;.\\lua\\?\\init.lua;.\\runtime\\lua\\?.lua;.\\runtime\\lua\\?\\init.lua;..\\runtime\\lua\\?.lua;..\\runtime\\lua\\?\\init.lua";
+const LUA_CPATH = ".\\?.dll;.\\runtime\\?.dll;..\\runtime\\?.dll";
 const READY_TIMEOUT_MS = 10_000;
 const RPC_TIMEOUT_MS = 30_000;
 const MAX_RESPAWN_ATTEMPTS = 3;
@@ -139,6 +159,11 @@ export class PoBSession {
     return this.spawnPromise;
   }
 
+  async getVaultPath(): Promise<string> {
+    const active = await this.resolveActiveVault();
+    return active.vaultPath;
+  }
+
   async call<T>(method: string, params: object = {}): Promise<T> {
     const run = () => this.callWithRetry<T>(method, params, 0);
     const result = this.rpcQueue.then(run, run);
@@ -172,6 +197,58 @@ export class PoBSession {
     return this.call<PobExportBuildXmlResult>("pob.saveBuildXml");
   }
 
+  treeSnapshot(): Promise<PobTreeSnapshot> {
+    return this.call<PobTreeSnapshot>("pob.tree.snapshot");
+  }
+
+  treeAllocate(nodeId: number): Promise<PobTreeSnapshot> {
+    return this.call<PobTreeSnapshot>("pob.tree.allocate", { nodeId });
+  }
+
+  treeDeallocate(nodeId: number): Promise<PobTreeSnapshot> {
+    return this.call<PobTreeSnapshot>("pob.tree.deallocate", { nodeId });
+  }
+
+  itemsSnapshot(): Promise<PobItemsSnapshot> {
+    return this.call<PobItemsSnapshot>("pob.items.snapshot");
+  }
+
+  itemsDbList(db: PobItemsDbKey): Promise<PobItemsDbList> {
+    return this.call<PobItemsDbList>("pob.items.dbList", { db });
+  }
+
+  itemsAction(action: PobItemsAction): Promise<PobItemsSnapshot> {
+    return this.call<PobItemsSnapshot>("pob.items.action", action);
+  }
+
+  skillsSnapshot(): Promise<PobSkillsSnapshot> {
+    return this.call<PobSkillsSnapshot>("pob.skills.snapshot");
+  }
+
+  skillsAction(action: PobSkillsAction): Promise<PobSkillsSnapshot> {
+    return this.call<PobSkillsSnapshot>("pob.skills.action", action);
+  }
+
+  calcsSnapshot(): Promise<PobCalcsSnapshot> {
+    return this.call<PobCalcsSnapshot>("pob.calcs.snapshot");
+  }
+
+  calcsBreakdown(key: string): Promise<PobCalcsBreakdown> {
+    return this.call<PobCalcsBreakdown>("pob.calcs.breakdown", { key });
+  }
+
+  calcsAction(action: PobCalcsAction): Promise<PobCalcsSnapshot> {
+    return this.call<PobCalcsSnapshot>("pob.calcs.action", action);
+  }
+
+  configSnapshot(): Promise<PobConfigSnapshot> {
+    return this.call<PobConfigSnapshot>("pob.config.snapshot");
+  }
+
+  configAction(action: PobConfigAction): Promise<PobConfigSnapshot> {
+    return this.call<PobConfigSnapshot>("pob.config.action", action);
+  }
+
   async dispose(): Promise<void> {
     const proc = this.proc;
     this.proc = null;
@@ -192,6 +269,8 @@ export class PoBSession {
 
   private async spawnOnce(): Promise<void> {
     const active = await this.resolveActiveVault();
+    const runtimePath = path.join(active.vaultPath, "runtime");
+    const parentRuntimePath = path.join(active.vaultPath, "..", "runtime");
     const luaExe = path.join(this.resourceRoot, "luajit.exe");
     const bridgePath = path.join(this.resourceRoot, "ipc_bridge.lua");
     const wrapperPath = path.join(this.resourceRoot, "HeadlessWrapper.lua");
@@ -204,7 +283,8 @@ export class PoBSession {
       env: {
         ...process.env,
         LUA_PATH,
-        PATH: `${this.resourceRoot};${active.vaultPath};${process.env.PATH ?? ""}`,
+        LUA_CPATH,
+        PATH: `${this.resourceRoot};${runtimePath};${parentRuntimePath};${active.vaultPath};${process.env.PATH ?? ""}`,
       },
     });
 
@@ -500,6 +580,222 @@ export function registerPobSessionHandlers(): void {
         return { status: "ok", xml: result.xml };
       } catch (err) {
         logger.warn("[PoBSession] save-build-xml failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  const callTree = async (
+    event: Electron.IpcMainInvokeEvent,
+    op: "snapshot" | "allocate" | "deallocate",
+    nodeId?: unknown,
+  ): Promise<PobTreeResult> => {
+    try {
+      const session = getPobSession(getGameFromSender(event));
+      let snapshot: PobTreeSnapshot;
+      if (op === "snapshot") {
+        snapshot = await session.treeSnapshot();
+      } else {
+        if (typeof nodeId !== "number") {
+          throw new Error(`pob:tree-${op} requires numeric nodeId`);
+        }
+        snapshot =
+          op === "allocate"
+            ? await session.treeAllocate(nodeId)
+            : await session.treeDeallocate(nodeId);
+      }
+      return { status: "ok", snapshot };
+    } catch (err) {
+      logger.warn(`[PoBSession] tree-${op} failed:`, err);
+      return toSessionError(err);
+    }
+  };
+
+  ipcMain.handle("pob:tree-snapshot", async (event) =>
+    callTree(event, "snapshot"),
+  );
+  ipcMain.handle("pob:tree-allocate", async (event, nodeId: unknown) =>
+    callTree(event, "allocate", nodeId),
+  );
+  ipcMain.handle("pob:tree-deallocate", async (event, nodeId: unknown) =>
+    callTree(event, "deallocate", nodeId),
+  );
+
+  ipcMain.handle("pob:tree-metadata", async (event) => {
+    try {
+      const session = getPobSession(getGameFromSender(event));
+      const metadata = await session.call<unknown>("pob.tree.metadata");
+      const vaultPath = await session.getVaultPath();
+      return { status: "ok", metadata, vaultPath };
+    } catch (err) {
+      logger.warn(`[PoBSession] tree-metadata failed:`, err);
+      return toSessionError(err);
+    }
+  });
+
+  ipcMain.handle(
+    "pob:items-snapshot",
+    async (event): Promise<PobItemsSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).itemsSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] items-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:items-db-list",
+    async (event, db: unknown): Promise<PobItemsDbListResult> => {
+      try {
+        if (db !== "uniqueDB" && db !== "rareDB") {
+          throw new Error("pob:items-db-list requires db = uniqueDB|rareDB");
+        }
+        const list = await getPobSession(getGameFromSender(event)).itemsDbList(
+          db,
+        );
+        return { status: "ok", list };
+      } catch (err) {
+        logger.warn("[PoBSession] items-db-list failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:items-action",
+    async (event, action: unknown): Promise<PobItemsSnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:items-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).itemsAction(action as PobItemsAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] items-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:skills-snapshot",
+    async (event): Promise<PobSkillsSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).skillsSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] skills-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:skills-action",
+    async (event, action: unknown): Promise<PobSkillsSnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:skills-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).skillsAction(action as PobSkillsAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] skills-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:calcs-snapshot",
+    async (event): Promise<PobCalcsSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).calcsSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] calcs-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:calcs-breakdown",
+    async (event, key: unknown): Promise<PobCalcsBreakdownResult> => {
+      try {
+        if (typeof key !== "string" || key === "") {
+          throw new Error("pob:calcs-breakdown requires string key");
+        }
+        const breakdown = await getPobSession(
+          getGameFromSender(event),
+        ).calcsBreakdown(key);
+        return { status: "ok", breakdown };
+      } catch (err) {
+        logger.warn("[PoBSession] calcs-breakdown failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:calcs-action",
+    async (event, action: unknown): Promise<PobCalcsSnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:calcs-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).calcsAction(action as PobCalcsAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] calcs-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:config-snapshot",
+    async (event): Promise<PobConfigSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).configSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] config-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:config-action",
+    async (event, action: unknown): Promise<PobConfigSnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:config-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).configAction(action as PobConfigAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] config-action failed:", err);
         return toSessionError(err);
       }
     },

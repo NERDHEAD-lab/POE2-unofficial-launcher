@@ -7,7 +7,17 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CalcsView } from "./CalcsView";
+import { ConfigView } from "./ConfigView";
+import { ItemsView } from "./ItemsView";
+import { PassiveTreeView } from "./PassiveTreeView";
+import { SkillsView } from "./SkillsView";
+
 import type { BuildsMutationResult, PobBuildSummary } from "../../shared/types";
+
+type BuildMode = "tree" | "items" | "skills" | "calcs" | "config";
+
+const MODES: BuildMode[] = ["tree", "items", "skills", "calcs", "config"];
 
 export interface BuildEditViewHandle {
   saveDraftAs: (fileName: string) => Promise<BuildsMutationResult>;
@@ -41,6 +51,7 @@ export const BuildEditView = forwardRef<
 >(({ subPath, fileName, draftKey, onDirtyChange, onSavedAs }, ref) => {
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: "idle" });
+  const [activeMode, setActiveMode] = useState<BuildMode>("tree");
 
   const buildName = fileName ?? t("buildEdit.empty.title");
   const isUserDraft = fileName === null && draftKey > 0;
@@ -191,13 +202,45 @@ export const BuildEditView = forwardRef<
         </div>
       )}
 
-      <div className="pob-mode-placeholder">
-        <div className="pob-mode-tabs" aria-label={t("buildEdit.modes.label")}>
-          {["Tree", "Items", "Skills", "Calcs", "Config"].map((mode) => (
-            <span key={mode}>{mode}</span>
+      <div className="pob-mode">
+        <div
+          className="pob-mode-tabs"
+          role="tablist"
+          aria-label={t("buildEdit.modes.label")}
+        >
+          {MODES.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={activeMode === mode}
+              className={
+                "pob-mode-tab" + (activeMode === mode ? " is-active" : "")
+              }
+              onClick={() => setActiveMode(mode)}
+              disabled={loadState.status !== "ready"}
+            >
+              {t(`buildEdit.modes.${mode}`)}
+            </button>
           ))}
         </div>
-        <p>{t("buildEdit.modes.placeholder")}</p>
+        <div className="pob-mode-panel" role="tabpanel">
+          {loadState.status !== "ready" ? (
+            <p className="pob-mode-placeholder-body">
+              {t("buildEdit.modes.placeholder")}
+            </p>
+          ) : activeMode === "tree" ? (
+            <PassiveTreeView active />
+          ) : activeMode === "items" ? (
+            <ItemsView active onMutated={() => onDirtyChange(true)} />
+          ) : activeMode === "skills" ? (
+            <SkillsView active onMutated={() => onDirtyChange(true)} />
+          ) : activeMode === "calcs" ? (
+            <CalcsView active />
+          ) : (
+            <ConfigView active onMutated={() => onDirtyChange(true)} />
+          )}
+        </div>
       </div>
 
       <pre className="pob-edit-path">

@@ -1,3 +1,12 @@
+import type {
+  PobOriginalCalcsBuffMode,
+  PobOriginalCalcsColour,
+  PobOriginalConfigOptionKind,
+  PobOriginalItemsDbKey,
+  PobOriginalItemRarity,
+  PobOriginalSkillGemColor,
+} from "./pobOriginalContract";
+
 export const CONFIG_CATEGORIES = [
   "Info",
   "General",
@@ -375,11 +384,548 @@ export interface PobLoadBuildRequest {
   name?: string;
 }
 
+export interface PobTreeNode {
+  id: number;
+  x: number;
+  y: number;
+  name: string | null;
+  type: string | null;
+  ascendancyName: string | null;
+  isAscendancyStart: boolean;
+  isKeystone: boolean;
+  isNotable: boolean;
+  isSocket: boolean;
+  isMastery: boolean;
+  isOnlyImage: boolean;
+  alloc: boolean;
+  icon?: string | null;
+  activeEffectImage?: string | null;
+  overlay?: {
+    alloc?: string | null;
+    unalloc?: string | null;
+    path?: string | null;
+  } | null;
+  targetSize?: {
+    width?: number | null;
+    height?: number | null;
+    overlay?: {
+      width?: number | null;
+      height?: number | null;
+    } | null;
+    effect?: {
+      width?: number | null;
+      height?: number | null;
+    } | null;
+  } | null;
+  linked: number[];
+}
+
+export interface PobTreeViewport {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface PobTreeSnapshot {
+  treeVersion: string | null;
+  classId: number | null;
+  className: string | null;
+  ascendClassId: number | null;
+  ascendClassName: string | null;
+  allocCount: number;
+  viewport: PobTreeViewport | null;
+  treeSize: number | null;
+  nodes: PobTreeNode[];
+}
+
+export type PobTreeResult =
+  | { status: "ok"; snapshot: PobTreeSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobTreeMetadataResult =
+  | { status: "ok"; metadata: unknown; vaultPath: string }
+  | { status: "error"; reason: string };
+
+export type PobItemRarity = PobOriginalItemRarity;
+
+export interface PobItemSummary {
+  id: number;
+  name: string;
+  rarity: PobItemRarity | string;
+  baseName: string | null;
+  title: string | null;
+  itemLevel: number | null;
+  quality: number | null;
+  corrupted: boolean;
+  mirrored: boolean;
+  shaper: boolean;
+  elder: boolean;
+  fractured: boolean;
+  influences: Record<string, unknown> | null;
+  baseType: string | null;
+  baseSubType: string | null;
+  implicitLines: string[];
+  explicitLines: string[];
+}
+
+export interface PobItemDbSummary extends Omit<PobItemSummary, "id"> {
+  id: string;
+}
+
+export interface PobItemSet {
+  id: number;
+  title: string;
+  useSecondWeaponSet: boolean;
+}
+
+export interface PobItemSlot {
+  name: string;
+  label: string;
+  slotType: string | null;
+  weaponSet: number | null;
+  nodeId: number | null;
+  selItemId: number;
+  visible: boolean;
+  active: boolean;
+  canActivate: boolean;
+  validItemIds: number[];
+}
+
+export interface PobItemsSnapshot {
+  activeSetId: number;
+  useSecondWeaponSet: boolean;
+  sets: PobItemSet[];
+  slots: PobItemSlot[];
+  items: PobItemSummary[];
+  sharedItems: PobItemSummary[];
+}
+
+export type PobItemsSnapshotResult =
+  | { status: "ok"; snapshot: PobItemsSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobItemsDbKey = PobOriginalItemsDbKey;
+
+export type PobItemsAction =
+  | { type: "setActiveSet"; setId: number }
+  | { type: "setWeaponSet"; weaponSet: 1 | 2 }
+  | { type: "equip"; slotName: string; itemId: number }
+  | { type: "setSlotActive"; slotName: string; active: boolean }
+  | { type: "equipBest"; itemId: number }
+  | { type: "sortItems" }
+  | { type: "deleteItem"; itemId: number }
+  | { type: "deleteUnused" }
+  | { type: "deleteAll" }
+  | { type: "addDbItem"; db: PobItemsDbKey; itemId: string; equip: boolean }
+  | { type: "addSharedItem"; index: number; equip: boolean }
+  | { type: "deleteSharedItem"; index: number }
+  | { type: "createCustom"; raw: string; equip: boolean };
+
+export interface PobItemsDbList {
+  entries: PobItemDbSummary[];
+}
+
+export type PobItemsDbListResult =
+  | { status: "ok"; list: PobItemsDbList }
+  | { status: "error"; reason: string };
+
+export type PobSkillGemColor = PobOriginalSkillGemColor;
+
+export interface PobSkillSet {
+  id: number;
+  title: string;
+}
+
+export interface PobSkillSlotOption {
+  label: string;
+  slotName?: string;
+}
+
+export interface PobSkillOption {
+  label: string;
+  value: string;
+}
+
+export interface PobSkillGemCatalogEntry {
+  id: string;
+  name: string;
+  color: PobSkillGemColor;
+  isSupport: boolean;
+  naturalMaxLevel: number | null;
+  tagString: string | null;
+}
+
+export interface PobSkillGemGlobalEffect {
+  index: number;
+  name: string;
+  enabled: boolean;
+}
+
+export interface PobSkillGem {
+  index: number;
+  gemId: string | null;
+  skillId: string | null;
+  nameSpec: string;
+  displayName: string;
+  level: number | null;
+  quality: number | null;
+  enabled: boolean;
+  enableGlobal1: boolean;
+  enableGlobal2: boolean;
+  count: number;
+  errMsg: string | null;
+  reqLevel: number | null;
+  reqStr: number | null;
+  reqDex: number | null;
+  reqInt: number | null;
+  naturalMaxLevel: number | null;
+  color: PobSkillGemColor;
+  isSupport: boolean;
+  isVaal: boolean;
+  fromItem: boolean;
+  fromTree: boolean;
+  triggered: boolean;
+  countVisible: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  globalEffects: PobSkillGemGlobalEffect[];
+  displayLevel: number | null;
+  displayQuality: number | null;
+}
+
+export interface PobSkillActiveSkill {
+  index: number;
+  label: string;
+  skillPartName: string | null;
+  disableReason: string | null;
+  color: PobSkillGemColor;
+}
+
+export interface PobSkillGroup {
+  index: number;
+  label: string;
+  displayLabel: string;
+  slot: string | null;
+  source: string | null;
+  sourceNote: string | null;
+  enabled: boolean;
+  slotEnabled: boolean;
+  includeInFullDPS: boolean;
+  groupCount: number;
+  mainActiveSkill: number;
+  mainActiveSkillCalcs: number;
+  isMain: boolean;
+  canDelete: boolean;
+  noSupports: boolean;
+  gems: PobSkillGem[];
+  activeSkills: PobSkillActiveSkill[];
+}
+
+export interface PobSkillsGemOptions {
+  sortGemsByDPS: boolean;
+  sortGemsByDPSField: string;
+  defaultGemLevel: string;
+  defaultGemQuality: number;
+  showSupportGemTypes: string;
+}
+
+export interface PobSkillsSnapshot {
+  activeSetId: number;
+  mainSocketGroup: number;
+  calcsSocketGroup: number;
+  sets: PobSkillSet[];
+  groups: PobSkillGroup[];
+  availableGems: PobSkillGemCatalogEntry[];
+  slotOptions: PobSkillSlotOption[];
+  defaultGemLevelOptions: PobSkillOption[];
+  supportGemTypeOptions: PobSkillOption[];
+  sortGemFieldOptions: PobSkillOption[];
+  options: PobSkillsGemOptions;
+}
+
+export type PobSkillsSnapshotResult =
+  | { status: "ok"; snapshot: PobSkillsSnapshot }
+  | { status: "error"; reason: string };
+
+export interface PobSkillGroupPatch {
+  label?: string;
+  slot?: string;
+  enabled?: boolean;
+  includeInFullDPS?: boolean;
+  groupCount?: number;
+  mainActiveSkill?: number;
+}
+
+export interface PobSkillGemPatch {
+  gemId?: string;
+  nameSpec?: string;
+  level?: number;
+  quality?: number;
+  enabled?: boolean;
+  enableGlobal1?: boolean;
+  enableGlobal2?: boolean;
+  count?: number;
+}
+
+export type PobSkillsAction =
+  | { type: "setActiveSkillSet"; setId: number }
+  | { type: "newSkillSet"; title: string }
+  | { type: "copySkillSet"; setId: number }
+  | { type: "renameSkillSet"; setId: number; title: string }
+  | { type: "deleteSkillSet"; setId: number }
+  | { type: "setOptions"; options: Partial<PobSkillsGemOptions> }
+  | { type: "addGroup"; label?: string }
+  | { type: "deleteGroup"; groupIndex: number }
+  | { type: "deleteAllGroups" }
+  | { type: "setMainGroup"; groupIndex: number }
+  | { type: "setGroup"; groupIndex: number; patch: PobSkillGroupPatch }
+  | {
+      type: "setGem";
+      groupIndex: number;
+      gemIndex: number;
+      patch: PobSkillGemPatch;
+    }
+  | { type: "deleteGem"; groupIndex: number; gemIndex: number };
+
+export type PobCalcsBuffMode = PobOriginalCalcsBuffMode;
+
+export type PobCalcsColour = PobOriginalCalcsColour;
+
+export interface PobCalcsDropdownOption {
+  index: number;
+  label: string;
+}
+
+export interface PobCalcsDropdown {
+  selected: number | null;
+  shown?: boolean;
+  enabled?: boolean;
+  options: PobCalcsDropdownOption[];
+}
+
+export interface PobCalcsEditField {
+  value: string | null;
+  shown: boolean;
+}
+
+export interface PobCalcsButton {
+  label: string;
+  shown: boolean;
+  enabled: boolean;
+}
+
+export interface PobCalcsSkillSelect {
+  skillNumber: number;
+  buffMode: PobCalcsBuffMode;
+  buffModeOptions: { value: PobCalcsBuffMode; label: string }[];
+  showMinion: boolean;
+  showMinionShown: boolean;
+  socketGroup: PobCalcsDropdown;
+  mainSkill: PobCalcsDropdown;
+  statSet: PobCalcsDropdown;
+  skillPart: PobCalcsDropdown;
+  skillStages: PobCalcsEditField;
+  mineCount: PobCalcsEditField;
+  minion: PobCalcsDropdown;
+  spectreLibrary: PobCalcsButton;
+  beastLibrary: PobCalcsButton;
+  minionSkill: PobCalcsDropdown;
+  minionSkillStatSet: PobCalcsDropdown;
+}
+
+export interface PobCalcsCell {
+  text: string;
+  colour: PobCalcsColour | null;
+  breakdownKey: string | null;
+}
+
+export interface PobCalcsRow {
+  label: string;
+  cells: PobCalcsCell[];
+}
+
+export interface PobCalcsSubSection {
+  id: string;
+  label: string;
+  collapsed: boolean;
+  defaultCollapsed: boolean;
+  extra: string | null;
+  colWidth: number | null;
+  rows: PobCalcsRow[];
+}
+
+export interface PobCalcsSection {
+  id: string;
+  group: number;
+  widthCols: number;
+  colour: PobCalcsColour | null;
+  enabled: boolean;
+  subSections: PobCalcsSubSection[];
+}
+
+export interface PobCalcsSummary {
+  combinedDPS: number | null;
+  fullDPS: number | null;
+  totalEHP: number | null;
+  life: number | null;
+  energyShield: number | null;
+  mana: number | null;
+}
+
+export interface PobCalcsSnapshot {
+  search: string;
+  skillSelect: PobCalcsSkillSelect;
+  sections: PobCalcsSection[];
+  summary: PobCalcsSummary;
+}
+
+export type PobCalcsSnapshotResult =
+  | { status: "ok"; snapshot: PobCalcsSnapshot }
+  | { status: "error"; reason: string };
+
+export interface PobCalcsBreakdownModEntry {
+  name: string | null;
+  type: string | null;
+  value: number | null;
+  source: string | null;
+  sourceLine: string | null;
+}
+
+export interface PobCalcsBreakdownModsSection {
+  type: "MODS";
+  data: {
+    label: string;
+    modName: string[];
+    modType: string;
+    entries: PobCalcsBreakdownModEntry[];
+  };
+}
+
+export interface PobCalcsBreakdownStatSection {
+  type: "BREAKDOWN";
+  data: {
+    stat: string;
+    label: string | null;
+    footer: string | null;
+    lines: string[];
+    rowList: Array<Record<string, string>> | null;
+    colList: { key: string; label: string }[] | null;
+  };
+}
+
+export type PobCalcsBreakdownSection =
+  | PobCalcsBreakdownModsSection
+  | PobCalcsBreakdownStatSection;
+
+export interface PobCalcsBreakdown {
+  key: string;
+  sections: PobCalcsBreakdownSection[];
+}
+
+export type PobCalcsBreakdownResult =
+  | { status: "ok"; breakdown: PobCalcsBreakdown }
+  | { status: "error"; reason: string };
+
+export type PobCalcsAction =
+  | { type: "setSkillNumber"; value: number }
+  | { type: "setBuffMode"; value: PobCalcsBuffMode }
+  | { type: "setShowMinion"; value: boolean }
+  | { type: "setMainActiveSkill"; value: number }
+  | { type: "setStatSet"; value: number }
+  | { type: "setSkillPart"; value: number }
+  | { type: "setSkillStages"; value: string }
+  | { type: "setMines"; value: string }
+  | { type: "setMinion"; value: number }
+  | { type: "setMinionSkill"; value: number }
+  | { type: "setMinionSkillStatSet"; value: number }
+  | { type: "toggleSubsection"; sectionId: string; subSectionId: string };
+
+export type PobConfigScalar = string | number | boolean | null;
+
+export type PobConfigOptionKind = PobOriginalConfigOptionKind;
+
+export interface PobConfigSet {
+  id: number;
+  index: number;
+  title: string;
+  active: boolean;
+}
+
+export interface PobConfigListOption {
+  index: number;
+  value: PobConfigScalar;
+  label: string;
+}
+
+export interface PobConfigOption {
+  id: string;
+  var: string | null;
+  kind: PobConfigOptionKind;
+  label: string;
+  value: PobConfigScalar;
+  defaultValue: PobConfigScalar;
+  placeholder: PobConfigScalar;
+  shown: boolean;
+  enabled: boolean;
+  modified: boolean;
+  tooltip: string | null;
+  options: PobConfigListOption[];
+  selectedIndex: number | null;
+  resizable: boolean;
+  hideIfInvalid: boolean;
+  doNotHighlight: boolean;
+}
+
+export interface PobConfigSection {
+  id: string;
+  label: string;
+  col: number | null;
+  shown: boolean;
+  options: PobConfigOption[];
+}
+
+export interface PobConfigSnapshot {
+  activeConfigSetId: number;
+  configSets: PobConfigSet[];
+  search: string;
+  showAll: boolean;
+  sections: PobConfigSection[];
+}
+
+export type PobConfigSnapshotResult =
+  | { status: "ok"; snapshot: PobConfigSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobConfigAction =
+  | { type: "setActiveConfigSet"; setId: number }
+  | { type: "setSearch"; value: string }
+  | { type: "setShowAll"; value: boolean }
+  | { type: "setOption"; var: string; value: PobConfigScalar }
+  | { type: "newConfigSet"; title: string }
+  | { type: "copyConfigSet"; setId: number; title: string }
+  | { type: "renameConfigSet"; setId: number; title: string }
+  | { type: "deleteConfigSet"; setId: number };
+
 export interface PobSessionAPI {
   ensure: () => Promise<PobSessionResult>;
   loadBuild: (request: PobLoadBuildRequest) => Promise<PobLoadBuildResult>;
   newBuild: (name?: string) => Promise<PobLoadBuildResult>;
   saveBuildXml: () => Promise<PobSaveBuildResult>;
+  treeSnapshot: () => Promise<PobTreeResult>;
+  treeMetadata: () => Promise<PobTreeMetadataResult>;
+  treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
+  treeDeallocate: (nodeId: number) => Promise<PobTreeResult>;
+  itemsSnapshot: () => Promise<PobItemsSnapshotResult>;
+  itemsDbList: (db: PobItemsDbKey) => Promise<PobItemsDbListResult>;
+  itemsAction: (action: PobItemsAction) => Promise<PobItemsSnapshotResult>;
+  skillsSnapshot: () => Promise<PobSkillsSnapshotResult>;
+  skillsAction: (action: PobSkillsAction) => Promise<PobSkillsSnapshotResult>;
+  calcsSnapshot: () => Promise<PobCalcsSnapshotResult>;
+  calcsBreakdown: (key: string) => Promise<PobCalcsBreakdownResult>;
+  calcsAction: (action: PobCalcsAction) => Promise<PobCalcsSnapshotResult>;
+  configSnapshot: () => Promise<PobConfigSnapshotResult>;
+  configAction: (action: PobConfigAction) => Promise<PobConfigSnapshotResult>;
 }
 
 export interface PobWindowAPI {

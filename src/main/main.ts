@@ -146,6 +146,16 @@ protocol.registerSchemesAsPrivileged([
       corsEnabled: true,
     },
   },
+  {
+    scheme: "pob-asset",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
 ]);
 
 /**
@@ -2764,6 +2774,25 @@ app.whenReady().then(async () => {
       return net.fetch(pathToFileURL(localPath).href);
     } catch (err) {
       logger.error("[Protocol] Failed to resolve asset URL:", request.url, err);
+      return new Response("Not Found", { status: 404 });
+    }
+  });
+
+  // Register custom protocol to load PoB assets from local active vault
+  protocol.handle("pob-asset", (request) => {
+    try {
+      const urlObj = new URL(request.url);
+      const targetPath = urlObj.searchParams.get("path");
+      if (!targetPath) {
+        return new Response("Missing path parameter", { status: 400 });
+      }
+      return net.fetch(pathToFileURL(targetPath).href);
+    } catch (err) {
+      logger.error(
+        "[Protocol] Failed to resolve pob-asset URL:",
+        request.url,
+        err,
+      );
       return new Response("Not Found", { status: 404 });
     }
   });
