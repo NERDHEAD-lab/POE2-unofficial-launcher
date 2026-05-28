@@ -1,0 +1,19 @@
+{
+  "name": "pob-unofficial-wrapper",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "main": "dist/main.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "vite build --config vite.config.mts"
+  },
+  "dependencies": {
+    "@poe2-launcher/pob-bridge": "*",
+    "@poe2-launcher/shared": "*"
+  },
+  "peerDependencies": {
+    "electron": "^40.0.0",
+    "typescript": "^6.0.0"
+  }
+}

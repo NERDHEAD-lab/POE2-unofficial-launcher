@@ -25,17 +25,12 @@
   },
   extraResources: [
     {
-      from: "src/main/assets",
-      to: "assets",
-      filter: ["**/*"],
-    },
-    {
-      from: "resources/lua",
+      from: "packages/pob-headless-glue/resources/lua",
       to: "lua",
       filter: ["**/*"],
     },
     {
-      from: "src/main/services/__fixtures__/pob",
+      from: "packages/launcher/src/main/services/__fixtures__/pob",
       to: "pob",
       filter: ["Imported Build2.xml"],
     },

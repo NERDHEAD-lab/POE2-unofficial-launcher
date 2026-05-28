@@ -49,7 +49,7 @@ export default defineConfig({
     electron([
       {
         // Main-Process entry file of the Electron App.
-        entry: "src/main/main.ts",
+        entry: "packages/launcher/src/main/main.ts",
         vite: {
           define: defines,
           build: {
@@ -60,13 +60,16 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/workers/FontMutatorWorker.ts",
+        entry: "packages/launcher/src/main/workers/FontMutatorWorker.ts",
+        onstart(options) {
+          options.reload();
+        },
         vite: {
           define: defines,
           build: {
             outDir: "dist-electron/workers",
             lib: {
-              entry: "src/main/workers/FontMutatorWorker.ts",
+              entry: "packages/launcher/src/main/workers/FontMutatorWorker.ts",
               formats: ["cjs"],
               fileName: () => "[name].js",
             },
@@ -74,14 +77,17 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/workers/OtfMutatorWorker.ts",
+        entry: "packages/launcher/src/main/workers/OtfMutatorWorker.ts",
+        onstart(options) {
+          options.reload();
+        },
         vite: {
           define: defines,
           build: {
             outDir: "dist-electron/workers",
             emptyOutDir: false,
             lib: {
-              entry: "src/main/workers/OtfMutatorWorker.ts",
+              entry: "packages/launcher/src/main/workers/OtfMutatorWorker.ts",
               formats: ["cjs"],
               fileName: () => "[name].js",
             },
@@ -89,7 +95,7 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/preload.ts",
+        entry: "packages/launcher/src/main/preload.ts",
         onstart(options) {
           options.reload();
         },
@@ -98,7 +104,7 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/pob-preload.ts",
+        entry: "packages/launcher/src/main/pob-preload.ts",
         onstart(options) {
           options.reload();
         },
@@ -114,7 +120,7 @@ export default defineConfig({
         },
       },
       {
-        entry: "src/main/kakao/preload.ts",
+        entry: "packages/launcher/src/main/kakao/preload.ts",
         onstart(options) {
           options.reload();
         },
@@ -123,7 +129,7 @@ export default defineConfig({
             outDir: "dist-electron/kakao",
             minify: process.env.NODE_ENV === "production",
             lib: {
-              entry: "src/main/kakao/preload.ts",
+              entry: "packages/launcher/src/main/kakao/preload.ts",
               formats: ["cjs"],
               fileName: () => "[name].js",
             },
@@ -143,7 +149,31 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@poe2-launcher/pob-bridge": path.resolve(
+        __dirname,
+        "packages/pob-bridge/src",
+      ),
+      "@poe2-launcher/launcher": path.resolve(
+        __dirname,
+        "packages/launcher/src",
+      ),
+      "@poe2-launcher/pob-ui": path.resolve(
+        __dirname,
+        "packages/pob-ui/src",
+      ),
+      "@poe2-launcher/pob-repoe": path.resolve(
+        __dirname,
+        "packages/pob-repoe/src",
+      ),
+      "@poe2-launcher/pob-vault": path.resolve(
+        __dirname,
+        "packages/pob-vault/src",
+      ),
+      "@poe2-launcher/shared": path.resolve(
+        __dirname,
+        "packages/shared/src",
+      ),
+      "@": path.resolve(__dirname, "packages/launcher/src"),
     },
   },
   build: {

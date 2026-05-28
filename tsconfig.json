@@ -4,6 +4,22 @@
     "useDefineForClassFields": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@poe2-launcher/launcher": ["packages/launcher/src"],
+      "@poe2-launcher/launcher/*": ["packages/launcher/src/*"],
+      "@poe2-launcher/pob-bridge": ["packages/pob-bridge/src"],
+      "@poe2-launcher/pob-bridge/*": ["packages/pob-bridge/src/*"],
+      "@poe2-launcher/pob-ui": ["packages/pob-ui/src"],
+      "@poe2-launcher/pob-ui/*": ["packages/pob-ui/src/*"],
+      "@poe2-launcher/pob-repoe": ["packages/pob-repoe/src"],
+      "@poe2-launcher/pob-repoe/*": ["packages/pob-repoe/src/*"],
+      "@poe2-launcher/pob-vault": ["packages/pob-vault/src"],
+      "@poe2-launcher/pob-vault/*": ["packages/pob-vault/src/*"],
+      "@poe2-launcher/shared": ["packages/shared/src"],
+      "@poe2-launcher/shared/*": ["packages/shared/src/*"]
+    },
     "strict": true,
     "jsx": "react-jsx",
     "resolveJsonModule": true,
@@ -13,5 +29,13 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": [
+    "packages/launcher/src",
+    "packages/shared/src",
+    "packages/pob-repoe/src",
+    "packages/pob-vault/src",
+    "packages/pob-bridge/src",
+    "packages/pob-ui/src",
+    "packages/pob-unofficial-wrapper/src"
+  ]
 }

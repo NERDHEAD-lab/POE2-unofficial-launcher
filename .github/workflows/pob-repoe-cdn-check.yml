@@ -27,7 +27,7 @@ jobs:
       - name: Run RePoE CDN baseline
         env:
           POB_REPOE_CDN_BASELINE: "1"
-        run: npm test -- src/main/services/pobRepoe/__tests__/cdn-baseline.spec.ts
+        run: npm test -- packages/pob-repoe/src/__tests__/cdn-baseline.spec.ts
 
       - name: Open or update CDN failure issue
         if: failure()

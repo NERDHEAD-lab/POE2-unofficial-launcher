@@ -7,8 +7,9 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_POB_I18N_DIR = path.resolve(
   scriptDir,
   "..",
+  "packages",
+  "pob-ui",
   "src",
-  "pob",
   "i18n",
 );
 
@@ -76,7 +77,9 @@ export async function checkPobI18nDomain(i18nDir = DEFAULT_POB_I18N_DIR) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const violations = await checkPobI18nDomain();
   if (violations.length > 0) {
-    console.error("PoB game-data strings must stay out of src/pob/i18n keys.");
+    console.error(
+      "PoB game-data strings must stay out of packages/pob-ui/src/i18n keys.",
+    );
     for (const violation of violations) {
       console.error(`- ${violation.filePath}: ${violation.key}`);
     }

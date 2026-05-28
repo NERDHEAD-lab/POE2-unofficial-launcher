@@ -24,10 +24,15 @@ const TARGET_FONTS = [
 ];
 
 // 원본 소스: 항상 kodia.ttf를 사용
-const sourcePath = path.join(__dirname, "../src/main/assets/fonts/defaults/kodia.ttf");
+const sourcePath = path.join(
+  __dirname,
+  "../packages/launcher/src/main/assets/fonts/defaults/kodia.ttf",
+);
 
 const mutateFont = (config: (typeof TARGET_FONTS)[0]) => {
-  console.log(`\n--- [${config.id}] 원본 Kodia 변조 시작 -> ${config.fullName} (${config.subfamily}) ---`);
+  console.log(
+    `\n--- [${config.id}] 원본 Kodia 변조 시작 -> ${config.fullName} (${config.subfamily}) ---`,
+  );
 
   if (!fs.existsSync(sourcePath)) {
     console.error(`❌ 원본 소스 파일을 찾을 수 없습니다: ${sourcePath}`);
@@ -48,7 +53,7 @@ const mutateFont = (config: (typeof TARGET_FONTS)[0]) => {
   name.postScriptName = config.postScript; // ID 6
   name.preferredFamily = config.family; // ID 16
   name.preferredSubFamily = config.subfamily; // ID 17
-  
+
   // Unique ID (ID 3)
   name.uniqueSubFamily = `${config.postScript};${name.version}`;
 
@@ -57,7 +62,9 @@ const mutateFont = (config: (typeof TARGET_FONTS)[0]) => {
   const outputPath = path.join(__dirname, "..", config.outputFile);
   fs.writeFileSync(outputPath, Buffer.from(outputBuffer as ArrayBuffer));
 
-  console.log(`✅ [${config.id}] 생성 완료! (윈도우 제목 클린 / 서브패밀리 Book 적용)`);
+  console.log(
+    `✅ [${config.id}] 생성 완료! (윈도우 제목 클린 / 서브패밀리 Book 적용)`,
+  );
   console.log(`📍 경로: ${outputPath}`);
 };
 
@@ -65,8 +72,12 @@ try {
   TARGET_FONTS.forEach(mutateFont);
 
   console.log("\n--------------------------------------------------");
-  console.log("✅ 기준 폰트와 1:1로 일치하는 메타데이터 이식이 완료되었습니다.");
-  console.log("루트 폴더의 Kakao_Noto.ttf와 Kakao_Spoqa.ttf를 다시 확인해 주세요.");
+  console.log(
+    "✅ 기준 폰트와 1:1로 일치하는 메타데이터 이식이 완료되었습니다.",
+  );
+  console.log(
+    "루트 폴더의 Kakao_Noto.ttf와 Kakao_Spoqa.ttf를 다시 확인해 주세요.",
+  );
 } catch (e: unknown) {
   console.error("오류 발생:", e instanceof Error ? e.message : String(e));
   process.exit(1);

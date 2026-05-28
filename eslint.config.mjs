@@ -46,10 +46,59 @@ export default [
           ],
           pathGroups: [
             {
+              pattern: "@poe2-launcher/launcher",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/launcher/**",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-bridge",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-bridge/**",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-ui",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-ui/**",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-repoe",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-repoe/**",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-vault",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/pob-vault/**",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/shared",
+              group: "internal",
+            },
+            {
+              pattern: "@poe2-launcher/shared/**",
+              group: "internal",
+            },
+            {
               pattern: "@/**",
               group: "internal",
             },
           ],
+          pathGroupsExcludedImportTypes: ["builtin", "object"],
           "newlines-between": "always",
           alphabetize: {
             order: "asc",

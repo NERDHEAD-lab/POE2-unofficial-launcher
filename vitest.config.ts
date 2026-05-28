@@ -1,6 +1,33 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@poe2-launcher/launcher": path.resolve(
+        __dirname,
+        "packages/launcher/src",
+      ),
+      "@poe2-launcher/pob-bridge": path.resolve(
+        __dirname,
+        "packages/pob-bridge/src",
+      ),
+      "@poe2-launcher/pob-ui": path.resolve(__dirname, "packages/pob-ui/src"),
+      "@poe2-launcher/pob-repoe": path.resolve(
+        __dirname,
+        "packages/pob-repoe/src",
+      ),
+      "@poe2-launcher/pob-vault": path.resolve(
+        __dirname,
+        "packages/pob-vault/src",
+      ),
+      "@poe2-launcher/shared": path.resolve(__dirname, "packages/shared/src"),
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,

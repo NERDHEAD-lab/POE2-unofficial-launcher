@@ -29,11 +29,11 @@ describe("PoB i18n domain guard", () => {
             "Fire Damage": "화염 피해",
           },
         },
-        "src/pob/i18n/ko.json",
+        "packages/pob-ui/src/i18n/ko.json",
       ),
     ).toEqual([
       {
-        filePath: "src/pob/i18n/ko.json",
+        filePath: "packages/pob-ui/src/i18n/ko.json",
         key: "pobStats.Fire Damage",
       },
     ]);

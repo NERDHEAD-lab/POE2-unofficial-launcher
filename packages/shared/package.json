@@ -1,0 +1,11 @@
+{
+  "name": "@poe2-launcher/shared",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts"
+}
