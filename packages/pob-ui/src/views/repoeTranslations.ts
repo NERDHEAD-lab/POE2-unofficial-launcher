@@ -1,12 +1,15 @@
 import type {
   PobItemDbSummary,
+  PobItemsTooltip,
   PobItemsSnapshot,
   PobItemSummary,
   PobRepoeTranslationsSnapshot,
   PobSkillGem,
   PobSkillGemCatalogEntry,
+  PobSkillsGemTooltip,
   PobSkillsSnapshot,
   PobTreeSnapshot,
+  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 export const EMPTY_REPOE_TRANSLATIONS: PobRepoeTranslationsSnapshot = {
@@ -14,6 +17,8 @@ export const EMPTY_REPOE_TRANSLATIONS: PobRepoeTranslationsSnapshot = {
   available: false,
   nodeNamesById: {},
   nodeStatLinesById: {},
+  statLinesByEnglishLine: {},
+  statLineTemplates: [],
   itemNamesById: {},
   itemNamesByEnglishName: {},
   gemNamesById: {},
@@ -29,6 +34,82 @@ const translatedByName = (
   if (!value) return null;
   return map[value] ?? null;
 };
+
+interface CompiledStatLineTemplate {
+  regex: RegExp;
+  indexes: number[];
+  localized: string;
+}
+
+const statTemplateCache = new WeakMap<
+  PobRepoeTranslationsSnapshot,
+  CompiledStatLineTemplate[]
+>();
+
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const compileStatTemplate = (
+  english: string,
+  localized: string,
+): CompiledStatLineTemplate | null => {
+  const indexes: number[] = [];
+  let pattern = "^";
+  let cursor = 0;
+  for (const match of english.matchAll(/\{(\d+)\}/g)) {
+    pattern += escapeRegex(english.slice(cursor, match.index));
+    pattern += "(.+?)";
+    indexes.push(Number(match[1]));
+    cursor = (match.index ?? 0) + match[0].length;
+  }
+  if (indexes.length === 0) return null;
+  pattern += `${escapeRegex(english.slice(cursor))}$`;
+  return { regex: new RegExp(pattern), indexes, localized };
+};
+
+const compiledStatTemplates = (
+  translations: PobRepoeTranslationsSnapshot,
+): CompiledStatLineTemplate[] => {
+  const cached = statTemplateCache.get(translations);
+  if (cached) return cached;
+
+  const compiled = translations.statLineTemplates.flatMap((template) => {
+    const value = compileStatTemplate(template.english, template.localized);
+    return value ? [value] : [];
+  });
+  statTemplateCache.set(translations, compiled);
+  return compiled;
+};
+
+export const translateStatLine = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string => {
+  if (!translations.available || !text) return text;
+  const exact = translations.statLinesByEnglishLine[text];
+  if (exact) return exact;
+
+  for (const template of compiledStatTemplates(translations)) {
+    const match = template.regex.exec(text);
+    if (!match) continue;
+
+    const values = new Map<number, string>();
+    template.indexes.forEach((index, captureIndex) => {
+      values.set(index, match[captureIndex + 1] ?? "");
+    });
+    return template.localized.replace(
+      /\{(\d+)\}/g,
+      (_token, index: string) => values.get(Number(index)) ?? "",
+    );
+  }
+
+  return text;
+};
+
+export const translateStatLines = (
+  lines: string[],
+  translations: PobRepoeTranslationsSnapshot,
+): string[] => lines.map((line) => translateStatLine(line, translations));
 
 const translatedItemName = (
   item: PobItemSummary | PobItemDbSummary,
@@ -69,7 +150,8 @@ export function translateTreeSnapshot(
       ...node,
       name: translations.nodeNamesById[String(node.id)] ?? node.name,
       statLines:
-        translations.nodeStatLinesById[String(node.id)] ?? node.statLines,
+        translations.nodeStatLinesById[String(node.id)] ??
+        translateStatLines(node.statLines ?? [], translations),
     })),
   };
 }
@@ -82,6 +164,8 @@ export function translateItemSummary<
     ...item,
     name: translatedItemName(item, translations),
     baseName: translatedBaseName(item, translations),
+    implicitLines: translateStatLines(item.implicitLines, translations),
+    explicitLines: translateStatLines(item.explicitLines, translations),
     title:
       translatedByName(
         translations,
@@ -113,6 +197,42 @@ export function translateItemDbEntries(
 ): PobItemDbSummary[] {
   if (!translations.available) return entries;
   return entries.map((entry) => translateItemSummary(entry, translations));
+}
+
+const searchableText = (
+  item: PobItemSummary | PobItemDbSummary | undefined,
+): string[] => {
+  if (!item) return [];
+  return [
+    String(item.id),
+    item.name,
+    item.baseName,
+    item.baseType,
+    item.baseSubType,
+    item.title,
+    item.raw,
+    ...item.implicitLines,
+    ...item.explicitLines,
+  ].flatMap((value) =>
+    typeof value === "string" && value.trim() ? [value] : [],
+  );
+};
+
+export function filterTranslatedItemDbEntries(
+  displayEntries: PobItemDbSummary[],
+  sourceEntries: PobItemDbSummary[],
+  query: string,
+): PobItemDbSummary[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return displayEntries;
+
+  const sourceById = new Map(sourceEntries.map((entry) => [entry.id, entry]));
+  return displayEntries.filter((entry) =>
+    [...searchableText(entry), ...searchableText(sourceById.get(entry.id))]
+      .join("\n")
+      .toLocaleLowerCase()
+      .includes(needle),
+  );
 }
 
 const translatedGemName = (
@@ -195,5 +315,39 @@ export function translateSkillsSnapshot(
     availableGems: snapshot.availableGems.map((entry) =>
       translateGemCatalogEntry(entry, translations),
     ),
+  };
+}
+
+const translateTooltipLines = (
+  lines: PobTreeTooltipLine[],
+  translations: PobRepoeTranslationsSnapshot,
+): PobTreeTooltipLine[] => {
+  if (!translations.available) return lines;
+  return lines.map((line) =>
+    line.kind === "line"
+      ? { ...line, text: translateStatLine(line.text, translations) }
+      : line,
+  );
+};
+
+export function translateItemTooltip(
+  tooltip: PobItemsTooltip,
+  translations: PobRepoeTranslationsSnapshot,
+): PobItemsTooltip {
+  if (!translations.available) return tooltip;
+  return {
+    ...tooltip,
+    lines: translateTooltipLines(tooltip.lines, translations),
+  };
+}
+
+export function translateSkillsGemTooltip(
+  tooltip: PobSkillsGemTooltip,
+  translations: PobRepoeTranslationsSnapshot,
+): PobSkillsGemTooltip {
+  if (!translations.available) return tooltip;
+  return {
+    ...tooltip,
+    lines: translateTooltipLines(tooltip.lines, translations),
   };
 }

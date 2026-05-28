@@ -9,8 +9,11 @@ import type {
 } from "@poe2-launcher/shared/types";
 
 import {
+  filterTranslatedItemDbEntries,
   translateItemDbEntries,
+  translateItemTooltip,
   translateItemsSnapshot,
+  translateSkillsGemTooltip,
   translateSkillsSnapshot,
   translateTreeSnapshot,
 } from "./repoeTranslations";
@@ -22,6 +25,15 @@ const translations: PobRepoeTranslationsSnapshot = {
   nodeStatLinesById: {
     "4": ["5% increased Shock Chance KO"],
   },
+  statLinesByEnglishLine: {
+    "Cannot be Stunned": "기절 불가",
+  },
+  statLineTemplates: [
+    {
+      english: "+{0} to maximum Life",
+      localized: "최대 생명력 +{0}",
+    },
+  ],
   itemNamesById: {
     Bramblejack: "Bramblejack KO",
     "Metadata/Items/Armours/BodyArmours/BodyStr1": "Plate Vest KO",
@@ -57,8 +69,8 @@ const itemBase = {
   influences: null,
   baseType: "Plate Vest",
   baseSubType: null,
-  implicitLines: [],
-  explicitLines: [],
+  implicitLines: ["Cannot be Stunned"],
+  explicitLines: ["+32 to maximum Life"],
 } satisfies Omit<PobItemDbSummary, "id" | "name" | "baseName">;
 
 describe("RePoE renderer translation overlay", () => {
@@ -133,12 +145,55 @@ describe("RePoE renderer translation overlay", () => {
       id: 7,
       name: "Bramblejack KO",
       baseName: "Plate Vest KO",
+      implicitLines: ["기절 불가"],
+      explicitLines: ["최대 생명력 +32"],
     });
     expect(translatedDb[0]).toMatchObject({
       id: "Bramblejack",
       name: "Bramblejack KO",
     });
     expect(snapshot.items[0].name).toBe("Bramblejack");
+    expect(snapshot.items[0].explicitLines).toEqual(["+32 to maximum Life"]);
+  });
+
+  it("filters translated item DB entries by localized and English source text", () => {
+    const sourceEntries: PobItemDbSummary[] = [
+      {
+        id: "Bramblejack",
+        name: "Bramblejack",
+        baseName: "Plate Vest",
+        ...itemBase,
+      },
+      {
+        id: "OtherUnique",
+        name: "Other Unique",
+        baseName: "Other Base",
+        ...itemBase,
+        baseType: "Other Base",
+        raw: "Rarity: Unique\nOther Unique\nOther Base",
+      },
+    ];
+    const displayEntries = translateItemDbEntries(sourceEntries, translations);
+
+    expect(
+      filterTranslatedItemDbEntries(
+        displayEntries,
+        sourceEntries,
+        "Bramble",
+      ).map((entry) => entry.id),
+    ).toEqual(["Bramblejack"]);
+    expect(
+      filterTranslatedItemDbEntries(
+        displayEntries,
+        sourceEntries,
+        "Plate Vest",
+      ).map((entry) => entry.id),
+    ).toEqual(["Bramblejack"]);
+    expect(
+      filterTranslatedItemDbEntries(displayEntries, sourceEntries, "KO").map(
+        (entry) => entry.id,
+      ),
+    ).toEqual(["Bramblejack"]);
   });
 
   it("translates skill display names and keeps gem ids available for actions", () => {
@@ -243,5 +298,38 @@ describe("RePoE renderer translation overlay", () => {
       name: "Alchemist's Boon KO",
     });
     expect(snapshot.availableGems[0].name).toBe("Alchemist's Boon");
+  });
+
+  it("translates item and skill tooltip stat lines without changing identifiers", () => {
+    const itemTooltip = translateItemTooltip(
+      {
+        source: "db",
+        itemId: "Bramblejack",
+        db: "uniqueDB",
+        slotName: null,
+        header: "UNIQUE",
+        lines: [
+          { kind: "line", text: "+32 to maximum Life", colour: null, size: 14 },
+        ],
+      },
+      translations,
+    );
+    const skillTooltip = translateSkillsGemTooltip(
+      {
+        groupIndex: 1,
+        gemIndex: 1,
+        mode: "gem",
+        header: "GEM",
+        lines: [
+          { kind: "line", text: "Cannot be Stunned", colour: null, size: 14 },
+        ],
+      },
+      translations,
+    );
+
+    expect(itemTooltip.itemId).toBe("Bramblejack");
+    expect(itemTooltip.lines[0].text).toBe("최대 생명력 +32");
+    expect(skillTooltip.groupIndex).toBe(1);
+    expect(skillTooltip.lines[0].text).toBe("기절 불가");
   });
 });

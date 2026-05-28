@@ -41,10 +41,30 @@ describe("RePoE translation snapshots", () => {
         "4": {
           id: 4,
           name: "Shock Chance KO",
-          stats: ["5% increased Shock Chance KO"],
+          stats: [{ id: "shock_chance_+%", value: 5 }],
         },
       },
     });
+    await writeResource("en", "stat_translations/stat_descriptions.json", [
+      {
+        ids: ["shock_chance_+%"],
+        English: [{ string: "{0}% increased Shock Chance" }],
+      },
+      {
+        ids: ["cannot_be_stunned"],
+        English: [{ string: "Cannot be Stunned" }],
+      },
+    ]);
+    await writeResource("ko", "stat_translations/stat_descriptions.json", [
+      {
+        ids: ["shock_chance_+%"],
+        Korean: [{ string: "감전 확률 {0}% 증가" }],
+      },
+      {
+        ids: ["cannot_be_stunned"],
+        Korean: [{ string: "기절 불가" }],
+      },
+    ]);
     await writeResource("en", "uniques.json", {
       Bramblejack: {
         id: "Metadata/Items/Unique/Bramblejack",
@@ -100,8 +120,15 @@ describe("RePoE translation snapshots", () => {
 
     expect(snapshot.available).toBe(true);
     expect(snapshot.nodeNamesById["4"]).toBe("Shock Chance KO");
-    expect(snapshot.nodeStatLinesById["4"]).toEqual([
-      "5% increased Shock Chance KO",
+    expect(snapshot.nodeStatLinesById["4"]).toEqual(["감전 확률 5% 증가"]);
+    expect(snapshot.statLinesByEnglishLine["Cannot be Stunned"]).toBe(
+      "기절 불가",
+    );
+    expect(snapshot.statLineTemplates).toEqual([
+      {
+        english: "{0}% increased Shock Chance",
+        localized: "감전 확률 {0}% 증가",
+      },
     ]);
     expect(snapshot.itemNamesById.Bramblejack).toBe("Bramblejack KO");
     expect(
@@ -126,6 +153,8 @@ describe("RePoE translation snapshots", () => {
       available: false,
       nodeNamesById: {},
       nodeStatLinesById: {},
+      statLinesByEnglishLine: {},
+      statLineTemplates: [],
       itemNamesById: {},
       gemNamesById: {},
     });

@@ -10,13 +10,68 @@ export interface RePoePassiveTreeTextSource {
   passives?: Record<string, RePoePassiveTreeTextRecord>;
 }
 
+type StatLineTranslator = (statId: string, values: number[]) => string | null;
+
 const textValue = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value : null;
 
-const textArrayValue = (value: unknown): string[] => {
+const numberValue = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const numberArrayValue = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    const parsed = numberValue(value);
+    return parsed === null ? [] : [parsed];
+  }
+  return value.flatMap((entry) => {
+    const parsed = numberValue(entry);
+    return parsed === null ? [] : [parsed];
+  });
+};
+
+const statRecordLine = (
+  value: unknown,
+  translateStatLine?: StatLineTranslator,
+): string | null => {
+  if (typeof value === "string") {
+    return translateStatLine?.(value, []) ?? textValue(value);
+  }
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const statId =
+    textValue(record.id) ??
+    textValue(record.stat) ??
+    textValue(record.stat_id) ??
+    textValue(record.statId);
+  if (!statId) return null;
+
+  const values = [
+    ...numberArrayValue(record.values),
+    ...numberArrayValue(record.value),
+  ];
+  if (values.length === 0) {
+    const min = numberValue(record.min);
+    const max = numberValue(record.max);
+    if (min !== null) values.push(min);
+    if (max !== null && max !== min) values.push(max);
+  }
+
+  return translateStatLine?.(statId, values) ?? statId;
+};
+
+const textArrayValue = (
+  value: unknown,
+  translateStatLine?: StatLineTranslator,
+): string[] => {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
-    const text = textValue(entry);
+    const text = statRecordLine(entry, translateStatLine);
     return text ? [text] : [];
   });
 };
@@ -37,7 +92,9 @@ const localizedName = (
 const localizedStatLines = (
   tree: RePoePassiveTreeTextSource | null | undefined,
   nodeId: string,
-): string[] => textArrayValue(tree?.passives?.[nodeId]?.stats);
+  translateStatLine?: StatLineTranslator,
+): string[] =>
+  textArrayValue(tree?.passives?.[nodeId]?.stats, translateStatLine);
 
 export const passiveTreeTextOverride = {
   enabled: true,
@@ -61,6 +118,7 @@ export const passiveTreeTextOverride = {
   indexSnapshot(
     snapshot: PobRepoeTranslationsSnapshot,
     localizedTree: RePoePassiveTreeTextSource | null | undefined,
+    translateStatLine?: StatLineTranslator,
   ): void {
     if (!this.enabled) return;
 
@@ -68,7 +126,7 @@ export const passiveTreeTextOverride = {
       localizedTree?.passives ?? {},
     )) {
       const name = textValue(record.name);
-      const statLines = textArrayValue(record.stats);
+      const statLines = textArrayValue(record.stats, translateStatLine);
       if (!name && statLines.length === 0) continue;
 
       const recordId = idValue(record.id);

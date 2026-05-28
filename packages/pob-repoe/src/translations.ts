@@ -8,6 +8,10 @@ import {
   passiveTreeTextOverride,
   type RePoePassiveTreeTextSource,
 } from "./overrides/passiveTreeText";
+import {
+  REPOE_STAT_DESCRIPTION_PATHS,
+  statDescriptionsOverride,
+} from "./overrides/statDescriptions";
 
 const PASSIVE_TREE_PATH = "passive_skill_trees/Default.json";
 const BASE_ITEMS_PATH = "base_items.json";
@@ -95,6 +99,17 @@ async function readPassiveTree(
 ): Promise<RePoePassiveTreeTextSource | null> {
   const value = await cache.readJsonResource(locale, PASSIVE_TREE_PATH);
   return isRecord(value) ? (value as RePoePassiveTreeTextSource) : null;
+}
+
+async function readStatResources(
+  cache: RePoeCache,
+  locale: PobRepoeLocale,
+): Promise<unknown[]> {
+  return Promise.all(
+    REPOE_STAT_DESCRIPTION_PATHS.map((resourcePath) =>
+      cache.readJsonResource(locale, resourcePath),
+    ),
+  );
 }
 
 function indexPairedNames(
@@ -188,15 +203,19 @@ function indexSkillNames(
 }
 
 function hasAnyTranslation(snapshot: PobRepoeTranslationsSnapshot): boolean {
-  return [
-    snapshot.nodeNamesById,
-    snapshot.nodeStatLinesById,
-    snapshot.itemNamesById,
-    snapshot.itemNamesByEnglishName,
-    snapshot.gemNamesById,
-    snapshot.gemNamesBySkillId,
-    snapshot.gemNamesByEnglishName,
-  ].some((map) => Object.keys(map).length > 0);
+  return (
+    [
+      snapshot.nodeNamesById,
+      snapshot.nodeStatLinesById,
+      snapshot.statLinesByEnglishLine,
+      snapshot.itemNamesById,
+      snapshot.itemNamesByEnglishName,
+      snapshot.gemNamesById,
+      snapshot.gemNamesBySkillId,
+      snapshot.gemNamesByEnglishName,
+    ].some((map) => Object.keys(map).length > 0) ||
+    snapshot.statLineTemplates.length > 0
+  );
 }
 
 export function createEmptyRePoeTranslations(
@@ -207,6 +226,8 @@ export function createEmptyRePoeTranslations(
     available: false,
     nodeNamesById: {},
     nodeStatLinesById: {},
+    statLinesByEnglishLine: {},
+    statLineTemplates: [],
     itemNamesById: {},
     itemNamesByEnglishName: {},
     gemNamesById: {},
@@ -234,6 +255,8 @@ export async function loadRePoeTranslations(
     localizedGems,
     sourceSkills,
     localizedSkills,
+    sourceStatResources,
+    localizedStatResources,
   ] = await Promise.all([
     readPassiveTree(cache, locale),
     readNamedResource(cache, "en", BASE_ITEMS_PATH),
@@ -244,9 +267,26 @@ export async function loadRePoeTranslations(
     readNamedResource(cache, locale, SKILL_GEMS_PATH),
     readNamedResource(cache, "en", SKILLS_PATH),
     readNamedResource(cache, locale, SKILLS_PATH),
+    readStatResources(cache, "en"),
+    readStatResources(cache, locale),
   ]);
 
-  passiveTreeTextOverride.indexSnapshot(snapshot, localizedTree);
+  const statDescriptionIndex = statDescriptionsOverride.createIndex(
+    sourceStatResources,
+    localizedStatResources,
+    locale,
+  );
+  statDescriptionsOverride.indexSnapshot(snapshot, statDescriptionIndex);
+  passiveTreeTextOverride.indexSnapshot(
+    snapshot,
+    localizedTree,
+    (statId, values) =>
+      statDescriptionsOverride.translateById(
+        statDescriptionIndex,
+        statId,
+        values,
+      ),
+  );
 
   const itemSelectors: NameSelector[] = [
     (record) => record.name,

@@ -1103,11 +1103,18 @@ export type PobSkillsSnapshotResult =
 
 export type PobRepoeLocale = "en" | "ko";
 
+export interface PobRepoeStatLineTemplate {
+  english: string;
+  localized: string;
+}
+
 export interface PobRepoeTranslationsSnapshot {
   locale: PobRepoeLocale;
   available: boolean;
   nodeNamesById: Record<string, string>;
   nodeStatLinesById: Record<string, string[]>;
+  statLinesByEnglishLine: Record<string, string>;
+  statLineTemplates: PobRepoeStatLineTemplate[];
   itemNamesById: Record<string, string>;
   itemNamesByEnglishName: Record<string, string>;
   gemNamesById: Record<string, string>;

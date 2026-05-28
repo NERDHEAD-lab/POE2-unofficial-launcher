@@ -52,6 +52,7 @@ export const REPOE_POE2_RESOURCE_PATHS = [
   "stat_translations/gem_stat_descriptions.json",
   "stat_translations/active_skill_gem_stat_descriptions.json",
   "stat_translations/advanced_mod_stat_descriptions.json",
+  "stat_translations/character_panel_stat_descriptions.json",
   "base_items.json",
   "item_classes.json",
   "mods.json",

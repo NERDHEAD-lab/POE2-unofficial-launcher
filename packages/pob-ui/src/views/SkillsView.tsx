@@ -16,7 +16,10 @@ import type {
   PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
-import { translateSkillsSnapshot } from "./repoeTranslations";
+import {
+  translateSkillsGemTooltip,
+  translateSkillsSnapshot,
+} from "./repoeTranslations";
 
 type LoadState =
   | { status: "idle" }
@@ -64,12 +67,19 @@ const skillsTooltipLineClass = (line: PobTreeTooltipLine): string => {
   return classes.join(" ");
 };
 
-function SkillsGemTooltip({ tooltip }: { tooltip: PobSkillsGemTooltip }) {
-  if (tooltip.lines.length === 0) return null;
+function SkillsGemTooltip({
+  tooltip,
+  translations,
+}: {
+  tooltip: PobSkillsGemTooltip;
+  translations: PobRepoeTranslationsSnapshot;
+}) {
+  const displayTooltip = translateSkillsGemTooltip(tooltip, translations);
+  if (displayTooltip.lines.length === 0) return null;
   return (
     <div className="pob-skills-tooltip" role="tooltip">
       <div className="pob-skills-tooltip-lines">
-        {tooltip.lines.map((line, index) =>
+        {displayTooltip.lines.map((line, index) =>
           line.kind === "separator" ? (
             <div
               key={`separator-${index}`}
@@ -252,6 +262,7 @@ export function SkillsView({
               snapshot={snapshot}
               rawAvailableGems={sourceSnapshot?.availableGems ?? []}
               busy={busy}
+              translations={translations}
               onAction={(action, nextIndex) =>
                 void runAction(action, nextIndex)
               }
@@ -518,6 +529,7 @@ interface GroupDetailProps {
   snapshot: PobSkillsSnapshot;
   rawAvailableGems: PobSkillGemCatalogEntry[];
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onAction: (action: PobSkillsAction, nextIndex?: number) => void;
 }
 
@@ -526,6 +538,7 @@ function GroupDetail({
   snapshot,
   rawAvailableGems,
   busy,
+  translations,
   onAction,
 }: GroupDetailProps) {
   const { t } = useTranslation();
@@ -718,6 +731,7 @@ function GroupDetail({
             availableGems={snapshot.availableGems}
             rawAvailableGems={rawAvailableGems}
             busy={busy}
+            translations={translations}
             onAction={onAction}
           />
         ))}
@@ -732,6 +746,7 @@ interface GemRowProps {
   availableGems: PobSkillGemCatalogEntry[];
   rawAvailableGems: PobSkillGemCatalogEntry[];
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onAction: (action: PobSkillsAction, nextIndex?: number) => void;
 }
 
@@ -741,6 +756,7 @@ function GemRow({
   availableGems,
   rawAvailableGems,
   busy,
+  translations,
   onAction,
 }: GemRowProps) {
   const { t } = useTranslation();
@@ -958,7 +974,10 @@ function GemRow({
         </div>
       )}
       {tooltipState.status === "ready" && (
-        <SkillsGemTooltip tooltip={tooltipState.tooltip} />
+        <SkillsGemTooltip
+          tooltip={tooltipState.tooltip}
+          translations={translations}
+        />
       )}
       <datalist id={datalistId}>
         {availableGems.map((entry) => (

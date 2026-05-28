@@ -14,6 +14,8 @@ const snapshot = (
   available: false,
   nodeNamesById: {},
   nodeStatLinesById: {},
+  statLinesByEnglishLine: {},
+  statLineTemplates: [],
   itemNamesById: {},
   itemNamesByEnglishName: {},
   gemNamesById: {},
@@ -62,6 +64,27 @@ describe("passiveTreeTextOverride", () => {
         },
       }),
     ).toEqual({ name: "감전 확률", statLines: ["감전 확률 5% 증가"] });
+  });
+
+  it("renders stat record values through the stat description translator", () => {
+    const target = snapshot();
+
+    passiveTreeTextOverride.indexSnapshot(
+      target,
+      {
+        passives: {
+          "4": {
+            id: 4,
+            name: "감전 확률",
+            stats: [{ id: "shock_chance_+%", value: 5 }],
+          },
+        },
+      },
+      (statId, values) =>
+        statId === "shock_chance_+%" ? `감전 확률 ${values[0]}% 증가` : null,
+    );
+
+    expect(target.nodeStatLinesById["4"]).toEqual(["감전 확률 5% 증가"]);
   });
 
   it("can be disabled with a one-line toggle", () => {

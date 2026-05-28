@@ -34,7 +34,9 @@ import {
 import { canInspectSlotItem, isVisibleItemSlot } from "./itemsViewSlots";
 import { buildItemTooltipSections } from "./itemsViewTooltip";
 import {
+  filterTranslatedItemDbEntries,
   translateItemDbEntries,
+  translateItemTooltip,
   translateItemsSnapshot,
 } from "./repoeTranslations";
 
@@ -175,6 +177,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   });
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
   const [customRaw, setCustomRaw] = useState("");
+  const [dbSearch, setDbSearch] = useState("");
   const [detailModeState, setDetailModeState] = useState<{
     key: string;
     mode: ItemDetailMode;
@@ -251,6 +254,13 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
         : null,
     [dbState, translations],
   );
+  const filteredDbEntries = useMemo(
+    () =>
+      dbState.status === "ready" && dbEntries
+        ? filterTranslatedItemDbEntries(dbEntries, dbState.entries, dbSearch)
+        : dbEntries,
+    [dbEntries, dbSearch, dbState],
+  );
   const busy = actionState.status === "running";
 
   const itemsById = useMemo(() => {
@@ -274,11 +284,13 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
         null
       );
     }
-    if (dbEntries && selectedItemRef.db === tab) {
-      return dbEntries.find((item) => item.id === selectedItemRef.id) ?? null;
+    if (filteredDbEntries && selectedItemRef.db === tab) {
+      return (
+        filteredDbEntries.find((item) => item.id === selectedItemRef.id) ?? null
+      );
     }
     return null;
-  }, [dbEntries, itemsById, selectedItemRef, snapshot, tab]);
+  }, [filteredDbEntries, itemsById, selectedItemRef, snapshot, tab]);
 
   const selectedItemKey = selectedItemRef
     ? selectedItemRef.source === "db"
@@ -470,6 +482,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
               selectedCustomId={selectedCustomId}
               selectedSharedIndex={selectedSharedIndex}
               busy={busy}
+              translations={translations}
               onSelect={setSelectedItemRef}
               onAction={(action) => void runAction(action)}
               onCreateCustom={() => setCustomEditorOpen(true)}
@@ -478,10 +491,13 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
             <DbPane
               dbKey={tab}
               state={dbState}
-              entries={dbEntries}
+              entries={filteredDbEntries}
               formatRarityLabel={(r) => formatRarity(t, r)}
               selectedItemRef={selectedItemRef}
               busy={busy}
+              translations={translations}
+              search={dbSearch}
+              onSearchChange={setDbSearch}
               onSelect={setSelectedItemRef}
               onAction={(action) => void runAction(action)}
             />
@@ -533,6 +549,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
               mode={detailMode}
               rawValue={detailRaw}
               busy={busy}
+              translations={translations}
               onModeChange={(mode) =>
                 setDetailModeState({ key: selectedItemKey, mode })
               }
@@ -715,6 +732,7 @@ interface CustomPaneProps {
   selectedCustomId: number | null;
   selectedSharedIndex: number | null;
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onSelect: (ref: SelectedItemRef) => void;
   onAction: (action: PobItemsAction) => void;
   onCreateCustom: () => void;
@@ -727,6 +745,7 @@ function CustomPane({
   selectedCustomId,
   selectedSharedIndex,
   busy,
+  translations,
   onSelect,
   onAction,
   onCreateCustom,
@@ -805,6 +824,7 @@ function CustomPane({
             selectedItemRef={selectedItemRef}
             source="custom"
             busy={busy}
+            translations={translations}
             onSelect={onSelect}
             onAction={onAction}
           />
@@ -839,6 +859,7 @@ function CustomPane({
             selectedItemRef={selectedItemRef}
             source="shared"
             busy={busy}
+            translations={translations}
             onSelect={onSelect}
             onAction={onAction}
           />
@@ -855,6 +876,9 @@ interface DbPaneProps {
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
+  search: string;
+  onSearchChange: (value: string) => void;
   onSelect: (ref: SelectedItemRef) => void;
   onAction: (action: PobItemsAction) => void;
 }
@@ -866,6 +890,9 @@ function DbPane({
   formatRarityLabel,
   selectedItemRef,
   busy,
+  translations,
+  search,
+  onSearchChange,
   onSelect,
   onAction,
 }: DbPaneProps) {
@@ -912,8 +939,9 @@ function DbPane({
         <div className="pob-items-db-filter-row">
           <input
             type="search"
-            disabled
+            value={search}
             placeholder={t("buildEdit.items.dbFilter.searchPlaceholder")}
+            onChange={(event) => onSearchChange(event.target.value)}
           />
           <select disabled defaultValue="anywhere">
             <option value="anywhere">
@@ -929,6 +957,7 @@ function DbPane({
         formatRarityLabel={formatRarityLabel}
         selectedItemRef={selectedItemRef}
         busy={busy}
+        translations={translations}
         onSelect={onSelect}
         onAction={onAction}
       />
@@ -941,6 +970,7 @@ interface ItemRowsProps {
   selectedItemRef: SelectedItemRef | null;
   source: "custom" | "shared";
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onSelect: (ref: SelectedItemRef) => void;
   onAction: (action: PobItemsAction) => void;
 }
@@ -949,6 +979,7 @@ interface ItemTooltipButtonProps {
   itemRef: SelectedItemRef;
   className: string;
   disabled: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onDoubleClick?: () => void;
   children: ReactNode;
@@ -958,6 +989,7 @@ function ItemTooltipButton({
   itemRef,
   className,
   disabled,
+  translations,
   onClick,
   onDoubleClick,
   children,
@@ -1015,7 +1047,10 @@ function ItemTooltipButton({
         {children}
       </button>
       {tooltipState.status === "ready" && (
-        <RichItemTooltip tooltip={tooltipState.tooltip} floating />
+        <RichItemTooltip
+          tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+          floating
+        />
       )}
     </div>
   );
@@ -1026,6 +1061,7 @@ function ItemRows({
   selectedItemRef,
   source,
   busy,
+  translations,
   onSelect,
   onAction,
 }: ItemRowsProps) {
@@ -1036,6 +1072,7 @@ function ItemRows({
           <ItemTooltipButton
             itemRef={{ source, id: item.id }}
             disabled={busy}
+            translations={translations}
             className={
               `pob-items-row ${rarityClass(item.rarity)}` +
               (isSameSelection(selectedItemRef, source, item.id)
@@ -1080,6 +1117,7 @@ interface ItemDetailProps {
   mode: ItemDetailMode;
   rawValue: string;
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onModeChange: (mode: ItemDetailMode) => void;
   onRawChange: (raw: string) => void;
   onAction: (action: PobItemsAction) => void;
@@ -1091,6 +1129,7 @@ function ItemDetail({
   mode,
   rawValue,
   busy,
+  translations,
   onModeChange,
   onRawChange,
   onAction,
@@ -1217,7 +1256,9 @@ function ItemDetail({
         tooltipState.status === "ready" &&
         tooltipState.requestKey === requestKey &&
         tooltipState.tooltip.lines.length > 0 ? (
-          <RichItemTooltip tooltip={tooltipState.tooltip} />
+          <RichItemTooltip
+            tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+          />
         ) : (
           fallbackTooltip
         )
@@ -1270,6 +1311,7 @@ interface DbListProps {
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
+  translations: PobRepoeTranslationsSnapshot;
   onSelect: (ref: SelectedItemRef) => void;
   onAction: (action: PobItemsAction) => void;
 }
@@ -1281,6 +1323,7 @@ function DbList({
   formatRarityLabel,
   selectedItemRef,
   busy,
+  translations,
   onSelect,
   onAction,
 }: DbListProps) {
@@ -1322,6 +1365,7 @@ function DbList({
             <ItemTooltipButton
               itemRef={itemRef}
               disabled={busy}
+              translations={translations}
               className={
                 `pob-items-db-row ${rarityClass(entry.rarity)}` +
                 (isSameSelection(selectedItemRef, "db", entry.id, dbKey)
