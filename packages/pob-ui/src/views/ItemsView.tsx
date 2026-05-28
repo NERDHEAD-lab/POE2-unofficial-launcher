@@ -1,5 +1,7 @@
 import {
+  type CSSProperties,
   type ClipboardEvent,
+  type FocusEvent,
   type MouseEvent,
   type ReactNode,
   useCallback,
@@ -8,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -32,7 +35,10 @@ import {
   type ItemDetailMode,
 } from "./itemsViewDetailMode";
 import { canInspectSlotItem, isVisibleItemSlot } from "./itemsViewSlots";
-import { buildItemTooltipSections } from "./itemsViewTooltip";
+import {
+  buildItemTooltipSections,
+  computeFloatingItemTooltipPosition,
+} from "./itemsViewTooltip";
 import {
   filterTranslatedItemDbEntries,
   translateItemDbEntries,
@@ -129,9 +135,11 @@ const toTooltipRequest = (
 function RichItemTooltip({
   tooltip,
   floating = false,
+  style,
 }: {
   tooltip: PobItemsTooltip;
   floating?: boolean;
+  style?: CSSProperties;
 }) {
   const { t } = useTranslation();
   if (tooltip.lines.length === 0) return null;
@@ -141,6 +149,7 @@ function RichItemTooltip({
         floating ? " is-floating" : ""
       }`}
       role={floating ? "tooltip" : undefined}
+      style={style}
     >
       {tooltip.header && (
         <div className="pob-item-tooltip-rarity">
@@ -166,7 +175,7 @@ function RichItemTooltip({
 }
 
 export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [selectedItemRef, setSelectedItemRef] =
     useState<SelectedItemRef | null>(null);
@@ -186,6 +195,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     key: string;
     raw: string;
   }>({ key: "", raw: "" });
+  const itemCopyLocaleHint = i18n.resolvedLanguage === "en" ? "en" : "ko";
 
   useEffect(() => {
     if (!active) return;
@@ -331,7 +341,11 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
       }
 
       setActionState({ status: "running" });
-      const result = await api.session.itemsParseAndAdd({ rawText, equip });
+      const result = await api.session.itemsParseAndAdd({
+        rawText,
+        equip,
+        localeHint: itemCopyLocaleHint,
+      });
       if (result.status === "ok") {
         setState({ status: "ready", snapshot: result.snapshot });
         setActionState({ status: "idle" });
@@ -342,7 +356,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
       setActionState({ status: "error", reason: result.reason });
       return false;
     },
-    [onMutated],
+    [itemCopyLocaleHint, onMutated],
   );
 
   const handleItemsPaste = useCallback(
@@ -997,6 +1011,10 @@ function ItemTooltipButton({
   const [tooltipState, setTooltipState] = useState<ItemTooltipState>({
     status: "idle",
   });
+  const [tooltipPoint, setTooltipPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const requestId = useRef(0);
 
   const showTooltip = () => {
@@ -1030,28 +1048,65 @@ function ItemTooltipButton({
   const hideTooltip = () => {
     requestId.current += 1;
     setTooltipState({ status: "idle" });
+    setTooltipPoint(null);
   };
 
+  const updateTooltipPoint = (event: MouseEvent<HTMLElement>) => {
+    setTooltipPoint({ x: event.clientX, y: event.clientY });
+  };
+
+  const focusTooltipPoint = (event: FocusEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTooltipPoint({
+      x: rect.right,
+      y: rect.top + rect.height / 2,
+    });
+  };
+
+  const floatingTooltip =
+    tooltipState.status === "ready" &&
+    tooltipPoint &&
+    typeof document !== "undefined"
+      ? createPortal(
+          <RichItemTooltip
+            tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+            floating
+            style={computeFloatingItemTooltipPosition({
+              pointerX: tooltipPoint.x,
+              pointerY: tooltipPoint.y,
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight,
+            })}
+          />,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="pob-items-tooltip-host" onMouseLeave={hideTooltip}>
+    <div
+      className="pob-items-tooltip-host"
+      onMouseLeave={hideTooltip}
+      onMouseMove={updateTooltipPoint}
+    >
       <button
         type="button"
         disabled={disabled}
         className={className}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
-        onFocus={showTooltip}
-        onMouseEnter={showTooltip}
+        onFocus={(event) => {
+          focusTooltipPoint(event);
+          showTooltip();
+        }}
+        onMouseEnter={(event) => {
+          updateTooltipPoint(event);
+          showTooltip();
+        }}
         onBlur={hideTooltip}
       >
         {children}
       </button>
-      {tooltipState.status === "ready" && (
-        <RichItemTooltip
-          tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
-          floating
-        />
-      )}
+      {floatingTooltip}
     </div>
   );
 }

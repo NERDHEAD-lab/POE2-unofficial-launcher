@@ -5,7 +5,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { RePoeCache } from "../cache";
-import { loadRePoeTranslations } from "../translations";
+import {
+  loadOrFetchRePoeTranslations,
+  loadRePoeTranslations,
+} from "../translations";
 
 let tempRoot: string;
 let cache: RePoeCache;
@@ -158,5 +161,86 @@ describe("RePoE translation snapshots", () => {
       itemNamesById: {},
       gemNamesById: {},
     });
+  });
+
+  it("fetches missing RePoE resources before building language maps", async () => {
+    const resources: Record<string, unknown> = {
+      "ko:passive_skill_trees/Default.json": {
+        passives: {
+          "4": {
+            id: 4,
+            name: "Shock Chance KO",
+            stats: [{ id: "shock_chance_+%", value: 5 }],
+          },
+        },
+      },
+      "en:stat_translations/stat_descriptions.json": [
+        {
+          ids: ["shock_chance_+%"],
+          English: [{ string: "{0}% increased Shock Chance" }],
+        },
+      ],
+      "ko:stat_translations/stat_descriptions.json": [
+        {
+          ids: ["shock_chance_+%"],
+          Korean: [{ string: "감전 확률 {0}% 증가" }],
+        },
+      ],
+      "en:uniques.json": {
+        Bramblejack: { name: "Bramblejack" },
+      },
+      "ko:uniques.json": {
+        Bramblejack: { name: "Bramblejack KO" },
+      },
+      "en:skill_gems.json": {
+        "Metadata/Items/Gem/SkillGemAlchemistsBoon": {
+          base_item: { display_name: "Alchemist's Boon" },
+          grants_skills: ["AlchemistsBoonPlayer"],
+        },
+      },
+      "ko:skill_gems.json": {
+        "Metadata/Items/Gem/SkillGemAlchemistsBoon": {
+          base_item: { display_name: "Alchemist's Boon KO" },
+          grants_skills: ["AlchemistsBoonPlayer"],
+        },
+      },
+      "en:skills.json": {
+        FireballPlayer: {
+          active_skill: { display_name: "Fireball" },
+        },
+      },
+      "ko:skills.json": {
+        FireballPlayer: {
+          active_skill: { display_name: "Fireball KO" },
+        },
+      },
+      "en:base_items.json": {},
+      "ko:base_items.json": {},
+      "en:passive_skill_trees/Default.json": { passives: {} },
+    };
+    const requested: string[] = [];
+    const fetcher: typeof fetch = async (input) => {
+      const url = String(input);
+      const [, suffix = ""] = url.split("/poe2/");
+      const locale = suffix.startsWith("Korean/") ? "ko" : "en";
+      const resourcePath =
+        locale === "ko" ? suffix.slice("Korean/".length) : suffix;
+      const key = `${locale}:${resourcePath}`;
+      requested.push(key);
+      const fallback = resourcePath.startsWith("stat_translations/") ? [] : {};
+      return new Response(JSON.stringify(resources[key] ?? fallback), {
+        status: 200,
+        headers: { etag: `"${key}"` },
+      });
+    };
+
+    const snapshot = await loadOrFetchRePoeTranslations("ko", cache, fetcher);
+
+    expect(snapshot.available).toBe(true);
+    expect(requested).toContain("ko:passive_skill_trees/Default.json");
+    expect(snapshot.nodeNamesById["4"]).toBe("Shock Chance KO");
+    expect(snapshot.nodeStatLinesById["4"]).toEqual(["감전 확률 5% 증가"]);
+    expect(snapshot.itemNamesByEnglishName.Bramblejack).toBe("Bramblejack KO");
+    expect(snapshot.gemNamesBySkillId.FireballPlayer).toBe("Fireball KO");
   });
 });

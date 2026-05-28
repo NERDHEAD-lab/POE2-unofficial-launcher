@@ -42,6 +42,7 @@ const parseGameFromHash = (): PobGame => {
 contextBridge.exposeInMainWorld("pobAPI", {
   getInitialGame: () => parseGameFromHash(),
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.send("window-toggle-maximize"),
   closeWindow: () => ipcRenderer.send("window-close"),
   settings: {
     get: async (): Promise<PobSettings> => {

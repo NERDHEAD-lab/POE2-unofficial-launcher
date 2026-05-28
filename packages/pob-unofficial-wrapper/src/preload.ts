@@ -36,6 +36,7 @@ const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
 contextBridge.exposeInMainWorld("pobAPI", {
   getInitialGame: () => parseGameFromHash(),
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.send("window-toggle-maximize"),
   closeWindow: () => ipcRenderer.send("window-close"),
   settings: {
     get: (): Promise<PobSettings> => invoke("pob-wrapper:settings-get"),
@@ -132,6 +133,7 @@ contextBridge.exposeInMainWorld("pobAPI", {
 contextBridge.exposeInMainWorld("pobWrapper", {
   hostMode: "standalone",
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.send("window-toggle-maximize"),
   closeWindow: () => ipcRenderer.send("window-close"),
   state: {
     getLastLocation: () =>

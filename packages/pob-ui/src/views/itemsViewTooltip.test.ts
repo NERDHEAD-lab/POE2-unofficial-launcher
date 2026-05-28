@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { PobItemSummary } from "@poe2-launcher/shared/types";
 
-import { buildItemTooltipSections } from "./itemsViewTooltip";
+import {
+  buildItemTooltipSections,
+  computeFloatingItemTooltipPosition,
+} from "./itemsViewTooltip";
 
 const labels = {
   baseType: "Base",
@@ -93,5 +96,37 @@ describe("buildItemTooltipSections", () => {
         lines: [{ text: "Base: Wrapped Quarterstaff", tone: "meta" }],
       },
     ]);
+  });
+});
+
+describe("computeFloatingItemTooltipPosition", () => {
+  it("places floating tooltips beside the cursor when the viewport has room", () => {
+    expect(
+      computeFloatingItemTooltipPosition({
+        pointerX: 100,
+        pointerY: 120,
+        viewportWidth: 1200,
+        viewportHeight: 800,
+      }),
+    ).toMatchObject({
+      left: 116,
+      top: 136,
+      maxHeight: 652,
+    });
+  });
+
+  it("flips horizontally and keeps tall tooltips inside the viewport", () => {
+    expect(
+      computeFloatingItemTooltipPosition({
+        pointerX: 1180,
+        pointerY: 760,
+        viewportWidth: 1200,
+        viewportHeight: 800,
+      }),
+    ).toEqual({
+      left: 744,
+      top: 12,
+      maxHeight: 776,
+    });
   });
 });

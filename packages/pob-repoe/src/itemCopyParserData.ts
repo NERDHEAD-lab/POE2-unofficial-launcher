@@ -1,6 +1,11 @@
 import type { PobRepoeLocale } from "@poe2-launcher/shared/types";
 
 import { RePoeCache, repoeCache } from "./cache";
+import {
+  buildRePoeResourceTargets,
+  fetchRePoeJsonResource,
+  type RePoeFetch,
+} from "./fetcher";
 
 import type { PobItemCopyParserData } from "./itemCopyParser";
 
@@ -10,6 +15,12 @@ const UNIQUES_PATH = "uniques.json";
 const STAT_TRANSLATION_PATHS = [
   "stat_translations/stat_descriptions.json",
   "stat_translations/advanced_mod_stat_descriptions.json",
+] as const;
+const ITEM_COPY_PARSER_RESOURCE_PATHS = [
+  BASE_ITEMS_PATH,
+  ITEM_CLASSES_PATH,
+  UNIQUES_PATH,
+  ...STAT_TRANSLATION_PATHS,
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -74,6 +85,36 @@ async function readResource(
   return cache.readJsonResource(locale, path);
 }
 
+export async function ensureItemCopyParserResources(
+  cache: RePoeCache = repoeCache,
+  fetcher: RePoeFetch = fetch,
+): Promise<void> {
+  const targets = buildRePoeResourceTargets(
+    ["en", "ko"],
+    ITEM_COPY_PARSER_RESOURCE_PATHS,
+  );
+  const missing = [];
+  for (const target of targets) {
+    const existing = await cache.readJsonResource(target.locale, target.path);
+    if (existing === null) {
+      missing.push(target);
+    }
+  }
+
+  if (missing.length === 0) {
+    await cache.markChecked("ko");
+    return;
+  }
+
+  const resources = await Promise.all(
+    missing.map((target) => fetchRePoeJsonResource(target, fetcher)),
+  );
+  for (const resource of resources) {
+    await cache.writeJsonResource(resource);
+  }
+  await cache.markChecked("ko");
+}
+
 export async function loadItemCopyParserData(
   cache: RePoeCache = repoeCache,
 ): Promise<PobItemCopyParserData> {
@@ -115,4 +156,12 @@ export async function loadItemCopyParserData(
     },
     statTranslations: mergeStatTranslations(englishStats, koreanStats),
   } as PobItemCopyParserData;
+}
+
+export async function loadOrFetchItemCopyParserData(
+  cache: RePoeCache = repoeCache,
+  fetcher: RePoeFetch = fetch,
+): Promise<PobItemCopyParserData> {
+  await ensureItemCopyParserResources(cache, fetcher);
+  return loadItemCopyParserData(cache);
 }

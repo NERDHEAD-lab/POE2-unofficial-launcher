@@ -1515,6 +1515,7 @@ export interface PobWindowAPI {
   /** PoB BrowserWindow 자체에 전달된 게임 식별자 (URL hash 로 전달). */
   getInitialGame: () => PobGame;
   minimizeWindow: () => void;
+  toggleMaximizeWindow: () => void;
   closeWindow: () => void;
   builds: BuildsAPI;
   session: PobSessionAPI;

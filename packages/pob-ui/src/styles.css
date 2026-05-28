@@ -181,9 +181,25 @@ textarea {
   background: rgba(158, 203, 255, 0.1);
 }
 
+.pob-titlebar-hover-debug {
+  flex: 1 1 auto;
+  min-width: 80px;
+  margin: 0 12px;
+  overflow: hidden;
+  color: rgba(223, 207, 153, 0.72);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .pob-titlebar-right {
   display: flex;
   align-items: center;
+  gap: 8px;
   -webkit-app-region: no-drag;
 }
 
@@ -193,7 +209,7 @@ textarea {
   gap: 6px;
   font-size: 12px;
   color: var(--pob-muted);
-  margin-right: 12px;
+  margin-right: 4px;
 }
 
 .pob-lang select,
@@ -848,7 +864,7 @@ textarea {
 
 .pob-sidebar-main-skill {
   flex: 0 0 auto;
-  height: 220px;
+  height: 50%;
   min-height: 120px;
   max-height: calc(100vh - 260px);
   display: flex;
@@ -1365,10 +1381,40 @@ textarea {
   padding-bottom: 14px;
 }
 
-.pob-edit h2 {
+.pob-edit-title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pob-edit-title-input {
+  width: min(460px, 100%);
+  height: 30px;
   color: var(--pob-accent);
   margin: 0 0 6px;
+  padding: 3px 7px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid transparent;
+  border-radius: 3px;
   font-size: 20px;
+  font-weight: 700;
+}
+
+.pob-edit-title-input:not(:disabled):hover,
+.pob-edit-title-input:not(:disabled):focus {
+  border-color: rgba(223, 207, 153, 0.44);
+  outline: none;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.pob-edit-title-input:disabled {
+  opacity: 1;
+}
+
+.pob-edit-title-error {
+  display: block;
+  margin-top: 5px;
+  color: #ff9b9b;
+  font-size: 12px;
 }
 
 .pob-edit p {
@@ -1528,7 +1574,7 @@ textarea {
 
 .pob-mode {
   width: 100%;
-  min-height: 320px;
+  min-height: 0;
   background: var(--pob-panel-soft);
   border: 1px solid var(--pob-border);
   border-radius: 4px;
@@ -1538,15 +1584,36 @@ textarea {
 }
 
 .pob-mode-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(72px, 1fr));
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 7px;
+  background: var(--pob-panel-soft);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(223, 207, 153, 0.32) transparent;
   border-bottom: 1px solid var(--pob-border);
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-x;
+}
+
+.pob-mode-tabs:active {
+  cursor: grabbing;
 }
 
 .pob-mode-tab {
+  flex: 0 0 112px;
+  height: 38px;
   min-height: 38px;
   display: grid;
   place-items: center;
+  padding: 0 12px;
   color: var(--pob-muted);
   border: 0;
   border-right: 1px solid var(--pob-border);
@@ -1554,6 +1621,7 @@ textarea {
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
+  white-space: nowrap;
 }
 
 .pob-mode-tab:last-child {
@@ -1571,11 +1639,14 @@ textarea {
 }
 
 .pob-mode-panel {
+  position: relative;
+  z-index: 0;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: 280px;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .pob-mode-placeholder-body {
@@ -1864,6 +1935,7 @@ textarea {
 
 .pob-passive-tree-tooltip {
   position: absolute;
+  box-sizing: border-box;
   z-index: 2;
   max-width: 440px;
   max-height: min(620px, calc(100% - 16px));
@@ -2117,7 +2189,7 @@ textarea {
 
 .pob-items-slots {
   padding: 8px;
-  min-height: 240px;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -2388,34 +2460,37 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: linear-gradient(180deg, #12100d 0%, #0b0908 100%);
-  border: 1px solid rgba(190, 166, 107, 0.55);
-  border-radius: 3px;
-  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, rgba(44, 33, 18, 0.78) 0, transparent 22px),
+    radial-gradient(circle at 50% 0, rgba(191, 161, 87, 0.18), transparent 42%),
+    linear-gradient(180deg, #15110b 0%, #070605 100%);
+  border: 2px solid rgba(126, 100, 52, 0.9);
+  border-radius: 2px;
+  padding: 12px 16px 14px;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.22);
+    inset 0 0 0 1px rgba(236, 206, 140, 0.16),
+    inset 0 0 28px rgba(0, 0, 0, 0.48),
+    0 10px 26px rgba(0, 0, 0, 0.42);
   color: #d8d0bd;
   min-height: 0;
 }
 
 .pob-item-tooltip.is-floating {
-  position: absolute;
-  left: 8px;
-  top: calc(100% + 4px);
-  z-index: 20;
-  width: min(520px, calc(100vw - 48px));
-  max-height: 520px;
-  overflow: hidden;
+  position: fixed;
+  z-index: 10000;
+  width: min(520px, calc(100vw - 24px));
+  overflow-y: auto;
+  overflow-x: hidden;
   pointer-events: none;
 }
 
 .pob-item-tooltip-rarity {
-  margin-bottom: 8px;
+  margin: -2px 0 9px;
+  padding-bottom: 7px;
   text-align: center;
   font-size: 11px;
-  color: #8f8570;
-  letter-spacing: 0.04em;
+  color: #9f9173;
+  border-bottom: 1px solid rgba(126, 100, 52, 0.5);
   text-transform: uppercase;
 }
 
@@ -3642,9 +3717,26 @@ textarea {
   border-radius: 4px;
 }
 
+.pob-note-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .pob-note-template-row.is-active {
   color: var(--pob-accent);
   background: var(--pob-selected);
+}
+
+.pob-note-template-row.is-built-in {
+  color: var(--pob-muted);
+}
+
+.pob-note-template-badge {
+  flex: 0 0 auto;
+  color: #9ecbff;
+  font-size: 11px;
 }
 
 .pob-notes-variable-list,
@@ -3680,6 +3772,51 @@ textarea {
   min-height: 320px;
 }
 
+.pob-note-template-manager-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(94vw, 980px);
+  max-width: min(94vw, 980px);
+  max-height: min(88vh, 760px);
+  overflow: hidden;
+}
+
+.pob-note-template-manager-modal .pob-note-template-manager {
+  flex: 1 1 auto;
+  grid-template-columns: minmax(200px, 0.75fr) minmax(420px, 1.5fr);
+  min-height: min(560px, calc(88vh - 150px));
+  overflow: hidden;
+}
+
+.pob-note-template-manager-modal .pob-note-template-list,
+.pob-note-template-manager-modal .pob-note-template-editor {
+  min-height: 0;
+  overflow: auto;
+}
+
+.pob-note-template-manager-modal .pob-note-template-editor {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.pob-note-template-manager-modal .pob-note-template-editor label:last-child {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.pob-note-template-manager-modal .pob-note-template-editor textarea {
+  height: 100%;
+  min-height: 0;
+}
+
+.pob-note-template-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--pob-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .pob-note-template-list {
   display: flex;
   flex-direction: column;
@@ -3690,6 +3827,29 @@ textarea {
 .pob-note-template-editor textarea {
   min-height: 230px;
   resize: vertical;
+}
+
+@media (max-width: 760px) {
+  .pob-note-template-manager-modal {
+    width: min(96vw, 560px);
+    max-height: 90vh;
+    overflow: auto;
+  }
+
+  .pob-note-template-manager-modal .pob-note-template-manager {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .pob-note-template-manager-modal .pob-note-template-list {
+    max-height: 220px;
+  }
+
+  .pob-note-template-manager-modal .pob-note-template-editor textarea {
+    min-height: 280px;
+    resize: vertical;
+  }
 }
 
 .pob-legacy-shell {
@@ -4163,8 +4323,8 @@ textarea {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 
-  .pob-mode-tabs {
-    grid-template-columns: repeat(3, minmax(72px, 1fr));
+  .pob-mode-tab {
+    flex-basis: 104px;
   }
 
   .pob-items-cols {
@@ -4195,6 +4355,7 @@ textarea {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   background: var(--pob-bg);
 }
 
@@ -4529,7 +4690,7 @@ textarea {
 .pob-calcs-body {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 340px;
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
@@ -4580,7 +4741,7 @@ textarea {
 }
 
 .pob-calcs-breakdown {
-  width: 340px;
+  width: 100%;
   border-left: 1px solid var(--pob-border);
   background: var(--pob-panel-soft);
   display: flex;

@@ -39,7 +39,7 @@ export interface RePoeFetchedJsonResource extends RePoeResourceTarget {
   lastModified: string | null;
 }
 
-type RePoeFetch = typeof fetch;
+export type RePoeFetch = typeof fetch;
 
 const KOREAN_PREFIX = "Korean";
 

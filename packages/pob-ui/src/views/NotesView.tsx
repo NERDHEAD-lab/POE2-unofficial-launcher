@@ -48,7 +48,6 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
   const [mode, setMode] = useState<NotesMode>("edit");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<PendingTemplate>(null);
   const [templates, setTemplates] = useState<NoteTemplate[]>(() =>
@@ -72,7 +71,6 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
       if (result.status === "ok") {
         setState({ status: "ready", snapshot: result.snapshot });
         setDraftText(result.snapshot.text);
-        setShowTemplatePrompt(result.snapshot.text.trim() === "");
       } else {
         setState({ status: "error", reason: result.reason });
       }
@@ -124,7 +122,6 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
   };
 
   const applyNoteText = (value: string) => {
-    setShowTemplatePrompt(false);
     setTemplatePickerOpen(false);
     setPendingTemplate(null);
     void runAction({ type: "setText", value });
@@ -137,6 +134,7 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
       return;
     }
 
+    setTemplatePickerOpen(false);
     setPendingTemplate({
       template,
       variables,
@@ -292,13 +290,12 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
         </div>
       )}
 
-      {(showTemplatePrompt || templatePickerOpen) && (
+      {templatePickerOpen && (
         <div
           className="pob-build-action-modal"
           role="dialog"
           aria-modal="true"
           onClick={() => {
-            setShowTemplatePrompt(false);
             setTemplatePickerOpen(false);
           }}
         >
@@ -324,11 +321,10 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
                 type="button"
                 className="pob-btn"
                 onClick={() => {
-                  setShowTemplatePrompt(false);
                   setTemplatePickerOpen(false);
                 }}
               >
-                {t("buildEdit.notes.blank")}
+                {t("buildList.dialog.cancel")}
               </button>
             </div>
           </div>

@@ -192,6 +192,16 @@ export const getNodeEffectOpacity = (
     : 0.15;
 };
 
+export const getNodeIconOpacity = (
+  node: PobTreeNode,
+  visualState?: NodeFrameVisualState,
+): number => {
+  if (node.isOnlyImage || node.type === "OnlyImage") return 1;
+  return node.alloc || visualState === "alloc" || visualState === "path"
+    ? 1
+    : 0.58;
+};
+
 export const getNodeHitRadius = (node: PobTreeNode): number => {
   const frame = getNodeFrameDrawSize(node);
   const icon = getNodeIconDrawSize(node);

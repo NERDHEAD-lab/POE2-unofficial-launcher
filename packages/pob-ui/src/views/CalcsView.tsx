@@ -10,6 +10,7 @@ import type {
   PobCalcsSkillSelect,
   PobCalcsSnapshot,
   PobCalcsSummary,
+  PobRepoeTranslationsSnapshot,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -24,6 +25,11 @@ import {
   toggleFavoriteId,
   writeFavoriteIds,
 } from "./cardFavorites";
+import {
+  EMPTY_REPOE_TRANSLATIONS,
+  translateCalcsBreakdown,
+  translateCalcsSnapshot,
+} from "./repoeTranslations";
 
 type LoadState =
   | { status: "idle" }
@@ -45,6 +51,7 @@ type BreakdownState =
 interface CalcsViewProps {
   active: boolean;
   onMutated?: () => void;
+  translations?: PobRepoeTranslationsSnapshot;
 }
 
 const CALCS_FAVORITES_STORAGE_KEY = "pob.calcs.sectionFavorites";
@@ -571,13 +578,23 @@ interface BreakdownPanelProps {
   state: BreakdownState;
   onClose: () => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
+  translations: PobRepoeTranslationsSnapshot;
 }
 
-function BreakdownPanel({ state, onClose, t }: BreakdownPanelProps) {
-  if (state.status === "idle") return null;
+function BreakdownPanel({
+  state,
+  onClose,
+  t,
+  translations,
+}: BreakdownPanelProps) {
+  const displayState =
+    state.status === "ready"
+      ? { ...state, data: translateCalcsBreakdown(state.data, translations) }
+      : state;
+  if (displayState.status === "idle") return null;
   const canClose =
-    state.status === "error" ||
-    (state.status === "ready" && state.pinned === true);
+    displayState.status === "error" ||
+    (displayState.status === "ready" && displayState.pinned === true);
   return (
     <aside className="pob-calcs-breakdown" role="complementary">
       <header className="pob-calcs-breakdown-header">
@@ -594,23 +611,24 @@ function BreakdownPanel({ state, onClose, t }: BreakdownPanelProps) {
         )}
       </header>
       <div className="pob-calcs-breakdown-body">
-        {state.status === "loading" && (
+        {displayState.status === "loading" && (
           <p className="pob-mode-placeholder-body">
             {t("buildEdit.calcs.breakdown.loading")}
           </p>
         )}
-        {state.status === "error" && (
+        {displayState.status === "error" && (
           <p className="pob-error">
-            {t("buildList.error.generic", { reason: state.reason })}
+            {t("buildList.error.generic", { reason: displayState.reason })}
           </p>
         )}
-        {state.status === "ready" && state.data.sections.length === 0 && (
-          <p className="pob-mode-placeholder-body">
-            {t("buildEdit.calcs.breakdown.empty")}
-          </p>
-        )}
-        {state.status === "ready" &&
-          state.data.sections.map((section, idx) => {
+        {displayState.status === "ready" &&
+          displayState.data.sections.length === 0 && (
+            <p className="pob-mode-placeholder-body">
+              {t("buildEdit.calcs.breakdown.empty")}
+            </p>
+          )}
+        {displayState.status === "ready" &&
+          displayState.data.sections.map((section, idx) => {
             if (section.type === "BREAKDOWN") {
               return (
                 <section
@@ -694,7 +712,11 @@ function BreakdownPanel({ state, onClose, t }: BreakdownPanelProps) {
   );
 }
 
-export function CalcsView({ active, onMutated }: CalcsViewProps) {
+export function CalcsView({
+  active,
+  onMutated,
+  translations = EMPTY_REPOE_TRANSLATIONS,
+}: CalcsViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [search, setSearch] = useState("");
@@ -739,6 +761,11 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
   }, [active]);
 
   const snapshot = state.status === "ready" ? state.snapshot : null;
+  const displaySnapshot = useMemo(
+    () =>
+      snapshot === null ? null : translateCalcsSnapshot(snapshot, translations),
+    [snapshot, translations],
+  );
 
   const runAction = useCallback(
     async (action: PobCalcsAction): Promise<void> => {
@@ -849,13 +876,13 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
       : null;
 
   const filteredSections = useMemo(() => {
-    if (!snapshot) return [];
-    const body = snapshot.sections.filter((s) => s.id !== "SkillSelect");
+    if (!displaySnapshot) return [];
+    const body = displaySnapshot.sections.filter((s) => s.id !== "SkillSelect");
     return sortSectionsByFavorites(
       filterSections(body, groupFilter, search),
       favoriteIds,
     );
-  }, [snapshot, groupFilter, search, favoriteIds]);
+  }, [displaySnapshot, groupFilter, search, favoriteIds]);
 
   const handleFavoriteToggle = useCallback((sectionId: string) => {
     setFavoriteIds((prev) => {
@@ -873,7 +900,11 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
     );
   }
 
-  if (state.status === "idle" || state.status === "loading" || !snapshot) {
+  if (
+    state.status === "idle" ||
+    state.status === "loading" ||
+    !displaySnapshot
+  ) {
     return (
       <p className="pob-mode-placeholder-body">
         {t("buildEdit.calcs.loading")}
@@ -908,7 +939,7 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
             </button>
           ))}
         </div>
-        <SummaryStrip summary={snapshot.summary} t={t} />
+        <SummaryStrip summary={displaySnapshot.summary} t={t} />
       </div>
 
       {actionState.status === "error" && (
@@ -920,7 +951,7 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
       <div className="pob-calcs-body">
         <div className="pob-calcs-stack">
           <SkillSelectCard
-            data={snapshot.skillSelect}
+            data={displaySnapshot.skillSelect}
             busy={actionState.status === "running"}
             onAction={(action) => void runAction(action)}
             t={t}
@@ -945,6 +976,7 @@ export function CalcsView({ active, onMutated }: CalcsViewProps) {
           state={breakdown}
           onClose={() => setBreakdown({ status: "idle" })}
           t={t}
+          translations={translations}
         />
       </div>
     </div>

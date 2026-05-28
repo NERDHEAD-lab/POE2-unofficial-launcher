@@ -2,10 +2,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RePoeCache } from "../cache";
-import { loadItemCopyParserData } from "../itemCopyParserData";
+import {
+  loadItemCopyParserData,
+  loadOrFetchItemCopyParserData,
+} from "../itemCopyParserData";
 
 let tempRoot: string;
 let cache: RePoeCache;
@@ -103,5 +106,84 @@ describe("PoB item copy parser data", () => {
         ],
       },
     ]);
+  });
+
+  it("fetches missing parser resources before building Korean item copy data", async () => {
+    const resources = new Map<string, unknown>([
+      [
+        "en:base_items.json",
+        { wrappedQuarterstaff: { display_name: "Wrapped Quarterstaff" } },
+      ],
+      [
+        "ko:base_items.json",
+        { wrappedQuarterstaff: { display_name: "감싼 육척봉" } },
+      ],
+      [
+        "en:item_classes.json",
+        { Quarterstaff: { display_name: "Quarterstaff" } },
+      ],
+      ["ko:item_classes.json", { Quarterstaff: { display_name: "육척봉" } }],
+      ["en:uniques.json", { example: { name: "The Example" } }],
+      ["ko:uniques.json", { example: { name: "예시" } }],
+      [
+        "en:stat_translations/stat_descriptions.json",
+        [
+          {
+            ids: ["base_maximum_life"],
+            English: [{ string: "+{0} to maximum Life" }],
+          },
+        ],
+      ],
+      [
+        "ko:stat_translations/stat_descriptions.json",
+        [
+          {
+            ids: ["base_maximum_life"],
+            Korean: [{ string: "최대 생명력 +{0}" }],
+          },
+        ],
+      ],
+      ["en:stat_translations/advanced_mod_stat_descriptions.json", []],
+      ["ko:stat_translations/advanced_mod_stat_descriptions.json", []],
+    ]);
+
+    const fetchMock = vi.fn(
+      async (input: Parameters<typeof fetch>[0]): Promise<Response> => {
+        const href = String(input);
+        const suffix = href.split("/poe2/")[1] ?? "";
+        const locale = suffix.startsWith("Korean/") ? "ko" : "en";
+        const resourcePath =
+          locale === "ko" ? suffix.slice("Korean/".length) : suffix;
+        const json = resources.get(`${locale}:${resourcePath}`);
+        return new Response(JSON.stringify(json ?? {}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    );
+
+    const data = await loadOrFetchItemCopyParserData(
+      cache,
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(data.ko?.baseItems?.wrappedQuarterstaff).toMatchObject({
+      display_name: "감싼 육척봉",
+    });
+    expect(data.statTranslations).toEqual([
+      {
+        ids: ["base_maximum_life"],
+        English: [{ string: "+{0} to maximum Life" }],
+        Korean: [{ string: "최대 생명력 +{0}" }],
+      },
+    ]);
+
+    fetchMock.mockClear();
+    await loadOrFetchItemCopyParserData(
+      cache,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import {
   getNodeEffectOpacity,
   getNodeFrameAssetName,
   getNodeHitRadius,
+  getNodeIconOpacity,
   resolveDdsAssetRef,
   resolveTreeAssetFilename,
 } from "./passiveTreeAssets";
@@ -184,5 +185,17 @@ describe("passiveTreeAssets", () => {
         "alloc",
       ),
     ).toBe(0.15);
+  });
+
+  it("dims unallocated node icons even when disabled artwork is unavailable", () => {
+    expect(getNodeIconOpacity(node({ alloc: true }))).toBe(1);
+    expect(getNodeIconOpacity(node({ alloc: false }), "alloc")).toBe(1);
+    expect(getNodeIconOpacity(node({ alloc: false }), "path")).toBe(1);
+    expect(getNodeIconOpacity(node({ alloc: false }))).toBeLessThan(1);
+    expect(
+      getNodeIconOpacity(
+        node({ type: "OnlyImage", isOnlyImage: true, alloc: false }),
+      ),
+    ).toBe(1);
   });
 });

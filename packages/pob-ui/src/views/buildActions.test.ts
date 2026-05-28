@@ -3,7 +3,11 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { POB_BUILD_ACTIONS, POB_BUILD_HEADER_ACTIONS } from "./buildActions";
+import {
+  POB_BUILD_ACTIONS,
+  POB_BUILD_HEADER_ACTIONS,
+  resolveImportExportPanelVisibility,
+} from "./buildActions";
 
 const defaultSourceRoot = "D:\\project_poe2\\PathOfBuilding-PoE2-KR\\src";
 const sourceRoot = process.env.POB_INSTALL_LOCATION ?? defaultSourceRoot;
@@ -30,11 +34,29 @@ describe("POB_BUILD_ACTIONS", () => {
         id,
         buildAction,
         iconOnly: iconOnly ?? false,
+        intent:
+          POB_BUILD_HEADER_ACTIONS.find((action) => action.id === id)?.intent ??
+          null,
       })),
     ).toEqual([
-      { id: "importBuild", buildAction: "importExport", iconOnly: false },
-      { id: "exportBuild", buildAction: "importExport", iconOnly: false },
-      { id: "configuration", buildAction: "configuration", iconOnly: true },
+      {
+        id: "importBuild",
+        buildAction: "importExport",
+        iconOnly: false,
+        intent: "import",
+      },
+      {
+        id: "exportBuild",
+        buildAction: "importExport",
+        iconOnly: false,
+        intent: "export",
+      },
+      {
+        id: "configuration",
+        buildAction: "configuration",
+        iconOnly: true,
+        intent: null,
+      },
     ]);
 
     expect([
@@ -53,4 +75,22 @@ describe("POB_BUILD_ACTIONS", () => {
       expect(actionLabels).toEqual([...POB_BUILD_ACTIONS]);
     },
   );
+
+  it("uses split import/export panels only for renewed UI", () => {
+    expect(resolveImportExportPanelVisibility("renewed", "import")).toEqual({
+      exportPanel: false,
+      importPanel: true,
+      characterImportPanel: true,
+    });
+    expect(resolveImportExportPanelVisibility("renewed", "export")).toEqual({
+      exportPanel: true,
+      importPanel: false,
+      characterImportPanel: false,
+    });
+    expect(resolveImportExportPanelVisibility("legacy", "export")).toEqual({
+      exportPanel: true,
+      importPanel: true,
+      characterImportPanel: true,
+    });
+  });
 });

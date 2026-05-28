@@ -5,6 +5,9 @@ import type { PobMainSkillSummarySnapshot } from "@poe2-launcher/shared/types";
 import {
   buildMainSkillSummaryRows,
   clampMainSkillSummaryHeight,
+  getMainSkillSummaryDefaultHeight,
+  getMainSkillSummaryHeightForRatio,
+  getMainSkillSummaryHeightRatio,
   getMainSkillSummaryMaxHeight,
   getMainSkillSummaryTitle,
 } from "./mainSkillSummaryPanel";
@@ -78,12 +81,21 @@ describe("mainSkillSummaryPanel", () => {
     expect(clampMainSkillSummaryHeight(230.6)).toBe(231);
     expect(clampMainSkillSummaryHeight(999)).toBe(960);
     expect(clampMainSkillSummaryHeight(999, 640)).toBe(640);
-    expect(clampMainSkillSummaryHeight(Number.NaN)).toBe(220);
+    expect(clampMainSkillSummaryHeight(Number.NaN)).toBe(240);
   });
 
   it("derives the panel maximum from the viewport while preserving explorer space", () => {
     expect(getMainSkillSummaryMaxHeight(500)).toBe(240);
     expect(getMainSkillSummaryMaxHeight(2000)).toBe(960);
     expect(getMainSkillSummaryMaxHeight(Number.NaN)).toBe(960);
+  });
+
+  it("starts and resizes the panel by a stable height ratio", () => {
+    expect(getMainSkillSummaryDefaultHeight(900)).toBe(320);
+    expect(getMainSkillSummaryHeightForRatio(0.5, 640)).toBe(320);
+    expect(getMainSkillSummaryHeightForRatio(2, 640)).toBe(640);
+    expect(getMainSkillSummaryHeightForRatio(Number.NaN, 640)).toBe(320);
+    expect(getMainSkillSummaryHeightRatio(320, 640)).toBe(0.5);
+    expect(getMainSkillSummaryHeightRatio(Number.NaN, 640)).toBe(0.5);
   });
 });

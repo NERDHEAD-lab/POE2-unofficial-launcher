@@ -4,8 +4,11 @@ import {
   buildConnectorMap,
   connectorAssetName,
   connectorKey,
+  connectorStrokeStyle,
+  connectorStrokeWidth,
   connectorTextureQuad,
   projectConnectorQuad,
+  shouldReinforceTexturedConnector,
 } from "./passiveTreeConnectors";
 
 describe("passiveTreeConnectors", () => {
@@ -124,5 +127,25 @@ describe("passiveTreeConnectors", () => {
     expect(connector && connectorTextureQuad(connector)).toEqual([
       0, 1, 0, 0, 1, 0, 1, 1,
     ]);
+  });
+
+  it("keeps a visible fallback stroke for textured connectors", () => {
+    expect(shouldReinforceTexturedConnector("Normal", false)).toBe(true);
+    expect(shouldReinforceTexturedConnector("Intermediate", false)).toBe(true);
+    expect(shouldReinforceTexturedConnector("Active", false)).toBe(true);
+    expect(shouldReinforceTexturedConnector("Active", true)).toBe(true);
+
+    expect(
+      connectorStrokeWidth("Normal", "texture-reinforcement"),
+    ).toBeLessThan(connectorStrokeWidth("Normal"));
+    expect(
+      connectorStrokeWidth("Active", "texture-reinforcement"),
+    ).toBeGreaterThan(connectorStrokeWidth("Normal", "texture-reinforcement"));
+    expect(
+      connectorStrokeStyle("Normal", false, "texture-reinforcement"),
+    ).toContain("rgba");
+    expect(
+      connectorStrokeStyle("Active", false, "texture-reinforcement"),
+    ).toContain("0.72");
   });
 });

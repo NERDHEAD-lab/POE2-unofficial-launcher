@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  PobCalcsBreakdown,
+  PobCalcsSnapshot,
+  PobConfigSnapshot,
   PobItemDbSummary,
   PobItemsSnapshot,
   PobRepoeTranslationsSnapshot,
@@ -10,9 +13,13 @@ import type {
 
 import {
   filterTranslatedItemDbEntries,
+  translateCalcsBreakdown,
+  translateCalcsSnapshot,
+  translateConfigSnapshot,
   translateItemDbEntries,
   translateItemTooltip,
   translateItemsSnapshot,
+  translateTreeNodeTooltip,
   translateSkillsGemTooltip,
   translateSkillsSnapshot,
   translateTreeSnapshot,
@@ -300,14 +307,229 @@ describe("RePoE renderer translation overlay", () => {
     expect(snapshot.availableGems[0].name).toBe("Alchemist's Boon");
   });
 
-  it("translates item and skill tooltip stat lines without changing identifiers", () => {
+  it("translates calcs display text without changing action or breakdown identifiers", () => {
+    const snapshot: PobCalcsSnapshot = {
+      search: "",
+      skillSelect: {
+        skillNumber: 1,
+        buffMode: "EFFECTIVE",
+        buffModeOptions: [{ value: "EFFECTIVE", label: "Effective DPS" }],
+        showMinion: false,
+        showMinionShown: false,
+        socketGroup: { selected: 1, options: [] },
+        mainSkill: {
+          selected: 1,
+          options: [{ index: 1, label: "Fireball" }],
+        },
+        statSet: { selected: null, options: [] },
+        skillPart: { selected: null, shown: false, options: [] },
+        skillStages: { value: null, shown: false },
+        mineCount: { value: null, shown: false },
+        minion: { selected: null, shown: false, options: [] },
+        spectreLibrary: {
+          label: "Manage Spectres...",
+          shown: false,
+          enabled: false,
+        },
+        beastLibrary: {
+          label: "Manage Beasts...",
+          shown: false,
+          enabled: false,
+        },
+        minionSkill: { selected: null, shown: false, options: [] },
+        minionSkillStatSet: { selected: null, shown: false, options: [] },
+      },
+      sections: [
+        {
+          id: "Defence",
+          group: 3,
+          widthCols: 1,
+          colour: null,
+          enabled: true,
+          subSections: [
+            {
+              id: "DefenceSub",
+              label: "Defence",
+              collapsed: false,
+              defaultCollapsed: false,
+              extra: null,
+              colWidth: null,
+              rows: [
+                {
+                  label: "+32 to maximum Life",
+                  cells: [
+                    {
+                      text: "Cannot be Stunned",
+                      colour: null,
+                      breakdownKey: "Defence:1:1",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      summary: {
+        combinedDPS: null,
+        fullDPS: null,
+        totalEHP: null,
+        life: 32,
+        energyShield: null,
+        mana: null,
+      },
+    };
+    const breakdown: PobCalcsBreakdown = {
+      key: "Defence:1:1",
+      sections: [
+        {
+          type: "BREAKDOWN",
+          data: {
+            stat: "Life",
+            label: "+32 to maximum Life",
+            footer: "Cannot be Stunned",
+            lines: ["+32 to maximum Life"],
+            rowList: [{ source: "Cannot be Stunned" }],
+            colList: [{ key: "source", label: "Cannot be Stunned" }],
+          },
+        },
+        {
+          type: "MODS",
+          data: {
+            label: "+32 to maximum Life",
+            modName: ["Cannot be Stunned"],
+            modType: "BASE",
+            entries: [
+              {
+                name: "Fireball",
+                type: null,
+                value: 32,
+                source: "Bramblejack",
+                sourceLine: "+32 to maximum Life",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const translatedSnapshot = translateCalcsSnapshot(snapshot, translations);
+    const translatedBreakdown = translateCalcsBreakdown(
+      breakdown,
+      translations,
+    );
+
+    expect(translatedSnapshot.skillSelect.mainSkill.options[0]).toEqual({
+      index: 1,
+      label: "Fireball KO",
+    });
+    expect(translatedSnapshot.sections[0].subSections[0].rows[0]).toMatchObject(
+      {
+        label: "최대 생명력 +32",
+        cells: [{ text: "기절 불가", breakdownKey: "Defence:1:1" }],
+      },
+    );
+    expect(snapshot.skillSelect.mainSkill.options[0].label).toBe("Fireball");
+    expect(snapshot.sections[0].subSections[0].rows[0].label).toBe(
+      "+32 to maximum Life",
+    );
+    expect(translatedBreakdown.key).toBe("Defence:1:1");
+    expect(translatedBreakdown.sections[0]).toMatchObject({
+      type: "BREAKDOWN",
+      data: {
+        label: "최대 생명력 +32",
+        footer: "기절 불가",
+        lines: ["최대 생명력 +32"],
+        rowList: [{ source: "기절 불가" }],
+        colList: [{ key: "source", label: "기절 불가" }],
+      },
+    });
+    expect(translatedBreakdown.sections[1]).toMatchObject({
+      type: "MODS",
+      data: {
+        label: "최대 생명력 +32",
+        modName: ["기절 불가"],
+        entries: [
+          {
+            name: "Fireball KO",
+            source: "Bramblejack KO",
+            sourceLine: "최대 생명력 +32",
+          },
+        ],
+      },
+    });
+    expect(breakdown.sections[0]).toMatchObject({
+      type: "BREAKDOWN",
+      data: { label: "+32 to maximum Life" },
+    });
+  });
+
+  it("translates config display labels without changing submitted values", () => {
+    const snapshot: PobConfigSnapshot = {
+      activeConfigSetId: 1,
+      configSets: [{ id: 1, index: 1, title: "Default", active: true }],
+      search: "",
+      showAll: false,
+      sections: [
+        {
+          id: "skill",
+          label: "Fireball",
+          col: null,
+          shown: true,
+          options: [
+            {
+              id: "skill-choice",
+              var: "skill",
+              kind: "list",
+              label: "Cannot be Stunned",
+              value: "Fireball",
+              defaultValue: "Fireball",
+              placeholder: null,
+              shown: true,
+              enabled: true,
+              modified: false,
+              tooltip: "+32 to maximum Life",
+              options: [{ index: 1, value: "Fireball", label: "Fireball" }],
+              selectedIndex: 1,
+              resizable: false,
+              hideIfInvalid: false,
+              doNotHighlight: false,
+            },
+          ],
+        },
+      ],
+    };
+
+    const translated = translateConfigSnapshot(snapshot, translations);
+
+    expect(translated.sections[0].label).toBe("Fireball KO");
+    expect(translated.sections[0].options[0]).toMatchObject({
+      label: "기절 불가",
+      value: "Fireball",
+      tooltip: "최대 생명력 +32",
+      options: [{ value: "Fireball", label: "Fireball KO" }],
+    });
+    expect(snapshot.sections[0].options[0].options[0].label).toBe("Fireball");
+  });
+
+  it("translates tree, item and skill tooltip display text without changing identifiers", () => {
+    const treeTooltip = translateTreeNodeTooltip(
+      {
+        nodeId: 4,
+        header: "Fireball",
+        lines: [
+          { kind: "line", text: "Cannot be Stunned", colour: null, size: 14 },
+        ],
+      },
+      translations,
+    );
     const itemTooltip = translateItemTooltip(
       {
         source: "db",
         itemId: "Bramblejack",
         db: "uniqueDB",
         slotName: null,
-        header: "UNIQUE",
+        header: "Bramblejack",
         lines: [
           { kind: "line", text: "+32 to maximum Life", colour: null, size: 14 },
         ],
@@ -319,7 +541,7 @@ describe("RePoE renderer translation overlay", () => {
         groupIndex: 1,
         gemIndex: 1,
         mode: "gem",
-        header: "GEM",
+        header: "Fireball",
         lines: [
           { kind: "line", text: "Cannot be Stunned", colour: null, size: 14 },
         ],
@@ -327,9 +549,14 @@ describe("RePoE renderer translation overlay", () => {
       translations,
     );
 
+    expect(treeTooltip.nodeId).toBe(4);
+    expect(treeTooltip.header).toBe("Fireball KO");
+    expect(treeTooltip.lines[0].text).toBe("기절 불가");
     expect(itemTooltip.itemId).toBe("Bramblejack");
+    expect(itemTooltip.header).toBe("Bramblejack KO");
     expect(itemTooltip.lines[0].text).toBe("최대 생명력 +32");
     expect(skillTooltip.groupIndex).toBe(1);
+    expect(skillTooltip.header).toBe("Fireball KO");
     expect(skillTooltip.lines[0].text).toBe("기절 불가");
   });
 });

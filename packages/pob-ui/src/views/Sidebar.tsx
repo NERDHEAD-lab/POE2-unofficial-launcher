@@ -23,16 +23,18 @@ import {
   sortBuildEntries,
 } from "./folderTree";
 import {
-  MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT,
   MAIN_SKILL_SUMMARY_MIN_HEIGHT,
   buildMainSkillSummaryRows,
   clampMainSkillSummaryHeight,
+  getMainSkillSummaryDefaultHeight,
+  getMainSkillSummaryHeightForRatio,
+  getMainSkillSummaryHeightRatio,
   getMainSkillSummaryMaxHeight,
   getMainSkillSummaryTitle,
 } from "./mainSkillSummaryPanel";
 import {
   createNoteTemplateId,
-  loadUserNoteTemplates,
+  getAllNoteTemplates,
   saveUserNoteTemplates,
   type NoteTemplate,
 } from "./noteTemplates";
@@ -140,12 +142,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     null,
   );
   const [mainSkillCollapsed, setMainSkillCollapsed] = useState(false);
-  const [mainSkillPanelHeight, setMainSkillPanelHeight] = useState(
-    MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT,
+  const [mainSkillPanelHeight, setMainSkillPanelHeight] = useState(() =>
+    getMainSkillSummaryDefaultHeight(window.innerHeight),
   );
   const [mainSkillPanelMaxHeight, setMainSkillPanelMaxHeight] = useState(() =>
     getMainSkillSummaryMaxHeight(window.innerHeight),
   );
+  const [mainSkillPanelRatio, setMainSkillPanelRatio] = useState(0.5);
   const mainSkillResizeRef = useRef<{
     startY: number;
     startHeight: number;
@@ -155,15 +158,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const syncMaxHeight = () => {
       const nextMax = getMainSkillSummaryMaxHeight(window.innerHeight);
       setMainSkillPanelMaxHeight(nextMax);
-      setMainSkillPanelHeight((height) =>
-        clampMainSkillSummaryHeight(height, nextMax),
+      setMainSkillPanelHeight(
+        getMainSkillSummaryHeightForRatio(mainSkillPanelRatio, nextMax),
       );
     };
 
     syncMaxHeight();
     window.addEventListener("resize", syncMaxHeight);
     return () => window.removeEventListener("resize", syncMaxHeight);
-  }, []);
+  }, [mainSkillPanelRatio]);
 
   const loadPath = useCallback(
     async (subPath: string) => {
@@ -635,7 +638,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const openTemplateManager = () => {
-    const templates = loadUserNoteTemplates();
+    const templates = getAllNoteTemplates();
     setTemplateDrafts(templates);
     setSelectedTemplateId(templates[0]?.id ?? null);
     setTemplateManagerOpen(true);
@@ -644,12 +647,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const selectedTemplate =
     templateDrafts.find((template) => template.id === selectedTemplateId) ??
     null;
+  const selectedTemplateReadOnly = selectedTemplate?.builtIn === true;
 
   const updateSelectedTemplate = (patch: Partial<NoteTemplate>) => {
     if (!selectedTemplateId) return;
     setTemplateDrafts((templates) =>
       templates.map((template) =>
-        template.id === selectedTemplateId
+        template.id === selectedTemplateId && !template.builtIn
           ? { ...template, ...patch }
           : template,
       ),
@@ -666,8 +670,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setSelectedTemplateId(template.id);
   };
 
+  const copySelectedTemplate = () => {
+    if (!selectedTemplate) return;
+    const template: NoteTemplate = {
+      id: createNoteTemplateId(),
+      name: `${selectedTemplate.name} ${t("buildEdit.notes.copySuffix")}`,
+      body: selectedTemplate.body,
+    };
+    setTemplateDrafts((templates) => [...templates, template]);
+    setSelectedTemplateId(template.id);
+  };
+
   const deleteSelectedTemplate = () => {
-    if (!selectedTemplateId) return;
+    if (!selectedTemplateId || selectedTemplateReadOnly) return;
     const next = templateDrafts.filter(
       (template) => template.id !== selectedTemplateId,
     );
@@ -739,8 +754,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const setClampedMainSkillHeight = useCallback(
     (height: number) => {
-      setMainSkillPanelHeight(
-        clampMainSkillSummaryHeight(height, mainSkillPanelMaxHeight),
+      const nextHeight = clampMainSkillSummaryHeight(
+        height,
+        mainSkillPanelMaxHeight,
+      );
+      setMainSkillPanelHeight(nextHeight);
+      setMainSkillPanelRatio(
+        getMainSkillSummaryHeightRatio(nextHeight, mainSkillPanelMaxHeight),
       );
     },
     [mainSkillPanelMaxHeight],
@@ -1237,8 +1257,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <Modal
           title={t("buildEdit.notes.manageTemplates")}
           onClose={() => setTemplateManagerOpen(false)}
+          className="pob-note-template-manager-modal"
         >
           <div className="pob-note-template-manager">
+            <p className="pob-note-template-help">
+              {t("buildEdit.notes.templateManagerHelp")}
+            </p>
             <div className="pob-note-template-list">
               {templateDrafts.map((template) => (
                 <button
@@ -1246,11 +1270,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   type="button"
                   className={
                     "pob-note-template-row" +
-                    (template.id === selectedTemplateId ? " is-active" : "")
+                    (template.id === selectedTemplateId ? " is-active" : "") +
+                    (template.builtIn ? " is-built-in" : "")
                   }
                   onClick={() => setSelectedTemplateId(template.id)}
                 >
-                  {template.name}
+                  <span>{template.name}</span>
+                  {template.builtIn && (
+                    <span className="pob-note-template-badge">
+                      {t("buildEdit.notes.builtInTemplate")}
+                    </span>
+                  )}
                 </button>
               ))}
               <button
@@ -1267,7 +1297,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <input
                   type="text"
                   value={selectedTemplate?.name ?? ""}
-                  disabled={!selectedTemplate}
+                  disabled={!selectedTemplate || selectedTemplateReadOnly}
                   onChange={(event) =>
                     updateSelectedTemplate({ name: event.target.value })
                   }
@@ -1277,7 +1307,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span>{t("buildEdit.notes.templateBody")}</span>
                 <textarea
                   value={selectedTemplate?.body ?? ""}
-                  disabled={!selectedTemplate}
+                  disabled={!selectedTemplate || selectedTemplateReadOnly}
                   onChange={(event) =>
                     updateSelectedTemplate({ body: event.target.value })
                   }
@@ -1290,6 +1320,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               className="pob-btn"
               disabled={!selectedTemplate}
+              onClick={copySelectedTemplate}
+            >
+              {t("buildEdit.notes.copyTemplate")}
+            </button>
+            <button
+              type="button"
+              className="pob-btn"
+              disabled={!selectedTemplate || selectedTemplateReadOnly}
               onClick={deleteSelectedTemplate}
             >
               {t("buildEdit.notes.deleteTemplate")}
@@ -1318,10 +1356,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 const Modal: React.FC<{
   title: string;
   onClose: () => void;
+  className?: string;
   children: React.ReactNode;
-}> = ({ title, onClose, children }) => (
+}> = ({ title, onClose, className, children }) => (
   <div className="pob-modal-overlay" onClick={onClose}>
-    <div className="pob-modal" onClick={(event) => event.stopPropagation()}>
+    <div
+      className={"pob-modal" + (className ? ` ${className}` : "")}
+      onClick={(event) => event.stopPropagation()}
+    >
       <h3>{title}</h3>
       {children}
     </div>

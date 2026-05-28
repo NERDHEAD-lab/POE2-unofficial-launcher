@@ -1,7 +1,7 @@
 import type { PobMainSkillSummarySnapshot } from "@poe2-launcher/shared/types";
 
 export const MAIN_SKILL_SUMMARY_MIN_HEIGHT = 120;
-export const MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT = 220;
+export const MAIN_SKILL_SUMMARY_DEFAULT_RATIO = 0.5;
 export const MAIN_SKILL_SUMMARY_MAX_HEIGHT = 960;
 export const MAIN_SKILL_SUMMARY_RESERVED_HEIGHT = 260;
 
@@ -61,9 +61,47 @@ export function clampMainSkillSummaryHeight(
   height: number,
   maxHeight = MAIN_SKILL_SUMMARY_MAX_HEIGHT,
 ): number {
-  if (!Number.isFinite(height)) return MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT;
+  if (!Number.isFinite(height)) {
+    return Math.round(
+      MAIN_SKILL_SUMMARY_MIN_HEIGHT / MAIN_SKILL_SUMMARY_DEFAULT_RATIO,
+    );
+  }
   return Math.min(
     maxHeight,
     Math.max(MAIN_SKILL_SUMMARY_MIN_HEIGHT, Math.round(height)),
   );
+}
+
+export function getMainSkillSummaryHeightForRatio(
+  ratio: number,
+  maxHeight: number,
+): number {
+  const safeRatio = Number.isFinite(ratio)
+    ? Math.min(1, Math.max(0, ratio))
+    : MAIN_SKILL_SUMMARY_DEFAULT_RATIO;
+  return clampMainSkillSummaryHeight(maxHeight * safeRatio, maxHeight);
+}
+
+export function getMainSkillSummaryDefaultHeight(
+  viewportHeight: number,
+): number {
+  const maxHeight = getMainSkillSummaryMaxHeight(viewportHeight);
+  return getMainSkillSummaryHeightForRatio(
+    MAIN_SKILL_SUMMARY_DEFAULT_RATIO,
+    maxHeight,
+  );
+}
+
+export function getMainSkillSummaryHeightRatio(
+  height: number,
+  maxHeight: number,
+): number {
+  if (
+    !Number.isFinite(height) ||
+    !Number.isFinite(maxHeight) ||
+    maxHeight <= 0
+  ) {
+    return MAIN_SKILL_SUMMARY_DEFAULT_RATIO;
+  }
+  return Math.min(1, Math.max(0, height / maxHeight));
 }

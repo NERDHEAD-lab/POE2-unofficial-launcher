@@ -32,10 +32,67 @@ export interface ItemTooltipLabels {
   fractured: string;
 }
 
+export interface FloatingItemTooltipPosition {
+  left: number;
+  top: number;
+  maxHeight: number;
+}
+
+export interface FloatingItemTooltipPositionInput {
+  pointerX: number;
+  pointerY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  estimatedWidth?: number;
+  offset?: number;
+  margin?: number;
+  minimumHeight?: number;
+}
+
 type ItemLike = PobItemSummary | PobItemDbSummary;
 
 const stripVariantSuffix = (value: string): string =>
   value.replace(/ \(.+\)$/, "");
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), max);
+
+export function computeFloatingItemTooltipPosition({
+  pointerX,
+  pointerY,
+  viewportWidth,
+  viewportHeight,
+  estimatedWidth = 420,
+  offset = 16,
+  margin = 12,
+  minimumHeight = 180,
+}: FloatingItemTooltipPositionInput): FloatingItemTooltipPosition {
+  const safeViewportWidth = Math.max(viewportWidth, margin * 2 + 1);
+  const safeViewportHeight = Math.max(viewportHeight, margin * 2 + 1);
+  const width = Math.min(estimatedWidth, safeViewportWidth - margin * 2);
+  const rightSideLeft = pointerX + offset;
+  const leftSideLeft = pointerX - offset - width;
+  const left =
+    rightSideLeft + width + margin <= safeViewportWidth
+      ? rightSideLeft
+      : clamp(leftSideLeft, margin, safeViewportWidth - margin - width);
+
+  const preferredTop = pointerY + offset;
+  const belowMaxHeight = safeViewportHeight - preferredTop - margin;
+  if (belowMaxHeight >= minimumHeight) {
+    return {
+      left,
+      top: preferredTop,
+      maxHeight: belowMaxHeight,
+    };
+  }
+
+  return {
+    left,
+    top: margin,
+    maxHeight: safeViewportHeight - margin * 2,
+  };
+}
 
 export function buildItemTooltipSections(
   item: ItemLike,

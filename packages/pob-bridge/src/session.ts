@@ -9,8 +9,8 @@ import {
   encodePobBuildCodeXml,
 } from "@poe2-launcher/pob-repoe/buildCode";
 import { parseItemCopyText } from "@poe2-launcher/pob-repoe/itemCopyParser";
-import { loadItemCopyParserData } from "@poe2-launcher/pob-repoe/itemCopyParserData";
-import { loadRePoeTranslations } from "@poe2-launcher/pob-repoe/translations";
+import { loadOrFetchItemCopyParserData } from "@poe2-launcher/pob-repoe/itemCopyParserData";
+import { loadOrFetchRePoeTranslations } from "@poe2-launcher/pob-repoe/translations";
 import { getPobVaultGenerations } from "@poe2-launcher/pob-vault/generations";
 import { refreshPobVault } from "@poe2-launcher/pob-vault/refresh";
 import { loadDefaultPobSmokeFixture } from "@poe2-launcher/pob-vault/smokeFixture";
@@ -1101,7 +1101,10 @@ export function registerPobSessionHandlers(
         if (!isPobRepoeLocale(locale)) {
           throw new Error("pob:repoe-translations requires locale = en|ko");
         }
-        return { status: "ok", snapshot: await loadRePoeTranslations(locale) };
+        return {
+          status: "ok",
+          snapshot: await loadOrFetchRePoeTranslations(locale),
+        };
       } catch (err) {
         logger.warn("[PoBSession] repoe-translations failed:", err);
         return toSessionError(err);
@@ -1192,7 +1195,7 @@ export function registerPobSessionHandlers(
     async (_event, request: unknown): Promise<PobItemsParseCopyTextResult> => {
       try {
         const parseRequest = readItemCopyParseRequest(request);
-        const data = await loadItemCopyParserData();
+        const data = await loadOrFetchItemCopyParserData();
         return parseItemCopyText({ ...parseRequest, data });
       } catch (err) {
         logger.warn("[PoBSession] items-parse-copy-text failed:", err);
@@ -1211,7 +1214,7 @@ export function registerPobSessionHandlers(
     async (event, request: unknown): Promise<PobItemsParseAndAddResult> => {
       try {
         const parseRequest = readItemCopyParseAndAddRequest(request);
-        const data = await loadItemCopyParserData();
+        const data = await loadOrFetchItemCopyParserData();
         const parsed = parseItemCopyText({ ...parseRequest, data });
         if (parsed.status === "error") {
           return parsed;

@@ -16,6 +16,8 @@ export interface TreeProjectionTransform {
   offsetY: number;
 }
 
+export type ConnectorStrokeLayer = "primary" | "texture-reinforcement";
+
 export type ConnectorQuad = [
   number,
   number,
@@ -119,6 +121,54 @@ export const connectorTextureQuad = (
   const quad = readQuad(connector.tex) ?? [0, 1, 0, 0, 1, 0, 1, 1];
   return quad.map((coord) => Math.min(Math.max(coord, 0), 1)) as ConnectorQuad;
 };
+
+export const connectorStrokeWidth = (
+  state: TreeConnectorState,
+  layer: ConnectorStrokeLayer = "primary",
+): number => {
+  if (layer === "texture-reinforcement") {
+    if (state === "Active") return 3.25;
+    if (state === "Intermediate") return 2.75;
+    return 1.75;
+  }
+  if (state === "Active") return 4.5;
+  if (state === "Intermediate") return 3.75;
+  return 2.5;
+};
+
+export const connectorStrokeStyle = (
+  state: TreeConnectorState,
+  dependency: boolean,
+  layer: ConnectorStrokeLayer = "primary",
+): string => {
+  if (dependency) {
+    return layer === "texture-reinforcement"
+      ? "rgba(255, 88, 88, 0.55)"
+      : "rgba(255, 88, 88, 0.9)";
+  }
+  if (state === "Active") {
+    return layer === "texture-reinforcement"
+      ? "rgba(255, 218, 122, 0.72)"
+      : "#ffd166";
+  }
+  if (state === "Intermediate") {
+    return layer === "texture-reinforcement"
+      ? "rgba(255, 209, 102, 0.5)"
+      : "rgba(255, 209, 102, 0.75)";
+  }
+  return layer === "texture-reinforcement"
+    ? "rgba(140, 152, 168, 0.34)"
+    : "rgba(140, 152, 168, 0.35)";
+};
+
+export const shouldReinforceTexturedConnector = (
+  state: TreeConnectorState,
+  dependency: boolean,
+): boolean =>
+  dependency ||
+  state === "Normal" ||
+  state === "Intermediate" ||
+  state === "Active";
 
 export const projectConnectorQuad = (
   connector: TreeConnector,

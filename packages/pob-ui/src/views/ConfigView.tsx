@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type {
   PobConfigAction,
   PobConfigOption,
+  PobRepoeTranslationsSnapshot,
   PobConfigScalar,
   PobConfigSnapshot,
   PobConfigSet,
@@ -19,6 +20,10 @@ import {
   filterConfigSections,
   groupConfigSectionsByColumn,
 } from "./configViewSections";
+import {
+  EMPTY_REPOE_TRANSLATIONS,
+  translateConfigSnapshot,
+} from "./repoeTranslations";
 
 type LoadState =
   | { status: "idle" }
@@ -34,6 +39,7 @@ type ActionState =
 interface ConfigViewProps {
   active: boolean;
   onMutated: () => void;
+  translations?: PobRepoeTranslationsSnapshot;
 }
 
 const CONFIG_FAVORITES_STORAGE_KEY = "pob.config.sectionFavorites";
@@ -283,7 +289,11 @@ function ConfigSetManager({
   );
 }
 
-export function ConfigView({ active, onMutated }: ConfigViewProps) {
+export function ConfigView({
+  active,
+  onMutated,
+  translations = EMPTY_REPOE_TRANSLATIONS,
+}: ConfigViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [search, setSearch] = useState("");
@@ -324,7 +334,14 @@ export function ConfigView({ active, onMutated }: ConfigViewProps) {
     };
   }, [active]);
 
-  const snapshot = state.status === "ready" ? state.snapshot : null;
+  const sourceSnapshot = state.status === "ready" ? state.snapshot : null;
+  const snapshot = useMemo(
+    () =>
+      sourceSnapshot === null
+        ? null
+        : translateConfigSnapshot(sourceSnapshot, translations),
+    [sourceSnapshot, translations],
+  );
   const busy = actionState.status === "running";
   const filteredSections = useMemo(
     () =>

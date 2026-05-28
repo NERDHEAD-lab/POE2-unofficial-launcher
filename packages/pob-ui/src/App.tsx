@@ -46,12 +46,47 @@ interface PendingAction {
 }
 
 const INITIAL_TARGET: BuildTarget = { subPath: "", fileName: null };
+const HOVER_DEBUG_SELECTOR =
+  "[data-pob-debug], [aria-label], [title], button, input, select, textarea, a, [role], [class]";
 
 type VaultRefreshState =
   | { status: "idle" }
   | { status: "running" }
   | { status: "ready"; result: PobVaultRefreshSnapshot }
   | { status: "error"; reason: string };
+
+const cleanDebugText = (value: string | null | undefined): string =>
+  (value ?? "").replace(/\s+/g, " ").trim();
+
+const firstDebugText = (...values: Array<string | null | undefined>): string =>
+  values.map(cleanDebugText).find(Boolean) ?? "";
+
+const describeHoverElement = (target: EventTarget | null): string => {
+  if (!(target instanceof Element)) return "";
+  const element = target.closest(HOVER_DEBUG_SELECTOR) ?? target;
+  const tag = element.tagName.toLowerCase();
+  const role = element.getAttribute("role");
+  const className =
+    typeof element.className === "string"
+      ? element.className
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((item) => `.${item}`)
+          .join("")
+      : "";
+  const structuralName = role ? `${tag}[role=${role}]` : `${tag}${className}`;
+  const displayName = firstDebugText(
+    element.getAttribute("data-pob-debug") ?? undefined,
+    element.getAttribute("aria-label"),
+    element.getAttribute("title"),
+    element.getAttribute("name"),
+    element.id,
+    element.textContent,
+  ).slice(0, 80);
+  return displayName ? `${structuralName} - ${displayName}` : structuralName;
+};
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -89,6 +124,7 @@ const App: React.FC = () => {
   const [vaultRefreshState, setVaultRefreshState] = useState<VaultRefreshState>(
     { status: "idle" },
   );
+  const [hoverDebugLabel, setHoverDebugLabel] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +137,25 @@ const App: React.FC = () => {
     });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const handlePointerOver = (event: PointerEvent) => {
+      const label = describeHoverElement(event.target);
+      setHoverDebugLabel((prev) => (prev === label ? prev : label));
+    };
+    const handlePointerOut = (event: PointerEvent) => {
+      if (event.relatedTarget === null) setHoverDebugLabel("");
+    };
+
+    window.addEventListener("pointerover", handlePointerOver, true);
+    window.addEventListener("pointerout", handlePointerOut, true);
+    return () => {
+      window.removeEventListener("pointerover", handlePointerOver, true);
+      window.removeEventListener("pointerout", handlePointerOut, true);
     };
   }, []);
 
@@ -333,6 +388,12 @@ const App: React.FC = () => {
     [saveCurrentBuild, saveCurrentDraft],
   );
 
+  const saveActiveBuild = useCallback(async () => {
+    const guard = await resolveUnsavedGuard();
+    if (!guard) return true;
+    return saveGuardedBuild(guard);
+  }, [resolveUnsavedGuard, saveGuardedBuild]);
+
   const requestNavigation = useCallback(
     async (
       nextTarget: BuildTarget,
@@ -496,9 +557,31 @@ const App: React.FC = () => {
     );
   }, [requestNavigation, target.subPath]);
 
-  const handleSavedAs = useCallback((_fileName: string) => {
-    setRefreshToken((value) => value + 1);
-  }, []);
+  const handleSavedAs = useCallback(
+    (fileName: string) => {
+      setTarget((prev) => ({ ...prev, fileName }));
+      setHistory((prev) =>
+        prev.map((entry, index) =>
+          index === historyIndex ? { ...entry, fileName } : entry,
+        ),
+      );
+      setRefreshToken((value) => value + 1);
+    },
+    [historyIndex],
+  );
+
+  const handleBuildRenamed = useCallback(
+    (fileName: string) => {
+      setTarget((prev) => ({ ...prev, fileName }));
+      setHistory((prev) =>
+        prev.map((entry, index) =>
+          index === historyIndex ? { ...entry, fileName } : entry,
+        ),
+      );
+      setRefreshToken((value) => value + 1);
+    },
+    [historyIndex],
+  );
 
   const vaultBadge =
     vaultStatus?.state === "fallback"
@@ -529,6 +612,22 @@ const App: React.FC = () => {
           <img src={iconUrl} alt="" className="pob-titlebar-icon" />
           <span className="pob-titlebar-title">{t("app.title")}</span>
           <span className="pob-titlebar-beta">{t("app.beta")}</span>
+          {vaultBadge && (
+            <span className={vaultBadge.className} title={vaultBadge.title}>
+              {vaultBadge.label}
+            </span>
+          )}
+        </div>
+        {import.meta.env.DEV && (
+          <div
+            className="pob-titlebar-hover-debug"
+            title={hoverDebugLabel}
+            aria-hidden="true"
+          >
+            {hoverDebugLabel}
+          </div>
+        )}
+        <div className="pob-titlebar-right">
           <div
             className="pob-ui-mode-switch"
             role="group"
@@ -546,13 +645,6 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
-          {vaultBadge && (
-            <span className={vaultBadge.className} title={vaultBadge.title}>
-              {vaultBadge.label}
-            </span>
-          )}
-        </div>
-        <div className="pob-titlebar-right">
           <div className="pob-lang">
             <label>{t("lang.label")}:</label>
             <select
@@ -579,13 +671,23 @@ const App: React.FC = () => {
               className="pob-window-btn"
               onClick={() => window.pobAPI?.minimizeWindow()}
               title={t("window.minimize")}
+              aria-label={t("window.minimize")}
             >
               &#8211;
+            </button>
+            <button
+              className="pob-window-btn"
+              onClick={() => window.pobAPI?.toggleMaximizeWindow()}
+              title={t("window.maximize")}
+              aria-label={t("window.maximize")}
+            >
+              &#9633;
             </button>
             <button
               className="pob-window-btn pob-window-btn-close"
               onClick={() => void requestClose()}
               title={t("window.close")}
+              aria-label={t("window.close")}
             >
               &#10005;
             </button>
@@ -620,10 +722,13 @@ const App: React.FC = () => {
             fileName={target.fileName}
             draftKey={draftKey}
             activeMode={activeMode}
+            dirty={dirty}
             uiMode={uiMode}
             onActiveModeChange={setActiveMode}
             onDirtyChange={setDirty}
             onMainSkillSummaryChange={setMainSkillSummary}
+            onRenamed={handleBuildRenamed}
+            onSaveRequest={() => void saveActiveBuild()}
             onSavedAs={handleSavedAs}
           />
         </section>

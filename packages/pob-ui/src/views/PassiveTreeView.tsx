@@ -26,6 +26,7 @@ import {
   getNodeFrameDrawSize,
   getNodeHitRadius,
   getNodeIconDrawSize,
+  getNodeIconOpacity,
   pngImageKey,
   resolveDdsAssetRef,
   resolveTreeAssetFilename,
@@ -34,9 +35,13 @@ import {
   buildConnectorMap,
   connectorAssetName,
   connectorKey,
+  connectorStrokeStyle,
+  connectorStrokeWidth,
   connectorTextureQuad,
   projectConnectorQuad,
+  shouldReinforceTexturedConnector,
   type ConnectorQuad,
+  type ConnectorStrokeLayer,
   type TreeConnectorState,
 } from "./passiveTreeConnectors";
 import {
@@ -59,7 +64,14 @@ import {
   type TreeImage,
 } from "./passiveTreeResourceCache";
 import { buildTreeSearchMatchIds } from "./passiveTreeSearch";
-import { translateTreeSnapshot } from "./repoeTranslations";
+import {
+  estimatePassiveTreeTooltipHeight,
+  resolvePassiveTreeTooltipPlacement,
+} from "./passiveTreeTooltip";
+import {
+  translateTreeNodeTooltip,
+  translateTreeSnapshot,
+} from "./repoeTranslations";
 
 interface PassiveTreeViewProps {
   active: boolean;
@@ -577,23 +589,14 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       );
     };
 
-    const connectorStrokeStyle = (
-      stateKey: TreeConnectorState,
-      dependency: boolean,
-    ): string => {
-      if (dependency) return "rgba(255, 88, 88, 0.9)";
-      if (stateKey === "Active") return "#ffd166";
-      if (stateKey === "Intermediate") return "rgba(255, 209, 102, 0.75)";
-      return "rgba(140, 152, 168, 0.35)";
-    };
-
     const drawConnectorStroke = (
       edge: ProjectedEdge,
       stateKey: TreeConnectorState,
       dependency: boolean,
+      layer: ConnectorStrokeLayer = "primary",
     ) => {
-      ctx.lineWidth = stateKey === "Normal" ? 2 : 3;
-      ctx.strokeStyle = connectorStrokeStyle(stateKey, dependency);
+      ctx.lineWidth = connectorStrokeWidth(stateKey, layer);
+      ctx.strokeStyle = connectorStrokeStyle(stateKey, dependency, layer);
       ctx.beginPath();
       ctx.moveTo(edge.ax, edge.ay);
       ctx.lineTo(edge.bx, edge.by);
@@ -626,6 +629,14 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         }
       }
       if (textured) {
+        if (shouldReinforceTexturedConnector(stateKey, dependency)) {
+          drawConnectorStroke(
+            edge,
+            stateKey,
+            dependency,
+            "texture-reinforcement",
+          );
+        }
         if (dependency) drawConnectorStroke(edge, stateKey, true);
         return;
       }
@@ -814,7 +825,12 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       }
 
       if (iconImg) {
-        drawCenteredImage(iconImg, node, getNodeIconDrawSize(node));
+        drawCenteredImage(
+          iconImg,
+          node,
+          getNodeIconDrawSize(node),
+          getNodeIconOpacity(node, frameState),
+        );
       }
 
       if (frameImg) {
@@ -1150,17 +1166,42 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
 
   const snapshot = translatedSnapshot ?? state.snapshot;
   const zoomPercent = Math.round(zoomFromLevel(view.zoomLevel) * 100);
-  const richTooltip =
+  const sourceRichTooltip =
     hoveredNode !== null && hoverTooltip?.nodeId === hoveredNode.id
       ? hoverTooltip.tooltip
       : null;
-  const tooltipStyle =
+  const richTooltip = sourceRichTooltip
+    ? translateTreeNodeTooltip(sourceRichTooltip, translations)
+    : null;
+  const tooltipHeight =
+    hoveredNode === null
+      ? 0
+      : estimatePassiveTreeTooltipHeight(
+          richTooltip
+            ? {
+                hasHeader: richTooltip.header !== null,
+                lineCount: richTooltip.lines.filter(
+                  (line) => line.kind !== "separator",
+                ).length,
+                separatorCount: richTooltip.lines.filter(
+                  (line) => line.kind === "separator",
+                ).length,
+              }
+            : {
+                hasHeader: true,
+                lineCount: hoveredNode.statLines.length,
+              },
+        );
+  const tooltipStyle: React.CSSProperties | undefined =
     hoveredNode === null
       ? undefined
-      : {
-          left: Math.max(8, Math.min(size.width - 456, hoveredNode.x + 12)),
-          top: Math.max(8, Math.min(size.height - 420, hoveredNode.y + 12)),
-        };
+      : resolvePassiveTreeTooltipPlacement({
+          viewportWidth: size.width,
+          viewportHeight: size.height,
+          anchorX: hoveredNode.x,
+          anchorY: hoveredNode.y,
+          estimatedHeight: tooltipHeight,
+        });
   return (
     <div className="pob-passive-tree-pane">
       <div className="pob-passive-tree-toolbar">
@@ -1231,21 +1272,28 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         {hoveredNode && (
           <div className="pob-passive-tree-tooltip" style={tooltipStyle}>
             {richTooltip ? (
-              richTooltip.lines.map((line, index) =>
-                line.kind === "separator" ? (
-                  <div
-                    className="pob-passive-tree-tooltip-separator"
-                    key={`${hoveredNode.id}-separator-${index}`}
-                  />
-                ) : (
-                  <div
-                    className={treeTooltipLineClass(line)}
-                    key={`${hoveredNode.id}-line-${index}-${line.text}`}
-                  >
-                    {line.text}
+              <>
+                {richTooltip.header && (
+                  <div className="pob-passive-tree-tooltip-title">
+                    {richTooltip.header}
                   </div>
-                ),
-              )
+                )}
+                {richTooltip.lines.map((line, index) =>
+                  line.kind === "separator" ? (
+                    <div
+                      className="pob-passive-tree-tooltip-separator"
+                      key={`${hoveredNode.id}-separator-${index}`}
+                    />
+                  ) : (
+                    <div
+                      className={treeTooltipLineClass(line)}
+                      key={`${hoveredNode.id}-line-${index}-${line.text}`}
+                    >
+                      {line.text}
+                    </div>
+                  ),
+                )}
+              </>
             ) : (
               <>
                 <div className="pob-passive-tree-tooltip-title">

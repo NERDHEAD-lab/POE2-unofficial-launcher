@@ -5,6 +5,11 @@ import type {
 
 import { RePoeCache, repoeCache } from "./cache";
 import {
+  buildRePoeResourceTargets,
+  fetchRePoeJsonResource,
+  type RePoeFetch,
+} from "./fetcher";
+import {
   passiveTreeTextOverride,
   type RePoePassiveTreeTextSource,
 } from "./overrides/passiveTreeText";
@@ -18,6 +23,14 @@ const BASE_ITEMS_PATH = "base_items.json";
 const SKILL_GEMS_PATH = "skill_gems.json";
 const SKILLS_PATH = "skills.json";
 const UNIQUES_PATH = "uniques.json";
+const REPOE_TRANSLATION_RESOURCE_PATHS = [
+  PASSIVE_TREE_PATH,
+  ...REPOE_STAT_DESCRIPTION_PATHS,
+  BASE_ITEMS_PATH,
+  SKILL_GEMS_PATH,
+  SKILLS_PATH,
+  UNIQUES_PATH,
+] as const;
 
 interface RePoeNamedRecord {
   id?: unknown;
@@ -317,4 +330,46 @@ export async function loadRePoeTranslations(
   indexSkillNames(snapshot, sourceSkills, localizedSkills);
 
   return { ...snapshot, available: hasAnyTranslation(snapshot) };
+}
+
+export async function ensureRePoeTranslationResources(
+  locale: PobRepoeLocale,
+  cache: RePoeCache = repoeCache,
+  fetcher: RePoeFetch = fetch,
+): Promise<void> {
+  if (locale === "en") return;
+
+  const targets = buildRePoeResourceTargets(
+    ["en", locale],
+    REPOE_TRANSLATION_RESOURCE_PATHS,
+  );
+  const missing = [];
+  for (const target of targets) {
+    const existing = await cache.readJsonResource(target.locale, target.path);
+    if (existing === null) {
+      missing.push(target);
+    }
+  }
+
+  if (missing.length === 0) {
+    await cache.markChecked(locale);
+    return;
+  }
+
+  const resources = await Promise.all(
+    missing.map((target) => fetchRePoeJsonResource(target, fetcher)),
+  );
+  for (const resource of resources) {
+    await cache.writeJsonResource(resource);
+  }
+  await cache.markChecked(locale);
+}
+
+export async function loadOrFetchRePoeTranslations(
+  locale: PobRepoeLocale,
+  cache: RePoeCache = repoeCache,
+  fetcher: RePoeFetch = fetch,
+): Promise<PobRepoeTranslationsSnapshot> {
+  await ensureRePoeTranslationResources(locale, cache, fetcher);
+  return loadRePoeTranslations(locale, cache);
 }

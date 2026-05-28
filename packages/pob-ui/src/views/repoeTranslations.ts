@@ -1,4 +1,7 @@
 import type {
+  PobCalcsBreakdown,
+  PobCalcsSnapshot,
+  PobConfigSnapshot,
   PobItemDbSummary,
   PobItemsTooltip,
   PobItemsSnapshot,
@@ -8,6 +11,7 @@ import type {
   PobSkillGemCatalogEntry,
   PobSkillsGemTooltip,
   PobSkillsSnapshot,
+  PobTreeNodeTooltip,
   PobTreeSnapshot,
   PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
@@ -110,6 +114,22 @@ export const translateStatLines = (
   lines: string[],
   translations: PobRepoeTranslationsSnapshot,
 ): string[] => lines.map((line) => translateStatLine(line, translations));
+
+const translateNullableDisplayText = (
+  text: string | null,
+  translations: PobRepoeTranslationsSnapshot,
+): string | null => {
+  if (text === null) return null;
+  return translateDisplayText(text, translations);
+};
+
+const translateDisplayText = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string =>
+  translatedByName(translations, text, translations.gemNamesByEnglishName) ??
+  translatedByName(translations, text, translations.itemNamesByEnglishName) ??
+  translateStatLine(text, translations);
 
 const translatedItemName = (
   item: PobItemSummary | PobItemDbSummary,
@@ -318,6 +338,150 @@ export function translateSkillsSnapshot(
   };
 }
 
+export function translateCalcsSnapshot(
+  snapshot: PobCalcsSnapshot,
+  translations: PobRepoeTranslationsSnapshot,
+): PobCalcsSnapshot {
+  if (!translations.available) return snapshot;
+  const translateDropdown = (
+    dropdown: PobCalcsSnapshot["skillSelect"]["socketGroup"],
+  ): PobCalcsSnapshot["skillSelect"]["socketGroup"] => ({
+    ...dropdown,
+    options: dropdown.options.map((option) => ({
+      ...option,
+      label: translateDisplayText(option.label, translations),
+    })),
+  });
+  return {
+    ...snapshot,
+    skillSelect: {
+      ...snapshot.skillSelect,
+      socketGroup: translateDropdown(snapshot.skillSelect.socketGroup),
+      mainSkill: translateDropdown(snapshot.skillSelect.mainSkill),
+      statSet: translateDropdown(snapshot.skillSelect.statSet),
+      skillPart: translateDropdown(snapshot.skillSelect.skillPart),
+      minion: translateDropdown(snapshot.skillSelect.minion),
+      spectreLibrary: {
+        ...snapshot.skillSelect.spectreLibrary,
+        label: translateDisplayText(
+          snapshot.skillSelect.spectreLibrary.label,
+          translations,
+        ),
+      },
+      beastLibrary: {
+        ...snapshot.skillSelect.beastLibrary,
+        label: translateDisplayText(
+          snapshot.skillSelect.beastLibrary.label,
+          translations,
+        ),
+      },
+      minionSkill: translateDropdown(snapshot.skillSelect.minionSkill),
+      minionSkillStatSet: translateDropdown(
+        snapshot.skillSelect.minionSkillStatSet,
+      ),
+    },
+    sections: snapshot.sections.map((section) => ({
+      ...section,
+      subSections: section.subSections.map((subSection) => ({
+        ...subSection,
+        label: translateDisplayText(subSection.label, translations),
+        extra: translateNullableDisplayText(subSection.extra, translations),
+        rows: subSection.rows.map((row) => ({
+          ...row,
+          label: translateDisplayText(row.label, translations),
+          cells: row.cells.map((cell) => ({
+            ...cell,
+            text: translateDisplayText(cell.text, translations),
+          })),
+        })),
+      })),
+    })),
+  };
+}
+
+export function translateCalcsBreakdown(
+  breakdown: PobCalcsBreakdown,
+  translations: PobRepoeTranslationsSnapshot,
+): PobCalcsBreakdown {
+  if (!translations.available) return breakdown;
+  return {
+    ...breakdown,
+    sections: breakdown.sections.map((section) => {
+      if (section.type === "BREAKDOWN") {
+        return {
+          ...section,
+          data: {
+            ...section.data,
+            label: translateNullableDisplayText(
+              section.data.label,
+              translations,
+            ),
+            footer: translateNullableDisplayText(
+              section.data.footer,
+              translations,
+            ),
+            lines: translateStatLines(section.data.lines, translations),
+            rowList:
+              section.data.rowList?.map((row) =>
+                Object.fromEntries(
+                  Object.entries(row).map(([key, value]) => [
+                    key,
+                    translateDisplayText(value, translations),
+                  ]),
+                ),
+              ) ?? null,
+            colList:
+              section.data.colList?.map((column) => ({
+                ...column,
+                label: translateDisplayText(column.label, translations),
+              })) ?? null,
+          },
+        };
+      }
+      return {
+        ...section,
+        data: {
+          ...section.data,
+          label: translateDisplayText(section.data.label, translations),
+          modName: translateStatLines(section.data.modName, translations),
+          entries: section.data.entries.map((entry) => ({
+            ...entry,
+            name: translateNullableDisplayText(entry.name, translations),
+            source: translateNullableDisplayText(entry.source, translations),
+            sourceLine: translateNullableDisplayText(
+              entry.sourceLine,
+              translations,
+            ),
+          })),
+        },
+      };
+    }),
+  };
+}
+
+export function translateConfigSnapshot(
+  snapshot: PobConfigSnapshot,
+  translations: PobRepoeTranslationsSnapshot,
+): PobConfigSnapshot {
+  if (!translations.available) return snapshot;
+  return {
+    ...snapshot,
+    sections: snapshot.sections.map((section) => ({
+      ...section,
+      label: translateDisplayText(section.label, translations),
+      options: section.options.map((option) => ({
+        ...option,
+        label: translateDisplayText(option.label, translations),
+        tooltip: translateNullableDisplayText(option.tooltip, translations),
+        options: option.options.map((entry) => ({
+          ...entry,
+          label: translateDisplayText(entry.label, translations),
+        })),
+      })),
+    })),
+  };
+}
+
 const translateTooltipLines = (
   lines: PobTreeTooltipLine[],
   translations: PobRepoeTranslationsSnapshot,
@@ -325,10 +489,22 @@ const translateTooltipLines = (
   if (!translations.available) return lines;
   return lines.map((line) =>
     line.kind === "line"
-      ? { ...line, text: translateStatLine(line.text, translations) }
+      ? { ...line, text: translateDisplayText(line.text, translations) }
       : line,
   );
 };
+
+export function translateTreeNodeTooltip(
+  tooltip: PobTreeNodeTooltip,
+  translations: PobRepoeTranslationsSnapshot,
+): PobTreeNodeTooltip {
+  if (!translations.available) return tooltip;
+  return {
+    ...tooltip,
+    header: translateNullableDisplayText(tooltip.header, translations),
+    lines: translateTooltipLines(tooltip.lines, translations),
+  };
+}
 
 export function translateItemTooltip(
   tooltip: PobItemsTooltip,
@@ -337,6 +513,7 @@ export function translateItemTooltip(
   if (!translations.available) return tooltip;
   return {
     ...tooltip,
+    header: translateNullableDisplayText(tooltip.header, translations),
     lines: translateTooltipLines(tooltip.lines, translations),
   };
 }
@@ -348,6 +525,7 @@ export function translateSkillsGemTooltip(
   if (!translations.available) return tooltip;
   return {
     ...tooltip,
+    header: translateNullableDisplayText(tooltip.header, translations),
     lines: translateTooltipLines(tooltip.lines, translations),
   };
 }
