@@ -34,8 +34,11 @@ const createPobWindow = (game: PobGame): BrowserWindow => {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: "POB i18n (BETA)",
+    title: "PoB 2 Unofficial Wrapper",
     backgroundColor: "#1a1a1a",
+    frame: false,
+    titleBarStyle: "hidden",
+    autoHideMenuBar: true,
     show: true,
     webPreferences: {
       preload: preloadPath,
@@ -44,6 +47,7 @@ const createPobWindow = (game: PobGame): BrowserWindow => {
       sandbox: true,
     },
   });
+  win.setMenu(null);
 
   const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
   const baseUrl = VITE_DEV_SERVER_URL?.endsWith("/")

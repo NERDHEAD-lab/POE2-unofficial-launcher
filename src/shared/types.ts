@@ -25,6 +25,11 @@ export interface PobInstallEntry {
 
 export type PobGame = "POE1" | "POE2";
 
+export interface PobSettings {
+  autosaveDrafts: boolean;
+  sidebarCollapsed: boolean;
+}
+
 export interface AppConfig {
   [key: string]: unknown;
   serviceChannel: "Kakao Games" | "GGG";
@@ -110,6 +115,7 @@ export interface AppConfig {
   pob?: {
     poe1?: PobInstallEntry;
     poe2?: PobInstallEntry;
+    settings?: Partial<PobSettings>;
   };
 }
 
@@ -320,12 +326,28 @@ export interface BuildsAPI {
     dstSubPath: string,
     dstName: string,
   ) => Promise<BuildsMutationResult>;
+  moveBuild: (
+    srcSubPath: string,
+    name: string,
+    kind: "file" | "folder",
+    dstSubPath: string,
+  ) => Promise<BuildsMutationResult>;
+  saveStub: (
+    subPath: string,
+    fileName: string,
+  ) => Promise<BuildsMutationResult>;
 }
 
 export interface PobWindowAPI {
   /** PoB BrowserWindow 자체에 전달된 게임 식별자 (URL hash 로 전달). */
   getInitialGame: () => PobGame;
+  minimizeWindow: () => void;
+  closeWindow: () => void;
   builds: BuildsAPI;
+  settings: {
+    get: () => Promise<PobSettings>;
+    set: (settings: Partial<PobSettings>) => Promise<PobSettings>;
+  };
 }
 
 export type PobPickResult =

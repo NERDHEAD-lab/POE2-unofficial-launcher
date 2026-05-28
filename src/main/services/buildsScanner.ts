@@ -17,6 +17,7 @@ const POB_DIR_BY_GAME: Record<PobGame, string> = {
 };
 
 const HEADER_READ_BYTES = 4096;
+const STUB_BUILD_XML = "<PathOfBuilding2 />\n";
 
 const decodeAttr = (s: string) =>
   s
@@ -138,6 +139,21 @@ const getGameFromSender = (event: Electron.IpcMainInvokeEvent): PobGame => {
 const ensureXml = (name: string): string =>
   name.toLowerCase().endsWith(".xml") ? name : `${name}.xml`;
 
+const itemDiskName = (name: string, kind: "file" | "folder"): string =>
+  kind === "file" ? ensureXml(name) : name;
+
+const assertSafeBuildName = (name: string): void => {
+  const trimmed = name.trim();
+  if (
+    !trimmed ||
+    trimmed === "." ||
+    trimmed === ".." ||
+    /[\\/]/.test(trimmed)
+  ) {
+    throw new Error("invalid fileName");
+  }
+};
+
 const tryMutation = async (
   label: string,
   fn: () => Promise<void>,
@@ -222,6 +238,55 @@ export const registerBuildsHandlers = (): void => {
         const dstDir = resolveFolder(game, dstSubPath);
         await fs.mkdir(dstDir, { recursive: true });
         await fs.copyFile(srcAbs, path.join(dstDir, ensureXml(dstName)));
+      }),
+  );
+
+  ipcMain.handle(
+    "builds:move",
+    (
+      event,
+      srcSubPath: string,
+      name: string,
+      kind: "file" | "folder",
+      dstSubPath: string,
+    ) =>
+      tryMutation("move", async () => {
+        assertSafeBuildName(name);
+        const game = getGameFromSender(event);
+        const srcDir = resolveFolder(game, srcSubPath);
+        const dstDir = resolveFolder(game, dstSubPath);
+        const srcAbs = path.join(srcDir, itemDiskName(name, kind));
+        const dstAbs = path.join(dstDir, itemDiskName(name, kind));
+        if (srcAbs === dstAbs) return;
+        if (kind === "folder") {
+          const relative = path.relative(srcAbs, dstDir);
+          if (
+            !relative ||
+            (!relative.startsWith("..") && !path.isAbsolute(relative))
+          ) {
+            throw new Error("cannot move a folder into itself");
+          }
+        }
+        await fs.mkdir(dstDir, { recursive: true });
+        await fs.rename(srcAbs, dstAbs);
+      }),
+  );
+
+  ipcMain.handle(
+    "builds:save-stub",
+    (event, subPath: string, fileName: string) =>
+      tryMutation("save-stub", async () => {
+        assertSafeBuildName(fileName);
+        const game = getGameFromSender(event);
+        const dir = resolveFolder(game, subPath);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(
+          path.join(dir, ensureXml(fileName)),
+          STUB_BUILD_XML,
+          {
+            flag: "wx",
+          },
+        );
       }),
   );
 };

@@ -208,6 +208,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "마지막으로 폰트를 설치한 변조 스키마 버전입니다. 마이그레이션 판정에 사용됩니다. (자동 관리)",
   },
+  POB: {
+    key: "pob",
+    name: "PoB i18n",
+    category: "General",
+    description:
+      "PoB i18n 설치 경로와 빌드 탐색기 UX 설정을 저장합니다. (자동 관리)",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -239,6 +246,7 @@ export const CONFIG_KEYS = {
   SILENT_PATCH_NOTIFICATION: CONFIG_METADATA.SILENT_PATCH_NOTIFICATION.key,
   TERMINATE_AFTER_PATCH: CONFIG_METADATA.TERMINATE_AFTER_PATCH.key,
   APPLIED_FONTS: CONFIG_METADATA.APPLIED_FONTS.key,
+  POB: CONFIG_METADATA.POB.key,
 } as const;
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -278,6 +286,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   fontScaleNoto: 100,
   fontScaleSpoqa: 100,
   fontMutationSchema: 1,
+  pob: {
+    settings: {
+      autosaveDrafts: false,
+      sidebarCollapsed: false,
+    },
+  },
 };
 
 export const DEBUG_APP_CONFIG = {
