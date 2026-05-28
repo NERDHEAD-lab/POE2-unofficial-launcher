@@ -11,13 +11,13 @@ describe("wrapperState", () => {
       createWrapperLastLocation(
         "POE2",
         { subPath: "Witch", fileName: "Imported Build2" },
-        "calcs",
+        "notes",
       ),
     ).toEqual({
       game: "POE2",
       subPath: "Witch",
       buildName: "Imported Build2",
-      buildMode: "CALCS",
+      buildMode: "NOTES",
     });
   });
 
@@ -59,6 +59,9 @@ describe("wrapperState", () => {
         },
         "POE2",
       ),
-    ).toBeNull();
+    ).toEqual({
+      target: { subPath: "Witch", fileName: "Imported Build2" },
+      activeMode: "notes",
+    });
   });
 });

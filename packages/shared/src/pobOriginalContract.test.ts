@@ -7,6 +7,7 @@ import {
   assertPobCalcsBreakdown,
   assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
+  assertPobNotesSnapshot,
   assertPobPartySnapshot,
   assertPobSkillsGemTooltip,
   assertPobTreeNodeTooltip,
@@ -390,5 +391,41 @@ describe("pobOriginalContract strict shape assertions", () => {
     };
 
     expect(() => assertPobImportExportSnapshot(snapshot)).not.toThrow();
+  });
+
+  it("validates Notes projection shape", () => {
+    const snapshot = {
+      text: "^7Build notes",
+      showColorCodes: false,
+      dirty: true,
+      description: [
+        "You can use Ctrl +/- (or Ctrl+Scroll) to zoom in and out and Ctrl+0 to reset.",
+        "This field also supports different colors.",
+      ],
+      colorControls: [
+        {
+          id: "normal",
+          label: "NORMAL",
+          code: "^7",
+          shown: true,
+          enabled: true,
+        },
+        {
+          id: "unique",
+          label: "UNIQUE",
+          code: "^xAF6025",
+          shown: true,
+          enabled: true,
+        },
+      ],
+      toggleButton: {
+        label: "Show Color Codes",
+        shown: true,
+        enabled: true,
+        tooltip: null,
+      },
+    };
+
+    expect(() => assertPobNotesSnapshot(snapshot)).not.toThrow();
   });
 });

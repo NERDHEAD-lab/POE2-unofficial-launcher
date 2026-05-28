@@ -15,6 +15,7 @@ import type {
   PobItemsTooltipRequest,
   PobLoadBuildCodeRequest,
   PobLoadBuildRequest,
+  PobNotesAction,
   PobPartyAction,
   PobRepoeLocale,
   PobSettings,
@@ -162,5 +163,8 @@ contextBridge.exposeInMainWorld("pobAPI", {
     partySnapshot: () => ipcRenderer.invoke("pob:party-snapshot"),
     partyAction: (action: PobPartyAction) =>
       ipcRenderer.invoke("pob:party-action", action),
+    notesSnapshot: () => ipcRenderer.invoke("pob:notes-snapshot"),
+    notesAction: (action: PobNotesAction) =>
+      ipcRenderer.invoke("pob:notes-action", action),
   },
 });

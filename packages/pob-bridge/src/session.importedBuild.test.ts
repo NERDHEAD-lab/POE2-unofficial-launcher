@@ -21,6 +21,7 @@ import {
   assertPobItemsSnapshot,
   assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
+  assertPobNotesSnapshot,
   assertPobPartySnapshot,
   assertPobSkillsGemTooltip,
   assertPobSkillsSnapshot,
@@ -520,6 +521,63 @@ describe("PoBSession Imported Build2 contract", () => {
         });
         assertPobPartySnapshot(exportSupportParty);
         expect(exportSupportParty.enableExportBuffs).toBe(true);
+
+        const notes = await session.notesSnapshot();
+        assertPobNotesSnapshot(notes);
+        expect(notes.text.trim()).toBe("");
+        expect(notes.colorControls.map((control) => control.id)).toEqual([
+          "normal",
+          "magic",
+          "rare",
+          "unique",
+          "fire",
+          "cold",
+          "lightning",
+          "chaos",
+          "strength",
+          "dexterity",
+          "intelligence",
+          "default",
+        ]);
+        expect(notes.toggleButton.label).toBe("Show Color Codes");
+        expect(notes.description[0]).toContain("Ctrl +/-");
+
+        const editedNotes = await session.notesAction({
+          type: "setText",
+          value: "PR-13 note",
+        });
+        assertPobNotesSnapshot(editedNotes);
+        expect(editedNotes.text).toBe("PR-13 note");
+        expect(editedNotes.dirty).toBe(true);
+
+        const colorNotes = await session.notesAction({
+          type: "insertColor",
+          code: "^7",
+          selectionStartByte: 0,
+          selectionEndByte: 5,
+        });
+        assertPobNotesSnapshot(colorNotes);
+        expect(colorNotes.text).toContain("^7");
+
+        const visibleColorCodes = await session.notesAction({
+          type: "setShowColorCodes",
+          value: true,
+        });
+        assertPobNotesSnapshot(visibleColorCodes);
+        expect(visibleColorCodes.showColorCodes).toBe(true);
+        expect(visibleColorCodes.toggleButton.label).toBe("Hide Color Codes");
+
+        const hiddenColorCodes = await session.notesAction({
+          type: "setShowColorCodes",
+          value: false,
+        });
+        assertPobNotesSnapshot(hiddenColorCodes);
+        expect(hiddenColorCodes.showColorCodes).toBe(false);
+
+        const savedNotesXml = await session.saveBuildXml();
+        expect(savedNotesXml.xml).toContain("<Notes>");
+        expect(savedNotesXml.xml).toContain("PR-13");
+        expect(savedNotesXml.xml).toContain("note");
 
         const calcs = await session.calcsSnapshot();
         assertPobCalcsSnapshot(calcs);

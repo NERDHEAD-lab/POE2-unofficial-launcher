@@ -335,6 +335,14 @@ textarea {
   padding-left: 9px;
 }
 
+.pob-sidebar-template {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-left: 9px;
+}
+
 .pob-sidebar-search-wrap {
   width: 100%;
   display: flex;
@@ -419,6 +427,28 @@ textarea {
   background: currentColor;
   transform: rotate(45deg);
   transform-origin: left center;
+}
+
+.pob-rail-icon.note::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  width: 10px;
+  height: 12px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+.pob-rail-icon.note::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  width: 6px;
+  height: 1px;
+  background: currentColor;
+  box-shadow: 0 3px 0 currentColor;
 }
 
 .pob-rail-icon.autosave::before {
@@ -3441,6 +3471,214 @@ textarea {
 
 .pob-party-action-error {
   margin: 0;
+}
+
+.pob-notes {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pob-notes-toolbar,
+.pob-notes-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pob-notes-mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pob-notes-mode-switch button {
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--pob-muted);
+  background: var(--pob-panel);
+  border: 0;
+  border-right: 1px solid var(--pob-border);
+}
+
+.pob-notes-mode-switch button:last-child {
+  border-right: 0;
+}
+
+.pob-notes-mode-switch button.is-active {
+  color: var(--pob-accent);
+  background: var(--pob-selected);
+}
+
+.pob-notes-doc-link {
+  color: #9ecbff;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.pob-notes-help {
+  display: grid;
+  gap: 3px;
+  color: var(--pob-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pob-notes-color-button {
+  min-height: 28px;
+  min-width: 72px;
+  padding: 0 9px;
+  color: var(--pob-text);
+  background: var(--pob-panel);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-notes-color-button:disabled,
+.pob-notes-editor:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.pob-notes-dirty {
+  color: #ffd166;
+  font-size: 12px;
+}
+
+.pob-notes-editor,
+.pob-notes-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 12px;
+  color: var(--pob-text);
+  background: var(--pob-panel);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+  line-height: 1.45;
+  overflow: auto;
+}
+
+.pob-notes-editor {
+  resize: none;
+  outline: 0;
+  white-space: pre;
+}
+
+.pob-notes-preview h1,
+.pob-notes-preview h2,
+.pob-notes-preview h3 {
+  margin: 0 0 10px;
+  color: var(--pob-accent);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.pob-notes-preview h2 {
+  margin-top: 18px;
+  font-size: 15px;
+}
+
+.pob-notes-preview h3 {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.pob-notes-preview p,
+.pob-notes-preview ul,
+.pob-notes-preview ol,
+.pob-notes-preview pre {
+  margin: 0 0 10px;
+}
+
+.pob-notes-preview code,
+.pob-notes-preview pre {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-notes-preview code {
+  padding: 1px 4px;
+}
+
+.pob-notes-preview pre {
+  padding: 10px;
+}
+
+.pob-notes-template-dialog {
+  max-width: 520px;
+}
+
+.pob-notes-template-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.pob-notes-template-option,
+.pob-note-template-row {
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--pob-text);
+  text-align: left;
+  background: var(--pob-panel);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-note-template-row.is-active {
+  color: var(--pob-accent);
+  background: var(--pob-selected);
+}
+
+.pob-notes-variable-list,
+.pob-note-template-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.pob-notes-variable-list label,
+.pob-note-template-editor label {
+  display: grid;
+  gap: 5px;
+  color: var(--pob-muted);
+  font-size: 12px;
+}
+
+.pob-notes-variable-list input,
+.pob-note-template-editor input,
+.pob-note-template-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  color: var(--pob-text);
+  background: var(--pob-bg);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+}
+
+.pob-note-template-manager {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.2fr);
+  gap: 12px;
+  min-height: 320px;
+}
+
+.pob-note-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.pob-note-template-editor textarea {
+  min-height: 230px;
+  resize: vertical;
 }
 
 /* Config tab (PR-6.5) */

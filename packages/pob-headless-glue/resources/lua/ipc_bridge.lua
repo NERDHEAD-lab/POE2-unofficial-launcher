@@ -2270,6 +2270,151 @@ local function party_action(action)
 	return party_snapshot()
 end
 
+local function notes_tab()
+	local b = current_build()
+	return b and b.notesTab or nil
+end
+
+local NOTES_COLOR_CONTROLS = {
+	{ id = "normal", codeKey = "NORMAL", fallbackCode = "^7", fallbackLabel = "NORMAL" },
+	{ id = "magic", codeKey = "MAGIC", fallbackCode = "^3", fallbackLabel = "MAGIC" },
+	{ id = "rare", codeKey = "RARE", fallbackCode = "^2", fallbackLabel = "RARE" },
+	{ id = "unique", codeKey = "UNIQUE", fallbackCode = "^1", fallbackLabel = "UNIQUE" },
+	{ id = "fire", codeKey = "FIRE", fallbackCode = "^xB97123", fallbackLabel = "FIRE" },
+	{ id = "cold", codeKey = "COLD", fallbackCode = "^x3F6DB3", fallbackLabel = "COLD" },
+	{ id = "lightning", codeKey = "LIGHTNING", fallbackCode = "^xADAA47", fallbackLabel = "LIGHTNING" },
+	{ id = "chaos", codeKey = "CHAOS", fallbackCode = "^xD02090", fallbackLabel = "CHAOS" },
+	{ id = "strength", codeKey = "STRENGTH", fallbackCode = "^xFF0000", fallbackLabel = "STRENGTH" },
+	{ id = "dexterity", codeKey = "DEXTERITY", fallbackCode = "^x00FF00", fallbackLabel = "DEXTERITY" },
+	{ id = "intelligence", codeKey = "INTELLIGENCE", fallbackCode = "^x8888FF", fallbackLabel = "INTELLIGENCE" },
+	{ id = "default", code = "^7", fallbackLabel = "DEFAULT" },
+}
+
+local function notes_raw_text(tab)
+	local edit = tab and tab.controls and tab.controls.edit
+	return type(edit and edit.buf) == "string" and edit.buf or ""
+end
+
+local function notes_description(tab)
+	local label = tab and tab.controls and tab.controls.notesDesc and tab.controls.notesDesc.label
+	local text = strip_colour_codes(safe_string(label) or "")
+	local lines = {}
+	for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do
+		local cleaned = line:gsub("\t", ""):gsub("%s+$", "")
+		if cleaned ~= "" then
+			lines[#lines + 1] = cleaned
+		end
+	end
+	return lines
+end
+
+local function notes_color_code(entry)
+	if entry.code then return entry.code end
+	if colorCodes and entry.codeKey and type(colorCodes[entry.codeKey]) == "string" then
+		return colorCodes[entry.codeKey]
+	end
+	return entry.fallbackCode
+end
+
+local function notes_color_controls(tab)
+	local controls = tab and tab.controls or {}
+	local payload = {}
+	for _, entry in ipairs(NOTES_COLOR_CONTROLS) do
+		local control = controls[entry.id]
+		payload[#payload + 1] = {
+			id = entry.id,
+			label = strip_colour_codes(safe_string(control and control.label) or entry.fallbackLabel),
+			code = notes_color_code(entry),
+			shown = control_is_shown(control),
+			enabled = control_is_enabled(control),
+		}
+	end
+	return payload
+end
+
+local function notes_dirty(tab)
+	return (tab and tab.lastContent or "") ~= notes_raw_text(tab)
+end
+
+local function notes_snapshot()
+	local tab = notes_tab()
+	if not tab or not tab.controls then
+		error("No active notes tab")
+	end
+
+	return {
+		text = notes_raw_text(tab),
+		showColorCodes = tab.showColorCodes and true or false,
+		dirty = notes_dirty(tab),
+		description = notes_description(tab),
+		colorControls = notes_color_controls(tab),
+		toggleButton = party_button_payload(tab.controls.toggleColorCodes, "Show Color Codes"),
+	}
+end
+
+local function mark_notes_changed(tab)
+	tab.modFlag = notes_dirty(tab)
+	local b = current_build()
+	if b then b.buildFlag = true end
+	if type(sync_build_frame) == "function" then sync_build_frame() end
+end
+
+local function clamp_byte_offset(value, maxValue)
+	local offset = type(value) == "number" and math.floor(value) or maxValue
+	if offset < 0 then return 0 end
+	if offset > maxValue then return maxValue end
+	return offset
+end
+
+local function notes_action(action)
+	local tab = notes_tab()
+	if not tab or not tab.controls then
+		error("No active notes tab")
+	end
+	if type(action) ~= "table" or type(action.type) ~= "string" then
+		error("pob.notes.action requires action.type")
+	end
+	local edit = tab.controls.edit
+	if not edit then
+		error("Notes edit control is unavailable")
+	end
+
+	if action.type == "setText" then
+		set_edit_text(edit, action.value)
+	elseif action.type == "setShowColorCodes" then
+		if type(tab.SetShowColorCodes) ~= "function" then
+			error("Notes color-code toggle is unavailable")
+		end
+		tab:SetShowColorCodes(action.value and true or false)
+	elseif action.type == "insertColor" then
+		if type(action.code) ~= "string" or action.code == "" then
+			error("insertColor requires code")
+		end
+		local text = notes_raw_text(tab)
+		local startByte = clamp_byte_offset(action.selectionStartByte, #text)
+		local endByte = clamp_byte_offset(action.selectionEndByte, #text)
+		if endByte < startByte then
+			startByte, endByte = endByte, startByte
+		end
+		edit.caret = endByte + 1
+		edit.sel = startByte ~= endByte and startByte + 1 or nil
+		if type(tab.SetColor) == "function" then
+			tab:SetColor(action.code)
+		elseif type(edit.Insert) == "function" then
+			edit:Insert(action.code)
+		else
+			edit.buf = text:sub(1, startByte) .. action.code .. text:sub(endByte + 1)
+			edit.caret = startByte + #action.code + 1
+			edit.sel = nil
+		end
+	else
+		error("Unknown notes action: " .. tostring(action.type))
+	end
+
+	mark_notes_changed(tab)
+	return notes_snapshot()
+end
+
 local IMPORT_MODE_BY_INDEX = { "current", "new", "comparison" }
 local IMPORT_MODE_LABELS = {
 	current = "Import to this build",
@@ -3443,6 +3588,10 @@ local function handle_method(method, params)
 		return party_snapshot()
 	elseif method == "pob.party.action" then
 		return party_action(params)
+	elseif method == "pob.notes.snapshot" then
+		return notes_snapshot()
+	elseif method == "pob.notes.action" then
+		return notes_action(params)
 	elseif method == "pob.importExport.snapshot" then
 		return import_export_snapshot()
 	elseif method == "pob.importExport.action" then

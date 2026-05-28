@@ -59,6 +59,9 @@ import {
   PobLoadBuildResult,
   PobMainSkillSummaryResult,
   PobMainSkillSummarySnapshot,
+  PobNotesAction,
+  PobNotesSnapshot,
+  PobNotesSnapshotResult,
   PobPartyAction,
   PobPartySnapshot,
   PobPartySnapshotResult,
@@ -409,6 +412,14 @@ export class PoBSession {
 
   partyAction(action: PobPartyAction): Promise<PobPartySnapshot> {
     return this.call<PobPartySnapshot>("pob.party.action", action);
+  }
+
+  notesSnapshot(): Promise<PobNotesSnapshot> {
+    return this.call<PobNotesSnapshot>("pob.notes.snapshot");
+  }
+
+  notesAction(action: PobNotesAction): Promise<PobNotesSnapshot> {
+    return this.call<PobNotesSnapshot>("pob.notes.action", action);
   }
 
   async dispose(): Promise<void> {
@@ -1396,6 +1407,39 @@ export function registerPobSessionHandlers(
         return { status: "ok", snapshot };
       } catch (err) {
         logger.warn("[PoBSession] party-action failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:notes-snapshot",
+    async (event): Promise<PobNotesSnapshotResult> => {
+      try {
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).notesSnapshot();
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] notes-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:notes-action",
+    async (event, action: unknown): Promise<PobNotesSnapshotResult> => {
+      try {
+        if (!isRecord(action) || typeof action.type !== "string") {
+          throw new Error("pob:notes-action requires action.type");
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).notesAction(action as PobNotesAction);
+        return { status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] notes-action failed:", err);
         return toSessionError(err);
       }
     },

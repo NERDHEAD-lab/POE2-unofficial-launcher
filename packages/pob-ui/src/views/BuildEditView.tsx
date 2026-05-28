@@ -29,6 +29,7 @@ import { POB_BUILD_MODES } from "./buildModes";
 import { CalcsView } from "./CalcsView";
 import { ConfigView } from "./ConfigView";
 import { ItemsView } from "./ItemsView";
+import { NotesView } from "./NotesView";
 import { PartyView } from "./PartyView";
 import { PassiveTreeView } from "./PassiveTreeView";
 import { EMPTY_REPOE_TRANSLATIONS } from "./repoeTranslations";
@@ -880,6 +881,12 @@ export const BuildEditView = forwardRef<
               <CalcsView active onMutated={markBuildMutated} />
             ) : activeMode === "party" ? (
               <PartyView active onMutated={markBuildMutated} />
+            ) : activeMode === "notes" ? (
+              <NotesView
+                active
+                buildName={buildName}
+                onMutated={markBuildMutated}
+              />
             ) : (
               <p className="pob-mode-placeholder-body">
                 {t("buildEdit.modes.pendingBody")}

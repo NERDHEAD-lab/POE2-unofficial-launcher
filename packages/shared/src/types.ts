@@ -5,6 +5,7 @@ import type {
   PobOriginalConfigOptionKind,
   PobOriginalItemsDbKey,
   PobOriginalItemRarity,
+  PobOriginalNotesColourControl,
   PobOriginalSkillDefaultGemLevel,
   PobOriginalSkillGemColor,
   PobOriginalSkillSortGemField,
@@ -580,6 +581,46 @@ export type PobImportExportActionResult =
       snapshot: PobImportExportSnapshot;
     }
   | { status: "error"; reason: string };
+
+export type PobNotesColourControlId = PobOriginalNotesColourControl;
+
+export interface PobNotesColourControl {
+  id: PobNotesColourControlId;
+  label: string;
+  code: string;
+  shown: boolean;
+  enabled: boolean;
+}
+
+export interface PobNotesButton {
+  label: string;
+  shown: boolean;
+  enabled: boolean;
+  tooltip: string | null;
+}
+
+export interface PobNotesSnapshot {
+  text: string;
+  showColorCodes: boolean;
+  dirty: boolean;
+  description: string[];
+  colorControls: PobNotesColourControl[];
+  toggleButton: PobNotesButton;
+}
+
+export type PobNotesSnapshotResult =
+  | { status: "ok"; snapshot: PobNotesSnapshot }
+  | { status: "error"; reason: string };
+
+export type PobNotesAction =
+  | { type: "setText"; value: string }
+  | { type: "setShowColorCodes"; value: boolean }
+  | {
+      type: "insertColor";
+      code: string;
+      selectionStartByte: number;
+      selectionEndByte: number;
+    };
 
 export type PobMainSkillSummaryResult =
   | { status: "ok"; snapshot: PobMainSkillSummarySnapshot }
@@ -1456,6 +1497,8 @@ export interface PobSessionAPI {
   configAction: (action: PobConfigAction) => Promise<PobConfigSnapshotResult>;
   partySnapshot: () => Promise<PobPartySnapshotResult>;
   partyAction: (action: PobPartyAction) => Promise<PobPartySnapshotResult>;
+  notesSnapshot: () => Promise<PobNotesSnapshotResult>;
+  notesAction: (action: PobNotesAction) => Promise<PobNotesSnapshotResult>;
 }
 
 export interface PobWindowAPI {

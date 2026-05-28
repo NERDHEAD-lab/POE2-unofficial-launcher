@@ -30,6 +30,12 @@ import {
   getMainSkillSummaryMaxHeight,
   getMainSkillSummaryTitle,
 } from "./mainSkillSummaryPanel";
+import {
+  createNoteTemplateId,
+  loadUserNoteTemplates,
+  saveUserNoteTemplates,
+  type NoteTemplate,
+} from "./noteTemplates";
 
 import type { BuildTarget, SidebarItemRef, SortKey } from "./folderTree";
 import type { MainSkillSummaryPanelState } from "./mainSkillSummaryPanel";
@@ -116,6 +122,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<PromptState | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [templateDrafts, setTemplateDrafts] = useState<NoteTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
   const [mainSkillCollapsed, setMainSkillCollapsed] = useState(false);
   const [mainSkillPanelHeight, setMainSkillPanelHeight] = useState(
     MAIN_SKILL_SUMMARY_DEFAULT_HEIGHT,
@@ -611,6 +622,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
   };
 
+  const openTemplateManager = () => {
+    const templates = loadUserNoteTemplates();
+    setTemplateDrafts(templates);
+    setSelectedTemplateId(templates[0]?.id ?? null);
+    setTemplateManagerOpen(true);
+  };
+
+  const selectedTemplate =
+    templateDrafts.find((template) => template.id === selectedTemplateId) ??
+    null;
+
+  const updateSelectedTemplate = (patch: Partial<NoteTemplate>) => {
+    if (!selectedTemplateId) return;
+    setTemplateDrafts((templates) =>
+      templates.map((template) =>
+        template.id === selectedTemplateId
+          ? { ...template, ...patch }
+          : template,
+      ),
+    );
+  };
+
+  const createTemplate = () => {
+    const template: NoteTemplate = {
+      id: createNoteTemplateId(),
+      name: t("buildEdit.notes.newTemplate"),
+      body: "",
+    };
+    setTemplateDrafts((templates) => [...templates, template]);
+    setSelectedTemplateId(template.id);
+  };
+
+  const deleteSelectedTemplate = () => {
+    if (!selectedTemplateId) return;
+    const next = templateDrafts.filter(
+      (template) => template.id !== selectedTemplateId,
+    );
+    setTemplateDrafts(next);
+    setSelectedTemplateId(next[0]?.id ?? null);
+  };
+
+  const saveTemplates = () => {
+    const cleaned = templateDrafts
+      .map((template) => ({
+        ...template,
+        name: template.name.trim(),
+      }))
+      .filter((template) => template.name !== "");
+    saveUserNoteTemplates(cleaned);
+    setTemplateManagerOpen(false);
+  };
+
   const renderActions = (item: SidebarItemRef): React.ReactNode => (
     <div
       className="pob-row-actions"
@@ -977,6 +1040,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               className="pob-rail-button"
+              onClick={openTemplateManager}
+              title={t("buildEdit.notes.manageTemplates")}
+            >
+              <span className="pob-rail-icon note" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="pob-rail-button"
               onClick={onToggleCollapse}
               title={t("sidebar.search.placeholder")}
             >
@@ -1017,6 +1088,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <span className="pob-rail-icon plus" aria-hidden="true" />
               <span>{t("sidebar.newBuild")}</span>
+            </button>
+            <button
+              type="button"
+              className="pob-btn pob-sidebar-template"
+              onClick={openTemplateManager}
+            >
+              <span className="pob-rail-icon note" aria-hidden="true" />
+              <span>{t("buildEdit.notes.manageTemplates")}</span>
             </button>
             <label className="pob-sidebar-search-wrap">
               <span className="pob-rail-icon search" aria-hidden="true" />
@@ -1151,6 +1230,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={confirm.onConfirm}
             >
               {t("buildList.dialog.confirm")}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {templateManagerOpen && (
+        <Modal
+          title={t("buildEdit.notes.manageTemplates")}
+          onClose={() => setTemplateManagerOpen(false)}
+        >
+          <div className="pob-note-template-manager">
+            <div className="pob-note-template-list">
+              {templateDrafts.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={
+                    "pob-note-template-row" +
+                    (template.id === selectedTemplateId ? " is-active" : "")
+                  }
+                  onClick={() => setSelectedTemplateId(template.id)}
+                >
+                  {template.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="pob-btn"
+                onClick={createTemplate}
+              >
+                {t("buildEdit.notes.newTemplate")}
+              </button>
+            </div>
+            <div className="pob-note-template-editor">
+              <label>
+                <span>{t("buildEdit.notes.templateName")}</span>
+                <input
+                  type="text"
+                  value={selectedTemplate?.name ?? ""}
+                  disabled={!selectedTemplate}
+                  onChange={(event) =>
+                    updateSelectedTemplate({ name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>{t("buildEdit.notes.templateBody")}</span>
+                <textarea
+                  value={selectedTemplate?.body ?? ""}
+                  disabled={!selectedTemplate}
+                  onChange={(event) =>
+                    updateSelectedTemplate({ body: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </div>
+          <div className="pob-dialog-actions">
+            <button
+              type="button"
+              className="pob-btn"
+              disabled={!selectedTemplate}
+              onClick={deleteSelectedTemplate}
+            >
+              {t("buildEdit.notes.deleteTemplate")}
+            </button>
+            <button
+              type="button"
+              className="pob-btn"
+              onClick={() => setTemplateManagerOpen(false)}
+            >
+              {t("buildList.dialog.cancel")}
+            </button>
+            <button
+              type="button"
+              className="pob-btn pob-btn-primary"
+              onClick={saveTemplates}
+            >
+              {t("buildEdit.notes.saveTemplate")}
             </button>
           </div>
         </Modal>

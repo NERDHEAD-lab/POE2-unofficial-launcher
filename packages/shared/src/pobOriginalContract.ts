@@ -8,6 +8,7 @@ import type {
   PobItemsSnapshot,
   PobItemsTooltip,
   PobMainSkillSummarySnapshot,
+  PobNotesSnapshot,
   PobPartySnapshot,
   PobSkillsGemTooltip,
   PobSkillsSnapshot,
@@ -161,12 +162,31 @@ export const POB_ORIGINAL_CONFIG_OPTION_KINDS = [
 export type PobOriginalConfigOptionKind =
   (typeof POB_ORIGINAL_CONFIG_OPTION_KINDS)[number];
 
+export const POB_ORIGINAL_NOTES_COLOUR_CONTROLS = [
+  "normal",
+  "magic",
+  "rare",
+  "unique",
+  "fire",
+  "cold",
+  "lightning",
+  "chaos",
+  "strength",
+  "dexterity",
+  "intelligence",
+  "default",
+] as const;
+
+export type PobOriginalNotesColourControl =
+  (typeof POB_ORIGINAL_NOTES_COLOUR_CONTROLS)[number];
+
 export const POB_ORIGINAL_BUILD_MODES = [
   "tree",
   "skills",
   "items",
   "calcs",
   "party",
+  "notes",
 ] as const;
 
 export type PobOriginalBuildMode = (typeof POB_ORIGINAL_BUILD_MODES)[number];
@@ -278,6 +298,7 @@ const buildImportModes = new Set<string>(POB_ORIGINAL_BUILD_IMPORT_MODES);
 const importExportUnsupportedFeatures = new Set<string>(
   POB_ORIGINAL_IMPORT_EXPORT_UNSUPPORTED_FEATURES,
 );
+const notesColourControls = new Set<string>(POB_ORIGINAL_NOTES_COLOUR_CONTROLS);
 const calcsGroups = new Set<number>();
 for (const value of Object.values(POB_ORIGINAL_CALCS_GROUP_FILTERS)) {
   if (value !== null) calcsGroups.add(value);
@@ -1348,6 +1369,40 @@ const assertPartyCheckbox = (value: unknown, path: string): void => {
   assertNullableString(value.tooltip, `${path}.tooltip`);
   assertBoolean(value.checked, `${path}.checked`);
 };
+
+export function assertPobNotesSnapshot(
+  value: unknown,
+): asserts value is PobNotesSnapshot {
+  assertRecord(value, "notes");
+  assertKnownKeys(value, "notes", [
+    "text",
+    "showColorCodes",
+    "dirty",
+    "description",
+    "colorControls",
+    "toggleButton",
+  ]);
+  assertString(value.text, "notes.text");
+  assertBoolean(value.showColorCodes, "notes.showColorCodes");
+  assertBoolean(value.dirty, "notes.dirty");
+  assertStringArray(value.description, "notes.description");
+
+  assertArray(value.colorControls, "notes.colorControls");
+  value.colorControls.forEach((control, index) => {
+    const path = `notes.colorControls[${index}]`;
+    assertRecord(control, path);
+    assertKnownKeys(control, path, ["id", "label", "code", "shown", "enabled"]);
+    assertString(control.id, `${path}.id`);
+    if (!notesColourControls.has(control.id)) {
+      fail(`${path}.id`, "a PoB Notes colour control");
+    }
+    assertString(control.label, `${path}.label`);
+    assertString(control.code, `${path}.code`);
+    assertBoolean(control.shown, `${path}.shown`);
+    assertBoolean(control.enabled, `${path}.enabled`);
+  });
+  assertPartyButton(value.toggleButton, "notes.toggleButton");
+}
 
 const assertImportExportSite = (value: unknown, path: string): void => {
   assertRecord(value, path);

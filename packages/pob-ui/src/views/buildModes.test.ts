@@ -23,18 +23,22 @@ describe("POB_BUILD_MODES", () => {
       "items",
       "calcs",
       "party",
+      "notes",
     ]);
   });
 
   runIfPobSourceAvailable(
-    "matches PoB Build.lua primary mode button order",
+    "keeps PoB Build.lua mode parity while placing Notes after Party in React",
     () => {
       const buildLua = fs.readFileSync(buildLuaPath, "utf8");
       const modeLabels = [...buildLua.matchAll(modeButtonPattern)].map(
         ([, label]) => toModeId(label),
       );
 
-      expect(modeLabels).toEqual([...POB_BUILD_MODES]);
+      expect(modeLabels).toEqual(
+        POB_BUILD_MODES.filter((mode) => mode !== "notes"),
+      );
+      expect(buildLua).toMatch(/self\.controls\.modeNotes\s*=/);
     },
   );
 });

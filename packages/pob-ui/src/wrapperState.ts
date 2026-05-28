@@ -12,6 +12,7 @@ export const POB_WRAPPER_BUILD_MODE_BY_UI_MODE: Record<
   items: "ITEMS",
   calcs: "CALCS",
   party: "PARTY",
+  notes: "NOTES",
 };
 
 const UI_MODE_BY_WRAPPER_MODE: Record<PobWrapperBuildMode, BuildMode | null> = {
@@ -20,7 +21,7 @@ const UI_MODE_BY_WRAPPER_MODE: Record<PobWrapperBuildMode, BuildMode | null> = {
   ITEMS: "items",
   CALCS: "calcs",
   PARTY: "party",
-  NOTES: null,
+  NOTES: "notes",
 };
 
 export type PobWrapperBuildMode =
