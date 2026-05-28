@@ -1,0 +1,147 @@
+.pob-installer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+  animation: pob-installer-overlay-fade-in 0.3s ease-out;
+}
+
+.pob-installer-content {
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90%;
+  padding: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  color: #d4d4d4;
+  position: relative;
+  overflow: hidden;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
+  animation: pob-installer-slide-down 0.3s ease-out;
+}
+
+.pob-installer-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--theme-accent, #dfcf99);
+}
+
+.pob-installer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pob-installer-header .icon {
+  font-size: 28px;
+  color: var(--theme-accent, #dfcf99);
+}
+
+.pob-installer-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.pob-installer-body {
+  margin-bottom: 22px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.pob-installer-body p {
+  margin: 0 0 10px 0;
+}
+
+.pob-installer-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 90, 90, 0.08);
+  border: 1px solid rgba(255, 90, 90, 0.3);
+  color: #ff8a8a;
+  font-size: 13px;
+}
+
+.pob-installer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pob-installer-actions button {
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition:
+    filter 0.2s,
+    transform 0.1s,
+    background 0.2s;
+}
+
+.pob-installer-actions .btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+}
+
+.pob-installer-actions .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.pob-installer-actions .btn-primary {
+  background: var(--theme-accent, #dfcf99);
+  color: #111;
+}
+
+.pob-installer-actions .btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.pob-installer-actions .btn-primary:active {
+  transform: scale(0.98);
+}
+
+.pob-installer-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@keyframes pob-installer-overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pob-installer-slide-down {
+  from {
+    opacity: 0;
+    transform: scale(var(--app-scale, 1)) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(var(--app-scale, 1)) translateY(0);
+  }
+}

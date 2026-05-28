@@ -336,6 +336,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.off("font:download-progress", handler);
     },
   },
+  pob: {
+    open: () => ipcRenderer.invoke("pob:open"),
+    openOfficialSite: () => ipcRenderer.invoke("pob:open-official-site"),
+    pickInstallLocation: () => ipcRenderer.invoke("pob:pick-install-location"),
+    onShowInstallerModal: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("pob:show-installer-modal", handler);
+      return () => ipcRenderer.off("pob:show-installer-modal", handler);
+    },
+  },
   remoteVersion: {
     resolve: (gameId: AppConfig["activeGame"]) =>
       ipcRenderer.invoke("version:resolveRemote", gameId),

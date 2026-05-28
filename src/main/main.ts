@@ -99,6 +99,7 @@ import { LogWatcher } from "./services/LogWatcher";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import { PatchReservationService } from "./services/PatchReservationService";
+import { registerPobLauncherHandlers } from "./services/pobLauncher";
 import { ProcessWatcher } from "./services/ProcessWatcher";
 import { serviceManager } from "./services/ServiceManager";
 import { themeCacheManager } from "./services/ThemeCacheManager";
@@ -2731,6 +2732,9 @@ ipcMain.handle("theme:sync-force", async () => {
 app.whenReady().then(async () => {
   // Register Font IPC Handlers early to avoid race conditions
   FontIpcHandler.register();
+
+  // Register PoB launcher IPC handlers (PR-1 mock locator)
+  registerPobLauncherHandlers();
 
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

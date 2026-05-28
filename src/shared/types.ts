@@ -93,6 +93,15 @@ export interface AppConfig {
    * 미설정이면 구버전(1)으로 간주. 설치된 폰트가 없으면 의미 없음.
    */
   fontMutationSchema?: number;
+
+  /**
+   * PoB i18n (BETA) — 사용자가 수동 지정한 Path of Building Community (PoE2)
+   * 설치 폴더. PR-1 에서 InstallerModal 의 수동 경로 지정 결과를 보관.
+   * PR-2 에서 PoBLocator 가 레지스트리 우선 → 본 값 fallback 으로 사용.
+   */
+  pob?: {
+    installLocation?: string;
+  };
 }
 
 export interface PatchReservation {
@@ -253,6 +262,23 @@ export interface FontMetadata {
   familyNames: { [lang: string]: string };
   previewDataUrl?: string;
   isKrSupported: boolean;
+}
+
+export type PobOpenResult =
+  | { status: "ready"; installLocation: string }
+  | { status: "missing" };
+
+export type PobPickResult =
+  | { status: "ok"; path: string }
+  | { status: "cancelled" }
+  | { status: "invalid"; reason: string; path: string }
+  | { status: "error"; reason: string };
+
+export interface PobAPI {
+  open: () => Promise<PobOpenResult>;
+  openOfficialSite: () => Promise<void>;
+  pickInstallLocation: () => Promise<PobPickResult>;
+  onShowInstallerModal: (callback: () => void) => () => void;
 }
 
 export interface FontAPI {
@@ -436,6 +462,9 @@ export interface ElectronAPI {
 
   // [Font Management]
   font: FontAPI;
+
+  // [PoB i18n] launcher → PoB integration entry (PR-1: mock locator)
+  pob: PobAPI;
 
   // [Remote Version] master socket / gh-pages fallback, refreshed on window focus
   remoteVersion: {

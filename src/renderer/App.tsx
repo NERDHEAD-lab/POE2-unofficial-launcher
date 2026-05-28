@@ -39,6 +39,7 @@ import { PatchReservationModal } from "./components/modals/PatchReservationModal
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import OfficialLinkButtons from "./components/OfficialLinkButtons";
+import { PobLaunchButton } from "./components/pob/PobLaunchButton";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -1202,6 +1203,7 @@ function App() {
                   paddingRight: "20px" /* Symmetric padding */,
                 }}
               >
+                <PobLaunchButton activeGame={config.activeGame} />
                 <SupportLinks
                   remoteVersions={remoteVersions}
                   onForcedRepairRequest={handleForcedRepairRequest}

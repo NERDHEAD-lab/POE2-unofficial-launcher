@@ -1,0 +1,49 @@
+.pob-launch-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  cursor: pointer;
+  color: #d4d4d4;
+  font-size: 14px;
+  font-family: inherit;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.pob-launch-button:hover {
+  color: var(--theme-accent, #dfcf99);
+}
+
+.pob-launch-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pob-launch-button-icon-wrapper {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pob-launch-button-icon-wrapper .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.pob-launch-button-label {
+  flex: 1;
+}
+
+.pob-launch-button-beta {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f5c542;
+  color: #1a1a1a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
