@@ -1,86 +1,183 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 
+import { verifyPobInstallation } from "./pobInstallVerifier";
+import {
+  AppConfig,
+  PobConfirmDetectedResult,
+  PobDetectedPayload,
+  PobGame,
+  PobInstallEntry,
+  PobOpenResult,
+  PobPickResult,
+} from "../../shared/types";
 import store from "../store";
 import { logger } from "../utils/logger";
+import { getPobInstallPath } from "../utils/registry";
 
-const POB_EXE_NAME = "Path of Building-PoE2.exe";
-const POB_INSTALL_KEY = "pob.installLocation";
 const POB_OFFICIAL_SITE = "https://pathofbuilding.community/";
 
-export interface PobLocateResult {
-  installLocation: string | null;
-  source: "store" | "registry" | "none";
-}
+const STORE_KEY_BY_GAME: Record<PobGame, string> = {
+  POE1: "pob.poe1",
+  POE2: "pob.poe2",
+};
 
-/**
- * PR-1 mock: always returns null. PR-2 replaces this with registry + store
- * lookup. Kept here so the IPC surface is stable across PRs.
- */
-async function mockLocate(): Promise<PobLocateResult> {
-  return { installLocation: null, source: "none" };
-}
+const isValidPobGame = (value: unknown): value is PobGame =>
+  value === "POE1" || value === "POE2";
 
-async function isValidPobFolder(folder: string): Promise<boolean> {
-  try {
-    const stat = await fs.stat(path.join(folder, POB_EXE_NAME));
-    return stat.isFile();
-  } catch {
-    return false;
-  }
-}
+const getStoredEntry = (game: PobGame): PobInstallEntry | undefined => {
+  return store.get(STORE_KEY_BY_GAME[game] as keyof AppConfig) as
+    | PobInstallEntry
+    | undefined;
+};
+
+const setStoredEntry = (game: PobGame, entry: PobInstallEntry): void => {
+  store.set(
+    STORE_KEY_BY_GAME[game] as keyof AppConfig,
+    entry as AppConfig[keyof AppConfig],
+  );
+};
+
+const clearStoredEntry = (game: PobGame): void => {
+  store.delete(STORE_KEY_BY_GAME[game] as keyof AppConfig);
+};
 
 export function registerPobLauncherHandlers(): void {
-  ipcMain.handle("pob:open", async (event) => {
-    const located = await mockLocate();
-    if (located.installLocation) {
-      // PR-3 will spawn the PoB BrowserWindow here. PR-1 keeps the flow short.
-      logger.log(
-        `[PoB] located at ${located.installLocation} (${located.source})`,
-      );
-      return { status: "ready", installLocation: located.installLocation };
-    }
+  ipcMain.handle(
+    "pob:open",
+    async (event, gameArg: unknown): Promise<PobOpenResult> => {
+      const game: PobGame = isValidPobGame(gameArg) ? gameArg : "POE2";
 
-    const sender = BrowserWindow.fromWebContents(event.sender);
-    if (sender && !sender.isDestroyed()) {
-      sender.webContents.send("pob:show-installer-modal");
-    }
-    return { status: "missing" };
-  });
+      // 1) Store 에 등록된 경로가 있으면 검증만 하고 통과.
+      const stored = getStoredEntry(game);
+      if (stored?.installLocation) {
+        const verified = await verifyPobInstallation(
+          stored.installLocation,
+          game,
+        );
+        if (verified.ok) {
+          logger.log(
+            `[PoB] using stored location ${stored.installLocation} (${stored.source})`,
+          );
+          return { status: "ready", installLocation: stored.installLocation };
+        }
+        logger.warn(
+          `[PoB] stored location failed verification (missing: ${verified.missing.join(", ")}). Re-detecting.`,
+        );
+        clearStoredEntry(game);
+      }
+
+      // 2) Store 비어있으면 레지스트리 자동 감지.
+      const detected = await getPobInstallPath(game);
+      if (detected.installLocation && detected.source) {
+        const verified = await verifyPobInstallation(
+          detected.installLocation,
+          game,
+        );
+        if (verified.ok) {
+          // 검증 통과 → 사용자에게 확인 모달 띄우라고 renderer 에 알림.
+          const sender = BrowserWindow.fromWebContents(event.sender);
+          if (sender && !sender.isDestroyed()) {
+            const payload: PobDetectedPayload = {
+              game,
+              installLocation: detected.installLocation,
+              source: detected.source,
+            };
+            sender.webContents.send("pob:show-detected-confirm", payload);
+          }
+          logger.log(
+            `[PoB] auto-detected ${detected.installLocation} (${detected.source}) — awaiting user confirm`,
+          );
+          return {
+            status: "detected",
+            installLocation: detected.installLocation,
+            source: detected.source,
+          };
+        }
+        logger.warn(
+          `[PoB] detected ${detected.installLocation} but missing: ${verified.missing.join(", ")}`,
+        );
+      }
+
+      // 3) 감지 실패 → InstallerModal.
+      const sender = BrowserWindow.fromWebContents(event.sender);
+      if (sender && !sender.isDestroyed()) {
+        sender.webContents.send("pob:show-installer-modal", { game });
+      }
+      return { status: "missing" };
+    },
+  );
 
   ipcMain.handle("pob:open-official-site", async () => {
     return shell.openExternal(POB_OFFICIAL_SITE);
   });
 
-  ipcMain.handle("pob:pick-install-location", async (event) => {
-    const targetWin = BrowserWindow.fromWebContents(event.sender);
-    if (!targetWin || targetWin.isDestroyed()) {
-      return { status: "error", reason: "no-window" } as const;
-    }
+  ipcMain.handle(
+    "pob:pick-install-location",
+    async (event, gameArg: unknown): Promise<PobPickResult> => {
+      const game: PobGame = isValidPobGame(gameArg) ? gameArg : "POE2";
+      const targetWin = BrowserWindow.fromWebContents(event.sender);
+      if (!targetWin || targetWin.isDestroyed()) {
+        return { status: "error", reason: "no-window" } as const;
+      }
 
-    const { canceled, filePaths } = await dialog.showOpenDialog(targetWin, {
-      title: "Path of Building (PoE2) 설치 폴더를 선택해주세요",
-      properties: ["openDirectory"],
-    });
+      const { canceled, filePaths } = await dialog.showOpenDialog(targetWin, {
+        title: "Path of Building 설치 폴더를 선택해주세요",
+        properties: ["openDirectory"],
+      });
 
-    if (canceled || filePaths.length === 0) {
-      return { status: "cancelled" } as const;
-    }
+      if (canceled || filePaths.length === 0) {
+        return { status: "cancelled" } as const;
+      }
 
-    const selected = filePaths[0];
-    const ok = await isValidPobFolder(selected);
-    if (!ok) {
-      return {
-        status: "invalid",
-        reason: `${POB_EXE_NAME} 가 선택한 폴더에 없습니다.`,
-        path: selected,
-      } as const;
-    }
+      const selected = filePaths[0];
+      const verified = await verifyPobInstallation(selected, game);
+      if (!verified.ok) {
+        return {
+          status: "invalid",
+          reason: `선택한 폴더에서 다음 파일을 찾지 못했습니다: ${verified.missing.join(", ")}`,
+          path: selected,
+        } as const;
+      }
 
-    store.set(POB_INSTALL_KEY, selected);
-    logger.log(`[PoB] manual install location saved: ${selected}`);
-    return { status: "ok", path: selected } as const;
-  });
+      setStoredEntry(game, { installLocation: selected, source: "manual" });
+      logger.log(`[PoB] manual install location saved (${game}): ${selected}`);
+      return { status: "ok", path: selected } as const;
+    },
+  );
+
+  ipcMain.handle(
+    "pob:confirm-detected-location",
+    async (_event, payload: unknown): Promise<PobConfirmDetectedResult> => {
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        !("installLocation" in payload) ||
+        !("source" in payload) ||
+        !("game" in payload)
+      ) {
+        return { status: "invalid", reason: "잘못된 요청 payload" };
+      }
+      const { installLocation, source, game } = payload as PobDetectedPayload;
+      if (!isValidPobGame(game)) {
+        return { status: "invalid", reason: "알 수 없는 게임 식별자" };
+      }
+      if (source !== "HKCU" && source !== "HKLM") {
+        return { status: "invalid", reason: "알 수 없는 source" };
+      }
+
+      const verified = await verifyPobInstallation(installLocation, game);
+      if (!verified.ok) {
+        return {
+          status: "invalid",
+          reason: `폴더 검증 실패: ${verified.missing.join(", ")}`,
+        };
+      }
+
+      setStoredEntry(game, { installLocation, source });
+      logger.log(
+        `[PoB] detected location confirmed (${game}): ${installLocation} (${source})`,
+      );
+      return { status: "ok" };
+    },
+  );
 }

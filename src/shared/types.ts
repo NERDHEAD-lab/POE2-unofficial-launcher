@@ -18,6 +18,13 @@ export interface ConfigDefinition {
   description: string;
 }
 
+export interface PobInstallEntry {
+  installLocation: string;
+  source: "manual" | "HKCU" | "HKLM";
+}
+
+export type PobGame = "POE1" | "POE2";
+
 export interface AppConfig {
   [key: string]: unknown;
   serviceChannel: "Kakao Games" | "GGG";
@@ -95,12 +102,14 @@ export interface AppConfig {
   fontMutationSchema?: number;
 
   /**
-   * PoB i18n (BETA) — 사용자가 수동 지정한 Path of Building Community (PoE2)
-   * 설치 폴더. PR-1 에서 InstallerModal 의 수동 경로 지정 결과를 보관.
-   * PR-2 에서 PoBLocator 가 레지스트리 우선 → 본 값 fallback 으로 사용.
+   * PoB i18n (BETA) — Path of Building Community 설치 위치. PoE1/PoE2 PoB 가
+   * 별도 빌드라서 게임별로 분리 보관. PR-2 단계는 PoE2 만 실제 구현.
+   * source 가 "manual" 이면 사용자가 폴더 직접 지정, "HKCU" | "HKLM" 이면
+   * 자동 감지 후 사용자가 확인 모달에서 등록한 경로.
    */
   pob?: {
-    installLocation?: string;
+    poe1?: PobInstallEntry;
+    poe2?: PobInstallEntry;
   };
 }
 
@@ -266,7 +275,12 @@ export interface FontMetadata {
 
 export type PobOpenResult =
   | { status: "ready"; installLocation: string }
-  | { status: "missing" };
+  | { status: "missing" }
+  | {
+      status: "detected";
+      installLocation: string;
+      source: "HKCU" | "HKLM";
+    };
 
 export type PobPickResult =
   | { status: "ok"; path: string }
@@ -274,11 +288,29 @@ export type PobPickResult =
   | { status: "invalid"; reason: string; path: string }
   | { status: "error"; reason: string };
 
+export type PobConfirmDetectedResult =
+  | { status: "ok" }
+  | { status: "invalid"; reason: string };
+
+export interface PobDetectedPayload {
+  game: PobGame;
+  installLocation: string;
+  source: "HKCU" | "HKLM";
+}
+
 export interface PobAPI {
-  open: () => Promise<PobOpenResult>;
+  open: (game: PobGame) => Promise<PobOpenResult>;
   openOfficialSite: () => Promise<void>;
-  pickInstallLocation: () => Promise<PobPickResult>;
-  onShowInstallerModal: (callback: () => void) => () => void;
+  pickInstallLocation: (game: PobGame) => Promise<PobPickResult>;
+  confirmDetectedLocation: (
+    payload: PobDetectedPayload,
+  ) => Promise<PobConfirmDetectedResult>;
+  onShowInstallerModal: (
+    callback: (payload: { game: PobGame }) => void,
+  ) => () => void;
+  onShowDetectedConfirm: (
+    callback: (payload: PobDetectedPayload) => void,
+  ) => () => void;
 }
 
 export interface FontAPI {

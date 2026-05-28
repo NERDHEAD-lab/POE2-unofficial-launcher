@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 
 import "./InstallerModal.css";
-import { PobPickResult } from "../../../shared/types";
+import { PobGame, PobPickResult } from "../../../shared/types";
 
 interface InstallerModalProps {
   isOpen: boolean;
+  game: PobGame;
   onClose: () => void;
   onLocated: (installPath: string) => void;
 }
 
 export const InstallerModal: React.FC<InstallerModalProps> = ({
   isOpen,
+  game,
   onClose,
   onLocated,
 }) => {
@@ -28,7 +30,7 @@ export const InstallerModal: React.FC<InstallerModalProps> = ({
     setBusy(true);
     try {
       const result: PobPickResult | undefined =
-        await window.electronAPI.pob?.pickInstallLocation();
+        await window.electronAPI.pob?.pickInstallLocation(game);
       if (!result) {
         setError("내부 오류로 폴더 선택을 실행하지 못했습니다.");
         return;
@@ -51,6 +53,9 @@ export const InstallerModal: React.FC<InstallerModalProps> = ({
     }
   };
 
+  const exeName =
+    game === "POE2" ? "Path of Building-PoE2.exe" : "Path of Building.exe";
+
   return (
     <div className="pob-installer-overlay" onClick={onClose}>
       <div
@@ -59,17 +64,16 @@ export const InstallerModal: React.FC<InstallerModalProps> = ({
       >
         <div className="pob-installer-header">
           <span className="material-symbols-outlined icon">extension</span>
-          <h2>공식 PoB (PoE2) 가 감지되지 않았습니다</h2>
+          <h2>공식 PoB 가 감지되지 않았습니다</h2>
         </div>
 
         <div className="pob-installer-body">
           <p>
-            Path of Building Community (PoE2) 를 설치하거나 설치 폴더를 직접
+            Path of Building Community 를 설치하거나 설치 폴더를 직접
             지정해주세요.
           </p>
           <p style={{ color: "#888", fontSize: "12px" }}>
-            선택한 폴더 안에 <code>Path of Building-PoE2.exe</code> 가 있어야
-            합니다.
+            선택한 폴더 안에 <code>{exeName}</code> 가 있어야 합니다.
           </p>
           {error && <div className="pob-installer-error">{error}</div>}
         </div>

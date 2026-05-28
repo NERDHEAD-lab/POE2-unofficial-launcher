@@ -4,7 +4,7 @@ import path from "node:path";
 import { app } from "electron";
 
 import { PowerShellManager } from "./powershell";
-import { AppConfig } from "../../shared/types";
+import { AppConfig, PobGame } from "../../shared/types";
 import { logger } from "../utils/logger";
 
 /**
@@ -61,7 +61,7 @@ const standardizeRegPath = (path: string): string => {
 /**
  * Normalize installation path by removing trailing slashes and ensuring consistent separators
  */
-const normalizePath = (rawPath: string): string => {
+export const normalizePath = (rawPath: string): string => {
   if (!rawPath) return "";
   let normalized = path.normalize(rawPath.trim());
   while (normalized.endsWith("\\") || normalized.endsWith("/")) {
@@ -154,6 +154,52 @@ export const getGameInstallPath = async (
 
   const rawPath = await readRegistryValue(registryInfo.path, registryInfo.key);
   return rawPath ? normalizePath(rawPath) : null;
+};
+
+type PobRegistryHive = "HKCU" | "HKLM";
+
+interface PobRegistryEntry {
+  path: string;
+  source: PobRegistryHive;
+}
+
+const POB_REGISTRY_PATHS: Record<PobGame, readonly PobRegistryEntry[]> = {
+  POE2: [
+    {
+      path: "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Path of Building Community (PoE2)",
+      source: "HKCU",
+    },
+    {
+      path: "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Path of Building Community (PoE2)",
+      source: "HKLM",
+    },
+  ],
+  // PoE1 PoB (Community) — handoff §5.8 백로그. NSIS 키 이름은 미실증.
+  // 진입 가드(activeGame === "POE2")가 있으니 현재는 호출되지 않음. 채울 때
+  // 실제 키 이름 확인 후 추가.
+  POE1: [],
+};
+
+/**
+ * Lookup Path of Building Community install location from Windows registry.
+ * Tries HKCU first then HKLM. Strips surrounding quotes (PoC-0.3: NSIS writes
+ * `"G:\..."` with embedded quotes on real machines).
+ */
+export const getPobInstallPath = async (
+  game: PobGame,
+): Promise<{
+  installLocation: string | null;
+  source: PobRegistryHive | null;
+}> => {
+  const candidates = POB_REGISTRY_PATHS[game];
+  for (const { path: regPath, source } of candidates) {
+    const raw = await readRegistryValue(regPath, "InstallLocation");
+    if (raw) {
+      const unquoted = raw.replace(/^"|"$/g, "");
+      return { installLocation: normalizePath(unquoted), source };
+    }
+  }
+  return { installLocation: null, source: null };
 };
 
 /**

@@ -14,6 +14,8 @@ import {
   PatchReservation,
   RemoteFontItem,
   ImportSelection,
+  PobDetectedPayload,
+  PobGame,
 } from "../shared/types";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
@@ -337,13 +339,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
   },
   pob: {
-    open: () => ipcRenderer.invoke("pob:open"),
+    open: (game: PobGame) => ipcRenderer.invoke("pob:open", game),
     openOfficialSite: () => ipcRenderer.invoke("pob:open-official-site"),
-    pickInstallLocation: () => ipcRenderer.invoke("pob:pick-install-location"),
-    onShowInstallerModal: (callback: () => void) => {
-      const handler = () => callback();
+    pickInstallLocation: (game: PobGame) =>
+      ipcRenderer.invoke("pob:pick-install-location", game),
+    confirmDetectedLocation: (payload: PobDetectedPayload) =>
+      ipcRenderer.invoke("pob:confirm-detected-location", payload),
+    onShowInstallerModal: (callback: (payload: { game: PobGame }) => void) => {
+      const handler = (
+        _e: IpcRendererEvent,
+        payload: { game: PobGame } | undefined,
+      ) => callback(payload ?? { game: "POE2" });
       ipcRenderer.on("pob:show-installer-modal", handler);
       return () => ipcRenderer.off("pob:show-installer-modal", handler);
+    },
+    onShowDetectedConfirm: (
+      callback: (payload: PobDetectedPayload) => void,
+    ) => {
+      const handler = (_e: IpcRendererEvent, payload: PobDetectedPayload) =>
+        callback(payload);
+      ipcRenderer.on("pob:show-detected-confirm", handler);
+      return () => ipcRenderer.off("pob:show-detected-confirm", handler);
     },
   },
   remoteVersion: {

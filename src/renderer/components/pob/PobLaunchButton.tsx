@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 
 import "./PobLaunchButton.css";
+import { DetectedPathConfirmModal } from "./DetectedPathConfirmModal";
 import { InstallerModal } from "./InstallerModal";
+import { PobDetectedPayload, PobGame } from "../../../shared/types";
 
 interface PobLaunchButtonProps {
   activeGame: "POE1" | "POE2";
@@ -15,20 +17,32 @@ export const PobLaunchButton: React.FC<PobLaunchButtonProps> = ({
   activeGame,
 }) => {
   const [installerOpen, setInstallerOpen] = useState(false);
+  const [installerGame, setInstallerGame] = useState<PobGame>("POE2");
+  const [detectedPayload, setDetectedPayload] =
+    useState<PobDetectedPayload | null>(null);
 
   useEffect(() => {
-    const off = window.electronAPI.pob?.onShowInstallerModal(() => {
-      setInstallerOpen(true);
-    });
+    const offInstaller = window.electronAPI.pob?.onShowInstallerModal(
+      ({ game }) => {
+        setInstallerGame(game);
+        setInstallerOpen(true);
+      },
+    );
+    const offDetected = window.electronAPI.pob?.onShowDetectedConfirm(
+      (payload) => {
+        setDetectedPayload(payload);
+      },
+    );
     return () => {
-      off?.();
+      offInstaller?.();
+      offDetected?.();
     };
   }, []);
 
   if (activeGame !== "POE2") return null;
 
   const handleClick = () => {
-    void window.electronAPI.pob?.open();
+    void window.electronAPI.pob?.open(activeGame);
   };
 
   return (
@@ -48,11 +62,27 @@ export const PobLaunchButton: React.FC<PobLaunchButtonProps> = ({
 
       <InstallerModal
         isOpen={installerOpen}
+        game={installerGame}
         onClose={() => setInstallerOpen(false)}
         onLocated={() => {
           // PR-3 에서 새 BrowserWindow 띄우는 흐름 연결.
-          // PR-1 단계: 저장만 됐다는 표시로 모달만 닫음.
+          // PR-2 단계: 저장만 됐다는 표시로 모달만 닫음.
           setInstallerOpen(false);
+        }}
+      />
+
+      <DetectedPathConfirmModal
+        payload={detectedPayload}
+        onConfirmed={() => {
+          // PR-3 에서 새 BrowserWindow 띄우는 흐름 연결.
+          setDetectedPayload(null);
+        }}
+        onReject={() => {
+          // 사용자가 자동 감지 경로 거부 → 수동 지정 modal 로 전환.
+          const game = detectedPayload?.game ?? "POE2";
+          setDetectedPayload(null);
+          setInstallerGame(game);
+          setInstallerOpen(true);
         }}
       />
     </>
