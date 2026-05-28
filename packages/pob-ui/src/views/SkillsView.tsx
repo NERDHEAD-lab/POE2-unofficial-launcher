@@ -3,9 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import type {
   PobRepoeTranslationsSnapshot,
+  PobSkillDefaultGemLevel,
   PobSkillGem,
   PobSkillGemCatalogEntry,
   PobSkillGroup,
+  PobSkillSortGemField,
+  PobSkillSupportGemType,
   PobSkillsAction,
   PobSkillsSnapshot,
 } from "@poe2-launcher/shared/types";
@@ -391,7 +394,9 @@ function GemOptions({ snapshot, busy, onAction }: GemOptionsProps) {
         onChange={(event) =>
           onAction({
             type: "setOptions",
-            options: { sortGemsByDPSField: event.target.value },
+            options: {
+              sortGemsByDPSField: event.target.value as PobSkillSortGemField,
+            },
           })
         }
       >
@@ -409,7 +414,9 @@ function GemOptions({ snapshot, busy, onAction }: GemOptionsProps) {
           onChange={(event) =>
             onAction({
               type: "setOptions",
-              options: { defaultGemLevel: event.target.value },
+              options: {
+                defaultGemLevel: event.target.value as PobSkillDefaultGemLevel,
+              },
             })
           }
         >
@@ -449,7 +456,10 @@ function GemOptions({ snapshot, busy, onAction }: GemOptionsProps) {
           onChange={(event) =>
             onAction({
               type: "setOptions",
-              options: { showSupportGemTypes: event.target.value },
+              options: {
+                showSupportGemTypes: event.target
+                  .value as PobSkillSupportGemType,
+              },
             })
           }
         >

@@ -1,10 +1,14 @@
 import type {
   PobOriginalCalcsBuffMode,
+  PobOriginalCalcsGroup,
   PobOriginalCalcsColour,
   PobOriginalConfigOptionKind,
   PobOriginalItemsDbKey,
   PobOriginalItemRarity,
+  PobOriginalSkillDefaultGemLevel,
   PobOriginalSkillGemColor,
+  PobOriginalSkillSortGemField,
+  PobOriginalSkillSupportGemType,
 } from "./pobOriginalContract";
 
 export const CONFIG_CATEGORIES = [
@@ -553,7 +557,7 @@ export type PobItemRarity = PobOriginalItemRarity;
 export interface PobItemSummary {
   id: number;
   name: string;
-  rarity: PobItemRarity | string;
+  rarity: PobItemRarity;
   baseName: string | null;
   title: string | null;
   itemLevel: number | null;
@@ -673,6 +677,12 @@ export type PobItemsParseAndAddResult =
 
 export type PobSkillGemColor = PobOriginalSkillGemColor;
 
+export type PobSkillDefaultGemLevel = PobOriginalSkillDefaultGemLevel;
+
+export type PobSkillSupportGemType = PobOriginalSkillSupportGemType;
+
+export type PobSkillSortGemField = PobOriginalSkillSortGemField;
+
 export interface PobSkillSet {
   id: number;
   title: string;
@@ -686,6 +696,11 @@ export interface PobSkillSlotOption {
 export interface PobSkillOption {
   label: string;
   value: string;
+}
+
+export interface PobSkillTypedOption<TValue extends string> {
+  label: string;
+  value: TValue;
 }
 
 export interface PobSkillGemCatalogEntry {
@@ -765,10 +780,10 @@ export interface PobSkillGroup {
 
 export interface PobSkillsGemOptions {
   sortGemsByDPS: boolean;
-  sortGemsByDPSField: string;
-  defaultGemLevel: string;
+  sortGemsByDPSField: PobSkillSortGemField;
+  defaultGemLevel: PobSkillDefaultGemLevel;
   defaultGemQuality: number;
-  showSupportGemTypes: string;
+  showSupportGemTypes: PobSkillSupportGemType;
 }
 
 export interface PobSkillsSnapshot {
@@ -779,9 +794,9 @@ export interface PobSkillsSnapshot {
   groups: PobSkillGroup[];
   availableGems: PobSkillGemCatalogEntry[];
   slotOptions: PobSkillSlotOption[];
-  defaultGemLevelOptions: PobSkillOption[];
-  supportGemTypeOptions: PobSkillOption[];
-  sortGemFieldOptions: PobSkillOption[];
+  defaultGemLevelOptions: PobSkillTypedOption<PobSkillDefaultGemLevel>[];
+  supportGemTypeOptions: PobSkillTypedOption<PobSkillSupportGemType>[];
+  sortGemFieldOptions: PobSkillTypedOption<PobSkillSortGemField>[];
   options: PobSkillsGemOptions;
 }
 
@@ -916,7 +931,7 @@ export interface PobCalcsSubSection {
 
 export interface PobCalcsSection {
   id: string;
-  group: number;
+  group: PobOriginalCalcsGroup;
   widthCols: number;
   colour: PobCalcsColour | null;
   enabled: boolean;

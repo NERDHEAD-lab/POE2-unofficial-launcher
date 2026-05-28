@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PobCalcsSection } from "@poe2-launcher/shared/types";
 
 import {
+  displayCalcsCellText,
   distributeSectionsIntoColumns,
   filterSections,
   matchesGroupFilter,
@@ -11,7 +12,7 @@ import {
 
 const makeSection = (
   id: string,
-  group: number,
+  group: PobCalcsSection["group"],
   rows: { label: string; cells: string[] }[],
   opts: { enabled?: boolean; subLabel?: string } = {},
 ): PobCalcsSection => ({
@@ -151,6 +152,17 @@ describe("calcsViewSections.filterSections", () => {
   it("returns empty array when no section matches", () => {
     const result = filterSections(list, "offence", "no-such");
     expect(result).toEqual([]);
+  });
+});
+
+describe("calcsViewSections.displayCalcsCellText", () => {
+  it("preserves intentional blank cells from PoB instead of replacing them", () => {
+    expect(displayCalcsCellText("")).toBe("");
+    expect(displayCalcsCellText("   ")).toBe("   ");
+  });
+
+  it("keeps normalized unavailable values as explicit dashes", () => {
+    expect(displayCalcsCellText("-")).toBe("-");
   });
 });
 

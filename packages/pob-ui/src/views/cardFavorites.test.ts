@@ -13,6 +13,23 @@ describe("cardFavorites.sortSectionsByFavorites", () => {
 
     expect(result.map((section) => section.id)).toEqual(["b", "d", "a", "c"]);
   });
+
+  it("only reorders the sections supplied by the current filter", () => {
+    const filteredSections = ["offence-a", "offence-b", "offence-c"].map(
+      (id) => ({ id }),
+    );
+
+    const result = sortSectionsByFavorites(
+      filteredSections,
+      new Set(["defence-a", "offence-c"]),
+    );
+
+    expect(result.map((section) => section.id)).toEqual([
+      "offence-c",
+      "offence-a",
+      "offence-b",
+    ]);
+  });
 });
 
 describe("cardFavorites.toggleFavoriteId", () => {

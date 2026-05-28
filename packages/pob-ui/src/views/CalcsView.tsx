@@ -13,6 +13,7 @@ import type {
 } from "@poe2-launcher/shared/types";
 
 import {
+  displayCalcsCellText,
   distributeSectionsIntoColumns,
   filterSections,
   type CalcsGroupFilter,
@@ -558,7 +559,7 @@ function CalcsRowView({
                 : undefined
             }
           >
-            {cell.text.trim() ? cell.text : "-"}
+            {displayCalcsCellText(cell.text)}
           </td>
         );
       })}

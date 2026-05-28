@@ -11,6 +11,8 @@ dofile(headlessPath)
 local json = require("dkjson")
 local b64 = require("base64")
 
+local sync_build_frame
+
 local function rpc_send(obj)
 	io.stdout:write(json.encode(obj) .. "\n")
 	io.stdout:flush()
@@ -247,6 +249,170 @@ local function json_nullable_number(value)
 	return json.null
 end
 
+local function build_metadata_snapshot()
+	local b = current_build()
+	if not b then error("No active BUILD mode") end
+
+	local controls = b.controls or {}
+	if b.UpdateClassDropdowns and controls.classDrop then
+		pcall(function() b:UpdateClassDropdowns() end)
+	end
+
+	local classes = {}
+	local classList = controls.classDrop and controls.classDrop.list or {}
+	for _, classOption in ipairs(classList) do
+		if type(classOption) == "table" then
+			local ascendancies = {}
+			for _, ascendancy in ipairs(classOption.ascendancies or {}) do
+				if type(ascendancy) == "table" then
+					ascendancies[#ascendancies + 1] = {
+						id = json_nullable_number(ascendancy.ascendClassId),
+						label = tostring(ascendancy.label or ""),
+					}
+				end
+			end
+			classes[#classes + 1] = {
+				id = json_nullable_number(classOption.classId),
+				label = tostring(classOption.label or ""),
+				ascendancies = ascendancies,
+			}
+		end
+	end
+
+	return {
+		level = tonumber(b.characterLevel) or 0,
+		levelAutoMode = b.characterLevelAutoMode == true,
+		classId = b.spec and json_nullable_number(b.spec.curClassId) or json.null,
+		className = b.spec and json_nullable_text(b.spec.curClassName) or json.null,
+		ascendClassId = b.spec and json_nullable_number(b.spec.curAscendClassId) or json.null,
+		ascendClassName = b.spec and json_nullable_text(b.spec.curAscendClassName) or json.null,
+		classes = classes,
+	}
+end
+
+local function build_metadata_action_result(snapshot)
+	return {
+		status = "ok",
+		snapshot = snapshot or build_metadata_snapshot(),
+	}
+end
+
+local function find_build_class_option(b, classId)
+	local controls = b.controls or {}
+	if b.UpdateClassDropdowns and controls.classDrop then
+		pcall(function() b:UpdateClassDropdowns() end)
+	end
+	local list = controls.classDrop and controls.classDrop.list or {}
+	for _, classOption in ipairs(list) do
+		if type(classOption) == "table" and classOption.classId == classId then
+			return classOption
+		end
+	end
+	return nil
+end
+
+local function mark_build_metadata_changed(b)
+	if b.configTab and type(b.configTab.BuildModList) == "function" then
+		pcall(b.configTab.BuildModList, b.configTab)
+	end
+	b.modFlag = true
+	b.buildFlag = true
+	sync_build_frame()
+end
+
+local function select_build_class(b, classId)
+	b.spec:SelectClass(classId)
+	if type(b.spec.AddUndoState) == "function" then b.spec:AddUndoState() end
+	if type(b.spec.SetWindowTitleWithBuildClass) == "function" then
+		b.spec:SetWindowTitleWithBuildClass()
+	end
+	b.buildFlag = true
+	if b.treeTab and b.treeTab.viewer then
+		b.treeTab.viewer.searchNeedsForceUpdate = true
+	end
+	sync_build_frame()
+end
+
+local function build_metadata_action(action)
+	local b = current_build()
+	if not b then error("No active BUILD mode") end
+	if type(action) ~= "table" or type(action.type) ~= "string" then
+		error("pob.buildMetadata.action requires action.type")
+	end
+
+	if action.type == "setLevelAutoMode" then
+		b.characterLevelAutoMode = action.value and true or false
+		if b.controls and b.controls.levelScalingButton then
+			b.controls.levelScalingButton.label = b.characterLevelAutoMode and "Auto" or "Manual"
+		end
+		mark_build_metadata_changed(b)
+		return build_metadata_action_result()
+	elseif action.type == "setLevel" then
+		if type(action.value) ~= "number" then error("setLevel requires value") end
+		local level = math.min(math.max(math.floor(action.value), 1), 100)
+		b.characterLevel = level
+		if b.controls and b.controls.characterLevel then
+			b.controls.characterLevel:SetText(level)
+		end
+		b.characterLevelAutoMode = false
+		if b.controls and b.controls.levelScalingButton then
+			b.controls.levelScalingButton.label = "Manual"
+		end
+		mark_build_metadata_changed(b)
+		return build_metadata_action_result()
+	elseif action.type == "setAscendClass" then
+		if type(action.ascendClassId) ~= "number" then error("setAscendClass requires ascendClassId") end
+		b.spec:SelectAscendClass(action.ascendClassId)
+		if type(b.spec.AddUndoState) == "function" then b.spec:AddUndoState() end
+		if type(b.spec.SetWindowTitleWithBuildClass) == "function" then
+			b.spec:SetWindowTitleWithBuildClass()
+		end
+		b.buildFlag = true
+		sync_build_frame()
+		return build_metadata_action_result()
+	elseif action.type == "setClass" then
+		if type(action.classId) ~= "number" then error("setClass requires classId") end
+		if action.classId == b.spec.curClassId then
+			return build_metadata_action_result()
+		end
+
+		local classOption = find_build_class_option(b, action.classId)
+		if not classOption then
+			error("Unknown class: " .. tostring(action.classId))
+		end
+
+		local needsConfirmation = b.spec:CountAllocNodes() ~= 0
+			and not b.spec:IsClassConnected(action.classId)
+		if needsConfirmation and action.confirmation ~= "continue" and action.confirmation ~= "connectPath" then
+			local label = tostring(classOption.label or "")
+			return {
+				status = "confirm",
+				snapshot = build_metadata_snapshot(),
+				confirmation = {
+					type = "classChange",
+					classId = action.classId,
+					classLabel = label,
+					message = "Changing class to " .. label .. " will reset your passive tree.\nThis can be avoided by connecting one of the " .. label .. " starting nodes to your tree.",
+					confirmLabel = "Continue",
+					alternateLabel = "Connect Path",
+				},
+			}
+		end
+
+		if action.confirmation == "connectPath" and needsConfirmation then
+			if b.spec:ConnectToClass(action.classId) then
+				select_build_class(b, action.classId)
+			end
+			return build_metadata_action_result()
+		end
+
+		select_build_class(b, action.classId)
+		return build_metadata_action_result()
+	end
+
+	error("Unknown build metadata action: " .. tostring(action.type))
+end
+
 local function safe_string_array(value)
 	local out = {}
 	if type(value) == "table" then
@@ -258,6 +424,7 @@ local function safe_string_array(value)
 	end
 	return out
 end
+
 local function tree_snapshot()
 	local spec = current_spec()
 	if not spec or not spec.nodes then
@@ -320,14 +487,14 @@ local function tree_snapshot()
 	end
 
 	return {
-		treeVersion = spec.treeVersion,
-		classId = spec.curClassId,
-		className = spec.curClassName,
-		ascendClassId = spec.curAscendClassId,
-		ascendClassName = spec.curAscendClassName,
+		treeVersion = json_nullable_text(spec.treeVersion),
+		classId = json_nullable_number(spec.curClassId),
+		className = json_nullable_text(spec.curClassName),
+		ascendClassId = json_nullable_number(spec.curAscendClassId),
+		ascendClassName = json_nullable_text(spec.curAscendClassName),
 		allocCount = spec:CountAllocNodes(),
-		viewport = viewport,
-		treeSize = treeSize,
+		viewport = viewport or json.null,
+		treeSize = json_nullable_number(treeSize),
 		nodes = nodes,
 	}
 end
@@ -413,8 +580,18 @@ local function item_summary(item, fallback_id)
 		return nil
 	end
 	local base = item.base
+	local raw = item.raw
+	if type(item.BuildRaw) == "function" then
+		local ok, builtRaw = pcall(function()
+			return item:BuildRaw()
+		end)
+		if ok and type(builtRaw) == "string" then
+			raw = builtRaw
+		end
+	end
 	return {
 		id = item.id or fallback_id,
+		raw = raw or "",
 		name = safe_string(item.name) or "?",
 		rarity = item.rarity or "NORMAL",
 		baseName = nullable_string(item.baseName),
@@ -486,9 +663,9 @@ local function items_snapshot()
 				slots[#slots + 1] = {
 					name = slot.slotName,
 					label = safe_string(slot.label) or slot.slotName,
-					slotType = slot.slotType or slot.slotTypeKey,
-					weaponSet = safe_number(slot.weaponSet),
-					nodeId = safe_number(slot.nodeId),
+					slotType = nullable_string(slot.slotType or slot.slotTypeKey),
+					weaponSet = nullable_number(slot.weaponSet),
+					nodeId = nullable_number(slot.nodeId),
 					selItemId = type(selItemId) == "number" and selItemId or 0,
 					visible = visible,
 					active = activeFlag ~= false,
@@ -780,6 +957,13 @@ local function items_action(action)
 			mark_items_changed(tab)
 		end
 		return items_snapshot()
+	elseif action.type == "saveCustom" then
+		local existing = require_item(tab, action.itemId)
+		local item = copy_item_from_raw(action.raw, true)
+		item.id = existing.id
+		tab:AddItem(item, true)
+		mark_items_changed(tab)
+		return items_snapshot()
 	end
 
 	error("Unknown items action: " .. tostring(action.type))
@@ -832,7 +1016,7 @@ local function skills_tab()
 	return b and b.skillsTab or nil
 end
 
-local function sync_build_frame()
+function sync_build_frame()
 	if runCallback then
 		pcall(runCallback, "OnFrame")
 	end
@@ -923,22 +1107,22 @@ local function gem_summary(gem, index, socketGroup)
 	local displayEffect = gem.displayEffect or gem
 	return {
 		index = index,
-		gemId = gem.gemId and tostring(gem.gemId) or nil,
-		skillId = gem.skillId and tostring(gem.skillId) or nil,
+		gemId = gem.gemId and tostring(gem.gemId) or json.null,
+		skillId = gem.skillId and tostring(gem.skillId) or json.null,
 		nameSpec = safe_string(gem.nameSpec) or "",
 		displayName = gem_display_name(gem),
-		level = safe_number(gem.level),
-		quality = safe_number(gem.quality),
+		level = nullable_number(gem.level),
+		quality = nullable_number(gem.quality),
 		enabled = gem.enabled ~= false,
 		enableGlobal1 = gem.enableGlobal1 ~= false,
 		enableGlobal2 = gem.enableGlobal2 == true,
 		count = safe_number(gem.count) or 1,
-		errMsg = safe_string(gem.errMsg),
-		reqLevel = safe_number(gem.reqLevel),
-		reqStr = safe_number(gem.reqStr),
-		reqDex = safe_number(gem.reqDex),
-		reqInt = safe_number(gem.reqInt),
-		naturalMaxLevel = safe_number(gem.naturalMaxLevel),
+		errMsg = nullable_string(gem.errMsg),
+		reqLevel = nullable_number(gem.reqLevel),
+		reqStr = nullable_number(gem.reqStr),
+		reqDex = nullable_number(gem.reqDex),
+		reqInt = nullable_number(gem.reqInt),
+		naturalMaxLevel = nullable_number(gem.naturalMaxLevel),
 		color = skill_colour_from_effect(grantedEffect),
 		isSupport = grantedEffect and grantedEffect.support and true or false,
 		isVaal = gem.gemData and gem.gemData.vaalGem and true or false,
@@ -949,8 +1133,8 @@ local function gem_summary(gem, index, socketGroup)
 		canEdit = socketGroup.source == nil,
 		canDelete = socketGroup.source == nil,
 		globalEffects = gem_global_effects(gem),
-		displayLevel = safe_number(displayEffect.level),
-		displayQuality = safe_number(displayEffect.quality),
+		displayLevel = nullable_number(displayEffect.level),
+		displayQuality = nullable_number(displayEffect.quality),
 	}
 end
 
@@ -968,8 +1152,8 @@ local function active_skill_summary(activeSkill, index)
 	return {
 		index = index,
 		label = label or ("Active Skill " .. tostring(index)),
-		skillPartName = safe_string(activeSkill and activeSkill.skillPartName),
-		disableReason = safe_string(activeSkill and activeSkill.disableReason),
+		skillPartName = nullable_string(activeSkill and activeSkill.skillPartName),
+		disableReason = nullable_string(activeSkill and activeSkill.disableReason),
 		color = skill_colour_from_effect(grantedEffect),
 	}
 end
@@ -1016,9 +1200,9 @@ local function skill_group_summary(tab, socketGroup, index)
 		index = index,
 		label = safe_string(socketGroup.label) or "",
 		displayLabel = safe_string(socketGroup.displayLabel) or safe_string(socketGroup.label) or "<No active skills>",
-		slot = socketGroup.slot,
-		source = safe_string(socketGroup.source),
-		sourceNote = source_note(socketGroup),
+		slot = nullable_string(socketGroup.slot),
+		source = nullable_string(socketGroup.source),
+		sourceNote = nullable_string(source_note(socketGroup)),
 		enabled = socketGroup.enabled ~= false,
 		slotEnabled = socketGroup.slotEnabled ~= false,
 		includeInFullDPS = socketGroup.includeInFullDPS and true or false,
@@ -1047,8 +1231,8 @@ local function available_gems(tab)
 				name = strip_colour_codes(gemData.name),
 				color = skill_colour_from_effect(grantedEffect),
 				isSupport = grantedEffect and grantedEffect.support and true or false,
-				naturalMaxLevel = safe_number(gemData.naturalMaxLevel),
-				tagString = safe_string(gemData.tagString),
+				naturalMaxLevel = nullable_number(gemData.naturalMaxLevel),
+				tagString = nullable_string(gemData.tagString),
 			}
 		end
 	end
@@ -1388,7 +1572,7 @@ local function calc_actor(tab)
 	return candidate
 end
 
-local function format_cell_format(format, actor, rowData)
+local function format_cell_format(section, format, actor, colData)
 	if type(format) ~= "string" or format == "" then
 		return "", nil
 	end
@@ -1403,7 +1587,13 @@ local function format_cell_format(format, actor, rowData)
 	end)
 	local resolved = stripped
 	if actor and formatCalcStr then
-		local ok, result = pcall(formatCalcStr, stripped, actor, rowData)
+		local ok, result = pcall(formatCalcStr, stripped, actor, colData)
+		if ok and type(result) == "string" then
+			resolved = result
+		end
+	end
+	if actor and resolved == stripped and section and type(section.FormatStr) == "function" then
+		local ok, result = pcall(section.FormatStr, section, stripped, actor, colData)
 		if ok and type(result) == "string" then
 			resolved = result
 		end
@@ -1476,6 +1666,359 @@ local function button_payload(control, fallbackLabel)
 	}
 end
 
+local function selected_dropdown_label(control)
+	if not control or type(control.list) ~= "table" then
+		return json.null
+	end
+	local idx = selected_dropdown_index(control)
+	local entry = idx and control.list[idx] or nil
+	local label = nil
+	if type(entry) == "table" then
+		label = entry.label
+	elseif type(entry) == "string" then
+		label = entry
+	end
+	return json_nullable_text(label)
+end
+
+local function stat_box_row_payload(entry)
+	if type(entry) ~= "table" then
+		return {
+			kind = "text",
+			label = json.null,
+			value = json.null,
+			text = strip_colour_codes(tostring(entry)),
+			height = 16,
+		}
+	end
+	local height = safe_number(entry.height) or 16
+	local lhs = safe_string(entry[1])
+	local rhs = safe_string(entry[2])
+	if lhs and rhs then
+		return {
+			kind = "stat",
+			label = strip_colour_codes(lhs),
+			value = strip_colour_codes(rhs),
+			text = json.null,
+			height = height,
+		}
+	end
+	if lhs then
+		return {
+			kind = "text",
+			label = json.null,
+			value = json.null,
+			text = strip_colour_codes(lhs),
+			height = height,
+		}
+	end
+	return {
+		kind = "spacer",
+		label = json.null,
+		value = json.null,
+		text = json.null,
+		height = height,
+	}
+end
+
+local function main_skill_summary_snapshot()
+	local b = current_build()
+	if not b or not b.controls then
+		error("No active BUILD mode")
+	end
+	if b.calcsTab then
+		ensure_calcs_built(b.calcsTab)
+	end
+	if type(b.RefreshSkillSelectControls) == "function" then
+		pcall(b.RefreshSkillSelectControls, b, b.controls, b.mainSocketGroup or 1, "")
+	end
+	if type(b.RefreshStatList) == "function" then
+		pcall(b.RefreshStatList, b)
+	end
+
+	local rows = {}
+	local statBox = b.controls.statBox
+	local list = statBox and statBox.list or {}
+	for _, entry in ipairs(list) do
+		rows[#rows + 1] = stat_box_row_payload(entry)
+	end
+
+	local warnings = {}
+	local warningLines = b.controls.warnings and b.controls.warnings.lines or {}
+	for _, line in ipairs(warningLines) do
+		warnings[#warnings + 1] = strip_colour_codes(safe_string(line) or tostring(line))
+	end
+
+	return {
+		socketGroupLabel = selected_dropdown_label(b.controls.mainSocketGroup),
+		mainSkillLabel = selected_dropdown_label(b.controls.mainSkill),
+		rows = rows,
+		warnings = warnings,
+	}
+end
+
+local function party_tab()
+	local b = current_build()
+	return b and b.partyTab or nil
+end
+
+local function control_tooltip(control)
+	return json_nullable_text(control and control.tooltipText)
+end
+
+local function party_button_payload(control, fallbackLabel)
+	return {
+		label = strip_colour_codes(safe_string(control and control.label) or fallbackLabel),
+		shown = control_is_shown(control),
+		enabled = control_is_enabled(control),
+		tooltip = control_tooltip(control),
+	}
+end
+
+local function party_checkbox_payload(control, fallbackLabel)
+	local payload = party_button_payload(control, fallbackLabel)
+	payload.checked = control and control.state and true or false
+	return payload
+end
+
+local function dropdown_labels(control)
+	local labels = {}
+	for _, option in ipairs(dropdown_options(control)) do
+		labels[#labels + 1] = option.label
+	end
+	return labels
+end
+
+local function party_section_payload(key, labelControl, editControl, simpleControl, showAdvanced)
+	return {
+		key = key,
+		label = strip_colour_codes(safe_string(labelControl and labelControl.label) or ""),
+		text = strip_colour_codes(safe_string(editControl and editControl.buf) or ""),
+		simpleText = strip_colour_codes(safe_string(simpleControl and simpleControl.label) or ""),
+		advancedVisible = showAdvanced and control_is_shown(editControl) or false,
+	}
+end
+
+local function party_snapshot()
+	local tab = party_tab()
+	if not tab or not tab.controls then
+		error("No active party tab")
+	end
+	local controls = tab.controls
+	local showAdvanced = controls.ShowAdvanceTools and controls.ShowAdvanceTools.state and true or false
+
+	return {
+		notes = strip_colour_codes(safe_string(controls.notesDesc and controls.notesDesc.label) or ""),
+		enableExportBuffs = tab.enableExportBuffs and true or false,
+		importControls = {
+			inputLabel = strip_colour_codes(safe_string(controls.importCodeHeader and controls.importCodeHeader.label) or ""),
+			code = strip_colour_codes(safe_string(controls.importCodeIn and controls.importCodeIn.buf) or ""),
+			detail = strip_colour_codes(safe_string(tab.importCodeDetail) or ""),
+			valid = tab.importCodeValid and true or false,
+			fetching = tab.importCodeFetching and true or false,
+			destinations = dropdown_labels(controls.importCodeDestination),
+			selectedDestination = selected_dropdown_index(controls.importCodeDestination) or 1,
+			destinationTooltip = control_tooltip(controls.importCodeDestination),
+			importButton = party_button_payload(controls.importCodeGo, "Import"),
+			append = party_checkbox_payload(controls.appendNotReplace, "Append"),
+			clear = party_button_payload(controls.clear, "Clear"),
+			showAdvanced = party_checkbox_payload(controls.ShowAdvanceTools, "Show Advanced Info"),
+			disableEffects = party_button_payload(controls.removeEffects, "Disable Party Effects"),
+			rebuild = party_button_payload(controls.rebuild, "Rebuild All"),
+		},
+		leftSections = {
+			party_section_payload("auras", controls.editAurasLabel, controls.editAuras, controls.simpleAuras, showAdvanced),
+			party_section_payload("warcry", controls.editWarcriesLabel, controls.editWarcries, controls.simpleWarcries, showAdvanced),
+			party_section_payload("link", controls.editLinksLabel, controls.editLinks, controls.simpleLinks, showAdvanced),
+		},
+		rightSections = {
+			party_section_payload("partyMemberStats", controls.editPartyMemberStatsLabel, controls.editPartyMemberStats, nil, showAdvanced),
+			party_section_payload("enemyConditions", controls.enemyCondLabel, controls.enemyCond, controls.simpleEnemyCond, showAdvanced),
+			party_section_payload("enemyModifiers", controls.enemyModsLabel, controls.enemyMods, controls.simpleEnemyMods, showAdvanced),
+			party_section_payload("curses", controls.editCursesLabel, controls.editCurses, controls.simpleCurses, showAdvanced),
+		},
+	}
+end
+
+local function mark_party_changed(tab)
+	tab.modFlag = true
+	local b = current_build()
+	if b then b.buildFlag = true end
+	if type(sync_build_frame) == "function" then sync_build_frame() end
+end
+
+local function new_party_actor()
+	local actor = { Aura = {}, Curse = {}, Warcry = {}, Link = {}, modDB = new("ModDB"), output = {} }
+	actor.modDB.actor = actor
+	return actor
+end
+
+local function set_edit_text(control, value)
+	local text = type(value) == "string" and value or ""
+	if control and type(control.SetText) == "function" then
+		control:SetText(text)
+	elseif control then
+		control.buf = text
+	end
+end
+
+local function party_selected_destination(tab)
+	local control = tab.controls and tab.controls.importCodeDestination
+	local index = selected_dropdown_index(control) or 1
+	return control and control.list and control.list[index] or "All"
+end
+
+local function party_parse_enemies(tab)
+	wipeTable(tab.enemyModList)
+	tab.enemyModList = new("ModList")
+	tab:ParseBuffs(tab.enemyModList, tab.controls.enemyCond.buf, "EnemyConditions")
+	tab:ParseBuffs(tab.enemyModList, tab.controls.enemyMods.buf, "EnemyMods", tab.controls.simpleEnemyMods)
+end
+
+local function party_rebuild_all(tab)
+	wipeTable(tab.actor)
+	wipeTable(tab.enemyModList)
+	tab.actor = new_party_actor()
+	tab.enemyModList = new("ModList")
+	tab:ParseBuffs(tab.actor.modDB, tab.controls.editPartyMemberStats.buf, "PartyMemberStats", tab.actor.output)
+	tab:ParseBuffs(tab.actor.Aura, tab.controls.editAuras.buf, "Aura", tab.controls.simpleAuras)
+	tab:ParseBuffs(tab.actor.Curse, tab.controls.editCurses.buf, "Curse", tab.controls.simpleCurses)
+	tab:ParseBuffs(tab.actor.Warcry, tab.controls.editWarcries.buf, "Warcry", tab.controls.simpleWarcries)
+	tab:ParseBuffs(tab.actor.Link, tab.controls.editLinks.buf, "Link", tab.controls.simpleLinks)
+	tab:ParseBuffs(tab.enemyModList, tab.controls.enemyCond.buf, "EnemyConditions")
+	tab:ParseBuffs(tab.enemyModList, tab.controls.enemyMods.buf, "EnemyMods", tab.controls.simpleEnemyMods)
+end
+
+local function party_set_section_text(tab, key, value)
+	local controls = tab.controls
+	if key == "partyMemberStats" then
+		set_edit_text(controls.editPartyMemberStats, value)
+		tab.actor.modDB = new("ModDB")
+		tab.actor.modDB.actor = tab.actor
+		tab.actor.output = {}
+		tab:ParseBuffs(tab.actor.modDB, controls.editPartyMemberStats.buf, "PartyMemberStats", tab.actor.output)
+	elseif key == "auras" then
+		set_edit_text(controls.editAuras, value)
+		wipeTable(tab.actor.Aura)
+		tab.actor.Aura = {}
+		tab:ParseBuffs(tab.actor.Aura, controls.editAuras.buf, "Aura", controls.simpleAuras)
+	elseif key == "curses" then
+		set_edit_text(controls.editCurses, value)
+		wipeTable(tab.actor.Curse)
+		tab.actor.Curse = {}
+		tab:ParseBuffs(tab.actor.Curse, controls.editCurses.buf, "Curse", controls.simpleCurses)
+	elseif key == "warcry" then
+		set_edit_text(controls.editWarcries, value)
+		wipeTable(tab.actor.Warcry)
+		tab.actor.Warcry = {}
+		tab:ParseBuffs(tab.actor.Warcry, controls.editWarcries.buf, "Warcry", controls.simpleWarcries)
+	elseif key == "link" then
+		set_edit_text(controls.editLinks, value)
+		wipeTable(tab.actor.Link)
+		tab.actor.Link = {}
+		tab:ParseBuffs(tab.actor.Link, controls.editLinks.buf, "Link", controls.simpleLinks)
+	elseif key == "enemyConditions" then
+		set_edit_text(controls.enemyCond, value)
+		party_parse_enemies(tab)
+	elseif key == "enemyModifiers" then
+		set_edit_text(controls.enemyMods, value)
+		party_parse_enemies(tab)
+	else
+		error("Unknown party section key: " .. tostring(key))
+	end
+end
+
+local function party_clear_selected(tab)
+	local controls = tab.controls
+	local destination = party_selected_destination(tab)
+	if destination == "All" or destination == "Party Member Stats" then
+		set_edit_text(controls.editPartyMemberStats, "")
+	end
+	if destination == "All" or destination == "Aura" then
+		controls.simpleAuras.label = ""
+		set_edit_text(controls.editAuras, "")
+		wipeTable(tab.actor.Aura)
+		tab.actor.Aura = {}
+	end
+	if destination == "All" or destination == "Curse" then
+		controls.simpleCurses.label = ""
+		set_edit_text(controls.editCurses, "")
+		wipeTable(tab.actor.Curse)
+		tab.actor.Curse = {}
+	end
+	if destination == "All" or destination == "Warcry Skills" then
+		controls.simpleWarcries.label = ""
+		set_edit_text(controls.editWarcries, "")
+		wipeTable(tab.actor.Warcry)
+		tab.actor.Warcry = {}
+	end
+	if destination == "All" or destination == "Link Skills" then
+		controls.simpleLinks.label = ""
+		set_edit_text(controls.editLinks, "")
+		wipeTable(tab.actor.Link)
+		tab.actor.Link = {}
+	end
+	if destination == "All" or destination == "EnemyConditions" then
+		controls.simpleEnemyCond.label = "---------------------------\n"
+		set_edit_text(controls.enemyCond, "")
+	end
+	if destination == "All" or destination == "EnemyMods" then
+		controls.simpleEnemyMods.label = "\n"
+		set_edit_text(controls.enemyMods, "")
+	end
+	wipeTable(tab.enemyModList)
+	tab.enemyModList = new("ModList")
+end
+
+local function party_action(action)
+	local tab = party_tab()
+	if not tab or not tab.controls then
+		error("No active party tab")
+	end
+	if type(action) ~= "table" or type(action.type) ~= "string" then
+		error("pob.party.action requires action.type")
+	end
+	local controls = tab.controls
+
+	if action.type == "setDestination" then
+		local value = action.value == json.null and nil or action.value
+		if type(value) ~= "string" then error("party destination must be a string") end
+		local found = false
+		for _, entry in ipairs(controls.importCodeDestination.list or {}) do
+			if entry == value then found = true end
+		end
+		if not found then error("Unknown party destination: " .. tostring(value)) end
+		controls.importCodeDestination:SelByValue(value)
+	elseif action.type == "setAppend" then
+		controls.appendNotReplace.state = action.value and true or false
+	elseif action.type == "setShowAdvanced" then
+		controls.ShowAdvanceTools.state = action.value and true or false
+	elseif action.type == "setExportSupport" then
+		local state = action.value and true or false
+		tab.enableExportBuffs = state
+		local b = current_build()
+		if b and b.importTab and b.importTab.controls and b.importTab.controls.enablePartyExportBuffs then
+			b.importTab.controls.enablePartyExportBuffs.state = state
+		end
+	elseif action.type == "setSectionText" then
+		party_set_section_text(tab, action.key, action.value)
+	elseif action.type == "clear" then
+		party_clear_selected(tab)
+	elseif action.type == "disableEffects" then
+		wipeTable(tab.actor)
+		wipeTable(tab.enemyModList)
+		tab.actor = new_party_actor()
+		tab.enemyModList = new("ModList")
+	elseif action.type == "rebuild" then
+		party_rebuild_all(tab)
+	else
+		error("Unknown party action: " .. tostring(action.type))
+	end
+
+	mark_party_changed(tab)
+	return party_snapshot()
+end
+
 local function refresh_skill_select(tab)
 	local section = tab.sectionList and tab.sectionList[1]
 	if section and tab.build and type(tab.build.RefreshSkillSelectControls) == "function" then
@@ -1502,44 +2045,44 @@ local function skill_select_snapshot(tab)
 			options = dropdown_options(controls.mainSocketGroup),
 		},
 		mainSkill = {
-			selected = selected_dropdown_index(controls.mainSkill),
+			selected = selected_dropdown_index(controls.mainSkill) or json.null,
 			enabled = control_is_enabled(controls.mainSkill),
 			shown = control_is_shown(controls.mainSkill),
 			options = dropdown_options(controls.mainSkill),
 		},
 		statSet = {
-			selected = selected_dropdown_index(controls.statSet),
+			selected = selected_dropdown_index(controls.statSet) or json.null,
 			enabled = control_is_enabled(controls.statSet),
 			shown = control_is_shown(controls.statSet),
 			options = dropdown_options(controls.statSet),
 		},
 		skillPart = {
-			selected = selected_dropdown_index(controls.mainSkillPart),
+			selected = selected_dropdown_index(controls.mainSkillPart) or json.null,
 			shown = control_is_shown(controls.mainSkillPart),
 			options = dropdown_options(controls.mainSkillPart),
 		},
 		skillStages = {
-			value = controls.mainSkillStageCount and safe_string(controls.mainSkillStageCount.buf) or nil,
+			value = nullable_string(controls.mainSkillStageCount and controls.mainSkillStageCount.buf),
 			shown = control_is_shown(controls.mainSkillStageCount),
 		},
 		mineCount = {
-			value = controls.mainSkillMineCount and safe_string(controls.mainSkillMineCount.buf) or nil,
+			value = nullable_string(controls.mainSkillMineCount and controls.mainSkillMineCount.buf),
 			shown = control_is_shown(controls.mainSkillMineCount),
 		},
 		minion = {
-			selected = selected_dropdown_index(controls.mainSkillMinion),
+			selected = selected_dropdown_index(controls.mainSkillMinion) or json.null,
 			shown = control_is_shown(controls.mainSkillMinion),
 			options = dropdown_options(controls.mainSkillMinion),
 		},
 		spectreLibrary = button_payload(controls.mainSkillMinionLibrary, "Manage Spectres..."),
 		beastLibrary = button_payload(controls.mainSkillBeastLibrary, "Manage Beasts..."),
 		minionSkill = {
-			selected = selected_dropdown_index(controls.mainSkillMinionSkill),
+			selected = selected_dropdown_index(controls.mainSkillMinionSkill) or json.null,
 			shown = control_is_shown(controls.mainSkillMinionSkill),
 			options = dropdown_options(controls.mainSkillMinionSkill),
 		},
 		minionSkillStatSet = {
-			selected = selected_dropdown_index(controls.mainSkillMinionSkillStatSet),
+			selected = selected_dropdown_index(controls.mainSkillMinionSkillStatSet) or json.null,
 			shown = control_is_shown(controls.mainSkillMinionSkillStatSet),
 			options = dropdown_options(controls.mainSkillMinionSkillStatSet),
 		},
@@ -1554,7 +2097,14 @@ end
 
 local function cell_breakdown_key(sectionId, subIndex, rowIndex, colIndex, colData)
 	if not colData then return nil end
-	if not colData.breakdown and not colData.modName then
+	local hasDescriptor = colData.breakdown or colData.modName
+	for _, child in ipairs(colData) do
+		if type(child) == "table" and (child.breakdown or child.modName) then
+			hasDescriptor = true
+			break
+		end
+	end
+	if not hasDescriptor then
 		return nil
 	end
 	return string.format("%s:%d:%d:%d", tostring(sectionId or "?"), subIndex, rowIndex, colIndex)
@@ -1568,7 +2118,7 @@ local function section_rows(tab, actor, section, subSection, subIndex)
 			local cells = {}
 			for colIndex, colData in ipairs(rowData) do
 				if type(colData) == "table" then
-					local text, colour = format_cell_format(colData.format, actor, rowData)
+					local text, colour = format_cell_format(section, colData.format, actor, colData)
 					cells[#cells + 1] = {
 						text = text,
 						colour = colour or json.null,
@@ -1587,10 +2137,10 @@ local function section_rows(tab, actor, section, subSection, subIndex)
 	return rows
 end
 
-local function sub_section_extra(actor, subSection)
+local function sub_section_extra(section, actor, subSection)
 	local extra = subSection.data and subSection.data.extra
 	if type(extra) ~= "string" or extra == "" then return nil end
-	local text, _ = format_cell_format(extra, actor, subSection.data)
+	local text, _ = format_cell_format(section, extra, actor, nil)
 	if text == "" then return nil end
 	return text
 end
@@ -1603,7 +2153,7 @@ local function section_payload(tab, actor, section)
 			label = safe_string(subSection.label) or "",
 			collapsed = safe_bool(subSection.collapsed),
 			defaultCollapsed = safe_bool(subSection.defaultCollapsed),
-			extra = sub_section_extra(actor, subSection) or json.null,
+			extra = sub_section_extra(section, actor, subSection) or json.null,
 			colWidth = nullable_number(subSection.data and subSection.data.colWidth),
 			rows = section_rows(tab, actor, section, subSection, subIndex),
 		}
@@ -1638,12 +2188,12 @@ local function calcs_snapshot()
 		skillSelect = skill_select_snapshot(tab),
 		sections = sections,
 		summary = {
-			combinedDPS = safe_number(mainOutput.CombinedDPS),
-			fullDPS = safe_number(mainOutput.FullDPS),
-			totalEHP = safe_number(mainOutput.TotalEHP),
-			life = safe_number(mainOutput.Life),
-			energyShield = safe_number(mainOutput.EnergyShield),
-			mana = safe_number(mainOutput.Mana),
+			combinedDPS = nullable_number(mainOutput.CombinedDPS),
+			fullDPS = nullable_number(mainOutput.FullDPS),
+			totalEHP = nullable_number(mainOutput.TotalEHP),
+			life = nullable_number(mainOutput.Life),
+			energyShield = nullable_number(mainOutput.EnergyShield),
+			mana = nullable_number(mainOutput.Mana),
 		},
 	}
 end
@@ -1684,11 +2234,11 @@ local function mod_section_payload(actor, rowData, colData)
 		for _, entry in ipairs(list) do
 			local mod = entry.mod or {}
 			entries[#entries + 1] = {
-				name = safe_string(mod.name),
-				type = safe_string(mod.type),
-				value = safe_number(mod.value),
-				source = safe_string(mod.source),
-				sourceLine = safe_string(entry.sourceLine),
+				name = safe_string(mod.name) or json.null,
+				type = safe_string(mod.type) or json.null,
+				value = safe_number(mod.value) or json.null,
+				source = safe_string(mod.source) or json.null,
+				sourceLine = safe_string(entry.sourceLine) or json.null,
 			}
 		end
 	end
@@ -1733,10 +2283,10 @@ local function flatten_breakdown(actor, sectionData, colData)
 	end
 	return {
 		stat = key,
-		label = safe_string(breakdown.label),
-		footer = safe_string(breakdown.footer),
+		label = safe_string(breakdown.label) or json.null,
+		footer = safe_string(breakdown.footer) or json.null,
 		lines = lines,
-		rowList = rowList,
+		rowList = rowList or json.null,
 		colList = breakdown.colList and (function()
 			local cols = {}
 			for _, col in ipairs(breakdown.colList) do
@@ -1746,7 +2296,7 @@ local function flatten_breakdown(actor, sectionData, colData)
 				}
 			end
 			return cols
-		end)() or nil,
+		end)() or json.null,
 	}
 end
 
@@ -1762,13 +2312,19 @@ local function calcs_breakdown(params)
 	if not actor then error("No calc actor available") end
 
 	local payload = { key = params.key, sections = {} }
-	if colData.breakdown then
-		local section = flatten_breakdown(actor, rowData, colData)
-		if section then payload.sections[#payload.sections + 1] = { type = "BREAKDOWN", data = section } end
+	local descriptors = { colData }
+	for _, child in ipairs(colData) do
+		if type(child) == "table" then descriptors[#descriptors + 1] = child end
 	end
-	if colData.modName then
-		local section = mod_section_payload(actor, rowData, colData)
-		if section then payload.sections[#payload.sections + 1] = { type = "MODS", data = section } end
+	for _, descriptor in ipairs(descriptors) do
+		if descriptor.breakdown then
+			local section = flatten_breakdown(actor, rowData, descriptor)
+			if section then payload.sections[#payload.sections + 1] = { type = "BREAKDOWN", data = section } end
+		end
+		if descriptor.modName then
+			local section = mod_section_payload(actor, rowData, descriptor)
+			if section then payload.sections[#payload.sections + 1] = { type = "MODS", data = section } end
+		end
 	end
 	for _, child in ipairs(rowData) do
 		if type(child) == "table" and child ~= colData and child.modName and not child.format then
@@ -2375,6 +2931,10 @@ local function handle_method(method, params)
 		return config_snapshot()
 	elseif method == "pob.config.action" then
 		return config_action(params)
+	elseif method == "pob.party.snapshot" then
+		return party_snapshot()
+	elseif method == "pob.party.action" then
+		return party_action(params)
 	elseif method == "pob.loadBuildXml" then
 		if type(params.xml) ~= "string" then
 			error("pob.loadBuildXml requires params.xml")
@@ -2392,12 +2952,18 @@ local function handle_method(method, params)
 			error("No active BUILD mode")
 		end
 		return { xml = b:SaveDB(params.fileName or "export") }
+	elseif method == "pob.buildMetadata.snapshot" then
+		return build_metadata_snapshot()
+	elseif method == "pob.buildMetadata.action" then
+		return build_metadata_action(params)
 	elseif method == "pob.saveBuildXml" then
 		local b = current_build()
 		if not b or not b.SaveDB then
 			error("No active BUILD mode")
 		end
 		return { xml = b:SaveDB(params.fileName or "build") }
+	elseif method == "pob.mainSkillSummary.snapshot" then
+		return main_skill_summary_snapshot()
 	else
 		error("Unknown method: " .. tostring(method))
 	end

@@ -46,6 +46,10 @@ export function filterSections(
     .filter((s): s is PobCalcsSection => s !== null);
 }
 
+export function displayCalcsCellText(text: string): string {
+  return text;
+}
+
 function sectionHeight(
   sectionId: string,
   heights: ReadonlyMap<string, number>,

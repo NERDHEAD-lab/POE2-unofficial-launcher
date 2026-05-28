@@ -11,6 +11,7 @@ import {
 import { parseItemCopyText } from "@poe2-launcher/pob-repoe/itemCopyParser";
 import type { PoBVault } from "@poe2-launcher/pob-vault";
 import {
+  assertPobCalcsBreakdown,
   assertPobCalcsSnapshot,
   assertPobItemsDbList,
   assertPobItemsSnapshot,
@@ -20,6 +21,7 @@ import {
   POB_ORIGINAL_CALCS_BUFF_MODES,
   POB_ORIGINAL_ITEMS_DB_KEYS,
 } from "@poe2-launcher/shared/pobOriginalContract";
+import type { PobCalcsSnapshot } from "@poe2-launcher/shared/types";
 
 import { PoBSession } from "./session";
 
@@ -61,6 +63,24 @@ const staticVault = (vaultPath: string): PoBVault =>
     getActive: vi.fn(async () => ({ version: "source", vaultPath })),
     ensureSnapshot: vi.fn(async () => ({ version: "source", vaultPath })),
   }) as unknown as PoBVault;
+
+const calcsCardValue = (
+  calcs: PobCalcsSnapshot,
+  sectionId: string,
+  subSectionLabel: string,
+  rowLabel: string,
+  cellIndex = 0,
+) => {
+  const section = calcs.sections.find((entry) => entry.id === sectionId);
+  expect(section).toBeDefined();
+  const subSection = section?.subSections.find(
+    (entry) => entry.label === subSectionLabel,
+  );
+  expect(subSection).toBeDefined();
+  const row = subSection?.rows.find((entry) => entry.label === rowLabel);
+  expect(row).toBeDefined();
+  return row?.cells[cellIndex]?.text;
+};
 
 describe("PoBSession Imported Build2 contract", () => {
   runIfPobSourceAvailable(
@@ -133,6 +153,58 @@ describe("PoBSession Imported Build2 contract", () => {
           "Fire:",
           "Chaos:",
         ]);
+        expect(
+          skillHit?.rows.find((row) => row.label === "Added Min")?.cells[0]
+            ?.text,
+        ).toBe("");
+        expect(
+          skillHit?.rows.find((row) => row.label === "Added Max")?.cells[0]
+            ?.text,
+        ).toBe("");
+        const hitDamageRows =
+          skillHit?.rows.filter((row) => row.label.endsWith("Hit Damage")) ??
+          [];
+        expect(hitDamageRows.length).toBeGreaterThan(0);
+        for (const row of hitDamageRows) {
+          const values = row.cells.map((cell) => cell.text);
+          expect(values).toEqual(
+            expect.arrayContaining([
+              expect.stringMatching(/\d+(\.\d+)? to \d+(\.\d+)?/),
+            ]),
+          );
+          expect(values).not.toContain("-");
+        }
+
+        expect(
+          calcsCardValue(calcs, "Attributes", "Attributes", "Strength"),
+        ).toBe("27");
+        expect(
+          calcsCardValue(calcs, "Attributes", "Attributes", "Dexterity"),
+        ).toBe("121");
+        expect(
+          calcsCardValue(calcs, "Attributes", "Attributes", "Intelligence"),
+        ).toBe("127");
+        expect(calcsCardValue(calcs, "Life", "Life", "Total")).toBe("1,388");
+        expect(calcsCardValue(calcs, "Mana", "Mana", "Total")).toBe("749");
+        expect(calcsCardValue(calcs, "Resist", "Resists", "Fire Resist")).toBe(
+          "75% (+7%)",
+        );
+        expect(
+          calcsCardValue(
+            calcs,
+            "MiscEffects",
+            "Other Effects",
+            "Presence Radius",
+          ),
+        ).toBe("4m");
+        expect(
+          calcsCardValue(
+            calcs,
+            "Speed",
+            "Attack/Cast Rate",
+            "MH Att. per second",
+          ),
+        ).toBe("1.89");
 
         const calcsText = calcs.sections.flatMap((section) =>
           section.subSections.flatMap((sub) =>
@@ -147,6 +219,18 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(calcsText).not.toContain("haos:");
         expect(calcsText).not.toContain("-%");
         expect(calcsText).not.toContain("- to -");
+
+        const firstBreakdownKey = calcs.sections
+          .flatMap((section) => section.subSections)
+          .flatMap((sub) => sub.rows)
+          .flatMap((row) => row.cells)
+          .find((cell) => cell.breakdownKey !== null)?.breakdownKey;
+        expect(firstBreakdownKey).toBeTypeOf("string");
+        if (typeof firstBreakdownKey === "string") {
+          const breakdown = await session.calcsBreakdown(firstBreakdownKey);
+          assertPobCalcsBreakdown(breakdown);
+          expect(breakdown.key).toBe(firstBreakdownKey);
+        }
       } finally {
         await session.dispose();
       }

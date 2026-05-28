@@ -58,7 +58,7 @@ const itemBase = {
   baseSubType: null,
   implicitLines: [],
   explicitLines: [],
-};
+} satisfies Omit<PobItemDbSummary, "id" | "name" | "baseName">;
 
 describe("RePoE renderer translation overlay", () => {
   it("translates tree node display names without mutating the source snapshot", () => {
@@ -223,10 +223,10 @@ describe("RePoE renderer translation overlay", () => {
       sortGemFieldOptions: [],
       options: {
         sortGemsByDPS: false,
-        sortGemsByDPSField: "",
+        sortGemsByDPSField: "CombinedDPS",
         defaultGemLevel: "normalMaximum",
         defaultGemQuality: 0,
-        showSupportGemTypes: "all",
+        showSupportGemTypes: "ALL",
       },
     };
 
