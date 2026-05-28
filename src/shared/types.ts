@@ -282,6 +282,52 @@ export type PobOpenResult =
       source: "HKCU" | "HKLM";
     };
 
+export interface BuildEntry {
+  kind: "file" | "folder";
+  name: string;
+  mtime: number;
+  size: number;
+  level?: number;
+  className?: string;
+  ascendClassName?: string;
+}
+
+export interface BuildsListResult {
+  subPath: string;
+  entries: BuildEntry[];
+}
+
+export type BuildsMutationResult =
+  | { status: "ok" }
+  | { status: "error"; reason: string };
+
+export interface BuildsAPI {
+  list: (subPath: string) => Promise<BuildsListResult>;
+  newFolder: (subPath: string, name: string) => Promise<BuildsMutationResult>;
+  renameBuild: (
+    subPath: string,
+    oldName: string,
+    newName: string,
+  ) => Promise<BuildsMutationResult>;
+  deleteBuild: (
+    subPath: string,
+    name: string,
+    kind: "file" | "folder",
+  ) => Promise<BuildsMutationResult>;
+  copyBuild: (
+    srcSubPath: string,
+    srcName: string,
+    dstSubPath: string,
+    dstName: string,
+  ) => Promise<BuildsMutationResult>;
+}
+
+export interface PobWindowAPI {
+  /** PoB BrowserWindow 자체에 전달된 게임 식별자 (URL hash 로 전달). */
+  getInitialGame: () => PobGame;
+  builds: BuildsAPI;
+}
+
 export type PobPickResult =
   | { status: "ok"; path: string }
   | { status: "cancelled" }
@@ -566,5 +612,6 @@ export interface NewsServiceState {
 declare global {
   interface Window {
     electronAPI: ElectronAPI;
+    pobAPI?: PobWindowAPI;
   }
 }

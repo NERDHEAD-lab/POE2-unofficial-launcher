@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 
 import { verifyPobInstallation } from "./pobInstallVerifier";
@@ -15,6 +17,79 @@ import { logger } from "../utils/logger";
 import { getPobInstallPath } from "../utils/registry";
 
 const POB_OFFICIAL_SITE = "https://pathofbuilding.community/";
+
+const pobWindows = new Map<PobGame, BrowserWindow>();
+
+const createPobWindow = (game: PobGame): BrowserWindow => {
+  const existing = pobWindows.get(game);
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore();
+    existing.focus();
+    return existing;
+  }
+
+  const preloadPath = path.join(__dirname, "pob-preload.js");
+  logger.log(`[PoB] creating window for ${game}, preload=${preloadPath}`);
+
+  const win = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    title: "POB i18n (BETA)",
+    backgroundColor: "#1a1a1a",
+    show: true,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+  const baseUrl = VITE_DEV_SERVER_URL?.endsWith("/")
+    ? VITE_DEV_SERVER_URL
+    : `${VITE_DEV_SERVER_URL}/`;
+  if (VITE_DEV_SERVER_URL) {
+    const url = `${baseUrl}pob.html#game=${game}`;
+    logger.log(`[PoB] loadURL ${url}`);
+    win.loadURL(url).catch((err) => {
+      logger.error(`[PoB] loadURL failed:`, err);
+    });
+  } else {
+    const file = path.join(process.env.DIST as string, "pob.html");
+    logger.log(`[PoB] loadFile ${file}`);
+    win.loadFile(file, { hash: `game=${game}` }).catch((err) => {
+      logger.error(`[PoB] loadFile failed:`, err);
+    });
+  }
+
+  win.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    logger.error(`[PoB] did-fail-load code=${code} ${desc} url=${url}`);
+  });
+  win.webContents.on("render-process-gone", (_e, details) => {
+    logger.error(`[PoB] render-process-gone:`, details);
+  });
+  win.once("ready-to-show", () => {
+    logger.log(`[PoB] ready-to-show, showing window`);
+    win.show();
+    win.focus();
+  });
+
+  // Block external navigation.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http:") || url.startsWith("https:")) {
+      shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  win.on("closed", () => {
+    pobWindows.delete(game);
+  });
+
+  pobWindows.set(game, win);
+  return win;
+};
 
 const STORE_KEY_BY_GAME: Record<PobGame, string> = {
   POE1: "pob.poe1",
@@ -58,6 +133,7 @@ export function registerPobLauncherHandlers(): void {
           logger.log(
             `[PoB] using stored location ${stored.installLocation} (${stored.source})`,
           );
+          createPobWindow(game);
           return { status: "ready", installLocation: stored.installLocation };
         }
         logger.warn(
@@ -141,6 +217,7 @@ export function registerPobLauncherHandlers(): void {
 
       setStoredEntry(game, { installLocation: selected, source: "manual" });
       logger.log(`[PoB] manual install location saved (${game}): ${selected}`);
+      createPobWindow(game);
       return { status: "ok", path: selected } as const;
     },
   );
@@ -177,6 +254,7 @@ export function registerPobLauncherHandlers(): void {
       logger.log(
         `[PoB] detected location confirmed (${game}): ${installLocation} (${source})`,
       );
+      createPobWindow(game);
       return { status: "ok" };
     },
   );

@@ -93,6 +93,7 @@ import {
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { trayManager } from "./managers/TrayManager";
 import { setupSessionSecurity } from "./security/permissions";
+import { registerBuildsHandlers } from "./services/buildsScanner";
 import { changelogService } from "./services/ChangelogService";
 import { GameVersionScanner } from "./services/GameVersionScanner";
 import { LogWatcher } from "./services/LogWatcher";
@@ -1690,6 +1691,8 @@ async function createWindow() {
     BrowserWindow.getAllWindows().forEach((win) => {
       if (win === mainWindow || win === debugWindow) return;
       if (win.isDestroyed()) return;
+      // PoB i18n window is independent — do not couple to main window visibility
+      if (win.webContents.getURL().includes("/pob.html")) return;
 
       if (visible) {
         // Removed isUserFacingPage: Visibility is now controlled by Preload IPC or Inactive Config
@@ -2515,6 +2518,8 @@ app.on("browser-window-created", (_, window) => {
     const url = window.webContents.getURL();
     // 0. Ignore empty/initial loading to prevent premature closing
     if (!url || url === "about:blank") return;
+    // PoB i18n window — own launcher UI, not a game popup
+    if (url.includes("/pob.html")) return;
 
     const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
     const showInactive = getEffectiveConfig("show_inactive_windows") === true;
@@ -2733,8 +2738,9 @@ app.whenReady().then(async () => {
   // Register Font IPC Handlers early to avoid race conditions
   FontIpcHandler.register();
 
-  // Register PoB launcher IPC handlers (PR-1 mock locator)
+  // Register PoB launcher + builds IPC handlers
   registerPobLauncherHandlers();
+  registerBuildsHandlers();
 
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

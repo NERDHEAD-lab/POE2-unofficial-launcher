@@ -65,8 +65,7 @@ export const PobLaunchButton: React.FC<PobLaunchButtonProps> = ({
         game={installerGame}
         onClose={() => setInstallerOpen(false)}
         onLocated={() => {
-          // PR-3 에서 새 BrowserWindow 띄우는 흐름 연결.
-          // PR-2 단계: 저장만 됐다는 표시로 모달만 닫음.
+          // main 이 pob:pick-install-location 성공 시 BrowserWindow 를 직접 생성.
           setInstallerOpen(false);
         }}
       />
@@ -74,7 +73,7 @@ export const PobLaunchButton: React.FC<PobLaunchButtonProps> = ({
       <DetectedPathConfirmModal
         payload={detectedPayload}
         onConfirmed={() => {
-          // PR-3 에서 새 BrowserWindow 띄우는 흐름 연결.
+          // main 이 pob:confirm-detected-location 성공 시 BrowserWindow 를 직접 생성.
           setDetectedPayload(null);
         }}
         onReject={() => {

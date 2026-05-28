@@ -98,6 +98,22 @@ export default defineConfig({
         },
       },
       {
+        entry: "src/main/pob-preload.ts",
+        onstart(options) {
+          options.reload();
+        },
+        vite: {
+          define: defines,
+          build: {
+            rollupOptions: {
+              output: {
+                entryFileNames: "[name].js",
+              },
+            },
+          },
+        },
+      },
+      {
         entry: "src/main/kakao/preload.ts",
         onstart(options) {
           options.reload();
@@ -128,6 +144,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        pob: path.resolve(__dirname, "pob.html"),
+      },
     },
   },
   server: {
