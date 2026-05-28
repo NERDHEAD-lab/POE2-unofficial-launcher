@@ -201,6 +201,9 @@ export function assertPobTreeSnapshot(
     assertNumber(node.x, `${path}.x`);
     assertNumber(node.y, `${path}.y`);
     assertNullableString(node.name, `${path}.name`);
+    if (node.statLines !== undefined) {
+      assertStringArray(node.statLines, `${path}.statLines`);
+    }
     assertNullableString(node.type, `${path}.type`);
     assertBoolean(node.alloc, `${path}.alloc`);
     assertBoolean(node.isKeystone, `${path}.isKeystone`);

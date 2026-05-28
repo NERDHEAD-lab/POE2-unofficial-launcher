@@ -82,6 +82,9 @@ describe("PoBSession Imported Build2 contract", () => {
         const tree = await session.treeSnapshot();
         assertPobTreeSnapshot(tree);
         expect(tree.nodes.length).toBeGreaterThan(0);
+        expect(
+          tree.nodes.some((node) => (node.statLines?.length ?? 0) > 0),
+        ).toBe(true);
 
         const items = await session.itemsSnapshot();
         assertPobItemsSnapshot(items);

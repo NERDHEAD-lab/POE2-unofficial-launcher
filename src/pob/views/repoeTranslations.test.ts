@@ -19,6 +19,9 @@ const translations: PobRepoeTranslationsSnapshot = {
   locale: "ko",
   available: true,
   nodeNamesById: { "4": "Shock Chance KO" },
+  nodeStatLinesById: {
+    "4": ["5% increased Shock Chance KO"],
+  },
   itemNamesById: {
     Bramblejack: "Bramblejack KO",
     "Metadata/Items/Armours/BodyArmours/BodyStr1": "Plate Vest KO",
@@ -74,6 +77,7 @@ describe("RePoE renderer translation overlay", () => {
           x: 0,
           y: 0,
           name: "Shock Chance",
+          statLines: ["5% increased Shock Chance"],
           type: null,
           ascendancyName: null,
           isAscendancyStart: false,
@@ -91,7 +95,11 @@ describe("RePoE renderer translation overlay", () => {
     const translated = translateTreeSnapshot(snapshot, translations);
 
     expect(translated.nodes[0].name).toBe("Shock Chance KO");
+    expect(translated.nodes[0].statLines).toEqual([
+      "5% increased Shock Chance KO",
+    ]);
     expect(snapshot.nodes[0].name).toBe("Shock Chance");
+    expect(snapshot.nodes[0].statLines).toEqual(["5% increased Shock Chance"]);
   });
 
   it("translates item and database names while preserving action identifiers", () => {

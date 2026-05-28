@@ -400,6 +400,7 @@ export interface PobTreeNode {
   x: number;
   y: number;
   name: string | null;
+  statLines?: string[];
   type: string | null;
   ascendancyName: string | null;
   isAscendancyStart: boolean;
@@ -794,6 +795,7 @@ export interface PobRepoeTranslationsSnapshot {
   locale: PobRepoeLocale;
   available: boolean;
   nodeNamesById: Record<string, string>;
+  nodeStatLinesById: Record<string, string[]>;
   itemNamesById: Record<string, string>;
   itemNamesByEnglishName: Record<string, string>;
   gemNamesById: Record<string, string>;

@@ -13,6 +13,7 @@ export const EMPTY_REPOE_TRANSLATIONS: PobRepoeTranslationsSnapshot = {
   locale: "ko",
   available: false,
   nodeNamesById: {},
+  nodeStatLinesById: {},
   itemNamesById: {},
   itemNamesByEnglishName: {},
   gemNamesById: {},
@@ -67,6 +68,8 @@ export function translateTreeSnapshot(
     nodes: snapshot.nodes.map((node) => ({
       ...node,
       name: translations.nodeNamesById[String(node.id)] ?? node.name,
+      statLines:
+        translations.nodeStatLinesById[String(node.id)] ?? node.statLines,
     })),
   };
 }

@@ -1315,8 +1315,8 @@ textarea {
 .pob-passive-tree-tooltip {
   position: absolute;
   z-index: 2;
-  max-width: 220px;
-  padding: 6px 8px;
+  max-width: 320px;
+  padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 3px;
   background: rgba(10, 13, 18, 0.94);
@@ -1325,6 +1325,22 @@ textarea {
   line-height: 1.35;
   pointer-events: none;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.pob-passive-tree-tooltip-title {
+  color: #f7d58a;
+  font-weight: 700;
+}
+
+.pob-passive-tree-tooltip-lines {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  color: #d8dfef;
+}
+
+.pob-passive-tree-tooltip-line {
+  white-space: normal;
 }
 
 .pob-passive-tree-legend {

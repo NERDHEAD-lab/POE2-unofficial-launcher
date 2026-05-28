@@ -255,6 +255,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   const [hoveredNode, setHoveredNode] = useState<{
     id: number;
     name: string;
+    statLines: string[];
     x: number;
     y: number;
   } | null>(null);
@@ -895,7 +896,13 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         );
         setHoveredNode(
           node?.name
-            ? { id: node.id, name: node.name, x: node.screenX, y: node.screenY }
+            ? {
+                id: node.id,
+                name: node.name,
+                statLines: node.statLines ?? [],
+                x: node.screenX,
+                y: node.screenY,
+              }
             : null,
         );
       }
@@ -1015,8 +1022,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     hoveredNode === null
       ? undefined
       : {
-          left: Math.max(8, Math.min(size.width - 220, hoveredNode.x + 12)),
-          top: Math.max(8, Math.min(size.height - 48, hoveredNode.y + 12)),
+          left: Math.max(8, Math.min(size.width - 320, hoveredNode.x + 12)),
+          top: Math.max(8, Math.min(size.height - 160, hoveredNode.y + 12)),
         };
   return (
     <div className="pob-passive-tree-pane">
@@ -1079,7 +1086,21 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         />
         {hoveredNode && (
           <div className="pob-passive-tree-tooltip" style={tooltipStyle}>
-            {hoveredNode.name}
+            <div className="pob-passive-tree-tooltip-title">
+              {hoveredNode.name}
+            </div>
+            {hoveredNode.statLines.length > 0 && (
+              <div className="pob-passive-tree-tooltip-lines">
+                {hoveredNode.statLines.map((line, index) => (
+                  <div
+                    className="pob-passive-tree-tooltip-line"
+                    key={`${hoveredNode.id}-${index}-${line}`}
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,4 +1,8 @@
 import { RePoeCache, repoeCache } from "./cache";
+import {
+  passiveTreeTextOverride,
+  type RePoePassiveTreeTextSource,
+} from "./overrides/passiveTreeText";
 
 import type {
   PobRepoeLocale,
@@ -27,10 +31,6 @@ interface RePoeNamedRecord {
   grants_skills?: unknown;
   skill_name?: unknown;
   support_name?: unknown;
-}
-
-interface RePoePassiveTree {
-  passives?: Record<string, RePoeNamedRecord>;
 }
 
 type NameSelector = (record: RePoeNamedRecord) => unknown;
@@ -92,9 +92,9 @@ async function readNamedResource(
 async function readPassiveTree(
   cache: RePoeCache,
   locale: PobRepoeLocale,
-): Promise<RePoePassiveTree | null> {
+): Promise<RePoePassiveTreeTextSource | null> {
   const value = await cache.readJsonResource(locale, PASSIVE_TREE_PATH);
-  return isRecord(value) ? (value as RePoePassiveTree) : null;
+  return isRecord(value) ? (value as RePoePassiveTreeTextSource) : null;
 }
 
 function indexPairedNames(
@@ -190,6 +190,7 @@ function indexSkillNames(
 function hasAnyTranslation(snapshot: PobRepoeTranslationsSnapshot): boolean {
   return [
     snapshot.nodeNamesById,
+    snapshot.nodeStatLinesById,
     snapshot.itemNamesById,
     snapshot.itemNamesByEnglishName,
     snapshot.gemNamesById,
@@ -205,6 +206,7 @@ export function createEmptyRePoeTranslations(
     locale,
     available: false,
     nodeNamesById: {},
+    nodeStatLinesById: {},
     itemNamesById: {},
     itemNamesByEnglishName: {},
     gemNamesById: {},
@@ -244,13 +246,7 @@ export async function loadRePoeTranslations(
     readNamedResource(cache, locale, SKILLS_PATH),
   ]);
 
-  for (const [id, localizedRecord] of Object.entries(
-    localizedTree?.passives ?? {},
-  )) {
-    const localizedName = stringValue(localizedRecord.name);
-    if (!localizedName) continue;
-    snapshot.nodeNamesById[id] = localizedName;
-  }
+  passiveTreeTextOverride.indexSnapshot(snapshot, localizedTree);
 
   const itemSelectors: NameSelector[] = [
     (record) => record.name,

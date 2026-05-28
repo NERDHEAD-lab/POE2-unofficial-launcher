@@ -233,6 +233,31 @@ local function safe_overlay(overlay)
 	return next(out) and out or nil
 end
 
+local function json_nullable_text(value)
+	if type(value) == "string" then
+		return strip_colour_codes(value)
+	end
+	return json.null
+end
+
+local function json_nullable_number(value)
+	if type(value) == "number" then
+		return value
+	end
+	return json.null
+end
+
+local function safe_string_array(value)
+	local out = {}
+	if type(value) == "table" then
+		for _, entry in ipairs(value) do
+			if type(entry) == "string" then
+				out[#out + 1] = strip_colour_codes(entry)
+			end
+		end
+	end
+	return out
+end
 local function tree_snapshot()
 	local spec = current_spec()
 	if not spec or not spec.nodes then
@@ -254,9 +279,10 @@ local function tree_snapshot()
 				id = id,
 				x = node.x,
 				y = node.y,
-				name = strip_colour_codes(node.dn or node.name),
-				type = node.type,
-				ascendancyName = node.ascendancyName,
+				name = json_nullable_text(node.dn or node.name),
+				statLines = safe_string_array(node.sd),
+				type = json_nullable_text(node.type),
+				ascendancyName = json_nullable_text(node.ascendancyName),
 				isAscendancyStart = node.isAscendancyStart and true or false,
 				isKeystone = node.type == "Keystone",
 				isNotable = node.type == "Notable",

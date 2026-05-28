@@ -38,7 +38,11 @@ describe("RePoE translation snapshots", () => {
   it("builds serializable Tree/Items/Skills maps from cached English and Korean resources", async () => {
     await writeResource("ko", "passive_skill_trees/Default.json", {
       passives: {
-        "4": { id: 4, name: "Shock Chance KO" },
+        "4": {
+          id: 4,
+          name: "Shock Chance KO",
+          stats: ["5% increased Shock Chance KO"],
+        },
       },
     });
     await writeResource("en", "uniques.json", {
@@ -96,6 +100,9 @@ describe("RePoE translation snapshots", () => {
 
     expect(snapshot.available).toBe(true);
     expect(snapshot.nodeNamesById["4"]).toBe("Shock Chance KO");
+    expect(snapshot.nodeStatLinesById["4"]).toEqual([
+      "5% increased Shock Chance KO",
+    ]);
     expect(snapshot.itemNamesById.Bramblejack).toBe("Bramblejack KO");
     expect(
       snapshot.itemNamesById["Metadata/Items/Armours/BodyArmours/BodyStr1"],
@@ -118,6 +125,7 @@ describe("RePoE translation snapshots", () => {
       locale: "ko",
       available: false,
       nodeNamesById: {},
+      nodeStatLinesById: {},
       itemNamesById: {},
       gemNamesById: {},
     });
