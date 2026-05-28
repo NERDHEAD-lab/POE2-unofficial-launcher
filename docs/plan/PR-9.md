@@ -12,15 +12,62 @@ D.2 결정의 핵심 — launcher 는 사용자 PoB InstallLocation 을 직접 s
 
 ## 종료 기준
 
-- [ ] ContractValidator 가 smoke test 4단계 모두 수행
-- [ ] PoBVault 세대 관리 (active + 직전 정상본 1개, 총 2 generation 유지)
-- [ ] vault 갱신 흐름: detect → staging 복사 → smoke test → promote 또는 폐기
-- [ ] UI 배너: fallback 모드일 때 BuildListView 상단에 노란 배너 표시
-- [ ] 사용자 설정 토글: "자동 vault 갱신" (기본 ON), "vault generation 개수" (1~5, 기본 2)
+- [x] ContractValidator 가 smoke test 4단계 모두 수행
+- [x] PoBVault 세대 관리 (active + 직전 정상본 1개, 총 2 generation 유지)
+- [x] vault 갱신 흐름: detect → staging 복사 → smoke test → promote 또는 폐기
+- [x] UI fallback indicator: fallback/uninitialized 상태를 PoB titlebar badge 로 표시
+- [x] 사용자 설정 토글: "자동 vault 갱신" (기본 ON), "vault generation 개수" (1~5, 기본 2)
 - [ ] PoB 본체 손상 시뮬레이션 → 자동 fallback 동작 영상 (PR 본문)
-- [ ] vitest: validator + vault 세대 관리 단위 테스트
+- [x] vitest: validator + vault 세대 관리 단위 테스트
 
 ## 작업 항목
+
+## 세부 진행 단계
+
+- [x] **PR-9.1** ContractValidator smoke test contract
+  - `src/main/services/pobVault/validator.ts` 추가
+  - PoB 버전 감지: `manifest.xml` 우선, 없으면 exe mtime/size fallback
+  - smoke test 4단계 계약 구현: ping → fixture build DPS → XML export roundtrip → build-code inflate
+  - 세션 dispose 및 단계별 실패 short-circuit 단위 테스트 추가
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`722b5e7`)
+- [x] **PR-9.2** PoBVault stage/promote generation API
+  - `stageSnapshot()` 및 `PoBVault.stage()` 추가
+  - `promote()` 가 staged snapshot 또는 기존 version 을 받아 active 전환, smoke metadata 기록, generation prune 수행
+  - `rollback()`, `listGenerations()`, `pruneOldest()` 추가
+  - active 보존 prune, staged promote, rollback 단위 테스트 추가
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`6209740`)
+- [x] **PR-9.3** vault update flow orchestration
+  - `PobVaultUpdateFlow` 추가: detect → stage → smoke test → promote/fallback
+  - 자동 갱신 OFF 시 staging 없이 `update-available` 반환
+  - smoke 실패 시 staging 폐기, active 유지, 실패 detail 반환
+  - manifest 없는 설치본에서 exe fallback version 을 stage/promote 에 일관 적용
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`bb1a3dd`)
+- [x] **PR-9.4** vault status IPC + read-only fallback badge
+  - `getPobVaultStatus()` 추가: active vault 와 InstallLocation version 비교
+  - `pob:vault-status` IPC 및 `window.pobAPI.vault.status()` 노출
+  - fallback/uninitialized 상태를 PoB titlebar badge 로 표시
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`12d199b`)
+- [x] **PR-9.5** vault settings contract
+  - `PobSettings` 에 자동 vault 갱신 및 generation limit 추가
+  - `DEFAULT_POB_SETTINGS` 와 정규화 helper 를 공유 모듈로 분리
+  - preload/config 기본값이 같은 계약을 쓰도록 정리
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`fc216d3`)
+- [x] **PR-9.6** vault generations read-only IPC
+  - `getPobVaultGenerations()` 추가: active 여부, metadata, size 를 shared snapshot 으로 매핑
+  - `pob:vault-generations` IPC 및 `window.pobAPI.vault.generations()` 노출
+  - read-only 세대 목록 계약 단위 테스트 추가
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`6aad449`)
+- [x] **PR-9.7** vault settings read-only UI
+  - PoB titlebar 설정 버튼 및 modal 추가
+  - 자동 vault 갱신/세대 수 설정을 `pob.settings` 로 저장
+  - vault generation 목록을 read-only 로 표시
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋 (`c01a2df`)
+- [x] **PR-9.8** vault refresh IPC + default smoke fixture + force refresh UI
+  - `Imported Build2.xml` 기반 기본 smoke fixture 를 production packaging 에 포함
+  - `pob:vault-refresh` IPC 및 `window.pobAPI.vault.refresh()` 노출
+  - 자동 vault 갱신과 설정 modal 의 강제 갱신 버튼 연결
+  - `mainSkillDPS` 가 `FullDPS=0` 에 고정되지 않고 실제 `CombinedDPS` 를 사용하도록 보정
+  - Windows `npm run lint`, `npm test`, `npm run build:check` 통과 후 코드 변경분만 커밋
 
 ### 1. ContractValidator
 

@@ -12,26 +12,29 @@ RePoE CDN 에서 다국어 게임 데이터 (트리 노드 텍스트, 스탯 des
 
 ## 종료 기준
 
-- [ ] PoC-0.2 baseline: 4개 RePoE URL 의 200 응답 확인 (수동 1회)
-- [ ] `packages/pob-repoe` (또는 `src/main/services/pobRepoe/`) 구현
+- [x] PoC-0.2 baseline: 4개 RePoE URL 의 200 응답 확인 (수동 1회)
+- [x] `packages/pob-repoe` (또는 `src/main/services/pobRepoe/`) 구현
   - version.txt 조회 + ETag/Last-Modified 비교
   - 변경 시에만 다국어 리소스 다운로드
-- [ ] 캐시 위치: `app.getPath('userData')/pob-i18n-cache/{locale}/...`
-- [ ] `cache_manifest.json` 스키마 (review §A.1 의 Gemini 초안 §5.B 그대로)
-- [ ] Translator (영문 ID → 한국어 텍스트 매핑) 동작
-- [ ] BuildEditView 의 Tree/Items/Skills 탭에 한국어 텍스트 노출
-- [ ] GitHub Actions `.github/workflows/pob-repoe-cdn-check.yml` 추가, 매일 KST 18:00 cron
-- [ ] CDN 검증 실패 시 Issue 자동 생성 (라벨 `pob-repoe`, `cdn-broken`)
+- [x] 캐시 위치: `app.getPath('userData')/pob-i18n-cache/{locale}/...`
+- [x] `cache_manifest.json` 스키마 (review §A.1 의 Gemini 초안 §5.B 그대로)
+- [x] Translator (영문 ID → 한국어 텍스트 매핑) 동작
+- [x] BuildEditView 의 Tree/Items/Skills 탭에 한국어 텍스트 노출
+- [x] GitHub Actions `.github/workflows/pob-repoe-cdn-check.yml` 추가, 매일 KST 18:00 cron
+- [x] CDN 검증 실패 시 Issue 자동 생성 (라벨 `pob-repoe`, `cdn-broken`)
 
 ## 작업 항목
 
 ### PR-7.1: RePoE 데이터 맵핑 분석 및 자동화 스크립트(Skill) 구축
+- [x] 완료: `.agents/skills/pob-repoe-data` 프로젝트 Skill 추가
+
 - RePoE 페이지를 기반으로 `content.ggpk` 구조와 해당 페이지의 자료구조가 언어별로 어떻게 매핑되어 있고 어떻게 가져올 수 있는지 분석
 - 트리, 아이템, 스킬(접두/접미, 젬, 소켓 등)에 대응하는 "데이터 매핑 지도" 작성
 - 위 지도를 기준으로 데이터를 추출하고 치환하는 Agent Skill을 작성하여 프로젝트에 우선 추가
 - **💡 Hint:** 이후 7.2부터 진행되는 작업은 본 단계에서 작성된 Skill을 적극 활용하여 작업하면 됩니다.
 
 ### PR-7.2: PoC-0.2 baseline (PR 첫 작업)
+- [x] 완료: 4개 URL HEAD 200 확인 + `pobRepoe/cdnBaseline` opt-in 테스트 추가
 
 review §B.1 에 명시. PR 시작 전 수동 실행:
 
@@ -46,6 +49,7 @@ Invoke-WebRequest -Method Head https://ggpk.exposed/version?poe=2
 - 일부 404 → 해당 경로/언어는 자체 사전 트랙으로 분리 + plan §6 트리 행 갱신
 
 ### PR-7.3: repoe-fetcher
+- [x] 완료: `src/main/services/pobRepoe/fetcher.ts` + fetcher 단위 테스트 추가
 
 - 새 파일: `src/main/services/pobRepoe/fetcher.ts`
 - 동작:
@@ -60,6 +64,7 @@ Invoke-WebRequest -Method Head https://ggpk.exposed/version?poe=2
 - 추가 방어: `version.txt` 의 버전 문자열 + `ggpk.exposed/version?poe=2` 의 라이브 버전 일치 시에만 다운로드 (디플로이 지연 회피 — review §A.1 의 Gemini 초안 §5.A 정책 그대로)
 
 ### PR-7.4: cache 매니저
+- [x] 완료: `src/main/services/pobRepoe/cache.ts` + cache manifest/resource 단위 테스트 추가
 
 - 새 파일: `src/main/services/pobRepoe/cache.ts`
 - 저장 위치: `app.getPath('userData')/pob-i18n-cache/{locale}/`
@@ -80,6 +85,7 @@ Invoke-WebRequest -Method Head https://ggpk.exposed/version?poe=2
   ```
 
 ### PR-7.5: Translator
+- [x] 완료: `src/main/services/pobRepoe/translator.ts` + translator 단위 테스트 추가
 
 - 새 파일: `src/main/services/pobRepoe/translator.ts`
 - API:
@@ -95,26 +101,29 @@ Invoke-WebRequest -Method Head https://ggpk.exposed/version?poe=2
 - 매핑 실패 시 → 영문 원문 fallback (사용자가 항상 무언가는 보게)
 
 ### PR-7.6: BuildEditView 통합
+- [x] 완료: cached RePoE 번역 스냅샷 IPC + Tree/Items/Skills 표시 전용 overlay 통합
 
 - PR-6 의 Tree/Items/Skills 탭에서 PoB Lua 가 반환한 영문 ID 를 Translator 거쳐 한국어로 표시
 - 단 사용자가 PoB Lua 에 보내는 값 (검색 쿼리, 아이템 ID) 은 **영문 그대로** (빌드 코드 호환성 유지 — plan §4 결정)
 
 ### PR-7.7: GitHub Actions 주기 검증
+- [x] 완료: daily KST 18:00 workflow + live CDN JSON/overlap opt-in 테스트 + 실패 Issue 생성
 
 - 새 파일: `.github/workflows/pob-repoe-cdn-check.yml`
 - 트리거:
   - `schedule: cron: '0 9 * * *'` (UTC 09:00 = KST 18:00)
   - `workflow_dispatch`
 - 작업:
-  - `npm ci` + `vitest run -t "RePoE CDN"`
+  - `npm ci` + `npm test -- packages/pob-repoe/src/__tests__/cdn-baseline.spec.ts`
   - 실패 시 issue 자동 생성 (`gh issue create` 또는 actions/github-script)
-- 테스트 파일: `src/main/services/pobRepoe/__tests__/cdn-baseline.spec.ts`
+- 테스트 파일: `packages/pob-repoe/src/__tests__/cdn-baseline.spec.ts`
   - 4개 URL 200 확인
   - JSON 파싱 OK
   - 필수 필드 (nodes, connections) 존재
   - 영문 vs 한국어 키 셋 ≥ 80% 일치
 
 ### PR-7.8: ESLint 도메인 분리 룰
+- [x] 완료: `npm run lint`에 `src/pob/i18n/*.json` key domain guard 추가
 
 - i18n JSON (UI 자체 문자열) ↔ RePoE 캐시 (게임 데이터) 혼합 방지
 - 룰:
