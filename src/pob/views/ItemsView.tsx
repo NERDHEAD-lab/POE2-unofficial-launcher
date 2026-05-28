@@ -1,6 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  type ClipboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  isEditablePasteTarget,
+  readItemCopyTextFromClipboard,
+} from "./itemsPaste";
 import { canInspectSlotItem, isVisibleItemSlot } from "./itemsViewSlots";
 import {
   translateItemDbEntries,
@@ -197,6 +207,43 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     }
   };
 
+  const runParseAndAdd = useCallback(
+    async (rawText: string, equip = false): Promise<boolean> => {
+      const api = window.pobAPI;
+      if (!api) {
+        setActionState({ status: "error", reason: "pobAPI unavailable" });
+        return false;
+      }
+
+      setActionState({ status: "running" });
+      const result = await api.session.itemsParseAndAdd({ rawText, equip });
+      if (result.status === "ok") {
+        setState({ status: "ready", snapshot: result.snapshot });
+        setActionState({ status: "idle" });
+        onMutated();
+        return true;
+      }
+
+      setActionState({ status: "error", reason: result.reason });
+      return false;
+    },
+    [onMutated],
+  );
+
+  const handleItemsPaste = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>): void => {
+      if (busy || isEditablePasteTarget(event.target)) return;
+      const rawText = readItemCopyTextFromClipboard(
+        event.clipboardData.getData("text/plain"),
+      );
+      if (!rawText) return;
+
+      event.preventDefault();
+      void runParseAndAdd(rawText);
+    },
+    [busy, runParseAndAdd],
+  );
+
   const selectedCustomId =
     selectedItemRef?.source === "custom" ? selectedItemRef.id : null;
   const selectedSharedIndex =
@@ -219,7 +266,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   }
 
   return (
-    <div className="pob-items">
+    <div className="pob-items" tabIndex={0} onPaste={handleItemsPaste}>
       <div className="pob-items-toolbar">
         <label className="pob-items-set">
           <span>{t("buildEdit.items.setLabel")}</span>
@@ -420,11 +467,8 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
                 className="pob-button"
                 disabled={busy || !customRaw.trim()}
                 onClick={() => {
-                  void runAction({
-                    type: "createCustom",
-                    raw: customRaw,
-                    equip: false,
-                  }).then(() => {
+                  void runParseAndAdd(customRaw).then((ok) => {
+                    if (!ok) return;
                     setCustomEditorOpen(false);
                     setCustomRaw("");
                   });

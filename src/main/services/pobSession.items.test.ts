@@ -65,4 +65,21 @@ describe("PoBSession Items RPC", () => {
     expect(call).toHaveBeenCalledTimes(1);
     expect(call).toHaveBeenCalledWith("pob.items.action", action);
   });
+
+  it("adds parsed custom item text through the existing createCustom action", async () => {
+    const session = new PoBSession({ installLocation: "C:\\PoB" });
+    const call = vi.spyOn(session, "call").mockResolvedValue(emptySnapshot);
+    const englishText = "Rarity: Normal\nWrapped Quarterstaff";
+
+    await expect(session.itemsParseAndAdd(englishText, true)).resolves.toBe(
+      emptySnapshot,
+    );
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call).toHaveBeenCalledWith("pob.items.action", {
+      type: "createCustom",
+      raw: englishText,
+      equip: true,
+    });
+  });
 });

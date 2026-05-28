@@ -384,6 +384,15 @@ export interface PobLoadBuildRequest {
   name?: string;
 }
 
+export interface PobLoadBuildCodeRequest {
+  code: string;
+  name?: string;
+}
+
+export type PobExportBuildCodeResult =
+  | { status: "ok"; code: string }
+  | { status: "error"; reason: string };
+
 export interface PobTreeNode {
   id: number;
   x: number;
@@ -529,6 +538,46 @@ export interface PobItemsDbList {
 export type PobItemsDbListResult =
   | { status: "ok"; list: PobItemsDbList }
   | { status: "error"; reason: string };
+
+export type PobItemCopyLocale = Extract<PobRepoeLocale, "en" | "ko">;
+
+export interface PobItemsParseCopyTextRequest {
+  rawText: string;
+  localeHint?: PobItemCopyLocale;
+}
+
+export type PobItemsParseCopyTextResult =
+  | {
+      status: "ok";
+      locale: PobItemCopyLocale;
+      englishText: string;
+      warnings: string[];
+    }
+  | {
+      status: "error";
+      locale: PobItemCopyLocale;
+      reason: string;
+      originalText: string;
+    };
+
+export interface PobItemsParseAndAddRequest extends PobItemsParseCopyTextRequest {
+  equip: boolean;
+}
+
+export type PobItemsParseAndAddResult =
+  | {
+      status: "ok";
+      snapshot: PobItemsSnapshot;
+      locale: PobItemCopyLocale;
+      englishText: string;
+      warnings: string[];
+    }
+  | {
+      status: "error";
+      locale: PobItemCopyLocale;
+      reason: string;
+      originalText: string;
+    };
 
 export type PobSkillGemColor = PobOriginalSkillGemColor;
 
@@ -927,8 +976,12 @@ export type PobConfigAction =
 export interface PobSessionAPI {
   ensure: () => Promise<PobSessionResult>;
   loadBuild: (request: PobLoadBuildRequest) => Promise<PobLoadBuildResult>;
+  loadBuildCode: (
+    request: PobLoadBuildCodeRequest,
+  ) => Promise<PobLoadBuildResult>;
   newBuild: (name?: string) => Promise<PobLoadBuildResult>;
   saveBuildXml: () => Promise<PobSaveBuildResult>;
+  exportBuildCode: () => Promise<PobExportBuildCodeResult>;
   treeSnapshot: () => Promise<PobTreeResult>;
   treeMetadata: () => Promise<PobTreeMetadataResult>;
   treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
@@ -939,6 +992,12 @@ export interface PobSessionAPI {
   itemsSnapshot: () => Promise<PobItemsSnapshotResult>;
   itemsDbList: (db: PobItemsDbKey) => Promise<PobItemsDbListResult>;
   itemsAction: (action: PobItemsAction) => Promise<PobItemsSnapshotResult>;
+  itemsParseCopyText: (
+    request: PobItemsParseCopyTextRequest,
+  ) => Promise<PobItemsParseCopyTextResult>;
+  itemsParseAndAdd: (
+    request: PobItemsParseAndAddRequest,
+  ) => Promise<PobItemsParseAndAddResult>;
   skillsSnapshot: () => Promise<PobSkillsSnapshotResult>;
   skillsAction: (action: PobSkillsAction) => Promise<PobSkillsSnapshotResult>;
   calcsSnapshot: () => Promise<PobCalcsSnapshotResult>;

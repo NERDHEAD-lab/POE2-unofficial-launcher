@@ -4,6 +4,11 @@ import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  decodePobBuildCodeXml,
+  encodePobBuildCodeXml,
+} from "./pobRepoe/buildCode";
+import { parseItemCopyText } from "./pobRepoe/itemCopyParser";
 import { PoBSession } from "./pobSession";
 import {
   assertPobCalcsSnapshot,
@@ -128,6 +133,120 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(calcsText).not.toContain("haos:");
         expect(calcsText).not.toContain("-%");
         expect(calcsText).not.toContain("- to -");
+      } finally {
+        await session.dispose();
+      }
+    },
+    180_000,
+  );
+
+  runIfPobSourceAvailable(
+    "exports Imported Build2 as a direct PoB build code that can be re-imported",
+    async () => {
+      const xml = await fsp.readFile(importedBuildPath, "utf8");
+      const sourceCode = encodePobBuildCodeXml(xml);
+      const session = new PoBSession({
+        installLocation: sourceRoot,
+        resourceRoot: path.resolve("resources", "lua"),
+        vault: staticVault(sourceRoot),
+      });
+      let exportedCode: string | undefined;
+
+      try {
+        const loaded = await session.loadBuildCode(
+          sourceCode,
+          "Imported Build2 code",
+        );
+        expect(loaded.ok).toBe(true);
+
+        const exported = await session.exportBuildCode();
+        exportedCode = exported.code;
+        expect(decodePobBuildCodeXml(exported.code)).toContain(
+          "<PathOfBuilding2",
+        );
+      } finally {
+        await session.dispose();
+      }
+      expect(exportedCode).toBeDefined();
+      if (!exportedCode) return;
+
+      const reimported = new PoBSession({
+        installLocation: sourceRoot,
+        resourceRoot: path.resolve("resources", "lua"),
+        vault: staticVault(sourceRoot),
+      });
+
+      try {
+        const reloaded = await reimported.loadBuildCode(
+          exportedCode,
+          "Reimported Imported Build2 code",
+        );
+        expect(reloaded.ok).toBe(true);
+
+        const tree = await reimported.treeSnapshot();
+        assertPobTreeSnapshot(tree);
+        expect(tree.nodes.length).toBeGreaterThan(0);
+
+        const items = await reimported.itemsSnapshot();
+        assertPobItemsSnapshot(items);
+        expect(items.items.length + items.sharedItems.length).toBeGreaterThan(
+          0,
+        );
+
+        const skills = await reimported.skillsSnapshot();
+        assertPobSkillsSnapshot(skills);
+        expect(skills.groups.length).toBeGreaterThan(0);
+
+        const calcs = await reimported.calcsSnapshot();
+        assertPobCalcsSnapshot(calcs);
+        expect(calcs.sections.length).toBeGreaterThan(0);
+      } finally {
+        await reimported.dispose();
+      }
+    },
+    180_000,
+  );
+
+  runIfPobSourceAvailable(
+    "accepts parser-normalized Korean item copy text through the Lua item path",
+    async () => {
+      const parsed = parseItemCopyText({
+        rawText: ["아이템 희귀도: 일반", "감싼 육척봉"].join("\n"),
+        data: {
+          en: {
+            baseItems: {
+              wrappedQuarterstaff: { display_name: "Wrapped Quarterstaff" },
+            },
+          },
+          ko: {
+            baseItems: {
+              wrappedQuarterstaff: { display_name: "감싼 육척봉" },
+            },
+          },
+        },
+      });
+
+      expect(parsed.status).toBe("ok");
+      if (parsed.status !== "ok") return;
+
+      const session = new PoBSession({
+        installLocation: sourceRoot,
+        resourceRoot: path.resolve("resources", "lua"),
+        vault: staticVault(sourceRoot),
+      });
+
+      try {
+        await session.newBuild("Item copy parser");
+        const snapshot = await session.itemsParseAndAdd(parsed.englishText);
+
+        expect(snapshot.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: "Wrapped Quarterstaff",
+              baseName: "Wrapped Quarterstaff",
+            }),
+          ]),
+        );
       } finally {
         await session.dispose();
       }

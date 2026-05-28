@@ -4,6 +4,12 @@ import * as zlib from "node:zlib";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
+import {
+  decodePobBuildCodeXml,
+  encodePobBuildCodeXml,
+} from "./pobRepoe/buildCode";
+import { parseItemCopyText } from "./pobRepoe/itemCopyParser";
+import { loadItemCopyParserData } from "./pobRepoe/itemCopyParserData";
 import { loadRePoeTranslations } from "./pobRepoe/translations";
 import { PoBVault, pobVault } from "./pobVault";
 import {
@@ -16,11 +22,17 @@ import {
   PobConfigAction,
   PobConfigSnapshot,
   PobConfigSnapshotResult,
+  PobExportBuildCodeResult,
   PobGame,
+  PobItemCopyLocale,
   PobItemsAction,
   PobItemsDbKey,
   PobItemsDbList,
   PobItemsDbListResult,
+  PobItemsParseAndAddRequest,
+  PobItemsParseAndAddResult,
+  PobItemsParseCopyTextRequest,
+  PobItemsParseCopyTextResult,
   PobItemsSnapshot,
   PobItemsSnapshotResult,
   PobLoadBuildResult,
@@ -83,6 +95,10 @@ export interface PobExportBuildXmlResult {
   xml: string;
 }
 
+export interface PobExportBuildCodeSessionResult {
+  code: string;
+}
+
 export interface PoBSessionOptions {
   game?: PobGame;
   installLocation?: string;
@@ -102,6 +118,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const isPobRepoeLocale = (value: unknown): value is PobRepoeLocale =>
+  value === "en" || value === "ko";
+
+const isPobItemCopyLocale = (value: unknown): value is PobItemCopyLocale =>
   value === "en" || value === "ko";
 
 export const inflateRawBase64 = (data: string): string =>
@@ -191,12 +210,24 @@ export class PoBSession {
     return this.call<PobLoadBuildXmlResult>("pob.loadBuildXml", { xml, name });
   }
 
+  loadBuildCode(
+    code: string,
+    name = "Imported build code",
+  ): Promise<PobLoadBuildXmlResult> {
+    return this.loadBuildXml(decodePobBuildCodeXml(code), name);
+  }
+
   newBuild(name = "New build"): Promise<PobLoadBuildXmlResult> {
     return this.call<PobLoadBuildXmlResult>("pob.newBuild", { name });
   }
 
   exportBuildXml(): Promise<PobExportBuildXmlResult> {
     return this.call<PobExportBuildXmlResult>("pob.exportBuildXml");
+  }
+
+  async exportBuildCode(): Promise<PobExportBuildCodeSessionResult> {
+    const result = await this.exportBuildXml();
+    return { code: encodePobBuildCodeXml(result.xml) };
   }
 
   saveBuildXml(): Promise<PobExportBuildXmlResult> {
@@ -225,6 +256,13 @@ export class PoBSession {
 
   itemsAction(action: PobItemsAction): Promise<PobItemsSnapshot> {
     return this.call<PobItemsSnapshot>("pob.items.action", action);
+  }
+
+  itemsParseAndAdd(
+    englishText: string,
+    equip = false,
+  ): Promise<PobItemsSnapshot> {
+    return this.itemsAction({ type: "createCustom", raw: englishText, equip });
   }
 
   skillsSnapshot(): Promise<PobSkillsSnapshot> {
@@ -526,6 +564,34 @@ const toSessionError = (err: unknown): { status: "error"; reason: string } => ({
   reason: errorMessage(err),
 });
 
+const readItemCopyParseRequest = (
+  request: unknown,
+): PobItemsParseCopyTextRequest => {
+  if (!isRecord(request) || typeof request.rawText !== "string") {
+    throw new Error("item copy parser requires rawText");
+  }
+  if (
+    request.localeHint !== undefined &&
+    !isPobItemCopyLocale(request.localeHint)
+  ) {
+    throw new Error("item copy parser requires localeHint = en|ko");
+  }
+  return {
+    rawText: request.rawText,
+    localeHint: request.localeHint,
+  };
+};
+
+const readItemCopyParseAndAddRequest = (
+  request: unknown,
+): PobItemsParseAndAddRequest => {
+  const parseRequest = readItemCopyParseRequest(request);
+  return {
+    ...parseRequest,
+    equip: isRecord(request) && request.equip === true,
+  };
+};
+
 export function registerPobSessionHandlers(): void {
   ipcMain.handle(
     "pob:session-ensure",
@@ -562,6 +628,29 @@ export function registerPobSessionHandlers(): void {
   );
 
   ipcMain.handle(
+    "pob:load-build-code",
+    async (event, request: unknown): Promise<PobLoadBuildResult> => {
+      try {
+        if (!isRecord(request) || typeof request.code !== "string") {
+          throw new Error("pob:load-build-code requires code");
+        }
+        const summary = await getPobSession(
+          getGameFromSender(event),
+        ).loadBuildCode(
+          request.code,
+          typeof request.name === "string"
+            ? request.name
+            : "Imported build code",
+        );
+        return { status: "ok", summary };
+      } catch (err) {
+        logger.warn("[PoBSession] load-build-code failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
     "pob:new-build",
     async (event, name: unknown): Promise<PobLoadBuildResult> => {
       try {
@@ -586,6 +675,21 @@ export function registerPobSessionHandlers(): void {
         return { status: "ok", xml: result.xml };
       } catch (err) {
         logger.warn("[PoBSession] save-build-xml failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:export-build-code",
+    async (event): Promise<PobExportBuildCodeResult> => {
+      try {
+        const result = await getPobSession(
+          getGameFromSender(event),
+        ).exportBuildCode();
+        return { status: "ok", code: result.code };
+      } catch (err) {
+        logger.warn("[PoBSession] export-build-code failed:", err);
         return toSessionError(err);
       }
     },
@@ -701,6 +805,51 @@ export function registerPobSessionHandlers(): void {
       } catch (err) {
         logger.warn("[PoBSession] items-action failed:", err);
         return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:items-parse-copy-text",
+    async (_event, request: unknown): Promise<PobItemsParseCopyTextResult> => {
+      try {
+        const parseRequest = readItemCopyParseRequest(request);
+        const data = await loadItemCopyParserData();
+        return parseItemCopyText({ ...parseRequest, data });
+      } catch (err) {
+        logger.warn("[PoBSession] items-parse-copy-text failed:", err);
+        return {
+          status: "error",
+          locale: "en",
+          reason: errorMessage(err),
+          originalText: isRecord(request) ? String(request.rawText ?? "") : "",
+        };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:items-parse-and-add",
+    async (event, request: unknown): Promise<PobItemsParseAndAddResult> => {
+      try {
+        const parseRequest = readItemCopyParseAndAddRequest(request);
+        const data = await loadItemCopyParserData();
+        const parsed = parseItemCopyText({ ...parseRequest, data });
+        if (parsed.status === "error") {
+          return parsed;
+        }
+        const snapshot = await getPobSession(
+          getGameFromSender(event),
+        ).itemsParseAndAdd(parsed.englishText, parseRequest.equip);
+        return { ...parsed, status: "ok", snapshot };
+      } catch (err) {
+        logger.warn("[PoBSession] items-parse-and-add failed:", err);
+        return {
+          status: "error",
+          locale: "en",
+          reason: errorMessage(err),
+          originalText: isRecord(request) ? String(request.rawText ?? "") : "",
+        };
       }
     },
   );

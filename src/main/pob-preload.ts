@@ -7,6 +7,9 @@ import type {
   PobGame,
   PobItemsAction,
   PobItemsDbKey,
+  PobItemsParseAndAddRequest,
+  PobItemsParseCopyTextRequest,
+  PobLoadBuildCodeRequest,
   PobLoadBuildRequest,
   PobRepoeLocale,
   PobSettings,
@@ -91,8 +94,11 @@ contextBridge.exposeInMainWorld("pobAPI", {
     ensure: () => ipcRenderer.invoke("pob:session-ensure"),
     loadBuild: (request: PobLoadBuildRequest) =>
       ipcRenderer.invoke("pob:load-build", request),
+    loadBuildCode: (request: PobLoadBuildCodeRequest) =>
+      ipcRenderer.invoke("pob:load-build-code", request),
     newBuild: (name?: string) => ipcRenderer.invoke("pob:new-build", name),
     saveBuildXml: () => ipcRenderer.invoke("pob:save-build-xml"),
+    exportBuildCode: () => ipcRenderer.invoke("pob:export-build-code"),
     treeSnapshot: () => ipcRenderer.invoke("pob:tree-snapshot"),
     treeMetadata: () => ipcRenderer.invoke("pob:tree-metadata"),
     treeAllocate: (nodeId: number) =>
@@ -106,6 +112,10 @@ contextBridge.exposeInMainWorld("pobAPI", {
       ipcRenderer.invoke("pob:items-db-list", db),
     itemsAction: (action: PobItemsAction) =>
       ipcRenderer.invoke("pob:items-action", action),
+    itemsParseCopyText: (request: PobItemsParseCopyTextRequest) =>
+      ipcRenderer.invoke("pob:items-parse-copy-text", request),
+    itemsParseAndAdd: (request: PobItemsParseAndAddRequest) =>
+      ipcRenderer.invoke("pob:items-parse-and-add", request),
     skillsSnapshot: () => ipcRenderer.invoke("pob:skills-snapshot"),
     skillsAction: (action: PobSkillsAction) =>
       ipcRenderer.invoke("pob:skills-action", action),

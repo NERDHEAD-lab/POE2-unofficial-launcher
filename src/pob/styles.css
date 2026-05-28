@@ -1167,6 +1167,10 @@ textarea {
   overflow: auto;
 }
 
+.pob-items:focus {
+  outline: none;
+}
+
 .pob-items-toolbar {
   display: flex;
   flex-wrap: wrap;
