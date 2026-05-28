@@ -29,6 +29,11 @@
       to: "assets",
       filter: ["**/*"],
     },
+    {
+      from: "resources/lua",
+      to: "lua",
+      filter: ["**/*"],
+    },
   ],
   publish: {
     provider: "github",
