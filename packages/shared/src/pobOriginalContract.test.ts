@@ -4,8 +4,11 @@ import {
   assertPobBuildMetadataActionResult,
   assertPobBuildMetadataSnapshot,
   assertPobCalcsBreakdown,
+  assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
   assertPobPartySnapshot,
+  assertPobSkillsGemTooltip,
+  assertPobTreeNodeTooltip,
   assertPobTreeSnapshot,
 } from "./pobOriginalContract";
 
@@ -151,6 +154,92 @@ describe("pobOriginalContract strict shape assertions", () => {
     };
 
     expect(() => assertPobMainSkillSummarySnapshot(snapshot)).not.toThrow();
+  });
+
+  it("validates tree node tooltip projection shape", () => {
+    const tooltip = {
+      nodeId: 123,
+      header: "NOTABLE",
+      lines: [
+        { kind: "line", text: "Mindful Awareness", colour: null, size: 24 },
+        { kind: "separator", text: "", colour: null, size: 14 },
+        {
+          kind: "line",
+          text: "Unallocating this node will give you:",
+          colour: "NORMAL",
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "-56 Deflection Rating",
+          colour: "NEGATIVE",
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "9,267 Gold required to unallocate these nodes",
+          colour: "GOLD",
+          size: 14,
+        },
+      ],
+    };
+
+    expect(() => assertPobTreeNodeTooltip(tooltip)).not.toThrow();
+  });
+
+  it("validates skills gem tooltip projection shape", () => {
+    const tooltip = {
+      groupIndex: 1,
+      gemIndex: 2,
+      mode: "gem",
+      header: "GEM",
+      lines: [
+        { kind: "line", text: "Lightning Attunement", colour: "GEM", size: 20 },
+        { kind: "separator", text: "", colour: null, size: 10 },
+        { kind: "line", text: "Support", colour: "NORMAL", size: 16 },
+        {
+          kind: "line",
+          text: "Supported Attacks Gain 25% of Damage as Extra Lightning Damage",
+          colour: "MAGIC",
+          size: 16,
+        },
+      ],
+    };
+
+    expect(() => assertPobSkillsGemTooltip(tooltip)).not.toThrow();
+  });
+
+  it("validates items tooltip projection shape", () => {
+    const tooltip = {
+      source: "db",
+      itemId: "Mahuxotl's Machination",
+      db: "uniqueDB",
+      slotName: null,
+      header: "UNIQUE",
+      lines: [
+        {
+          kind: "line",
+          text: "Mahuxotl's Machination",
+          colour: "UNIQUE",
+          size: 20,
+        },
+        { kind: "separator", text: "", colour: null, size: 10 },
+        {
+          kind: "line",
+          text: "Exclusive to: Trial of Chaos",
+          colour: "NEGATIVE",
+          size: 16,
+        },
+        {
+          kind: "line",
+          text: "Tip: Press Ctrl+D to disable the display of stat differences.",
+          colour: "TIP",
+          size: 14,
+        },
+      ],
+    };
+
+    expect(() => assertPobItemsTooltip(tooltip)).not.toThrow();
   });
 
   it("validates party projection shape", () => {

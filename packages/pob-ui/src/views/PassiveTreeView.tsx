@@ -11,7 +11,9 @@ import { useTranslation } from "react-i18next";
 import type {
   PobRepoeTranslationsSnapshot,
   PobTreeNode,
+  PobTreeNodeTooltip,
   PobTreeSnapshot,
+  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -126,6 +128,16 @@ const nodeColor = (node: PobTreeNode): string => {
   if (node.isSocket) return "#118ab2";
   if (node.isMastery) return "#9d4edd";
   return "#5b6b78";
+};
+
+const treeTooltipLineClass = (line: PobTreeTooltipLine): string => {
+  const classes = ["pob-passive-tree-tooltip-line"];
+  if (line.size !== null && line.size >= 20) classes.push("is-title");
+  if (line.text === "") classes.push("is-empty");
+  if (line.colour !== null) {
+    classes.push(`is-colour-${line.colour.toLowerCase()}`);
+  }
+  return classes.join(" ");
 };
 
 type TreeImage = HTMLImageElement | HTMLCanvasElement;
@@ -258,6 +270,10 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     statLines: string[];
     x: number;
     y: number;
+  } | null>(null);
+  const [hoverTooltip, setHoverTooltip] = useState<{
+    nodeId: number;
+    tooltip: PobTreeNodeTooltip | null;
   } | null>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [busy, setBusy] = useState(false);
@@ -812,6 +828,36 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     [busy],
   );
 
+  useEffect(() => {
+    const nodeId = hoveredNode?.id ?? null;
+    if (nodeId === null) {
+      return;
+    }
+
+    const api = window.pobAPI;
+    if (!api) return;
+
+    let cancelled = false;
+    void api.session
+      .treeNodeTooltip(nodeId)
+      .then((result) => {
+        if (cancelled) return;
+        setHoverTooltip({
+          nodeId,
+          tooltip: result.status === "ok" ? result.tooltip : null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHoverTooltip({ nodeId, tooltip: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hoveredNode?.id]);
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (event.button !== 0) return;
@@ -1018,12 +1064,16 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
 
   const snapshot = translateTreeSnapshot(state.snapshot, translations);
   const zoomPercent = Math.round(zoomFromLevel(view.zoomLevel) * 100);
+  const richTooltip =
+    hoveredNode !== null && hoverTooltip?.nodeId === hoveredNode.id
+      ? hoverTooltip.tooltip
+      : null;
   const tooltipStyle =
     hoveredNode === null
       ? undefined
       : {
-          left: Math.max(8, Math.min(size.width - 320, hoveredNode.x + 12)),
-          top: Math.max(8, Math.min(size.height - 160, hoveredNode.y + 12)),
+          left: Math.max(8, Math.min(size.width - 456, hoveredNode.x + 12)),
+          top: Math.max(8, Math.min(size.height - 420, hoveredNode.y + 12)),
         };
   return (
     <div className="pob-passive-tree-pane">
@@ -1086,20 +1136,40 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         />
         {hoveredNode && (
           <div className="pob-passive-tree-tooltip" style={tooltipStyle}>
-            <div className="pob-passive-tree-tooltip-title">
-              {hoveredNode.name}
-            </div>
-            {hoveredNode.statLines.length > 0 && (
-              <div className="pob-passive-tree-tooltip-lines">
-                {hoveredNode.statLines.map((line, index) => (
+            {richTooltip ? (
+              richTooltip.lines.map((line, index) =>
+                line.kind === "separator" ? (
                   <div
-                    className="pob-passive-tree-tooltip-line"
-                    key={`${hoveredNode.id}-${index}-${line}`}
+                    className="pob-passive-tree-tooltip-separator"
+                    key={`${hoveredNode.id}-separator-${index}`}
+                  />
+                ) : (
+                  <div
+                    className={treeTooltipLineClass(line)}
+                    key={`${hoveredNode.id}-line-${index}-${line.text}`}
                   >
-                    {line}
+                    {line.text}
                   </div>
-                ))}
-              </div>
+                ),
+              )
+            ) : (
+              <>
+                <div className="pob-passive-tree-tooltip-title">
+                  {hoveredNode.name}
+                </div>
+                {hoveredNode.statLines.length > 0 && (
+                  <div className="pob-passive-tree-tooltip-lines">
+                    {hoveredNode.statLines.map((line, index) => (
+                      <div
+                        className="pob-passive-tree-tooltip-line"
+                        key={`${hoveredNode.id}-${index}-${line}`}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

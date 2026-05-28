@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { PobSkillsSnapshot } from "@poe2-launcher/shared/types";
+import type {
+  PobSkillsGemTooltip,
+  PobSkillsSnapshot,
+} from "@poe2-launcher/shared/types";
 
 import { PoBSession } from "./session";
 
@@ -38,6 +41,14 @@ const emptySnapshot: PobSkillsSnapshot = {
   },
 };
 
+const emptyTooltip: PobSkillsGemTooltip = {
+  groupIndex: 1,
+  gemIndex: 2,
+  mode: "gem",
+  header: "GEM",
+  lines: [],
+};
+
 describe("PoBSession Skills RPC", () => {
   it("requests the active build skills snapshot", async () => {
     const session = new PoBSession({ installLocation: "C:\\PoB" });
@@ -63,5 +74,21 @@ describe("PoBSession Skills RPC", () => {
 
     expect(call).toHaveBeenCalledTimes(1);
     expect(call).toHaveBeenCalledWith("pob.skills.action", action);
+  });
+
+  it("requests gem tooltip payloads by group, gem, and mode", async () => {
+    const session = new PoBSession({ installLocation: "C:\\PoB" });
+    const call = vi.spyOn(session, "call").mockResolvedValue(emptyTooltip);
+
+    await expect(session.skillsGemTooltip(1, 2, "gem")).resolves.toBe(
+      emptyTooltip,
+    );
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call).toHaveBeenCalledWith("pob.skills.gemTooltip", {
+      groupIndex: 1,
+      gemIndex: 2,
+      mode: "gem",
+    });
   });
 });

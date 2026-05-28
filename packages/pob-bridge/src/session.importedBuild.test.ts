@@ -17,9 +17,12 @@ import {
   assertPobCalcsSnapshot,
   assertPobItemsDbList,
   assertPobItemsSnapshot,
+  assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
   assertPobPartySnapshot,
+  assertPobSkillsGemTooltip,
   assertPobSkillsSnapshot,
+  assertPobTreeNodeTooltip,
   assertPobTreeSnapshot,
   POB_ORIGINAL_CALCS_BUFF_MODE_LABELS,
   POB_ORIGINAL_CALCS_BUFF_MODES,
@@ -193,6 +196,42 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(
           tree.nodes.some((node) => (node.statLines?.length ?? 0) > 0),
         ).toBe(true);
+        const mindfulAwareness = tree.nodes.find(
+          (node) => node.name === "Mindful Awareness",
+        );
+        expect(mindfulAwareness).toBeDefined();
+        if (mindfulAwareness) {
+          const tooltip = await session.treeNodeTooltip(mindfulAwareness.id);
+          assertPobTreeNodeTooltip(tooltip);
+          expect(tooltip.nodeId).toBe(mindfulAwareness.id);
+          const tooltipText = tooltip.lines.map((line) => line.text);
+          expect(tooltipText).toContain("Mindful Awareness");
+          expect(tooltipText).toContain(
+            "Unallocating this node will give you:",
+          );
+          expect(tooltipText).toContain(
+            "Unallocating this node and all nodes depending on it will give you:",
+          );
+          expect(
+            tooltipText.some((line) =>
+              line.includes("Gold required to unallocate these nodes"),
+            ),
+          ).toBe(true);
+          expect(tooltipText).toContain(
+            "Tip: Press Ctrl+D to disable the display of stat differences.",
+          );
+          expect(tooltipText).toContain(
+            "Tip: Press Ctrl+C to copy this node's text.",
+          );
+          expect(tooltip.lines.some((line) => line.colour === "NEGATIVE")).toBe(
+            true,
+          );
+          expect(tooltip.lines.some((line) => line.colour === "GOLD")).toBe(
+            true,
+          );
+          expect(JSON.stringify(tooltip)).not.toContain("^x");
+          expect(JSON.stringify(tooltip)).not.toContain("^7");
+        }
 
         const items = await session.itemsSnapshot();
         assertPobItemsSnapshot(items);
@@ -202,6 +241,27 @@ describe("PoBSession Imported Build2 contract", () => {
         expect(items.items.some((item) => item.raw.includes("Rarity:"))).toBe(
           true,
         );
+        const firstCustomItem = items.items[0];
+        expect(firstCustomItem).toBeDefined();
+        if (firstCustomItem) {
+          const itemTooltip = await session.itemsTooltip({
+            source: "custom",
+            itemId: firstCustomItem.id,
+          });
+          assertPobItemsTooltip(itemTooltip);
+          expect(itemTooltip.header).toBe(firstCustomItem.rarity);
+          const itemTooltipText = itemTooltip.lines.map((line) => line.text);
+          expect(
+            itemTooltipText.some((line) =>
+              line.includes(firstCustomItem.title ?? firstCustomItem.name),
+            ),
+          ).toBe(true);
+          expect(itemTooltipText).toContain(
+            "Tip: Press Ctrl+D to disable the display of stat differences.",
+          );
+          expect(JSON.stringify(itemTooltip)).not.toContain("^x");
+          expect(JSON.stringify(itemTooltip)).not.toContain("^7");
+        }
         for (const dbKey of POB_ORIGINAL_ITEMS_DB_KEYS) {
           const list = await session.itemsDbList(dbKey);
           assertPobItemsDbList(list);
@@ -211,11 +271,109 @@ describe("PoBSession Imported Build2 contract", () => {
           expect(
             list.entries.every((entry) => entry.raw.includes("Rarity:")),
           ).toBe(true);
+          const dbEntry = list.entries.find(
+            (entry) => entry.rarity === "UNIQUE" || dbKey === "rareDB",
+          );
+          expect(dbEntry).toBeDefined();
+          if (dbEntry) {
+            const dbTooltip = await session.itemsTooltip({
+              source: "db",
+              db: dbKey,
+              itemId: dbEntry.id,
+            });
+            assertPobItemsTooltip(dbTooltip);
+            expect(dbTooltip.header).toBe(dbEntry.rarity);
+            expect(
+              dbTooltip.lines.some((line) =>
+                line.text.includes(dbEntry.title ?? dbEntry.name),
+              ),
+            ).toBe(true);
+            expect(JSON.stringify(dbTooltip)).not.toContain("^x");
+            expect(JSON.stringify(dbTooltip)).not.toContain("^7");
+          }
         }
 
         const skills = await session.skillsSnapshot();
         assertPobSkillsSnapshot(skills);
         expect(skills.groups.length).toBeGreaterThan(0);
+        const stormWaveGroup = skills.groups.find((group) =>
+          group.gems.some((gem) => gem.nameSpec === "Storm Wave"),
+        );
+        const stormWave = stormWaveGroup?.gems.find(
+          (gem) => gem.nameSpec === "Storm Wave",
+        );
+        expect(stormWaveGroup).toBeDefined();
+        expect(stormWave).toBeDefined();
+        if (stormWaveGroup && stormWave) {
+          const gemTooltip = await session.skillsGemTooltip(
+            stormWaveGroup.index,
+            stormWave.index,
+            "gem",
+          );
+          assertPobSkillsGemTooltip(gemTooltip);
+          expect(gemTooltip.header).toBe("GEM");
+          const gemTooltipText = gemTooltip.lines.map((line) => line.text);
+          expect(gemTooltipText).toContain("Storm Wave");
+          expect(gemTooltipText).toContain("Level: 18");
+          expect(gemTooltipText).toContain("Quality: +20%");
+          expect(
+            gemTooltipText.some((line) => line.startsWith("Requires ")),
+          ).toBe(true);
+
+          const qualityTooltip = await session.skillsGemTooltip(
+            stormWaveGroup.index,
+            stormWave.index,
+            "quality",
+          );
+          assertPobSkillsGemTooltip(qualityTooltip);
+          expect(qualityTooltip.mode).toBe("quality");
+          expect(qualityTooltip.lines.length).toBeGreaterThan(0);
+
+          const enabledTooltip = await session.skillsGemTooltip(
+            stormWaveGroup.index,
+            stormWave.index,
+            "enabled",
+          );
+          assertPobSkillsGemTooltip(enabledTooltip);
+          expect(enabledTooltip.mode).toBe("enabled");
+          expect(JSON.stringify(enabledTooltip)).not.toContain("^x");
+          expect(JSON.stringify(enabledTooltip)).not.toContain("^7");
+        }
+        const lightningAttunementGroup = skills.groups.find((group) =>
+          group.gems.some((gem) => gem.nameSpec === "Lightning Attunement"),
+        );
+        const lightningAttunement = lightningAttunementGroup?.gems.find(
+          (gem) => gem.nameSpec === "Lightning Attunement",
+        );
+        expect(lightningAttunementGroup).toBeDefined();
+        expect(lightningAttunement).toBeDefined();
+        if (lightningAttunementGroup && lightningAttunement) {
+          const supportTooltip = await session.skillsGemTooltip(
+            lightningAttunementGroup.index,
+            lightningAttunement.index,
+            "gem",
+          );
+          assertPobSkillsGemTooltip(supportTooltip);
+          const supportTooltipText = supportTooltip.lines.map(
+            (line) => line.text,
+          );
+          expect(supportTooltipText).toContain("Lightning Attunement");
+          expect(supportTooltipText).toContain("Support");
+          expect(supportTooltipText).toContain(
+            "Category: Lightning Attunement",
+          );
+          expect(supportTooltipText).toContain("Tier: 1");
+          expect(supportTooltipText).toContain(
+            "Supports Attacks, causing them to Gain Lightning Damage but deal less Cold and Fire Damage.",
+          );
+          expect(
+            supportTooltipText.some((line) =>
+              line.includes("Lightning Damage"),
+            ),
+          ).toBe(true);
+          expect(JSON.stringify(supportTooltip)).not.toContain("^x");
+          expect(JSON.stringify(supportTooltip)).not.toContain("^7");
+        }
 
         const mainSkillSummary = await session.mainSkillSummary();
         assertPobMainSkillSummarySnapshot(mainSkillSummary);

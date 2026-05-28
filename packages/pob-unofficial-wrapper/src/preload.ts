@@ -10,12 +10,14 @@ import type {
   PobItemsDbKey,
   PobItemsParseAndAddRequest,
   PobItemsParseCopyTextRequest,
+  PobItemsTooltipRequest,
   PobLoadBuildCodeRequest,
   PobLoadBuildRequest,
   PobPartyAction,
   PobRepoeLocale,
   PobSettings,
   PobSkillsAction,
+  PobSkillsTooltipMode,
   PobVaultRefreshRequest,
 } from "@poe2-launcher/shared/types";
 
@@ -86,12 +88,16 @@ contextBridge.exposeInMainWorld("pobAPI", {
     mainSkillSummary: () => invoke("pob:main-skill-summary"),
     treeSnapshot: () => invoke("pob:tree-snapshot"),
     treeMetadata: () => invoke("pob:tree-metadata"),
+    treeNodeTooltip: (nodeId: number) =>
+      invoke("pob:tree-node-tooltip", nodeId),
     treeAllocate: (nodeId: number) => invoke("pob:tree-allocate", nodeId),
     treeDeallocate: (nodeId: number) => invoke("pob:tree-deallocate", nodeId),
     repoeTranslations: (locale: PobRepoeLocale) =>
       invoke("pob:repoe-translations", locale),
     itemsSnapshot: () => invoke("pob:items-snapshot"),
     itemsDbList: (db: PobItemsDbKey) => invoke("pob:items-db-list", db),
+    itemsTooltip: (request: PobItemsTooltipRequest) =>
+      invoke("pob:items-tooltip", request),
     itemsAction: (action: PobItemsAction) => invoke("pob:items-action", action),
     itemsParseCopyText: (request: PobItemsParseCopyTextRequest) =>
       invoke("pob:items-parse-copy-text", request),
@@ -100,6 +106,11 @@ contextBridge.exposeInMainWorld("pobAPI", {
     skillsSnapshot: () => invoke("pob:skills-snapshot"),
     skillsAction: (action: PobSkillsAction) =>
       invoke("pob:skills-action", action),
+    skillsGemTooltip: (
+      groupIndex: number,
+      gemIndex: number,
+      mode: PobSkillsTooltipMode,
+    ) => invoke("pob:skills-gem-tooltip", groupIndex, gemIndex, mode),
     calcsSnapshot: () => invoke("pob:calcs-snapshot"),
     calcsBreakdown: (key: string) => invoke("pob:calcs-breakdown", key),
     calcsAction: (action: PobCalcsAction) => invoke("pob:calcs-action", action),

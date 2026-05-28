@@ -1572,6 +1572,257 @@ local function calc_actor(tab)
 	return candidate
 end
 
+local TREE_TOOLTIP_COLOR_KEYS = {
+	"OFFENCE", "DEFENCE", "LIFE", "MANA", "SPIRIT", "ES", "ARMOUR", "EVASION",
+	"FIRE", "COLD", "LIGHTNING", "CHAOS", "POSITIVE", "NEGATIVE", "NORMAL", "PHYS",
+	"RAGE", "ENCHANTED", "RELIC", "TIP", "WARNING",
+	"GEM", "MAGIC", "RARE", "UNIQUE", "CUSTOM", "SOURCE",
+}
+
+local function tooltip_colour_for(raw)
+	if type(raw) ~= "string" then return nil end
+	for _, key in ipairs(TREE_TOOLTIP_COLOR_KEYS) do
+		local code = colorCodes and colorCodes[key]
+		if type(code) == "string" and code ~= "" and raw:sub(1, #code) == code then
+			return key
+		end
+	end
+	local hex = raw:match("^%^x(%x%x%x%x%x%x)")
+	if hex == "FFD700" then return "GOLD" end
+	if hex == "7F7F7F" then return "MUTED" end
+	if raw:sub(1, 2) == "^8" then return "MUTED" end
+	return nil
+end
+
+local function split_tooltip_text(text)
+	local raw = text ~= nil and tostring(text) or ""
+	local lines = {}
+	for line in (raw .. "\n"):gmatch("(.-)\n") do
+		lines[#lines + 1] = line
+	end
+	return lines
+end
+
+local function new_tooltip_recorder()
+	local lines = {}
+	local tooltip = { lines = lines }
+	function tooltip:AddLine(size, text)
+		for _, line in ipairs(split_tooltip_text(text)) do
+			lines[#lines + 1] = {
+				kind = "line",
+				text = strip_colour_codes(line),
+				colour = tooltip_colour_for(line) or json.null,
+				size = nullable_number(size),
+			}
+		end
+	end
+	function tooltip:AddSeparator(size)
+		lines[#lines + 1] = {
+			kind = "separator",
+			text = "",
+			colour = json.null,
+			size = nullable_number(size),
+		}
+	end
+	function tooltip:SetRecipe(recipe)
+		self.recipe = recipe
+	end
+	function tooltip:Clear()
+		for index = #lines, 1, -1 do lines[index] = nil end
+	end
+	function tooltip:CheckForUpdate()
+		return true
+	end
+	return tooltip, lines
+end
+
+local function items_tooltip(params)
+	if type(params) ~= "table" then
+		error("pob.items.tooltip requires params")
+	end
+	local source = params.source
+	if source ~= "custom" and source ~= "shared" and source ~= "db" then
+		error("pob.items.tooltip requires params.source = custom|shared|db")
+	end
+	local tab = items_tab()
+	if not tab then
+		error("No active items tab")
+	end
+	local itemId = params.itemId
+	local item
+	local dbKey = json.null
+	local dbMode = false
+	if source == "custom" then
+		if type(itemId) ~= "number" then
+			error("pob.items.tooltip custom source requires numeric itemId")
+		end
+		item = require_item(tab, itemId)
+	elseif source == "shared" then
+		if type(itemId) ~= "number" then
+			error("pob.items.tooltip shared source requires numeric itemId")
+		end
+		item = main and main.sharedItemList and main.sharedItemList[itemId]
+		if type(item) ~= "table" then
+			error("Unknown shared item: " .. tostring(itemId))
+		end
+	else
+		dbKey = params.db
+		if dbKey ~= "uniqueDB" and dbKey ~= "rareDB" then
+			error("pob.items.tooltip db source requires params.db = uniqueDB|rareDB")
+		end
+		local db = main and main[dbKey]
+		item = db and db.list and (db.list[itemId] or db.list[tostring(itemId)])
+		if type(item) ~= "table" then
+			error("Unknown DB item: " .. tostring(itemId))
+		end
+		itemId = tostring(itemId)
+		dbMode = true
+	end
+
+	sync_build_frame()
+	local b = current_build()
+	if b and b.calcsTab then
+		ensure_calcs_built(b.calcsTab)
+	end
+	local slot = nil
+	local slotName = json.null
+	if type(params.slotName) == "string" and params.slotName ~= "" then
+		slot = require_slot(tab, params.slotName)
+		slotName = params.slotName
+	end
+	local tooltip, lines = new_tooltip_recorder()
+	if type(tab.AddItemTooltip) ~= "function" then
+		error("Item tooltip control is unavailable")
+	end
+	local ok, err = pcall(tab.AddItemTooltip, tab, tooltip, item, slot, dbMode)
+	if not ok then
+		error("Items tooltip failed: " .. tostring(err))
+	end
+	return {
+		source = source,
+		itemId = itemId,
+		db = dbKey,
+		slotName = slotName,
+		header = json_nullable_text(tooltip.tooltipHeader),
+		lines = lines,
+	}
+end
+
+local SKILLS_TOOLTIP_MODES = {
+	gem = true,
+	quality = true,
+	enabled = true,
+}
+
+local function skills_gem_tooltip(groupIndex, gemIndex, mode)
+	if type(groupIndex) ~= "number" then
+		error("pob.skills.gemTooltip requires params.groupIndex")
+	end
+	if type(gemIndex) ~= "number" then
+		error("pob.skills.gemTooltip requires params.gemIndex")
+	end
+	mode = type(mode) == "string" and mode or "gem"
+	if not SKILLS_TOOLTIP_MODES[mode] then
+		error("pob.skills.gemTooltip requires params.mode = gem|quality|enabled")
+	end
+	local tab = skills_tab()
+	if not tab then
+		error("No active skills tab")
+	end
+	sync_build_frame()
+	local b = current_build()
+	if b and b.calcsTab then
+		ensure_calcs_built(b.calcsTab)
+	end
+	local group = require_skill_group(tab, groupIndex)
+	local gem = group.gemList and group.gemList[gemIndex]
+	if type(gem) ~= "table" then
+		error("Unknown gem: " .. tostring(gemIndex))
+	end
+	if type(tab.SetDisplayGroup) == "function" then
+		local ok = pcall(tab.SetDisplayGroup, tab, group)
+		if not ok then
+			tab.displayGroup = group
+			if type(tab.ProcessSocketGroup) == "function" then
+				pcall(tab.ProcessSocketGroup, tab, group)
+			end
+		end
+	elseif type(tab.ProcessSocketGroup) == "function" then
+		tab.displayGroup = group
+		pcall(tab.ProcessSocketGroup, tab, group)
+	end
+
+	local slot = tab.gemSlots and tab.gemSlots[gemIndex]
+	if type(slot) ~= "table" then
+		error("Unknown gem slot: " .. tostring(gemIndex))
+	end
+
+	local tooltip, lines = new_tooltip_recorder()
+	local ok, err
+	if mode == "gem" then
+		if not (slot.nameSpec and type(slot.nameSpec.AddGemTooltip) == "function") then
+			error("Gem tooltip control is unavailable")
+		end
+		slot.nameSpec.tooltip = tooltip
+		ok, err = pcall(slot.nameSpec.AddGemTooltip, slot.nameSpec, gem)
+	elseif mode == "quality" then
+		if not (slot.quality and type(slot.quality.tooltipFunc) == "function") then
+			error("Gem quality tooltip control is unavailable")
+		end
+		ok, err = pcall(slot.quality.tooltipFunc, tooltip)
+	else
+		if not (slot.enabled and type(slot.enabled.tooltipFunc) == "function") then
+			error("Gem enabled tooltip control is unavailable")
+		end
+		ok, err = pcall(slot.enabled.tooltipFunc, tooltip)
+	end
+	if not ok then
+		error("Skills gem tooltip failed: " .. tostring(err))
+	end
+	return {
+		groupIndex = groupIndex,
+		gemIndex = gemIndex,
+		mode = mode,
+		header = json_nullable_text(tooltip.tooltipHeader),
+		lines = lines,
+	}
+end
+
+local function tree_node_tooltip(nodeId)
+	if type(nodeId) ~= "number" then
+		error("pob.tree.nodeTooltip requires params.nodeId")
+	end
+	local b = current_build()
+	local spec = current_spec()
+	if not b or not spec or not spec.nodes then
+		error("No active passive spec")
+	end
+	local node = spec.nodes[nodeId]
+	if type(node) ~= "table" then
+		error("Unknown node: " .. tostring(nodeId))
+	end
+	if b.calcsTab then
+		ensure_calcs_built(b.calcsTab)
+	end
+	if type(spec.BuildAllDependsAndPaths) == "function" then
+		pcall(spec.BuildAllDependsAndPaths, spec)
+	end
+	local viewer = b.treeTab and b.treeTab.viewer
+	if not (viewer and type(viewer.AddNodeTooltip) == "function") then
+		error("Passive tree viewer is unavailable")
+	end
+	local tooltip, lines = new_tooltip_recorder()
+	local ok, err = pcall(viewer.AddNodeTooltip, viewer, tooltip, node, b, 0)
+	if not ok then
+		error("Passive tree tooltip failed: " .. tostring(err))
+	end
+	return {
+		nodeId = nodeId,
+		header = json_nullable_text(tooltip.tooltipHeader),
+		lines = lines,
+	}
+end
+
 local function format_cell_format(section, format, actor, colData)
 	if type(format) ~= "string" or format == "" then
 		return "", nil
@@ -2907,6 +3158,8 @@ local function handle_method(method, params)
 			error("pob.tree.deallocate requires params.nodeId")
 		end
 		return tree_allocate(params.nodeId, "deallocate")
+	elseif method == "pob.tree.nodeTooltip" then
+		return tree_node_tooltip(params.nodeId)
 	elseif method == "pob.items.snapshot" then
 		return items_snapshot()
 	elseif method == "pob.items.dbList" then
@@ -2915,10 +3168,14 @@ local function handle_method(method, params)
 			error("pob.items.dbList requires params.db = uniqueDB|rareDB")
 		end
 		return items_db_list(key)
+	elseif method == "pob.items.tooltip" then
+		return items_tooltip(params)
 	elseif method == "pob.items.action" then
 		return items_action(params)
 	elseif method == "pob.skills.snapshot" then
 		return skills_snapshot()
+	elseif method == "pob.skills.gemTooltip" then
+		return skills_gem_tooltip(params.groupIndex, params.gemIndex, params.mode)
 	elseif method == "pob.skills.action" then
 		return skills_action(params)
 	elseif method == "pob.calcs.snapshot" then

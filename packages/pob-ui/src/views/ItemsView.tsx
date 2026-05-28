@@ -1,8 +1,11 @@
 import {
   type ClipboardEvent,
+  type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,10 +14,13 @@ import type {
   PobItemsAction,
   PobItemsDbKey,
   PobItemsSnapshot,
+  PobItemsTooltip,
+  PobItemsTooltipRequest,
   PobItemDbSummary,
   PobItemSlot,
   PobItemSummary,
   PobRepoeTranslationsSnapshot,
+  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -54,7 +60,7 @@ type CatalogTab = "custom" | PobItemsDbKey;
 type SelectedItemRef =
   | { source: "custom"; id: number }
   | { source: "shared"; id: number }
-  | { source: "db"; id: string };
+  | { source: "db"; id: string; db: PobItemsDbKey };
 
 interface ItemsViewProps {
   active: boolean;
@@ -83,7 +89,79 @@ const isSameSelection = (
   selectedItemRef: SelectedItemRef | null,
   source: SelectedItemRef["source"],
   id: number | string,
-): boolean => selectedItemRef?.source === source && selectedItemRef.id === id;
+  db?: PobItemsDbKey,
+): boolean => {
+  if (selectedItemRef?.source !== source || selectedItemRef.id !== id) {
+    return false;
+  }
+  if (source === "db") {
+    return selectedItemRef.source === "db" && selectedItemRef.db === db;
+  }
+  return true;
+};
+
+type ItemTooltipState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; tooltip: PobItemsTooltip; requestKey?: string }
+  | { status: "error"; reason: string; requestKey?: string };
+
+const itemTooltipLineClass = (line: PobTreeTooltipLine): string => {
+  const classes = ["pob-item-tooltip-line"];
+  if (line.size !== null && line.size >= 20) classes.push("is-title");
+  if (!line.text.trim()) classes.push("is-empty");
+  if (line.colour) classes.push(`is-colour-${line.colour.toLowerCase()}`);
+  return classes.join(" ");
+};
+
+const toTooltipRequest = (
+  ref: SelectedItemRef,
+  slotName?: string | null,
+): PobItemsTooltipRequest => ({
+  source: ref.source,
+  itemId: ref.id,
+  db: ref.source === "db" ? ref.db : null,
+  slotName: slotName ?? null,
+});
+
+function RichItemTooltip({
+  tooltip,
+  floating = false,
+}: {
+  tooltip: PobItemsTooltip;
+  floating?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (tooltip.lines.length === 0) return null;
+  return (
+    <div
+      className={`pob-item-tooltip ${rarityClass(tooltip.header ?? "NORMAL")}${
+        floating ? " is-floating" : ""
+      }`}
+      role={floating ? "tooltip" : undefined}
+    >
+      {tooltip.header && (
+        <div className="pob-item-tooltip-rarity">
+          {formatRarity(t, tooltip.header)}
+        </div>
+      )}
+      <section>
+        {tooltip.lines.map((line, index) =>
+          line.kind === "separator" ? (
+            <div
+              key={`separator-${index}`}
+              className="pob-item-tooltip-separator"
+            />
+          ) : (
+            <div key={`line-${index}`} className={itemTooltipLineClass(line)}>
+              {line.text}
+            </div>
+          ),
+        )}
+      </section>
+    </div>
+  );
+}
 
 export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   const { t } = useTranslation();
@@ -196,14 +274,16 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
         null
       );
     }
-    if (dbEntries) {
+    if (dbEntries && selectedItemRef.db === tab) {
       return dbEntries.find((item) => item.id === selectedItemRef.id) ?? null;
     }
     return null;
-  }, [dbEntries, itemsById, selectedItemRef, snapshot]);
+  }, [dbEntries, itemsById, selectedItemRef, snapshot, tab]);
 
   const selectedItemKey = selectedItemRef
-    ? `${selectedItemRef.source}:${String(selectedItemRef.id)}`
+    ? selectedItemRef.source === "db"
+      ? `db:${selectedItemRef.db}:${selectedItemRef.id}`
+      : `${selectedItemRef.source}:${String(selectedItemRef.id)}`
     : "";
   const detailMode =
     detailModeState.key === selectedItemKey ? detailModeState.mode : "viewer";
@@ -446,10 +526,10 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
         </section>
 
         <aside className="pob-items-detail">
-          {selectedItem ? (
+          {selectedItem && selectedItemRef ? (
             <ItemDetail
               item={selectedItem}
-              source={selectedItemRef?.source ?? "custom"}
+              itemRef={selectedItemRef}
               mode={detailMode}
               rawValue={detailRaw}
               busy={busy}
@@ -865,6 +945,82 @@ interface ItemRowsProps {
   onAction: (action: PobItemsAction) => void;
 }
 
+interface ItemTooltipButtonProps {
+  itemRef: SelectedItemRef;
+  className: string;
+  disabled: boolean;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  onDoubleClick?: () => void;
+  children: ReactNode;
+}
+
+function ItemTooltipButton({
+  itemRef,
+  className,
+  disabled,
+  onClick,
+  onDoubleClick,
+  children,
+}: ItemTooltipButtonProps) {
+  const [tooltipState, setTooltipState] = useState<ItemTooltipState>({
+    status: "idle",
+  });
+  const requestId = useRef(0);
+
+  const showTooltip = () => {
+    const api = window.pobAPI;
+    if (!api) {
+      setTooltipState({ status: "error", reason: "pobAPI unavailable" });
+      return;
+    }
+    const nextRequestId = requestId.current + 1;
+    requestId.current = nextRequestId;
+    setTooltipState({ status: "loading" });
+    void api.session
+      .itemsTooltip(toTooltipRequest(itemRef))
+      .then((result) => {
+        if (requestId.current !== nextRequestId) return;
+        if (result.status === "ok") {
+          setTooltipState({ status: "ready", tooltip: result.tooltip });
+        } else {
+          setTooltipState({ status: "error", reason: result.reason });
+        }
+      })
+      .catch((error: unknown) => {
+        if (requestId.current !== nextRequestId) return;
+        setTooltipState({
+          status: "error",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      });
+  };
+
+  const hideTooltip = () => {
+    requestId.current += 1;
+    setTooltipState({ status: "idle" });
+  };
+
+  return (
+    <div className="pob-items-tooltip-host" onMouseLeave={hideTooltip}>
+      <button
+        type="button"
+        disabled={disabled}
+        className={className}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onFocus={showTooltip}
+        onMouseEnter={showTooltip}
+        onBlur={hideTooltip}
+      >
+        {children}
+      </button>
+      {tooltipState.status === "ready" && (
+        <RichItemTooltip tooltip={tooltipState.tooltip} floating />
+      )}
+    </div>
+  );
+}
+
 function ItemRows({
   items,
   selectedItemRef,
@@ -877,8 +1033,8 @@ function ItemRows({
     <ul className="pob-items-list">
       {items.map((item) => (
         <li key={item.id}>
-          <button
-            type="button"
+          <ItemTooltipButton
+            itemRef={{ source, id: item.id }}
             disabled={busy}
             className={
               `pob-items-row ${rarityClass(item.rarity)}` +
@@ -911,7 +1067,7 @@ function ItemRows({
             <span className="pob-items-row-base">
               {item.baseName ?? item.baseType ?? ""}
             </span>
-          </button>
+          </ItemTooltipButton>
         </li>
       ))}
     </ul>
@@ -920,7 +1076,7 @@ function ItemRows({
 
 interface ItemDetailProps {
   item: PobItemSummary | PobItemDbSummary;
-  source: SelectedItemRef["source"];
+  itemRef: SelectedItemRef;
   mode: ItemDetailMode;
   rawValue: string;
   busy: boolean;
@@ -931,7 +1087,7 @@ interface ItemDetailProps {
 
 function ItemDetail({
   item,
-  source,
+  itemRef,
   mode,
   rawValue,
   busy,
@@ -950,7 +1106,85 @@ function ItemDetail({
     elder: t("buildEdit.items.detail.flag.elder"),
     fractured: t("buildEdit.items.detail.flag.fractured"),
   });
-  const editAction = buildItemDetailEditAction(source, item.id, rawValue);
+  const editAction = buildItemDetailEditAction(
+    itemRef.source,
+    item.id,
+    rawValue,
+  );
+  const [tooltipState, setTooltipState] = useState<ItemTooltipState>({
+    status: "idle",
+  });
+  const requestId = useRef(0);
+  const requestKey =
+    itemRef.source === "db"
+      ? `${itemRef.source}:${itemRef.db}:${itemRef.id}`
+      : `${itemRef.source}:${itemRef.id}`;
+
+  useEffect(() => {
+    if (mode !== "viewer") {
+      requestId.current += 1;
+      return;
+    }
+
+    const api = window.pobAPI;
+    if (!api) {
+      return;
+    }
+
+    const nextRequestId = requestId.current + 1;
+    requestId.current = nextRequestId;
+    void api.session
+      .itemsTooltip(toTooltipRequest(itemRef))
+      .then((result) => {
+        if (requestId.current !== nextRequestId) return;
+        if (result.status === "ok") {
+          setTooltipState({
+            status: "ready",
+            tooltip: result.tooltip,
+            requestKey,
+          });
+        } else {
+          setTooltipState({
+            status: "error",
+            reason: result.reason,
+            requestKey,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (requestId.current !== nextRequestId) return;
+        setTooltipState({
+          status: "error",
+          reason: error instanceof Error ? error.message : String(error),
+          requestKey,
+        });
+      });
+
+    return () => {
+      requestId.current += 1;
+    };
+  }, [itemRef, mode, requestKey]);
+
+  const fallbackTooltip = (
+    <div className={`pob-item-tooltip ${rarityClass(item.rarity)}`}>
+      <div className="pob-item-tooltip-rarity">
+        {formatRarity(t, item.rarity)}
+      </div>
+      {sections.map((section, sectionIndex) => (
+        <section key={section.id} className={`is-${section.id}`}>
+          {sectionIndex > 0 && <div className="pob-item-tooltip-separator" />}
+          {section.lines.map((line, lineIndex) => (
+            <div
+              className={`pob-item-tooltip-line is-${line.tone}`}
+              key={`${section.id}-${lineIndex}-${line.text}`}
+            >
+              {line.text}
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -980,26 +1214,13 @@ function ItemDetail({
       </div>
 
       {mode === "viewer" ? (
-        <div className={`pob-item-tooltip ${rarityClass(item.rarity)}`}>
-          <div className="pob-item-tooltip-rarity">
-            {formatRarity(t, item.rarity)}
-          </div>
-          {sections.map((section, sectionIndex) => (
-            <section key={section.id} className={`is-${section.id}`}>
-              {sectionIndex > 0 && (
-                <div className="pob-item-tooltip-separator" />
-              )}
-              {section.lines.map((line, lineIndex) => (
-                <div
-                  className={`pob-item-tooltip-line is-${line.tone}`}
-                  key={`${section.id}-${lineIndex}-${line.text}`}
-                >
-                  {line.text}
-                </div>
-              ))}
-            </section>
-          ))}
-        </div>
+        tooltipState.status === "ready" &&
+        tooltipState.requestKey === requestKey &&
+        tooltipState.tooltip.lines.length > 0 ? (
+          <RichItemTooltip tooltip={tooltipState.tooltip} />
+        ) : (
+          fallbackTooltip
+        )
       ) : (
         <div className="pob-items-detail-editor">
           <label>
@@ -1030,7 +1251,7 @@ function ItemDetail({
               }}
             >
               {t(
-                source === "custom"
+                itemRef.source === "custom"
                   ? "buildEdit.items.detail.save"
                   : "buildEdit.items.detail.addToBuild",
               )}
@@ -1090,47 +1311,54 @@ function DbList({
   }
   return (
     <ul className="pob-items-db-list">
-      {renderedEntries.map((entry) => (
-        <li key={entry.id}>
-          <button
-            type="button"
-            disabled={busy}
-            className={
-              `pob-items-db-row ${rarityClass(entry.rarity)}` +
-              (isSameSelection(selectedItemRef, "db", entry.id)
-                ? " is-selected"
-                : "")
-            }
-            onClick={(event) => {
-              if (event.ctrlKey) {
+      {renderedEntries.map((entry) => {
+        const itemRef: SelectedItemRef = {
+          source: "db",
+          id: entry.id,
+          db: dbKey,
+        };
+        return (
+          <li key={entry.id}>
+            <ItemTooltipButton
+              itemRef={itemRef}
+              disabled={busy}
+              className={
+                `pob-items-db-row ${rarityClass(entry.rarity)}` +
+                (isSameSelection(selectedItemRef, "db", entry.id, dbKey)
+                  ? " is-selected"
+                  : "")
+              }
+              onClick={(event) => {
+                if (event.ctrlKey) {
+                  onAction({
+                    type: "addDbItem",
+                    db: dbKey,
+                    itemId: entry.id,
+                    equip: true,
+                  });
+                  return;
+                }
+                onSelect(itemRef);
+              }}
+              onDoubleClick={() =>
                 onAction({
                   type: "addDbItem",
                   db: dbKey,
                   itemId: entry.id,
-                  equip: true,
-                });
-                return;
+                  equip: false,
+                })
               }
-              onSelect({ source: "db", id: entry.id });
-            }}
-            onDoubleClick={() =>
-              onAction({
-                type: "addDbItem",
-                db: dbKey,
-                itemId: entry.id,
-                equip: false,
-              })
-            }
-          >
-            <span className="pob-items-db-row-name">{entry.name}</span>
-            <span className="pob-items-db-row-base">
-              {entry.baseName ??
-                entry.baseType ??
-                formatRarityLabel(entry.rarity)}
-            </span>
-          </button>
-        </li>
-      ))}
+            >
+              <span className="pob-items-db-row-name">{entry.name}</span>
+              <span className="pob-items-db-row-base">
+                {entry.baseName ??
+                  entry.baseType ??
+                  formatRarityLabel(entry.rarity)}
+              </span>
+            </ItemTooltipButton>
+          </li>
+        );
+      })}
     </ul>
   );
 }

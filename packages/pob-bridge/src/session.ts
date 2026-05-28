@@ -49,6 +49,9 @@ import {
   PobItemsParseCopyTextResult,
   PobItemsSnapshot,
   PobItemsSnapshotResult,
+  PobItemsTooltip,
+  PobItemsTooltipRequest,
+  PobItemsTooltipResult,
   PobLoadBuildResult,
   PobMainSkillSummaryResult,
   PobMainSkillSummarySnapshot,
@@ -60,9 +63,14 @@ import {
   PobSaveBuildResult,
   PobSessionResult,
   PobSkillsAction,
+  PobSkillsGemTooltip,
+  PobSkillsGemTooltipResult,
   PobSkillsSnapshot,
   PobSkillsSnapshotResult,
+  PobSkillsTooltipMode,
   PobTreeResult,
+  PobTreeNodeTooltip,
+  PobTreeNodeTooltipResult,
   PobTreeSnapshot,
   PobVaultGenerationsResult,
   PobVaultRefreshRequest,
@@ -153,6 +161,11 @@ const isPobRepoeLocale = (value: unknown): value is PobRepoeLocale =>
 
 const isPobItemCopyLocale = (value: unknown): value is PobItemCopyLocale =>
   value === "en" || value === "ko";
+
+const isPobSkillsTooltipMode = (
+  value: unknown,
+): value is PobSkillsTooltipMode =>
+  value === "gem" || value === "quality" || value === "enabled";
 
 export const inflateRawBase64 = (data: string): string =>
   zlib.inflateRawSync(Buffer.from(data, "base64")).toString("base64");
@@ -290,6 +303,10 @@ export class PoBSession {
     return this.call<PobTreeSnapshot>("pob.tree.snapshot");
   }
 
+  treeNodeTooltip(nodeId: number): Promise<PobTreeNodeTooltip> {
+    return this.call<PobTreeNodeTooltip>("pob.tree.nodeTooltip", { nodeId });
+  }
+
   treeAllocate(nodeId: number): Promise<PobTreeSnapshot> {
     return this.call<PobTreeSnapshot>("pob.tree.allocate", { nodeId });
   }
@@ -304,6 +321,10 @@ export class PoBSession {
 
   itemsDbList(db: PobItemsDbKey): Promise<PobItemsDbList> {
     return this.call<PobItemsDbList>("pob.items.dbList", { db });
+  }
+
+  itemsTooltip(request: PobItemsTooltipRequest): Promise<PobItemsTooltip> {
+    return this.call<PobItemsTooltip>("pob.items.tooltip", request);
   }
 
   itemsAction(action: PobItemsAction): Promise<PobItemsSnapshot> {
@@ -323,6 +344,18 @@ export class PoBSession {
 
   skillsAction(action: PobSkillsAction): Promise<PobSkillsSnapshot> {
     return this.call<PobSkillsSnapshot>("pob.skills.action", action);
+  }
+
+  skillsGemTooltip(
+    groupIndex: number,
+    gemIndex: number,
+    mode: PobSkillsTooltipMode,
+  ): Promise<PobSkillsGemTooltip> {
+    return this.call<PobSkillsGemTooltip>("pob.skills.gemTooltip", {
+      groupIndex,
+      gemIndex,
+      mode,
+    });
   }
 
   calcsSnapshot(): Promise<PobCalcsSnapshot> {
@@ -957,6 +990,23 @@ export function registerPobSessionHandlers(
   ipcMain.handle("pob:tree-snapshot", async (event) =>
     callTree(event, "snapshot"),
   );
+  ipcMain.handle(
+    "pob:tree-node-tooltip",
+    async (event, nodeId: unknown): Promise<PobTreeNodeTooltipResult> => {
+      try {
+        if (typeof nodeId !== "number") {
+          throw new Error("pob:tree-node-tooltip requires numeric nodeId");
+        }
+        const tooltip = await getPobSession(
+          getGameFromSender(event),
+        ).treeNodeTooltip(nodeId);
+        return { status: "ok", tooltip };
+      } catch (err) {
+        logger.warn("[PoBSession] tree-node-tooltip failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
   ipcMain.handle("pob:tree-allocate", async (event, nodeId: unknown) =>
     callTree(event, "allocate", nodeId),
   );
@@ -1019,6 +1069,33 @@ export function registerPobSessionHandlers(
         return { status: "ok", list };
       } catch (err) {
         logger.warn("[PoBSession] items-db-list failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:items-tooltip",
+    async (event, request: unknown): Promise<PobItemsTooltipResult> => {
+      try {
+        if (!isRecord(request) || typeof request.source !== "string") {
+          throw new Error("pob:items-tooltip requires request.source");
+        }
+        if (
+          request.source !== "custom" &&
+          request.source !== "shared" &&
+          request.source !== "db"
+        ) {
+          throw new Error(
+            "pob:items-tooltip requires source = custom|shared|db",
+          );
+        }
+        const tooltip = await getPobSession(
+          getGameFromSender(event),
+        ).itemsTooltip(request as unknown as PobItemsTooltipRequest);
+        return { status: "ok", tooltip };
+      } catch (err) {
+        logger.warn("[PoBSession] items-tooltip failed:", err);
         return toSessionError(err);
       }
     },
@@ -1097,6 +1174,36 @@ export function registerPobSessionHandlers(
         return { status: "ok", snapshot };
       } catch (err) {
         logger.warn("[PoBSession] skills-snapshot failed:", err);
+        return toSessionError(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pob:skills-gem-tooltip",
+    async (
+      event,
+      groupIndex: unknown,
+      gemIndex: unknown,
+      mode: unknown,
+    ): Promise<PobSkillsGemTooltipResult> => {
+      try {
+        if (typeof groupIndex !== "number" || typeof gemIndex !== "number") {
+          throw new Error(
+            "pob:skills-gem-tooltip requires numeric groupIndex and gemIndex",
+          );
+        }
+        if (!isPobSkillsTooltipMode(mode)) {
+          throw new Error(
+            "pob:skills-gem-tooltip requires mode = gem|quality|enabled",
+          );
+        }
+        const tooltip = await getPobSession(
+          getGameFromSender(event),
+        ).skillsGemTooltip(groupIndex, gemIndex, mode);
+        return { status: "ok", tooltip };
+      } catch (err) {
+        logger.warn("[PoBSession] skills-gem-tooltip failed:", err);
         return toSessionError(err);
       }
     },

@@ -1790,7 +1790,9 @@ textarea {
 .pob-passive-tree-tooltip {
   position: absolute;
   z-index: 2;
-  max-width: 320px;
+  max-width: 440px;
+  max-height: min(620px, calc(100% - 16px));
+  overflow: hidden;
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 3px;
@@ -1816,6 +1818,52 @@ textarea {
 
 .pob-passive-tree-tooltip-line {
   white-space: normal;
+}
+
+.pob-passive-tree-tooltip-line.is-title {
+  color: #f7d58a;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pob-passive-tree-tooltip-line.is-empty {
+  min-height: 6px;
+}
+
+.pob-passive-tree-tooltip-separator {
+  height: 1px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pob-passive-tree-tooltip .is-colour-gold {
+  color: #ffd866;
+}
+
+.pob-passive-tree-tooltip .is-colour-muted {
+  color: #909090;
+}
+
+.pob-passive-tree-tooltip .is-colour-gem {
+  color: #4fd6d1;
+}
+
+.pob-passive-tree-tooltip .is-colour-unique {
+  color: #c9833f;
+}
+
+.pob-passive-tree-tooltip .is-colour-magic {
+  color: #8888ff;
+}
+
+.pob-passive-tree-tooltip .is-colour-rare {
+  color: #ffff77;
+}
+
+.pob-passive-tree-tooltip .is-colour-custom,
+.pob-passive-tree-tooltip .is-colour-source {
+  color: #b0b0ff;
 }
 
 .pob-passive-tree-legend {
@@ -2156,6 +2204,13 @@ textarea {
   flex: 1;
 }
 
+.pob-items-list .pob-items-tooltip-host,
+.pob-items-db-list .pob-items-tooltip-host {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
 .pob-items-row {
   width: 100%;
   background: transparent;
@@ -2269,6 +2324,17 @@ textarea {
   min-height: 0;
 }
 
+.pob-item-tooltip.is-floating {
+  position: absolute;
+  left: 8px;
+  top: calc(100% + 4px);
+  z-index: 20;
+  width: min(520px, calc(100vw - 48px));
+  max-height: 520px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .pob-item-tooltip-rarity {
   margin-bottom: 8px;
   text-align: center;
@@ -2300,6 +2366,16 @@ textarea {
   line-height: 1.35;
 }
 
+.pob-item-tooltip-line.is-title {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pob-item-tooltip-line.is-empty {
+  min-height: 6px;
+}
+
 .pob-item-tooltip-line.is-name,
 .pob-item-tooltip-line.is-base {
   text-align: center;
@@ -2318,6 +2394,51 @@ textarea {
 
 .pob-item-tooltip-line.is-flag {
   color: #d55353;
+}
+
+.pob-item-tooltip-line.is-colour-muted,
+.pob-item-tooltip-line.is-colour-tip {
+  color: #9e9480;
+}
+
+.pob-item-tooltip-line.is-colour-gold,
+.pob-item-tooltip-line.is-colour-warning,
+.pob-item-tooltip-line.is-colour-mod,
+.pob-item-tooltip-line.is-colour-fire {
+  color: #d6b36a;
+}
+
+.pob-item-tooltip-line.is-colour-positive,
+.pob-item-tooltip-line.is-colour-cold,
+.pob-item-tooltip-line.is-colour-chaos {
+  color: #7fd66a;
+}
+
+.pob-item-tooltip-line.is-colour-negative,
+.pob-item-tooltip-line.is-colour-necrotic {
+  color: #d55353;
+}
+
+.pob-item-tooltip-line.is-colour-gem,
+.pob-item-tooltip-line.is-colour-lightning {
+  color: #8f8fff;
+}
+
+.pob-item-tooltip-line.is-colour-unique {
+  color: #af6025;
+}
+
+.pob-item-tooltip-line.is-colour-magic {
+  color: #8888ff;
+}
+
+.pob-item-tooltip-line.is-colour-rare {
+  color: #ffff77;
+}
+
+.pob-item-tooltip-line.is-colour-custom,
+.pob-item-tooltip-line.is-colour-source {
+  color: #72cbd5;
 }
 
 .pob-item-tooltip.is-unique .pob-item-tooltip-line.is-name,
@@ -2870,6 +2991,7 @@ textarea {
 }
 
 .pob-skills-gem-row {
+  position: relative;
   min-height: 32px;
   background: var(--pob-panel-soft);
   border: 1px solid transparent;
@@ -2935,6 +3057,88 @@ textarea {
 .pob-skills-gem-global label {
   color: var(--pob-muted);
   font-size: 11px;
+}
+
+.pob-skills-tooltip {
+  position: absolute;
+  left: 28px;
+  top: calc(100% + 4px);
+  z-index: 12;
+  max-width: 520px;
+  max-height: 520px;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(10, 13, 18, 0.96);
+  color: #f4f0df;
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.pob-skills-tooltip-lines {
+  display: grid;
+  gap: 3px;
+}
+
+.pob-skills-tooltip-line {
+  white-space: normal;
+}
+
+.pob-skills-tooltip-line.is-title {
+  color: #4fd6d1;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pob-skills-tooltip-line.is-empty {
+  min-height: 6px;
+}
+
+.pob-skills-tooltip-separator {
+  height: 1px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pob-skills-tooltip .is-colour-gold {
+  color: #ffd866;
+}
+
+.pob-skills-tooltip .is-colour-positive {
+  color: #7fdc7f;
+}
+
+.pob-skills-tooltip .is-colour-negative {
+  color: #ff8f6b;
+}
+
+.pob-skills-tooltip .is-colour-muted {
+  color: #909090;
+}
+
+.pob-skills-tooltip .is-colour-gem {
+  color: #4fd6d1;
+}
+
+.pob-skills-tooltip .is-colour-unique {
+  color: #c9833f;
+}
+
+.pob-skills-tooltip .is-colour-magic {
+  color: #8888ff;
+}
+
+.pob-skills-tooltip .is-colour-rare {
+  color: #ffff77;
+}
+
+.pob-skills-tooltip .is-colour-custom,
+.pob-skills-tooltip .is-colour-source {
+  color: #b0b0ff;
 }
 
 .pob-skills-gem-row.is-strength input[type="text"],

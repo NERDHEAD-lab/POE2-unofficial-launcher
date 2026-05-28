@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -10,7 +10,10 @@ import type {
   PobSkillSortGemField,
   PobSkillSupportGemType,
   PobSkillsAction,
+  PobSkillsGemTooltip,
   PobSkillsSnapshot,
+  PobSkillsTooltipMode,
+  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 import { translateSkillsSnapshot } from "./repoeTranslations";
@@ -46,6 +49,42 @@ const gemToneClass = (color: string): string => {
   if (color === "intelligence") return " is-intelligence";
   return "";
 };
+
+type GemTooltipState =
+  | { status: "idle" }
+  | { status: "loading"; mode: PobSkillsTooltipMode }
+  | { status: "ready"; tooltip: PobSkillsGemTooltip }
+  | { status: "error"; reason: string };
+
+const skillsTooltipLineClass = (line: PobTreeTooltipLine): string => {
+  const classes = ["pob-skills-tooltip-line"];
+  if (line.size !== null && line.size >= 20) classes.push("is-title");
+  if (!line.text.trim()) classes.push("is-empty");
+  if (line.colour) classes.push(`is-colour-${line.colour.toLowerCase()}`);
+  return classes.join(" ");
+};
+
+function SkillsGemTooltip({ tooltip }: { tooltip: PobSkillsGemTooltip }) {
+  if (tooltip.lines.length === 0) return null;
+  return (
+    <div className="pob-skills-tooltip" role="tooltip">
+      <div className="pob-skills-tooltip-lines">
+        {tooltip.lines.map((line, index) =>
+          line.kind === "separator" ? (
+            <div
+              key={`separator-${index}`}
+              className="pob-skills-tooltip-separator"
+            />
+          ) : (
+            <div key={`line-${index}`} className={skillsTooltipLineClass(line)}>
+              {line.text}
+            </div>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function SkillsView({
   active,
@@ -706,6 +745,10 @@ function GemRow({
 }: GemRowProps) {
   const { t } = useTranslation();
   const [nameValue, setNameValue] = useState(gem.displayName || gem.nameSpec);
+  const [tooltipState, setTooltipState] = useState<GemTooltipState>({
+    status: "idle",
+  });
+  const tooltipRequestId = useRef(0);
   const datalistId = `pob-skills-gem-list-${group.index}-${gem.index}`;
 
   const commitName = () => {
@@ -722,6 +765,40 @@ function GemRow({
     });
   };
 
+  const showTooltip = (mode: PobSkillsTooltipMode) => {
+    if (!nameValue.trim()) return;
+    const api = window.pobAPI;
+    if (!api) {
+      setTooltipState({ status: "error", reason: "pobAPI unavailable" });
+      return;
+    }
+    const requestId = tooltipRequestId.current + 1;
+    tooltipRequestId.current = requestId;
+    setTooltipState({ status: "loading", mode });
+    void api.session
+      .skillsGemTooltip(group.index, gem.index, mode)
+      .then((result) => {
+        if (tooltipRequestId.current !== requestId) return;
+        if (result.status === "ok") {
+          setTooltipState({ status: "ready", tooltip: result.tooltip });
+        } else {
+          setTooltipState({ status: "error", reason: result.reason });
+        }
+      })
+      .catch((error: unknown) => {
+        if (tooltipRequestId.current !== requestId) return;
+        setTooltipState({
+          status: "error",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      });
+  };
+
+  const hideTooltip = () => {
+    tooltipRequestId.current += 1;
+    setTooltipState({ status: "idle" });
+  };
+
   const requirements = [
     gem.reqLevel !== null ? `Lv ${gem.reqLevel}` : null,
     gem.reqStr !== null ? `Str ${gem.reqStr}` : null,
@@ -732,7 +809,10 @@ function GemRow({
     .join(" / ");
 
   return (
-    <div className={"pob-skills-gem-row" + gemToneClass(gem.color)}>
+    <div
+      className={"pob-skills-gem-row" + gemToneClass(gem.color)}
+      onMouseLeave={hideTooltip}
+    >
       <button
         type="button"
         className="pob-skills-gem-delete"
@@ -756,7 +836,12 @@ function GemRow({
           disabled={busy || !gem.canEdit}
           placeholder={t("buildEdit.skills.gem.namePlaceholder")}
           onChange={(event) => setNameValue(event.target.value)}
-          onBlur={commitName}
+          onFocus={() => showTooltip("gem")}
+          onMouseEnter={() => showTooltip("gem")}
+          onBlur={() => {
+            commitName();
+            hideTooltip();
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.currentTarget.blur();
@@ -786,7 +871,9 @@ function GemRow({
         max={23}
         defaultValue={gem.quality ?? ""}
         disabled={busy || !gem.canEdit || !nameValue.trim()}
-        onBlur={(event) =>
+        onFocus={() => showTooltip("quality")}
+        onMouseEnter={() => showTooltip("quality")}
+        onBlur={(event) => {
           onAction({
             type: "setGem",
             groupIndex: group.index,
@@ -794,14 +881,18 @@ function GemRow({
             patch: {
               quality: parseNumberInput(event.target.value, gem.quality ?? 0),
             },
-          })
-        }
+          });
+          hideTooltip();
+        }}
       />
       <input
         type="checkbox"
         checked={gem.enabled}
         disabled={busy || !gem.canEdit || !nameValue.trim()}
         aria-label={t("buildEdit.skills.gem.enabled")}
+        onFocus={() => showTooltip("enabled")}
+        onMouseEnter={() => showTooltip("enabled")}
+        onBlur={hideTooltip}
         onChange={(event) =>
           onAction({
             type: "setGem",
@@ -865,6 +956,9 @@ function GemRow({
             </label>
           ))}
         </div>
+      )}
+      {tooltipState.status === "ready" && (
+        <SkillsGemTooltip tooltip={tooltipState.tooltip} />
       )}
       <datalist id={datalistId}>
         {availableGems.map((entry) => (

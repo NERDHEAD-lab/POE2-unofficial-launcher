@@ -9,6 +9,7 @@ import type {
   PobOriginalSkillGemColor,
   PobOriginalSkillSortGemField,
   PobOriginalSkillSupportGemType,
+  PobOriginalTreeTooltipColour,
 } from "./pobOriginalContract";
 
 export const CONFIG_CATEGORIES = [
@@ -535,6 +536,39 @@ export type PobTreeResult =
   | { status: "ok"; snapshot: PobTreeSnapshot }
   | { status: "error"; reason: string };
 
+export type PobTreeTooltipColour = PobOriginalTreeTooltipColour;
+
+export interface PobTreeTooltipLine {
+  kind: "line" | "separator";
+  text: string;
+  colour: PobTreeTooltipColour | null;
+  size: number | null;
+}
+
+export interface PobTreeNodeTooltip {
+  nodeId: number;
+  header: string | null;
+  lines: PobTreeTooltipLine[];
+}
+
+export type PobTreeNodeTooltipResult =
+  | { status: "ok"; tooltip: PobTreeNodeTooltip }
+  | { status: "error"; reason: string };
+
+export type PobSkillsTooltipMode = "gem" | "quality" | "enabled";
+
+export interface PobSkillsGemTooltip {
+  groupIndex: number;
+  gemIndex: number;
+  mode: PobSkillsTooltipMode;
+  header: string | null;
+  lines: PobTreeTooltipLine[];
+}
+
+export type PobSkillsGemTooltipResult =
+  | { status: "ok"; tooltip: PobSkillsGemTooltip }
+  | { status: "error"; reason: string };
+
 export type PobTreeMetadataResult =
   | { status: "ok"; metadata: unknown; vaultPath: string }
   | { status: "error"; reason: string };
@@ -688,6 +722,28 @@ export type PobItemsSnapshotResult =
   | { status: "error"; reason: string };
 
 export type PobItemsDbKey = PobOriginalItemsDbKey;
+
+export type PobItemsTooltipSource = "custom" | "shared" | "db";
+
+export interface PobItemsTooltipRequest {
+  source: PobItemsTooltipSource;
+  itemId: number | string;
+  db?: PobItemsDbKey | null;
+  slotName?: string | null;
+}
+
+export interface PobItemsTooltip {
+  source: PobItemsTooltipSource;
+  itemId: number | string;
+  db: PobItemsDbKey | null;
+  slotName: string | null;
+  header: string | null;
+  lines: PobTreeTooltipLine[];
+}
+
+export type PobItemsTooltipResult =
+  | { status: "ok"; tooltip: PobItemsTooltip }
+  | { status: "error"; reason: string };
 
 export type PobItemsAction =
   | { type: "setActiveSet"; setId: number }
@@ -1242,6 +1298,7 @@ export interface PobSessionAPI {
   mainSkillSummary: () => Promise<PobMainSkillSummaryResult>;
   treeSnapshot: () => Promise<PobTreeResult>;
   treeMetadata: () => Promise<PobTreeMetadataResult>;
+  treeNodeTooltip: (nodeId: number) => Promise<PobTreeNodeTooltipResult>;
   treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
   treeDeallocate: (nodeId: number) => Promise<PobTreeResult>;
   repoeTranslations: (
@@ -1249,6 +1306,9 @@ export interface PobSessionAPI {
   ) => Promise<PobRepoeTranslationsResult>;
   itemsSnapshot: () => Promise<PobItemsSnapshotResult>;
   itemsDbList: (db: PobItemsDbKey) => Promise<PobItemsDbListResult>;
+  itemsTooltip: (
+    request: PobItemsTooltipRequest,
+  ) => Promise<PobItemsTooltipResult>;
   itemsAction: (action: PobItemsAction) => Promise<PobItemsSnapshotResult>;
   itemsParseCopyText: (
     request: PobItemsParseCopyTextRequest,
@@ -1258,6 +1318,11 @@ export interface PobSessionAPI {
   ) => Promise<PobItemsParseAndAddResult>;
   skillsSnapshot: () => Promise<PobSkillsSnapshotResult>;
   skillsAction: (action: PobSkillsAction) => Promise<PobSkillsSnapshotResult>;
+  skillsGemTooltip: (
+    groupIndex: number,
+    gemIndex: number,
+    mode: PobSkillsTooltipMode,
+  ) => Promise<PobSkillsGemTooltipResult>;
   calcsSnapshot: () => Promise<PobCalcsSnapshotResult>;
   calcsBreakdown: (key: string) => Promise<PobCalcsBreakdownResult>;
   calcsAction: (action: PobCalcsAction) => Promise<PobCalcsSnapshotResult>;

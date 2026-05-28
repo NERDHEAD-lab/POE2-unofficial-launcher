@@ -11,12 +11,14 @@ import type {
   PobItemsDbKey,
   PobItemsParseAndAddRequest,
   PobItemsParseCopyTextRequest,
+  PobItemsTooltipRequest,
   PobLoadBuildCodeRequest,
   PobLoadBuildRequest,
   PobPartyAction,
   PobRepoeLocale,
   PobSettings,
   PobSkillsAction,
+  PobSkillsTooltipMode,
   PobVaultGenerationsResult,
   PobVaultRefreshRequest,
   PobVaultRefreshResult,
@@ -116,6 +118,8 @@ contextBridge.exposeInMainWorld("pobAPI", {
     mainSkillSummary: () => ipcRenderer.invoke("pob:main-skill-summary"),
     treeSnapshot: () => ipcRenderer.invoke("pob:tree-snapshot"),
     treeMetadata: () => ipcRenderer.invoke("pob:tree-metadata"),
+    treeNodeTooltip: (nodeId: number) =>
+      ipcRenderer.invoke("pob:tree-node-tooltip", nodeId),
     treeAllocate: (nodeId: number) =>
       ipcRenderer.invoke("pob:tree-allocate", nodeId),
     treeDeallocate: (nodeId: number) =>
@@ -125,6 +129,8 @@ contextBridge.exposeInMainWorld("pobAPI", {
     itemsSnapshot: () => ipcRenderer.invoke("pob:items-snapshot"),
     itemsDbList: (db: PobItemsDbKey) =>
       ipcRenderer.invoke("pob:items-db-list", db),
+    itemsTooltip: (request: PobItemsTooltipRequest) =>
+      ipcRenderer.invoke("pob:items-tooltip", request),
     itemsAction: (action: PobItemsAction) =>
       ipcRenderer.invoke("pob:items-action", action),
     itemsParseCopyText: (request: PobItemsParseCopyTextRequest) =>
@@ -134,6 +140,12 @@ contextBridge.exposeInMainWorld("pobAPI", {
     skillsSnapshot: () => ipcRenderer.invoke("pob:skills-snapshot"),
     skillsAction: (action: PobSkillsAction) =>
       ipcRenderer.invoke("pob:skills-action", action),
+    skillsGemTooltip: (
+      groupIndex: number,
+      gemIndex: number,
+      mode: PobSkillsTooltipMode,
+    ) =>
+      ipcRenderer.invoke("pob:skills-gem-tooltip", groupIndex, gemIndex, mode),
     calcsSnapshot: () => ipcRenderer.invoke("pob:calcs-snapshot"),
     calcsBreakdown: (key: string) =>
       ipcRenderer.invoke("pob:calcs-breakdown", key),

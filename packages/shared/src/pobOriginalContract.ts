@@ -5,9 +5,12 @@ import type {
   PobCalcsSnapshot,
   PobItemsDbList,
   PobItemsSnapshot,
+  PobItemsTooltip,
   PobMainSkillSummarySnapshot,
   PobPartySnapshot,
+  PobSkillsGemTooltip,
   PobSkillsSnapshot,
+  PobTreeNodeTooltip,
   PobTreeSnapshot,
 } from "./types";
 
@@ -95,6 +98,21 @@ export const POB_ORIGINAL_CALCS_COLOURS = [
 
 export type PobOriginalCalcsColour =
   (typeof POB_ORIGINAL_CALCS_COLOURS)[number];
+
+export const POB_ORIGINAL_TREE_TOOLTIP_COLOURS = [
+  ...POB_ORIGINAL_CALCS_COLOURS,
+  "GEM",
+  "MAGIC",
+  "RARE",
+  "UNIQUE",
+  "CUSTOM",
+  "SOURCE",
+  "GOLD",
+  "MUTED",
+] as const;
+
+export type PobOriginalTreeTooltipColour =
+  (typeof POB_ORIGINAL_TREE_TOOLTIP_COLOURS)[number];
 
 export const POB_ORIGINAL_CALCS_BUFF_MODES = [
   "UNBUFFED",
@@ -227,6 +245,7 @@ const assertOptionalNullableNumber = (value: unknown, path: string): void => {
 };
 
 const itemRarities = new Set<string>(POB_ORIGINAL_ITEM_RARITIES);
+const itemDbKeys = new Set<string>(POB_ORIGINAL_ITEMS_DB_KEYS);
 const skillGemColours = new Set<string>(POB_ORIGINAL_SKILL_GEM_COLORS);
 const skillDefaultGemLevels = new Set<string>(
   POB_ORIGINAL_SKILL_DEFAULT_GEM_LEVELS,
@@ -236,11 +255,13 @@ const skillSupportGemTypes = new Set<string>(
 );
 const skillSortGemFields = new Set<string>(POB_ORIGINAL_SKILL_SORT_GEM_FIELDS);
 const calcsColours = new Set<string>(POB_ORIGINAL_CALCS_COLOURS);
+const treeTooltipColours = new Set<string>(POB_ORIGINAL_TREE_TOOLTIP_COLOURS);
 const calcsBuffModes = new Set<string>(POB_ORIGINAL_CALCS_BUFF_MODES);
 const calcsGroups = new Set<number>();
 for (const value of Object.values(POB_ORIGINAL_CALCS_GROUP_FILTERS)) {
   if (value !== null) calcsGroups.add(value);
 }
+const skillsTooltipModes = new Set<string>(["gem", "quality", "enabled"]);
 
 const assertStringArray = (value: unknown, path: string): void => {
   assertArray(value, path);
@@ -277,6 +298,26 @@ const assertTreeTargetSize = (value: unknown, path: string): void => {
   assertOptionalNullableNumber(value.height, `${path}.height`);
   assertTreeDimensions(value.overlay, `${path}.overlay`);
   assertTreeDimensions(value.effect, `${path}.effect`);
+};
+
+const assertTooltipLines = (value: unknown, path: string): void => {
+  assertArray(value, path);
+  value.forEach((line, index) => {
+    const linePath = `${path}[${index}]`;
+    assertRecord(line, linePath);
+    assertKnownKeys(line, linePath, ["kind", "text", "colour", "size"]);
+    assertString(line.kind, `${linePath}.kind`);
+    if (line.kind !== "line" && line.kind !== "separator") {
+      fail(`${linePath}.kind`, "a tooltip line kind");
+    }
+    assertString(line.text, `${linePath}.text`);
+    const colour = line.colour;
+    assertNullableString(colour, `${linePath}.colour`);
+    if (typeof colour === "string" && !treeTooltipColours.has(colour)) {
+      fail(`${linePath}.colour`, "a PoB tooltip colour");
+    }
+    assertNullableNumber(line.size, `${linePath}.size`);
+  });
 };
 
 const assertItemSummary = (
@@ -414,6 +455,37 @@ export function assertPobTreeSnapshot(
   });
 }
 
+export function assertPobTreeNodeTooltip(
+  value: unknown,
+): asserts value is PobTreeNodeTooltip {
+  assertRecord(value, "treeTooltip");
+  assertKnownKeys(value, "treeTooltip", ["nodeId", "header", "lines"]);
+  assertNumber(value.nodeId, "treeTooltip.nodeId");
+  assertNullableString(value.header, "treeTooltip.header");
+  assertTooltipLines(value.lines, "treeTooltip.lines");
+}
+
+export function assertPobSkillsGemTooltip(
+  value: unknown,
+): asserts value is PobSkillsGemTooltip {
+  assertRecord(value, "skillsGemTooltip");
+  assertKnownKeys(value, "skillsGemTooltip", [
+    "groupIndex",
+    "gemIndex",
+    "mode",
+    "header",
+    "lines",
+  ]);
+  assertNumber(value.groupIndex, "skillsGemTooltip.groupIndex");
+  assertNumber(value.gemIndex, "skillsGemTooltip.gemIndex");
+  assertString(value.mode, "skillsGemTooltip.mode");
+  if (!skillsTooltipModes.has(value.mode)) {
+    fail("skillsGemTooltip.mode", "a PoB skills tooltip mode");
+  }
+  assertNullableString(value.header, "skillsGemTooltip.header");
+  assertTooltipLines(value.lines, "skillsGemTooltip.lines");
+}
+
 export function assertPobItemsSnapshot(
   value: unknown,
 ): asserts value is PobItemsSnapshot {
@@ -483,6 +555,39 @@ export function assertPobItemsDbList(
   value.entries.forEach((item, index) =>
     assertItemSummary(item, `itemsDb.entries[${index}]`, "string"),
   );
+}
+
+export function assertPobItemsTooltip(
+  value: unknown,
+): asserts value is PobItemsTooltip {
+  assertRecord(value, "itemsTooltip");
+  assertKnownKeys(value, "itemsTooltip", [
+    "source",
+    "itemId",
+    "db",
+    "slotName",
+    "header",
+    "lines",
+  ]);
+  assertString(value.source, "itemsTooltip.source");
+  if (
+    value.source !== "custom" &&
+    value.source !== "shared" &&
+    value.source !== "db"
+  ) {
+    fail("itemsTooltip.source", "an item tooltip source");
+  }
+  if (typeof value.itemId !== "number" && typeof value.itemId !== "string") {
+    fail("itemsTooltip.itemId", "a number|string");
+  }
+  const db = value.db;
+  assertNullableString(db, "itemsTooltip.db");
+  if (typeof db === "string" && !itemDbKeys.has(db)) {
+    fail("itemsTooltip.db", "an item DB key");
+  }
+  assertNullableString(value.slotName, "itemsTooltip.slotName");
+  assertNullableString(value.header, "itemsTooltip.header");
+  assertTooltipLines(value.lines, "itemsTooltip.lines");
 }
 
 const assertSkillGemColour = (value: unknown, path: string): void => {

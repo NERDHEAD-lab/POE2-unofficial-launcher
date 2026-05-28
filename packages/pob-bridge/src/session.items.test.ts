@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   PobItemsDbList,
   PobItemsSnapshot,
+  PobItemsTooltip,
 } from "@poe2-launcher/shared/types";
 
 import { PoBSession } from "./session";
@@ -32,6 +33,15 @@ const emptySnapshot: PobItemsSnapshot = {
 
 const emptyDbList: PobItemsDbList = {
   entries: [],
+};
+
+const emptyTooltip: PobItemsTooltip = {
+  source: "custom",
+  itemId: 1,
+  db: null,
+  slotName: null,
+  header: "RARE",
+  lines: [],
 };
 
 describe("PoBSession Items RPC", () => {
@@ -67,6 +77,17 @@ describe("PoBSession Items RPC", () => {
 
     expect(call).toHaveBeenCalledTimes(1);
     expect(call).toHaveBeenCalledWith("pob.items.action", action);
+  });
+
+  it("requests item tooltip payloads", async () => {
+    const session = new PoBSession({ installLocation: "C:\\PoB" });
+    const call = vi.spyOn(session, "call").mockResolvedValue(emptyTooltip);
+    const request = { source: "custom", itemId: 1 } as const;
+
+    await expect(session.itemsTooltip(request)).resolves.toBe(emptyTooltip);
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call).toHaveBeenCalledWith("pob.items.tooltip", request);
   });
 
   it("adds parsed custom item text through the existing createCustom action", async () => {
