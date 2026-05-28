@@ -235,6 +235,42 @@ local function safe_overlay(overlay)
 	return next(out) and out or nil
 end
 
+local function append_node_id(out, seen, value)
+	local id = nil
+	if type(value) == "table" then
+		id = value.id
+	elseif type(value) == "number" then
+		id = value
+	end
+	if type(id) == "number" and not seen[id] then
+		out[#out + 1] = id
+		seen[id] = true
+	end
+end
+
+local function safe_node_path(path)
+	local out = {}
+	local seen = {}
+	if type(path) == "table" then
+		for _, pathNode in ipairs(path) do
+			append_node_id(out, seen, pathNode)
+		end
+		append_node_id(out, seen, path.root)
+	end
+	return out
+end
+
+local function safe_node_dependencies(depends)
+	local out = {}
+	local seen = {}
+	if type(depends) == "table" then
+		for _, depNode in pairs(depends) do
+			append_node_id(out, seen, depNode)
+		end
+	end
+	return out
+end
+
 local function json_nullable_text(value)
 	if type(value) == "string" then
 		return strip_colour_codes(value)
@@ -448,6 +484,7 @@ local function tree_snapshot()
 				y = node.y,
 				name = json_nullable_text(node.dn or node.name),
 				statLines = safe_string_array(node.sd),
+				recipe = safe_string_array(node.recipe),
 				type = json_nullable_text(node.type),
 				ascendancyName = json_nullable_text(node.ascendancyName),
 				isAscendancyStart = node.isAscendancyStart and true or false,
@@ -462,6 +499,8 @@ local function tree_snapshot()
 				overlay = safe_overlay(node.overlay),
 				targetSize = safe_target_size(node.targetSize),
 				linked = linked,
+				path = safe_node_path(node.path),
+				depends = safe_node_dependencies(node.depends),
 			}
 		end
 	end
@@ -3443,9 +3482,12 @@ local function handle_method(method, params)
 		for _, c in ipairs(spec.tree.connectors) do
 			local safe_c = {
 				type = c.type,
+				connectionArt = c.connectionArt,
+				ascendancyName = c.ascendancyName,
 				nodeId1 = c.nodeId1,
 				nodeId2 = c.nodeId2,
-				vert = {}
+				vert = {},
+				tex = {}
 			}
 			if type(c.vert) == "table" then
 				for k, v in pairs(c.vert) do
@@ -3453,6 +3495,9 @@ local function handle_method(method, params)
 						safe_c.vert[k] = {v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]}
 					end
 				end
+			end
+			if type(c.c) == "table" then
+				safe_c.tex = {c.c[9], c.c[10], c.c[11], c.c[12], c.c[13], c.c[14], c.c[15], c.c[16]}
 			end
 			table.insert(safe_connectors, safe_c)
 		end

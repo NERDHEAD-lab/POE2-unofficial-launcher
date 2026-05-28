@@ -645,6 +645,7 @@ export interface PobTreeNode {
   y: number;
   name: string | null;
   statLines?: string[];
+  recipe?: string[];
   type: string | null;
   ascendancyName: string | null;
   isAscendancyStart: boolean;
@@ -674,6 +675,8 @@ export interface PobTreeNode {
     } | null;
   } | null;
   linked: number[];
+  path?: number[];
+  depends?: number[];
 }
 
 export interface PobTreeViewport {

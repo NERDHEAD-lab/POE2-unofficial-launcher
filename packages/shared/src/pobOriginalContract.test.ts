@@ -189,6 +189,47 @@ describe("pobOriginalContract strict shape assertions", () => {
     expect(() => assertPobTreeNodeTooltip(tooltip)).not.toThrow();
   });
 
+  it("validates passive tree node path preview fields", () => {
+    const snapshot = {
+      treeVersion: "0_4",
+      classId: 1,
+      className: "Monk",
+      ascendClassId: null,
+      ascendClassName: null,
+      allocCount: 1,
+      viewport: null,
+      treeSize: null,
+      nodes: [
+        {
+          id: 1,
+          x: 0,
+          y: 0,
+          name: "Mindful Awareness",
+          statLines: [],
+          recipe: ["Clear Oil"],
+          type: "Notable",
+          ascendancyName: null,
+          isAscendancyStart: false,
+          isKeystone: false,
+          isNotable: true,
+          isSocket: false,
+          isMastery: false,
+          isOnlyImage: false,
+          alloc: false,
+          icon: null,
+          activeEffectImage: null,
+          overlay: null,
+          targetSize: null,
+          linked: [2],
+          path: [2, 1],
+          depends: [3],
+        },
+      ],
+    };
+
+    expect(() => assertPobTreeSnapshot(snapshot)).not.toThrow();
+  });
+
   it("validates skills gem tooltip projection shape", () => {
     const tooltip = {
       groupIndex: 1,

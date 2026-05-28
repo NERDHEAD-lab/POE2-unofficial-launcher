@@ -150,6 +150,8 @@
   "buildEdit.tree.zoomIn": "Zoom In",
   "buildEdit.tree.zoomOut": "Zoom Out",
   "buildEdit.tree.zoomReset": "Reset Zoom",
+  "buildEdit.tree.search.placeholder": "Search",
+  "buildEdit.tree.search.tooltip": "Uses PoB-style terms. Prefix with oil: for anoint recipe search.",
   "buildEdit.tree.findTimelessJewel": "Find Timeless Jewel",
   "buildEdit.tree.findTimelessJewelDisabled": "Find Timeless Jewel is deferred to a later sub-PR.",
   "buildEdit.tree.legend.allocated": "Allocated",

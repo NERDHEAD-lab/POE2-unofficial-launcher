@@ -16,6 +16,8 @@ export interface DrawSize {
 }
 
 type DdsCoords = Record<string, Record<string, unknown>>;
+type TreeAssets = Record<string, unknown>;
+export type NodeFrameVisualState = "alloc" | "path" | "unalloc";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -80,22 +82,51 @@ export const resolveDdsAssetRef = (
   return preferred ?? refs[0];
 };
 
-export const getNodeFrameAssetName = (node: PobTreeNode): string | null => {
+const readAssetFilename = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  if (isRecord(value)) {
+    const first =
+      value["1"] ??
+      Object.values(value).find((entry) => typeof entry === "string");
+    return typeof first === "string" ? first : null;
+  }
+  return null;
+};
+
+export const resolveTreeAssetFilename = (
+  assets: TreeAssets | null | undefined,
+  assetName: string | null | undefined,
+): string | null => {
+  if (!assets || !assetName) return null;
+  const filename = readAssetFilename(assets[assetName]);
+  if (!filename || isDdsFile(filename)) return null;
+  return filename;
+};
+
+export const getNodeFrameAssetName = (
+  node: PobTreeNode,
+  visualState?: NodeFrameVisualState,
+): string | null => {
   if (node.isOnlyImage || node.type === "OnlyImage") return null;
 
+  const resolvedState = visualState ?? (node.alloc ? "alloc" : "unalloc");
   const overlay = node.overlay;
   if (overlay) {
+    if (resolvedState === "alloc" && overlay.alloc) return overlay.alloc;
+    if (resolvedState === "path" && overlay.path) return overlay.path;
+    if (resolvedState === "unalloc" && overlay.unalloc) return overlay.unalloc;
     if (node.alloc && overlay.alloc) return overlay.alloc;
     if (!node.alloc && overlay.unalloc) return overlay.unalloc;
     if (overlay.path) return overlay.path;
   }
 
-  const state = node.alloc ? "Allocated" : "Unallocated";
+  const state = resolvedState === "alloc" ? "Allocated" : "Unallocated";
   if (node.isKeystone) return `KeystoneFrame${state}`;
   if (node.isSocket || node.type === "Socket") return `JewelFrame${state}`;
   if (node.isNotable) return `NotableFrame${state}`;
   if (node.type === "Normal")
-    return node.alloc ? "PSSkillFrameActive" : "PSSkillFrame";
+    return resolvedState === "alloc" ? "PSSkillFrameActive" : "PSSkillFrame";
   return null;
 };
 
@@ -149,6 +180,16 @@ export const getNodeEffectDrawSize = (node: PobTreeNode): DrawSize => {
     return { width, height };
   }
   return { width: 380, height: 380 };
+};
+
+export const getNodeEffectOpacity = (
+  node: PobTreeNode,
+  visualState?: NodeFrameVisualState,
+): number => {
+  if (node.isOnlyImage || node.type === "OnlyImage") return 0.15;
+  return node.alloc || visualState === "alloc" || visualState === "path"
+    ? 1
+    : 0.15;
 };
 
 export const getNodeHitRadius = (node: PobTreeNode): number => {

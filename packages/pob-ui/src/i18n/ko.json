@@ -150,6 +150,8 @@
   "buildEdit.tree.zoomIn": "확대",
   "buildEdit.tree.zoomOut": "축소",
   "buildEdit.tree.zoomReset": "원래 크기",
+  "buildEdit.tree.search.placeholder": "Search",
+  "buildEdit.tree.search.tooltip": "PoB 방식 검색어를 사용합니다. oil: 접두어로 인챈트 recipe를 검색합니다.",
   "buildEdit.tree.findTimelessJewel": "Find Timeless Jewel",
   "buildEdit.tree.findTimelessJewelDisabled": "Find Timeless Jewel 은 후순위에서 구현됩니다.",
   "buildEdit.tree.legend.allocated": "할당됨",

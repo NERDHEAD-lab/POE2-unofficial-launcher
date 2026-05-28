@@ -6,9 +6,11 @@ import {
   buildDdsAssetLookup,
   ddsImageKey,
   getNodeEffectDrawSize,
+  getNodeEffectOpacity,
   getNodeFrameAssetName,
   getNodeHitRadius,
   resolveDdsAssetRef,
+  resolveTreeAssetFilename,
 } from "./passiveTreeAssets";
 
 const node = (overrides: Partial<PobTreeNode>): PobTreeNode => ({
@@ -92,6 +94,64 @@ describe("passiveTreeAssets", () => {
     ).toBeNull();
   });
 
+  it("resolves PoB hover/path frame states separately from allocation", () => {
+    expect(
+      getNodeFrameAssetName(
+        node({
+          alloc: false,
+          overlay: {
+            alloc: "CustomAllocated",
+            path: "CustomCanAllocate",
+            unalloc: "CustomUnallocated",
+          },
+        }),
+        "alloc",
+      ),
+    ).toBe("CustomAllocated");
+    expect(
+      getNodeFrameAssetName(
+        node({
+          alloc: false,
+          overlay: {
+            alloc: "CustomAllocated",
+            path: "CustomCanAllocate",
+            unalloc: "CustomUnallocated",
+          },
+        }),
+        "path",
+      ),
+    ).toBe("CustomCanAllocate");
+    expect(getNodeFrameAssetName(node({ type: "Normal" }), "alloc")).toBe(
+      "PSSkillFrameActive",
+    );
+  });
+
+  it("resolves PoB tree asset names to PNG filenames", () => {
+    expect(
+      resolveTreeAssetFilename(
+        {
+          CharacterLineConnectorNormal: "Character_orbit_normal0.png",
+          IgnoredDds: "skills_64_64_BC1.dds.zst",
+        },
+        "CharacterLineConnectorNormal",
+      ),
+    ).toBe("Character_orbit_normal0.png");
+    expect(
+      resolveTreeAssetFilename(
+        {
+          CharacterOrbit1Active: ["Character_orbit_intermediateactive9.png"],
+        },
+        "CharacterOrbit1Active",
+      ),
+    ).toBe("Character_orbit_intermediateactive9.png");
+    expect(
+      resolveTreeAssetFilename(
+        { IgnoredDds: "skills_64_64_BC1.dds.zst" },
+        "IgnoredDds",
+      ),
+    ).toBeNull();
+  });
+
   it("treats PoB target sizes as centered half extents", () => {
     expect(
       getNodeHitRadius(
@@ -111,5 +171,18 @@ describe("passiveTreeAssets", () => {
         }),
       ),
     ).toEqual({ width: 380, height: 380 });
+  });
+
+  it("brightens active effect artwork for allocated and hover/path states", () => {
+    expect(getNodeEffectOpacity(node({ alloc: true }))).toBe(1);
+    expect(getNodeEffectOpacity(node({ alloc: false }), "alloc")).toBe(1);
+    expect(getNodeEffectOpacity(node({ alloc: false }), "path")).toBe(1);
+    expect(getNodeEffectOpacity(node({ alloc: false }))).toBe(0.15);
+    expect(
+      getNodeEffectOpacity(
+        node({ type: "OnlyImage", isOnlyImage: true, alloc: true }),
+        "alloc",
+      ),
+    ).toBe(0.15);
   });
 });

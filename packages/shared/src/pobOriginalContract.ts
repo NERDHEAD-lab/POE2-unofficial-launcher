@@ -455,6 +455,7 @@ export function assertPobTreeSnapshot(
       "y",
       "name",
       "statLines",
+      "recipe",
       "type",
       "ascendancyName",
       "isAscendancyStart",
@@ -469,6 +470,8 @@ export function assertPobTreeSnapshot(
       "overlay",
       "targetSize",
       "linked",
+      "path",
+      "depends",
     ]);
     assertNumber(node.id, `${path}.id`);
     assertNumber(node.x, `${path}.x`);
@@ -476,6 +479,9 @@ export function assertPobTreeSnapshot(
     assertNullableString(node.name, `${path}.name`);
     if (node.statLines !== undefined) {
       assertStringArray(node.statLines, `${path}.statLines`);
+    }
+    if (node.recipe !== undefined) {
+      assertStringArray(node.recipe, `${path}.recipe`);
     }
     assertNullableString(node.type, `${path}.type`);
     assertNullableString(node.ascendancyName, `${path}.ascendancyName`);
@@ -494,6 +500,10 @@ export function assertPobTreeSnapshot(
     assertTreeArt(node.overlay, `${path}.overlay`);
     assertTreeTargetSize(node.targetSize, `${path}.targetSize`);
     assertNumberArray(node.linked, `${path}.linked`);
+    if (node.path !== undefined) assertNumberArray(node.path, `${path}.path`);
+    if (node.depends !== undefined) {
+      assertNumberArray(node.depends, `${path}.depends`);
+    }
   });
 }
 

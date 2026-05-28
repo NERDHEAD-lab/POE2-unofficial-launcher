@@ -21,6 +21,7 @@ import {
   ddsImageKey,
   extractDdsCoords,
   getNodeEffectDrawSize,
+  getNodeEffectOpacity,
   getNodeFrameAssetName,
   getNodeFrameDrawSize,
   getNodeHitRadius,
@@ -28,7 +29,24 @@ import {
   isDdsFile,
   pngImageKey,
   resolveDdsAssetRef,
+  resolveTreeAssetFilename,
 } from "./passiveTreeAssets";
+import {
+  buildConnectorMap,
+  connectorAssetName,
+  connectorKey,
+  connectorTextureQuad,
+  projectConnectorQuad,
+  type ConnectorQuad,
+  type TreeConnectorState,
+} from "./passiveTreeConnectors";
+import {
+  buildTreePathPreview,
+  getTreeConnectorVisualState,
+  getTreeNodeVisualState,
+  isTreeDependencyConnector,
+} from "./passiveTreePreview";
+import { buildTreeSearchMatchIds } from "./passiveTreeSearch";
 import { translateTreeSnapshot } from "./repoeTranslations";
 import { decodeDdsZstLayers } from "../utils/DdsDecoder";
 
@@ -58,13 +76,6 @@ interface PassiveTreeMetadata {
   groupBackgrounds?: TreeArtPlacement[];
 }
 
-interface TreeConnector {
-  type?: string | null;
-  nodeId1: number;
-  nodeId2: number;
-  vert?: Record<string, unknown>;
-}
-
 interface TreeArtPlacement {
   image?: string | null;
   x?: number | null;
@@ -84,34 +95,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const asTreeMetadata = (value: unknown): PassiveTreeMetadata =>
   isRecord(value) ? (value as PassiveTreeMetadata) : {};
-
-const toTreeConnector = (value: unknown): TreeConnector | null => {
-  if (!isRecord(value)) return null;
-  if (typeof value.nodeId1 !== "number" || typeof value.nodeId2 !== "number") {
-    return null;
-  }
-  return {
-    type: typeof value.type === "string" ? value.type : null,
-    nodeId1: value.nodeId1,
-    nodeId2: value.nodeId2,
-    vert: isRecord(value.vert) ? value.vert : undefined,
-  };
-};
-
-const readConnectorVert = (
-  vert: unknown,
-  index: number,
-): number | undefined => {
-  if (Array.isArray(vert)) {
-    const value = vert[index];
-    return typeof value === "number" ? value : undefined;
-  }
-  if (isRecord(vert)) {
-    const value = vert[String(index + 1)];
-    return typeof value === "number" ? value : undefined;
-  }
-  return undefined;
-};
 
 const ZOOM_LEVEL_MIN = 0;
 const ZOOM_LEVEL_MAX = 20;
@@ -264,10 +247,13 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     zoomLevel: ZOOM_LEVEL_INIT,
     pan: { x: 0, y: 0 },
   });
+  const [treeSearch, setTreeSearch] = useState("");
   const [hoveredNode, setHoveredNode] = useState<{
     id: number;
     name: string;
     statLines: string[];
+    path?: number[];
+    depends?: number[];
     x: number;
     y: number;
   } | null>(null);
@@ -514,6 +500,18 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       const ref = resolveDdsAssetRef(ddsLookup, assetName, disabled);
       return ref ? (images[ddsImageKey(ref)] ?? null) : null;
     };
+    const getTreeImage = (
+      assetName: string | null | undefined,
+      disabled = false,
+    ): TreeImage | null => {
+      const dds = getDdsImage(assetName, disabled);
+      if (dds) return dds;
+      const filename = resolveTreeAssetFilename(
+        state.metadata.assets,
+        assetName,
+      );
+      return filename ? (images[pngImageKey(filename)] ?? null) : null;
+    };
 
     const backgroundImg = getDdsImage("Background2");
     if (backgroundImg) {
@@ -535,70 +533,13 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     ctx.lineWidth = 1;
     ctx.strokeStyle = "rgba(140, 152, 168, 0.35)";
 
-    const connectorMap = new Map<string, TreeConnector>();
-    if (state.metadata?.connectors) {
-      const connectors = Array.isArray(state.metadata.connectors)
-        ? state.metadata.connectors
-        : Object.values(state.metadata.connectors);
-      for (const rawConnector of connectors) {
-        const conn = toTreeConnector(rawConnector);
-        if (!conn) continue;
-        const [n1, n2] = [conn.nodeId1, conn.nodeId2].sort((a, b) => a - b);
-        connectorMap.set(`${n1}_${n2}`, conn);
-      }
-    }
-
-    const drawConnector = (edge: ProjectedEdge, active: boolean) => {
-      ctx.lineWidth = active ? 3 : 2;
-      ctx.strokeStyle = active ? "#ffd166" : "rgba(140, 152, 168, 0.35)";
-
-      const nodeIds = [edge.node1Id, edge.node2Id].sort((a, b) => a - b);
-      const matchedConnector = connectorMap.get(`${nodeIds[0]}_${nodeIds[1]}`);
-
-      ctx.beginPath();
-      ctx.moveTo(edge.ax, edge.ay);
-
-      if (
-        matchedConnector &&
-        String(matchedConnector.type).startsWith("Orbit")
-      ) {
-        const stateKey = active ? "Active" : "Normal";
-        const vert = matchedConnector.vert?.[stateKey];
-        if (vert) {
-          const cx = readConnectorVert(vert, 0);
-          const cy = readConnectorVert(vert, 1);
-
-          if (cx !== undefined && cy !== undefined) {
-            const projCx = cx * projection.scale + projection.offsetX;
-            const projCy = cy * projection.scale + projection.offsetY;
-
-            const radius = Math.hypot(edge.ax - projCx, edge.ay - projCy);
-            const startAngle = Math.atan2(edge.ay - projCy, edge.ax - projCx);
-            const endAngle = Math.atan2(edge.by - projCy, edge.bx - projCx);
-
-            let diff = endAngle - startAngle;
-            while (diff > Math.PI) diff -= 2 * Math.PI;
-            while (diff < -Math.PI) diff += 2 * Math.PI;
-
-            ctx.arc(
-              projCx,
-              projCy,
-              radius,
-              startAngle,
-              startAngle + diff,
-              diff < 0,
-            );
-          } else {
-            ctx.lineTo(edge.bx, edge.by);
-          }
-        } else {
-          ctx.lineTo(edge.bx, edge.by);
-        }
-      } else {
-        ctx.lineTo(edge.bx, edge.by);
-      }
-      ctx.stroke();
-    };
+    const connectorMap = buildConnectorMap(state.metadata.connectors);
+    const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
+    const pathPreview = buildTreePathPreview(hoveredNode);
+    const searchMatchIds = buildTreeSearchMatchIds(
+      projection.nodes,
+      treeSearch,
+    );
 
     const imageSize = (img: TreeImage): { width: number; height: number } => ({
       width:
@@ -610,6 +551,144 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
           ? img.naturalHeight
           : img.height,
     });
+
+    const drawTexturedTriangle = (
+      img: TreeImage,
+      source: [number, number, number, number, number, number],
+      dest: [number, number, number, number, number, number],
+    ) => {
+      const [sx0, sy0, sx1, sy1, sx2, sy2] = source;
+      const [dx0, dy0, dx1, dy1, dx2, dy2] = dest;
+      const denominator =
+        sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1);
+      if (Math.abs(denominator) < 0.0001) return;
+
+      const a =
+        (dx0 * (sy1 - sy2) + dx1 * (sy2 - sy0) + dx2 * (sy0 - sy1)) /
+        denominator;
+      const b =
+        (dy0 * (sy1 - sy2) + dy1 * (sy2 - sy0) + dy2 * (sy0 - sy1)) /
+        denominator;
+      const c =
+        (dx0 * (sx2 - sx1) + dx1 * (sx0 - sx2) + dx2 * (sx1 - sx0)) /
+        denominator;
+      const d =
+        (dy0 * (sx2 - sx1) + dy1 * (sx0 - sx2) + dy2 * (sx1 - sx0)) /
+        denominator;
+      const e =
+        (dx0 * (sx1 * sy2 - sx2 * sy1) +
+          dx1 * (sx2 * sy0 - sx0 * sy2) +
+          dx2 * (sx0 * sy1 - sx1 * sy0)) /
+        denominator;
+      const f =
+        (dy0 * (sx1 * sy2 - sx2 * sy1) +
+          dy1 * (sx2 * sy0 - sx0 * sy2) +
+          dy2 * (sx0 * sy1 - sx1 * sy0)) /
+        denominator;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(dx0, dy0);
+      ctx.lineTo(dx1, dy1);
+      ctx.lineTo(dx2, dy2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.setTransform(a, b, c, d, e, f);
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    };
+
+    const drawTexturedQuad = (
+      img: TreeImage,
+      sourceQuad: ConnectorQuad,
+      destQuad: ConnectorQuad,
+    ) => {
+      const natural = imageSize(img);
+      const source = sourceQuad.map((coord, index) =>
+        index % 2 === 0 ? coord * natural.width : coord * natural.height,
+      ) as ConnectorQuad;
+
+      drawTexturedTriangle(
+        img,
+        [source[0], source[1], source[2], source[3], source[4], source[5]],
+        [
+          destQuad[0],
+          destQuad[1],
+          destQuad[2],
+          destQuad[3],
+          destQuad[4],
+          destQuad[5],
+        ],
+      );
+      drawTexturedTriangle(
+        img,
+        [source[0], source[1], source[4], source[5], source[6], source[7]],
+        [
+          destQuad[0],
+          destQuad[1],
+          destQuad[4],
+          destQuad[5],
+          destQuad[6],
+          destQuad[7],
+        ],
+      );
+    };
+
+    const connectorStrokeStyle = (
+      stateKey: TreeConnectorState,
+      dependency: boolean,
+    ): string => {
+      if (dependency) return "rgba(255, 88, 88, 0.9)";
+      if (stateKey === "Active") return "#ffd166";
+      if (stateKey === "Intermediate") return "rgba(255, 209, 102, 0.75)";
+      return "rgba(140, 152, 168, 0.35)";
+    };
+
+    const drawConnectorStroke = (
+      edge: ProjectedEdge,
+      stateKey: TreeConnectorState,
+      dependency: boolean,
+    ) => {
+      ctx.lineWidth = stateKey === "Normal" ? 2 : 3;
+      ctx.strokeStyle = connectorStrokeStyle(stateKey, dependency);
+      ctx.beginPath();
+      ctx.moveTo(edge.ax, edge.ay);
+      ctx.lineTo(edge.bx, edge.by);
+      ctx.stroke();
+    };
+
+    const drawConnector = (
+      edge: ProjectedEdge,
+      stateKey: TreeConnectorState,
+      dependency: boolean,
+    ) => {
+      ctx.lineWidth = stateKey === "Normal" ? 2 : 3;
+      ctx.strokeStyle = connectorStrokeStyle(stateKey, dependency);
+
+      const matchedConnectors = connectorMap.get(
+        connectorKey(edge.node1Id, edge.node2Id),
+      );
+      let textured = false;
+      for (const matchedConnector of matchedConnectors ?? []) {
+        const quad = projectConnectorQuad(
+          matchedConnector,
+          stateKey,
+          projection,
+        );
+        const assetName = connectorAssetName(matchedConnector, stateKey);
+        const img = getTreeImage(assetName);
+        if (quad && img) {
+          drawTexturedQuad(img, connectorTextureQuad(matchedConnector), quad);
+          textured = true;
+        }
+      }
+      if (textured) {
+        if (dependency) drawConnectorStroke(edge, stateKey, true);
+        return;
+      }
+
+      drawConnectorStroke(edge, stateKey, dependency);
+    };
     const drawTreeArt = (
       assetName: string | null | undefined,
       x: number | null | undefined,
@@ -700,13 +779,35 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       drawTreeArt(art.image, art.x, art.y, art);
     }
 
-    // Draw inactive edges first
-    for (const edge of projection.edges) {
-      if (!edge.active) drawConnector(edge, false);
-    }
-    // Draw active edges on top
-    for (const edge of projection.edges) {
-      if (edge.active) drawConnector(edge, true);
+    const edgeState = (
+      edge: ProjectedEdge,
+    ): { stateKey: TreeConnectorState; dependency: boolean } => {
+      const node1 = nodeById.get(edge.node1Id);
+      const node2 = nodeById.get(edge.node2Id);
+      if (!node1 || !node2) {
+        return {
+          stateKey: edge.active ? "Active" : "Normal",
+          dependency: false,
+        };
+      }
+      return {
+        stateKey: getTreeConnectorVisualState(node1, node2, pathPreview),
+        dependency: isTreeDependencyConnector(node1, node2, pathPreview),
+      };
+    };
+
+    const connectorDrawOrder: TreeConnectorState[] = [
+      "Normal",
+      "Intermediate",
+      "Active",
+    ];
+    for (const stateKey of connectorDrawOrder) {
+      for (const edge of projection.edges) {
+        const visual = edgeState(edge);
+        if (visual.stateKey === stateKey) {
+          drawConnector(edge, visual.stateKey, visual.dependency);
+        }
+      }
     }
 
     const drawCenteredImage = (
@@ -747,9 +848,12 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       }
 
       const onlyImage = node.isOnlyImage || node.type === "OnlyImage";
-      const iconImg = onlyImage ? null : getDdsImage(node.icon, !node.alloc);
+      const frameState = getTreeNodeVisualState(node, pathPreview);
+      const iconImg = onlyImage
+        ? null
+        : getDdsImage(node.icon, frameState === "unalloc");
       const effectImg = getDdsImage(node.activeEffectImage);
-      const frameAssetName = getNodeFrameAssetName(node);
+      const frameAssetName = getNodeFrameAssetName(node, frameState);
       const frameImg = getDdsImage(frameAssetName);
 
       if (effectImg) {
@@ -757,7 +861,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
           effectImg,
           node,
           onlyImage ? getNodeIconDrawSize(node) : getNodeEffectDrawSize(node),
-          onlyImage ? 0.15 : node.alloc ? 1 : 0.15,
+          getNodeEffectOpacity(node, frameState),
         );
       } else if (!onlyImage && !iconImg && !frameImg) {
         ctx.beginPath();
@@ -779,8 +883,30 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         ctx.strokeStyle = "#fff7ae";
         ctx.stroke();
       }
+
+      if (searchMatchIds.has(node.id)) {
+        const zoom = zoomFromLevel(view.zoomLevel);
+        const radius = Math.max(
+          node.radius + 8,
+          (140 * projection.scale) / Math.pow(zoom, 0.2),
+        );
+        ctx.beginPath();
+        ctx.arc(node.screenX, node.screenY, radius, 0, Math.PI * 2);
+        ctx.lineWidth = Math.max(2, 3 * projection.scale);
+        ctx.strokeStyle = "rgba(255, 72, 72, 0.95)";
+        ctx.stroke();
+      }
     }
-  }, [projection, size.width, size.height, state, images]);
+  }, [
+    projection,
+    size.width,
+    size.height,
+    state,
+    images,
+    hoveredNode,
+    treeSearch,
+    view.zoomLevel,
+  ]);
 
   const hitTest = useCallback(
     (mouseX: number, mouseY: number): ProjectedNode | null => {
@@ -946,6 +1072,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
                 id: node.id,
                 name: node.name,
                 statLines: node.statLines ?? [],
+                path: node.path,
+                depends: node.depends,
                 x: node.screenX,
                 y: node.screenY,
               }
@@ -976,25 +1104,6 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   const handlePointerLeave = useCallback(() => {
     setHoveredNode(null);
   }, []);
-
-  const handlePointerUp = useCallback(
-    (event: React.PointerEvent<HTMLCanvasElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const canvas = canvasRef.current;
-      canvas?.releasePointerCapture(event.pointerId);
-      const wasClick = !drag.dragging;
-      dragRef.current = null;
-      if (!wasClick) return;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const node = hitTest(x, y);
-      if (node) void allocateNode(node);
-    },
-    [allocateNode, hitTest],
-  );
 
   const applyZoomAt = useCallback(
     (delta: number, focusClientX?: number, focusClientY?: number) => {
@@ -1031,6 +1140,29 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       });
     },
     [clampPan, size.width, size.height],
+  );
+
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const canvas = canvasRef.current;
+      canvas?.releasePointerCapture(event.pointerId);
+      const wasClick = !drag.dragging;
+      dragRef.current = null;
+      if (!wasClick) return;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (event.ctrlKey) {
+        applyZoomAt(2, event.clientX, event.clientY);
+        return;
+      }
+      const node = hitTest(x, y);
+      if (node) void allocateNode(node);
+    },
+    [allocateNode, applyZoomAt, hitTest],
   );
 
   const handleWheel = useCallback(
@@ -1093,6 +1225,14 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
             <option value="primary">{snapshot.className ?? "-"}</option>
           </select>
         </label>
+        <input
+          type="search"
+          className="pob-passive-tree-search"
+          placeholder={t("buildEdit.tree.search.placeholder")}
+          title={t("buildEdit.tree.search.tooltip")}
+          value={treeSearch}
+          onChange={(event) => setTreeSearch(event.currentTarget.value)}
+        />
         <button
           type="button"
           onClick={() => applyZoomAt(-1)}

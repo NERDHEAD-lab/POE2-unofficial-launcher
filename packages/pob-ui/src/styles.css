@@ -1846,6 +1846,18 @@ textarea {
   border-radius: 3px;
 }
 
+.pob-passive-tree-search {
+  min-width: 180px;
+  max-width: 300px;
+  flex: 1 1 180px;
+  background: var(--pob-bg);
+  color: var(--pob-text);
+  border: 1px solid var(--pob-border);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font: inherit;
+}
+
 .pob-passive-tree-toolbar button {
   background: var(--pob-bg);
   color: var(--pob-text);
