@@ -702,7 +702,8 @@ textarea {
 }
 
 .pob-tree-row:hover .pob-row-actions,
-.pob-tree-row:focus-within .pob-row-actions {
+.pob-tree-row:focus-within .pob-row-actions,
+.pob-row-actions.is-open {
   opacity: 1;
   pointer-events: auto;
 }
@@ -773,83 +774,52 @@ textarea {
 }
 
 .pob-menu-icon {
-  position: relative;
+  display: inline-block;
+  overflow: hidden;
   width: 16px;
   height: 16px;
+  font-family: "Material Symbols Outlined";
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
   color: var(--pob-muted);
-}
-
-.pob-menu-icon.copy::before,
-.pob-menu-icon.copy::after,
-.pob-menu-icon.rename::before,
-.pob-menu-icon.delete::before,
-.pob-menu-icon.new-folder::before,
-.pob-menu-icon.paste::before,
-.pob-menu-icon.cut::before {
-  content: "";
-  position: absolute;
-  border: 1px solid currentColor;
+  font-feature-settings: "liga";
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 20;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .pob-menu-icon.copy::before {
-  left: 3px;
-  top: 4px;
-  width: 8px;
-  height: 9px;
-}
-
-.pob-menu-icon.copy::after {
-  left: 6px;
-  top: 2px;
-  width: 7px;
-  height: 8px;
+  content: "content_copy";
 }
 
 .pob-menu-icon.cut::before {
-  left: 2px;
-  top: 7px;
-  width: 12px;
-  height: 0;
-  transform: rotate(-28deg);
+  content: "content_cut";
 }
 
 .pob-menu-icon.rename::before {
-  left: 2px;
-  top: 9px;
-  width: 12px;
-  height: 0;
-  transform: rotate(-35deg);
+  content: "drive_file_rename_outline";
 }
 
 .pob-menu-icon.delete::before {
-  left: 4px;
-  top: 5px;
-  width: 8px;
-  height: 9px;
+  content: "delete";
 }
 
-.pob-menu-icon.new-folder::before,
+.pob-menu-icon.new-folder::before {
+  content: "create_new_folder";
+}
+
 .pob-menu-icon.paste::before {
-  left: 2px;
-  top: 5px;
-  width: 12px;
-  height: 8px;
-  border-radius: 2px;
-}
-
-.pob-menu-icon.new-folder::after,
-.pob-menu-icon.paste::after {
-  content: "";
-  position: absolute;
-  left: 7px;
-  top: 3px;
-  width: 1px;
-  height: 8px;
-  background: currentColor;
-}
-
-.pob-menu-icon.new-folder::after {
-  box-shadow: 0 0 0 0 currentColor;
+  content: "content_paste";
 }
 
 .pob-sidebar-main-skill-resizer {

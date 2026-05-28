@@ -36,6 +36,11 @@ import {
   saveUserNoteTemplates,
   type NoteTemplate,
 } from "./noteTemplates";
+import {
+  buildSidebarMenuActionDescriptors,
+  type SidebarMenuAction,
+  type SidebarMenuIcon,
+} from "./sidebarMenuActions";
 
 import type { BuildTarget, SidebarItemRef, SortKey } from "./folderTree";
 import type { MainSkillSummaryPanelState } from "./mainSkillSummaryPanel";
@@ -72,8 +77,6 @@ interface ConfirmState {
   onConfirm: () => void;
 }
 
-type MenuAction = "newFolder" | "paste" | "copy" | "cut" | "rename" | "delete";
-
 const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLowerCase();
@@ -89,6 +92,15 @@ const isSameItem = (
   a.kind === b.kind &&
   a.subPath === b.subPath &&
   a.name === b.name;
+
+const MENU_ACTION_LABEL_KEYS: Record<SidebarMenuAction, string> = {
+  newFolder: "buildList.toolbar.newFolder",
+  paste: "buildList.toolbar.paste",
+  copy: "buildList.toolbar.copy",
+  cut: "buildList.toolbar.cut",
+  rename: "buildList.toolbar.rename",
+  delete: "buildList.toolbar.delete",
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentPath,
@@ -418,7 +430,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const runMenuAction = useCallback(
-    (action: MenuAction, item: SidebarItemRef) => {
+    (action: SidebarMenuAction, item: SidebarItemRef) => {
       setMenuItem(null);
       switch (action) {
         case "newFolder":
@@ -534,7 +546,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return;
         }
         if (menuItem.kind === "file") {
-          const actionByKey: Partial<Record<string, MenuAction>> = {
+          const actionByKey: Partial<Record<string, SidebarMenuAction>> = {
             c: "copy",
             x: "cut",
             r: "rename",
@@ -548,7 +560,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }
         }
         if (menuItem.kind === "folder") {
-          const actionByKey: Partial<Record<string, MenuAction>> = {
+          const actionByKey: Partial<Record<string, SidebarMenuAction>> = {
             n: "newFolder",
             p: "paste",
             r: "rename",
@@ -674,74 +686,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setTemplateManagerOpen(false);
   };
 
-  const renderActions = (item: SidebarItemRef): React.ReactNode => (
-    <div
-      className="pob-row-actions"
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <button
-        className="pob-more-btn"
-        onClick={(event) => {
-          event.stopPropagation();
-          setMenuItem((prev) => (isSameItem(prev, item) ? null : item));
-        }}
-        title={t("sidebar.actions")}
-      >
-        &#8230;
-      </button>
-      {isSameItem(menuItem, item) && (
-        <div className="pob-action-menu">
-          {item.kind === "folder" && (
-            <>
-              <MenuItem
-                icon="new-folder"
-                label={t("buildList.toolbar.newFolder")}
-                shortcut="N"
-                onSelect={() => runMenuAction("newFolder", item)}
-              />
-              {clipboard && (
-                <MenuItem
-                  icon="paste"
-                  label={t("buildList.toolbar.paste")}
-                  shortcut="P"
-                  onSelect={() => runMenuAction("paste", item)}
-                />
-              )}
-            </>
-          )}
-          {item.kind === "file" && (
-            <>
-              <MenuItem
-                icon="copy"
-                label={t("buildList.toolbar.copy")}
-                shortcut="C"
-                onSelect={() => runMenuAction("copy", item)}
-              />
-              <MenuItem
-                icon="cut"
-                label={t("buildList.toolbar.cut")}
-                shortcut="X"
-                onSelect={() => runMenuAction("cut", item)}
-              />
-            </>
-          )}
-          <MenuItem
-            icon="rename"
-            label={t("buildList.toolbar.rename")}
-            shortcut="R"
-            onSelect={() => runMenuAction("rename", item)}
-          />
-          <MenuItem
-            danger
-            icon="delete"
-            label={t("buildList.toolbar.delete")}
-            shortcut="D"
-            onSelect={() => runMenuAction("delete", item)}
-          />
-        </div>
-      )}
-    </div>
+  const openContextMenu = useCallback(
+    (event: React.MouseEvent, item: SidebarItemRef) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setMenuItem(item);
+    },
+    [],
   );
+
+  const renderActions = (item: SidebarItemRef): React.ReactNode => {
+    const menuOpen = isSameItem(menuItem, item);
+    const actions = buildSidebarMenuActionDescriptors(
+      item.kind,
+      clipboard !== null,
+    );
+    return (
+      <div
+        className={"pob-row-actions" + (menuOpen ? " is-open" : "")}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="pob-more-btn"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuItem((prev) => (isSameItem(prev, item) ? null : item));
+          }}
+          title={t("sidebar.actions")}
+        >
+          &#8230;
+        </button>
+        {menuOpen && (
+          <div className="pob-action-menu" role="menu">
+            {actions.map((action) => (
+              <MenuItem
+                danger={action.danger}
+                icon={action.icon}
+                key={action.action}
+                label={t(MENU_ACTION_LABEL_KEYS[action.action])}
+                shortcut={action.shortcut}
+                onSelect={() => runMenuAction(action.action, item)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const setClampedMainSkillHeight = useCallback(
     (height: number) => {
@@ -926,6 +920,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             event.preventDefault();
             void handleDropOnFolder(subPath);
           }}
+          onContextMenu={(event) => {
+            if (folderItem) openContextMenu(event, folderItem);
+          }}
         >
           <button
             type="button"
@@ -992,6 +989,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setDragItem(null);
                     setDropTargetPath(null);
                   }}
+                  onContextMenu={(event) => openContextMenu(event, item)}
                 >
                   <button className="pob-tree-label pob-build-label">
                     <span
@@ -1332,12 +1330,14 @@ const Modal: React.FC<{
 
 const MenuItem: React.FC<{
   danger?: boolean;
-  icon: string;
+  icon: SidebarMenuIcon;
   label: string;
   shortcut: string;
   onSelect: () => void;
 }> = ({ danger = false, icon, label, shortcut, onSelect }) => (
   <button
+    type="button"
+    role="menuitem"
     className={"pob-action-menu-item" + (danger ? " danger" : "")}
     onClick={(event) => {
       event.stopPropagation();
