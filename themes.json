@@ -71,6 +71,15 @@
         "background": "5193ce94",
         "logo": "1c938bf1"
       }
+    },
+    {
+      "id": "0.5.0",
+      "name": "Return of the Ancients",
+      "assets": {
+        "background": "assets/themes/poe2/0.5.0/bg.jpg",
+        "logo": "assets/themes/poe2/0.5.0/logo.png"
+      },
+      "startDate": "2026-05-29 20:00:00"
     }
   ]
 }
