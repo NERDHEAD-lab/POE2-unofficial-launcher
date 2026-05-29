@@ -11,6 +11,7 @@ import type {
 } from "@poe2-launcher/shared/types";
 
 import { createPobSnapshotProjection } from "./uiMode";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 import type { BuildMode } from "./buildModes";
 import type { PobSnapshotProjection } from "./uiMode";
@@ -198,9 +199,10 @@ export function LegacyModeView({ activeMode }: LegacyModeViewProps) {
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Legacy mode"
+      />
     );
   }
 

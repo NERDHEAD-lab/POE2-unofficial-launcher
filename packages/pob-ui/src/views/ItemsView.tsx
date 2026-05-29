@@ -65,6 +65,7 @@ import {
 } from "./repoeTranslations";
 import { SearchLabelText } from "./SearchLabelText";
 import { PobUnimplementedButton } from "./UnimplementedButton";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 type LoadState =
   | { status: "idle" }
@@ -528,9 +529,10 @@ export function ItemsView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Items"
+      />
     );
   }
 
@@ -621,9 +623,15 @@ export function ItemsView({
       </div>
 
       {actionState.status === "error" && (
-        <div className="pob-error pob-items-action-error">
-          {t("buildList.error.generic", { reason: actionState.reason })}
-        </div>
+        <PobErrorBanner
+          className="pob-items-action-error"
+          message={t("buildList.error.generic", {
+            reason: actionState.reason,
+          })}
+          source="Items action"
+          dismissible
+          onDismiss={() => setActionState({ status: "idle" })}
+        />
       )}
       {unimplementedNotice && (
         <div className="pob-items-action-notice" role="status">
@@ -1077,7 +1085,7 @@ function DbPane({
 }: DbPaneProps) {
   const { t } = useTranslation();
   return (
-    <>
+    <div className="pob-items-db-pane">
       <header className="pob-items-pane-header pob-items-db-filters">
         <div className="pob-items-db-filter-row">
           <select disabled defaultValue="any">
@@ -1140,7 +1148,7 @@ function DbPane({
         onSelect={onSelect}
         onAction={onAction}
       />
-    </>
+    </div>
   );
 }
 
@@ -1156,6 +1164,7 @@ interface ItemRowsProps {
 
 interface ItemTooltipButtonProps {
   itemRef: SelectedItemRef;
+  item: PobItemSummary | PobItemDbSummary;
   className: string;
   disabled: boolean;
   translations: PobRepoeTranslationsSnapshot;
@@ -1166,6 +1175,7 @@ interface ItemTooltipButtonProps {
 
 function ItemTooltipButton({
   itemRef,
+  item,
   className,
   disabled,
   translations,
@@ -1238,7 +1248,11 @@ function ItemTooltipButton({
     typeof document !== "undefined"
       ? createPortal(
           <RichItemTooltip
-            tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+            tooltip={translateItemTooltip(
+              tooltipState.tooltip,
+              translations,
+              item,
+            )}
             vaultPath={tooltipState.vaultPath}
             floating
             style={computeFloatingItemTooltipPosition({
@@ -1296,6 +1310,7 @@ function ItemRows({
         <li key={item.id}>
           <ItemTooltipButton
             itemRef={{ source, id: item.id }}
+            item={item}
             disabled={busy}
             translations={translations}
             className={
@@ -1483,7 +1498,11 @@ function ItemDetail({
         tooltipState.requestKey === requestKey &&
         tooltipState.tooltip.lines.length > 0 ? (
           <RichItemTooltip
-            tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+            tooltip={translateItemTooltip(
+              tooltipState.tooltip,
+              translations,
+              item,
+            )}
             vaultPath={tooltipState.vaultPath}
           />
         ) : (
@@ -1558,16 +1577,21 @@ function DbList({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
+      <div className="pob-items-db-state">
+        <PobErrorBanner
+          message={t("buildList.error.generic", { reason: state.reason })}
+          source={`${dbKey} item database`}
+        />
       </div>
     );
   }
   if (state.status === "idle" || state.status === "loading") {
     return (
-      <p className="pob-mode-placeholder-body">
-        {t("buildEdit.items.dbLoading")}
-      </p>
+      <div className="pob-items-db-state">
+        <p className="pob-mode-placeholder-body">
+          {t("buildEdit.items.dbLoading")}
+        </p>
+      </div>
     );
   }
   const renderedViews =
@@ -1582,9 +1606,11 @@ function DbList({
       : []);
   if (renderedViews.length === 0) {
     return (
-      <p className="pob-mode-placeholder-body">
-        {t("buildEdit.items.dbEmpty")}
-      </p>
+      <div className="pob-items-db-state">
+        <p className="pob-mode-placeholder-body">
+          {t("buildEdit.items.dbEmpty")}
+        </p>
+      </div>
     );
   }
   return (
@@ -1600,6 +1626,7 @@ function DbList({
           <li key={entry.id}>
             <ItemTooltipButton
               itemRef={itemRef}
+              item={entry}
               disabled={busy}
               translations={translations}
               className={

@@ -171,6 +171,17 @@ describe("pobOriginalContract strict shape assertions", () => {
       className: "Monk",
       ascendClassId: 2,
       ascendClassName: "Invoker",
+      passivePointBudget: {
+        normal: { used: 102, max: 123, exceeded: false },
+        weaponSet1: { used: 0, max: 24, exceeded: false },
+        weaponSet2: { used: 0, max: 24, exceeded: false },
+        ascendancy: { used: 2, max: 8, exceeded: false },
+        requiredLevel: 79,
+        act: "Endgame",
+        extraSkillPoints: 0,
+        tooltip:
+          "Required Level: 79\nEstimated Progress:\nAct: Endgame\nExtra Skillpoints: 0",
+      },
       classes: [
         {
           id: 3,
@@ -197,6 +208,17 @@ describe("pobOriginalContract strict shape assertions", () => {
         className: "Monk",
         ascendClassId: 2,
         ascendClassName: "Invoker",
+        passivePointBudget: {
+          normal: { used: 102, max: 123, exceeded: false },
+          weaponSet1: { used: 0, max: 24, exceeded: false },
+          weaponSet2: { used: 0, max: 24, exceeded: false },
+          ascendancy: { used: 2, max: 8, exceeded: false },
+          requiredLevel: 79,
+          act: "Endgame",
+          extraSkillPoints: 0,
+          tooltip:
+            "Required Level: 79\nEstimated Progress:\nAct: Endgame\nExtra Skillpoints: 0",
+        },
         classes: [
           {
             id: 3,
@@ -255,6 +277,7 @@ describe("pobOriginalContract strict shape assertions", () => {
     const tooltip = {
       nodeId: 123,
       header: "NOTABLE",
+      recipe: ["Greed", "Paranoia", "Greed"],
       lines: [
         {
           kind: "line",

@@ -45,6 +45,7 @@ import {
   translateSkillsSnapshot,
 } from "./repoeTranslations";
 import { SearchLabelText } from "./SearchLabelText";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 type LoadState =
   | { status: "idle" }
@@ -283,9 +284,10 @@ export function SkillsView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Skills"
+      />
     );
   }
 
@@ -330,9 +332,15 @@ export function SkillsView({
       </div>
 
       {actionState.status === "error" && (
-        <div className="pob-error pob-skills-action-error">
-          {t("buildList.error.generic", { reason: actionState.reason })}
-        </div>
+        <PobErrorBanner
+          className="pob-skills-action-error"
+          message={t("buildList.error.generic", {
+            reason: actionState.reason,
+          })}
+          source="Skills action"
+          dismissible
+          onDismiss={() => setActionState({ status: "idle" })}
+        />
       )}
 
       <div className="pob-skills-cols">

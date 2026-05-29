@@ -555,9 +555,17 @@ export function assertPobTreeNodeTooltip(
   value: unknown,
 ): asserts value is PobTreeNodeTooltip {
   assertRecord(value, "treeTooltip");
-  assertKnownKeys(value, "treeTooltip", ["nodeId", "header", "lines"]);
+  assertKnownKeys(value, "treeTooltip", [
+    "nodeId",
+    "header",
+    "recipe",
+    "lines",
+  ]);
   assertNumber(value.nodeId, "treeTooltip.nodeId");
   assertNullableString(value.header, "treeTooltip.header");
+  if (value.recipe !== undefined) {
+    assertStringArray(value.recipe, "treeTooltip.recipe");
+  }
   assertTooltipLines(value.lines, "treeTooltip.lines");
 }
 
@@ -1313,6 +1321,7 @@ export function assertPobBuildMetadataSnapshot(
     "className",
     "ascendClassId",
     "ascendClassName",
+    "passivePointBudget",
     "classes",
   ]);
   assertNumber(value.level, "buildMetadata.level");
@@ -1321,6 +1330,10 @@ export function assertPobBuildMetadataSnapshot(
   assertNullableString(value.className, "buildMetadata.className");
   assertNullableNumber(value.ascendClassId, "buildMetadata.ascendClassId");
   assertNullableString(value.ascendClassName, "buildMetadata.ascendClassName");
+  assertPobPassivePointBudget(
+    value.passivePointBudget,
+    "buildMetadata.passivePointBudget",
+  );
   assertArray(value.classes, "buildMetadata.classes");
   value.classes.forEach((classOption, classIndex) => {
     const classPath = `buildMetadata.classes[${classIndex}]`;
@@ -1337,6 +1350,36 @@ export function assertPobBuildMetadataSnapshot(
       assertString(ascendancy.label, `${ascendancyPath}.label`);
     });
   });
+}
+
+function assertPobPassivePointBudgetBucket(value: unknown, path: string): void {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, ["used", "max", "exceeded"]);
+  assertNumber(value.used, `${path}.used`);
+  assertNumber(value.max, `${path}.max`);
+  assertBoolean(value.exceeded, `${path}.exceeded`);
+}
+
+function assertPobPassivePointBudget(value: unknown, path: string): void {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, [
+    "normal",
+    "weaponSet1",
+    "weaponSet2",
+    "ascendancy",
+    "requiredLevel",
+    "act",
+    "extraSkillPoints",
+    "tooltip",
+  ]);
+  assertPobPassivePointBudgetBucket(value.normal, `${path}.normal`);
+  assertPobPassivePointBudgetBucket(value.weaponSet1, `${path}.weaponSet1`);
+  assertPobPassivePointBudgetBucket(value.weaponSet2, `${path}.weaponSet2`);
+  assertPobPassivePointBudgetBucket(value.ascendancy, `${path}.ascendancy`);
+  assertNumber(value.requiredLevel, `${path}.requiredLevel`);
+  assertString(value.act, `${path}.act`);
+  assertNumber(value.extraSkillPoints, `${path}.extraSkillPoints`);
+  assertString(value.tooltip, `${path}.tooltip`);
 }
 
 export function assertPobBuildMetadataActionResult(

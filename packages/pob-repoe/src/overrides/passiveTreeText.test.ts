@@ -21,6 +21,10 @@ const snapshot = (
   gemNamesById: {},
   gemNamesBySkillId: {},
   gemNamesByEnglishName: {},
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 });
 
 describe("passiveTreeTextOverride", () => {

@@ -96,7 +96,10 @@ describe("RePoE translation snapshots", () => {
           id: "Metadata/Items/Gem/SkillGemAlchemistsBoon",
           display_name: "Alchemist's Boon",
         },
+        support_text: "Supports Skills that create Fissures.",
+        crafting_types: ["Fissures"],
         grants_skills: ["AlchemistsBoonPlayer"],
+        tags: ["support", "fissure"],
       },
     });
     await writeResource("ko", "skill_gems.json", {
@@ -105,17 +108,30 @@ describe("RePoE translation snapshots", () => {
           id: "Metadata/Items/Gem/SkillGemAlchemistsBoon",
           display_name: "Alchemist's Boon KO",
         },
+        support_text: "균열을 생성하는 스킬을 보조합니다.",
+        crafting_types: ["균열"],
         grants_skills: ["AlchemistsBoonPlayer"],
+        tags: ["보조", "균열"],
       },
     });
     await writeResource("en", "skills.json", {
       FireballPlayer: {
-        active_skill: { id: "fireball", display_name: "Fireball" },
+        active_skill: {
+          id: "fireball",
+          display_name: "Fireball",
+          description: "Throws a ball of fire.",
+        },
+        tags: ["spell"],
       },
     });
     await writeResource("ko", "skills.json", {
       FireballPlayer: {
-        active_skill: { id: "fireball", display_name: "Fireball KO" },
+        active_skill: {
+          id: "fireball",
+          display_name: "Fireball KO",
+          description: "화염구를 던집니다.",
+        },
+        tags: ["주문"],
       },
     });
 
@@ -146,6 +162,26 @@ describe("RePoE translation snapshots", () => {
     );
     expect(snapshot.gemNamesBySkillId.FireballPlayer).toBe("Fireball KO");
     expect(snapshot.gemNamesByEnglishName.Fireball).toBe("Fireball KO");
+    expect(
+      snapshot.skillDescriptionsById[
+        "Metadata/Items/Gem/SkillGemAlchemistsBoon"
+      ],
+    ).toBe("균열을 생성하는 스킬을 보조합니다.");
+    expect(snapshot.skillDescriptionsById.AlchemistsBoonPlayer).toBe(
+      "균열을 생성하는 스킬을 보조합니다.",
+    );
+    expect(
+      snapshot.skillDescriptionsByEnglishText[
+        "Supports Skills that create Fissures."
+      ],
+    ).toBe("균열을 생성하는 스킬을 보조합니다.");
+    expect(snapshot.skillDescriptionsById.fireball).toBe("화염구를 던집니다.");
+    expect(
+      snapshot.skillDescriptionsByEnglishText["Throws a ball of fire."],
+    ).toBe("화염구를 던집니다.");
+    expect(snapshot.gemFamiliesByEnglishName.Fissures).toBe("균열");
+    expect(snapshot.skillTagsByEnglishName.support).toBe("보조");
+    expect(snapshot.skillTagsByEnglishName.spell).toBe("주문");
   });
 
   it("returns an unavailable fallback snapshot when cached Korean resources are missing", async () => {

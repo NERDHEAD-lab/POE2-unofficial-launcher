@@ -11,6 +11,7 @@ import type {
   PobVaultRefreshSnapshot,
 } from "@poe2-launcher/shared/types";
 
+import { PobErrorBanner } from "./PobErrorBanner";
 import {
   formatVaultSize,
   formatVaultTimestamp,
@@ -144,9 +145,12 @@ export const VaultSettingsModal: React.FC<VaultSettingsModalProps> = ({
             </div>
           )}
           {refreshState.status === "error" && (
-            <div className="pob-error">
-              {t("settings.refresh.error", { reason: refreshState.reason })}
-            </div>
+            <PobErrorBanner
+              message={t("settings.refresh.error", {
+                reason: refreshState.reason,
+              })}
+              source="Vault refresh"
+            />
           )}
         </section>
 
@@ -166,11 +170,12 @@ export const VaultSettingsModal: React.FC<VaultSettingsModalProps> = ({
             </div>
           )}
           {generationsState.status === "error" && (
-            <div className="pob-error">
-              {t("settings.generations.error", {
+            <PobErrorBanner
+              message={t("settings.generations.error", {
                 reason: generationsState.reason,
               })}
-            </div>
+              source="Vault generations"
+            />
           )}
           {generationsState.status === "ready" &&
             generationsState.generations.length === 0 && (

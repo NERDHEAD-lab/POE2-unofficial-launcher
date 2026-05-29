@@ -45,6 +45,7 @@ import {
   type SidebarMenuAction,
   type SidebarMenuIcon,
 } from "./sidebarMenuActions";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 import type { BuildTarget, SidebarItemRef, SortKey } from "./folderTree";
 import type { MainSkillSummaryPanelState } from "./mainSkillSummaryPanel";
@@ -1169,7 +1170,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </label>
           </div>
 
-          {error && <div className="pob-error">{error}</div>}
+          {error && (
+            <PobErrorBanner
+              message={error}
+              source="Build sidebar"
+              context={{
+                folder: currentPath || "/",
+                file: selectedFile ?? "-",
+              }}
+              dismissible
+              onDismiss={() => setError(null)}
+            />
+          )}
 
           <div className="pob-sidebar-body">
             <div className="pob-tree">{renderTreeNode("", 0)}</div>
@@ -1309,32 +1321,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="pob-note-template-help">
               {t("buildEdit.notes.templateManagerHelp")}
             </p>
-            <div className="pob-note-template-list">
-              {templateDrafts.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  className={
-                    "pob-note-template-row" +
-                    (template.id === selectedTemplateId ? " is-active" : "") +
-                    (template.builtIn ? " is-built-in" : "")
-                  }
-                  onClick={() => setSelectedTemplateId(template.id)}
-                >
-                  <span>{template.name}</span>
-                  {template.builtIn && (
-                    <span className="pob-note-template-badge">
-                      {t("buildEdit.notes.builtInTemplate")}
-                    </span>
-                  )}
-                </button>
-              ))}
+            <div className="pob-note-template-list-column">
+              <div className="pob-note-template-list-scroll">
+                {templateDrafts.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className={
+                      "pob-note-template-row" +
+                      (template.id === selectedTemplateId ? " is-active" : "") +
+                      (template.builtIn ? " is-built-in" : "")
+                    }
+                    onClick={() => setSelectedTemplateId(template.id)}
+                  >
+                    <span>{template.name}</span>
+                    {template.builtIn && (
+                      <span className="pob-note-template-badge">
+                        {t("buildEdit.notes.builtInTemplate")}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
-                className="pob-btn"
+                className="pob-note-template-create-button"
                 onClick={createTemplate}
+                aria-label={t("buildEdit.notes.newTemplate")}
+                title={t("buildEdit.notes.newTemplate")}
               >
-                {t("buildEdit.notes.newTemplate")}
+                +
               </button>
             </div>
             <div className="pob-note-template-editor">

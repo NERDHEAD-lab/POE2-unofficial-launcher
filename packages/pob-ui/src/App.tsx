@@ -9,6 +9,7 @@ import type {
 } from "@poe2-launcher/shared/types";
 
 import iconUrl from "./assets/icon.ico";
+import { PobErrorBanner } from "./components/PobErrorBanner";
 import {
   VaultSettingsModal,
   type VaultGenerationsState,
@@ -20,7 +21,11 @@ import {
 import { BuildEditView } from "./views/BuildEditView";
 import { getNextUnnamedBuildName, isSameTarget } from "./views/folderTree";
 import { Sidebar } from "./views/Sidebar";
-import { DEFAULT_POB_UI_MODE, getNextPobUiMode } from "./views/uiMode";
+import {
+  DEFAULT_POB_UI_MODE,
+  getNextPobUiMode,
+  isPobUiModeLocked,
+} from "./views/uiMode";
 import {
   buildPobUnimplementedClassName,
   getPobUnimplementedControlAttributes,
@@ -38,8 +43,6 @@ import type { PobUiMode } from "./views/uiMode";
 
 const LANGS = ["ko", "en"] as const;
 type Lang = (typeof LANGS)[number];
-
-const LOCKED_POB_UI_MODES: readonly PobUiMode[] = [];
 
 interface PendingAction {
   kind: "navigate" | "close";
@@ -623,7 +626,7 @@ const App: React.FC = () => {
         : null;
 
   const nextUiMode = getNextPobUiMode(uiMode);
-  const nextUiModeLocked = LOCKED_POB_UI_MODES.includes(nextUiMode);
+  const nextUiModeLocked = isPobUiModeLocked(nextUiMode);
   const uiModeSwitchClassName = nextUiModeLocked
     ? buildPobUnimplementedClassName(
         uiMode === "renewed" ? "is-renewed" : "is-legacy",
@@ -774,7 +777,18 @@ const App: React.FC = () => {
           onToggleCollapse={toggleSidebar}
         />
         <section className="pob-main-panel">
-          {error && <div className="pob-error">{error}</div>}
+          {error && (
+            <PobErrorBanner
+              message={error}
+              source="Main panel"
+              context={{
+                folder: target.subPath || "/",
+                file: target.fileName ?? "draft",
+              }}
+              dismissible
+              onDismiss={() => setError(null)}
+            />
+          )}
           <BuildEditView
             ref={editRef}
             subPath={target.subPath}

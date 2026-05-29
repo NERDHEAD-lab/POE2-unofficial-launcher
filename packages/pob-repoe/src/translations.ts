@@ -44,8 +44,14 @@ interface RePoeNamedRecord {
   active_skill?: {
     id?: unknown;
     display_name?: unknown;
+    description?: unknown;
   };
+  description?: unknown;
+  gem_description?: unknown;
+  support_text?: unknown;
+  crafting_types?: unknown;
   grants_skills?: unknown;
+  tags?: unknown;
   skill_name?: unknown;
   support_name?: unknown;
 }
@@ -91,6 +97,32 @@ const sourceNames = (
     if (value) names.add(value);
   }
   return Array.from(names);
+};
+
+const cleanGameText = (text: string): string =>
+  text.replace(/\[([^|\]]+)\|([^\]]+)\]/g, "$2").replace(/\[([^\]]+)\]/g, "$1");
+
+const textCandidates = (
+  record: RePoeNamedRecord | undefined,
+  selectors: NameSelector[],
+): string[] => {
+  if (!record) return [];
+  const texts = new Set<string>();
+  for (const select of selectors) {
+    const value = stringValue(select(record));
+    if (!value) continue;
+    texts.add(value);
+    texts.add(cleanGameText(value));
+  }
+  return Array.from(texts);
+};
+
+const stringArrayValue = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const text = stringValue(entry);
+    return text ? [text] : [];
+  });
 };
 
 const asNamedRecords = (value: unknown): Record<string, RePoeNamedRecord> => {
@@ -150,6 +182,46 @@ function indexPairedNames(
   }
 }
 
+function indexPairedTexts(
+  targetById: Record<string, string>,
+  targetByEnglishText: Record<string, string>,
+  sourceRecords: Record<string, RePoeNamedRecord>,
+  localizedRecords: Record<string, RePoeNamedRecord>,
+  textSelectors: NameSelector[],
+  idSelectors: NameSelector[] = [],
+): void {
+  for (const [key, localizedRecord] of Object.entries(localizedRecords)) {
+    const localizedText = textCandidates(localizedRecord, textSelectors)[0];
+    if (!localizedText) continue;
+    const sourceRecord = sourceRecords[key];
+
+    put(targetById, key, localizedText);
+    for (const select of idSelectors) {
+      put(targetById, stringValue(select(localizedRecord)), localizedText);
+      put(targetById, stringValue(select(sourceRecord ?? {})), localizedText);
+    }
+
+    for (const sourceText of textCandidates(sourceRecord, textSelectors)) {
+      targetByEnglishText[sourceText] = localizedText;
+    }
+  }
+}
+
+function indexPairedArrays(
+  targetByEnglishText: Record<string, string>,
+  sourceRecords: Record<string, RePoeNamedRecord>,
+  localizedRecords: Record<string, RePoeNamedRecord>,
+  select: NameSelector,
+): void {
+  for (const [key, localizedRecord] of Object.entries(localizedRecords)) {
+    const sourceValues = stringArrayValue(select(sourceRecords[key]));
+    const localizedValues = stringArrayValue(select(localizedRecord));
+    sourceValues.forEach((sourceValue, index) => {
+      targetByEnglishText[sourceValue] = localizedValues[index] ?? sourceValue;
+    });
+  }
+}
+
 function indexSkillGemNames(
   snapshot: PobRepoeTranslationsSnapshot,
   sourceGems: Record<string, RePoeNamedRecord>,
@@ -191,6 +263,49 @@ function indexSkillGemNames(
       put(snapshot.gemNamesBySkillId, stringValue(skillId), localizedName);
     }
   }
+
+  const descriptionSelectors: NameSelector[] = [
+    (record) => record.support_text,
+    (record) => record.description,
+    (record) => record.gem_description,
+    (record) => record.active_skill?.description,
+  ];
+  indexPairedTexts(
+    snapshot.skillDescriptionsById,
+    snapshot.skillDescriptionsByEnglishText,
+    sourceGems,
+    localizedGems,
+    descriptionSelectors,
+    [(record) => record.id, (record) => record.base_item?.id],
+  );
+
+  for (const [key, localizedRecord] of Object.entries(localizedGems)) {
+    const localizedText = textCandidates(
+      localizedRecord,
+      descriptionSelectors,
+    )[0];
+    if (!localizedText) continue;
+
+    for (const skillId of stringArrayValue(localizedRecord.grants_skills)) {
+      put(snapshot.skillDescriptionsById, skillId, localizedText);
+    }
+    for (const skillId of stringArrayValue(sourceGems[key]?.grants_skills)) {
+      put(snapshot.skillDescriptionsById, skillId, localizedText);
+    }
+  }
+
+  indexPairedArrays(
+    snapshot.gemFamiliesByEnglishName,
+    sourceGems,
+    localizedGems,
+    (record) => record.crafting_types,
+  );
+  indexPairedArrays(
+    snapshot.skillTagsByEnglishName,
+    sourceGems,
+    localizedGems,
+    (record) => record.tags,
+  );
 }
 
 function indexSkillNames(
@@ -213,6 +328,26 @@ function indexSkillNames(
     nameSelectors,
     [(record) => record.id, (record) => record.active_skill?.id],
   );
+
+  const descriptionSelectors: NameSelector[] = [
+    (record) => record.description,
+    (record) => record.gem_description,
+    (record) => record.active_skill?.description,
+  ];
+  indexPairedTexts(
+    snapshot.skillDescriptionsById,
+    snapshot.skillDescriptionsByEnglishText,
+    sourceSkills,
+    localizedSkills,
+    descriptionSelectors,
+    [(record) => record.id, (record) => record.active_skill?.id],
+  );
+  indexPairedArrays(
+    snapshot.skillTagsByEnglishName,
+    sourceSkills,
+    localizedSkills,
+    (record) => record.tags,
+  );
 }
 
 function hasAnyTranslation(snapshot: PobRepoeTranslationsSnapshot): boolean {
@@ -226,6 +361,10 @@ function hasAnyTranslation(snapshot: PobRepoeTranslationsSnapshot): boolean {
       snapshot.gemNamesById,
       snapshot.gemNamesBySkillId,
       snapshot.gemNamesByEnglishName,
+      snapshot.skillDescriptionsById,
+      snapshot.skillDescriptionsByEnglishText,
+      snapshot.gemFamiliesByEnglishName,
+      snapshot.skillTagsByEnglishName,
     ].some((map) => Object.keys(map).length > 0) ||
     snapshot.statLineTemplates.length > 0
   );
@@ -246,6 +385,10 @@ export function createEmptyRePoeTranslations(
     gemNamesById: {},
     gemNamesBySkillId: {},
     gemNamesByEnglishName: {},
+    skillDescriptionsById: {},
+    skillDescriptionsByEnglishText: {},
+    gemFamiliesByEnglishName: {},
+    skillTagsByEnglishName: {},
   };
 }
 

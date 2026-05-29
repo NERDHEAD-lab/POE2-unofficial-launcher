@@ -21,20 +21,25 @@ export function PobTooltipAssetHeader({
     () =>
       titleEntries.length > 0 ? (
         <div className="pob-tooltip-header-title">
-          {titleEntries.map(({ line, index }) => (
-            <div
-              key={`header-title-${index}`}
-              className={
-                tooltipLineClasses(lineBaseClass, line) +
-                " is-header-title-line"
-              }
-            >
-              {line.text}
-            </div>
-          ))}
+          <div className="pob-tooltip-header-title-lines">
+            {titleEntries.map(({ line, index }) => (
+              <div
+                key={`header-title-${index}`}
+                className={
+                  tooltipLineClasses(lineBaseClass, line) +
+                  " is-header-title-line"
+                }
+              >
+                {line.text}
+              </div>
+            ))}
+          </div>
+          {children ? (
+            <div className="pob-tooltip-header-title-suffix">{children}</div>
+          ) : null}
         </div>
       ) : null,
-    [lineBaseClass, titleEntries],
+    [children, lineBaseClass, titleEntries],
   );
 
   return (
@@ -46,7 +51,6 @@ export function PobTooltipAssetHeader({
       <span className="pob-tooltip-header-slice is-middle" />
       <span className="pob-tooltip-header-slice is-right" />
       {titleContent}
-      {children}
     </div>
   );
 }

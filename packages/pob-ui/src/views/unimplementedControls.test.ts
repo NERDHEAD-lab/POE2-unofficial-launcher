@@ -25,6 +25,11 @@ describe("unimplementedControls", () => {
   });
 
   it("projects marker attributes without using the native disabled state", () => {
+    expect(getPobUnimplementedControlAttributes("ui-mode.switch")).toEqual({
+      "aria-disabled": true,
+      "data-pob-unimplemented": "ui-mode.switch",
+      "data-pob-disabled-reason": "parity-deferred",
+    });
     expect(getPobUnimplementedControlAttributes("items.price-check")).toEqual({
       "aria-disabled": true,
       "data-pob-unimplemented": "items.price-check",

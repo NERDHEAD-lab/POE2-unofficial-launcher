@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import type {
+  BuildsSaveXmlOptions,
   PobBuildMetadataAction,
   PobCalcsAction,
   PobConfigAction,
@@ -70,8 +71,12 @@ contextBridge.exposeInMainWorld("pobAPI", {
       invoke("builds:save-stub", subPath, fileName),
     readXml: (subPath: string, fileName: string) =>
       invoke("builds:read-xml", subPath, fileName),
-    saveXml: (subPath: string, fileName: string, xml: string) =>
-      invoke("builds:save-xml", subPath, fileName, xml),
+    saveXml: (
+      subPath: string,
+      fileName: string,
+      xml: string,
+      options?: BuildsSaveXmlOptions,
+    ) => invoke("builds:save-xml", subPath, fileName, xml, options),
   },
   vault: {
     status: () => invoke("pob:vault-status"),

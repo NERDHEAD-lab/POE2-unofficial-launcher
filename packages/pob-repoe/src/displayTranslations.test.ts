@@ -5,6 +5,7 @@ import type {
   PobBuildSummary,
   PobConfigSnapshot,
   PobItemDbSummary,
+  PobItemSummary,
   PobItemsSnapshot,
   PobItemsTooltip,
   PobMainSkillSummarySnapshot,
@@ -25,6 +26,7 @@ import {
   translateItemTooltip,
   translateItemsSnapshot,
   translateMainSkillSummarySnapshot,
+  translateSkillsGemTooltip,
   translateSkillsSnapshot,
   translateStatLine,
   translateTreeSnapshot,
@@ -57,11 +59,28 @@ const translations: PobRepoeTranslationsSnapshot = {
       english: "Adds # to # Cold Damage to Attacks",
       localized: "공격 시 냉기 피해 #~# 추가",
     },
+    {
+      english: "#% increased maximum Energy Shield",
+      localized: "최대 에너지 보호막 #% 증가",
+    },
+    {
+      english: "+#% to all Elemental Resistances",
+      localized: "모든 원소 저항 +#%",
+    },
+    {
+      english: "+#% to Lightning Resistance",
+      localized: "번개 저항 +#%",
+    },
+    {
+      english: "+#% to Chaos Resistance",
+      localized: "카오스 저항 +#%",
+    },
   ],
   itemNamesById: {},
   itemNamesByEnglishName: {
     "Ab Aeterno": "영원불멸",
     "Grand Cuisses": "우수한 허벅지 방어구",
+    "Lapis Amulet": "청금석 목걸이",
     "Plague Band": "역병 반지",
     "Sapphire Ring": "사파이어 반지",
   },
@@ -72,7 +91,12 @@ const translations: PobRepoeTranslationsSnapshot = {
     "Hand of Chayula": "차율라의 손",
     "Elemental Weakness": "원소 약화",
     "Freezing Mark": "동결의 징표",
+    "Branching Fissures I": "파생하는 균열 I",
   },
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 };
 
 describe("RePoE display translation overlay", () => {
@@ -98,6 +122,81 @@ describe("RePoE display translation overlay", () => {
     expect(
       translateStatLine("{enchant}{rune}+13% to Cold Resistance", translations),
     ).toBe("냉기 저항 +13%");
+  });
+
+  it("translates skill gem tooltip chrome, descriptions, and unsupported suffixes", () => {
+    const description =
+      "Supports Skills which create Fissures in the ground, causing them to create additional secondary Fissures which branch off from the primary fissure, with lowered area of effect and Damage.";
+    const skillTranslations: PobRepoeTranslationsSnapshot = {
+      ...translations,
+      statLinesByEnglishLine: {
+        ...translations.statLinesByEnglishLine,
+        "Supported Skills' Fissures branch an additional time":
+          "보조 대상 스킬의 균열이 추가로 한 번 갈라짐",
+      },
+      skillDescriptionsByEnglishText: {
+        [description]:
+          "지면에 균열을 생성하는 스킬을 보조하여, 범위와 피해가 낮아진 추가 보조 균열을 주 균열에서 갈라져 나오게 합니다.",
+      },
+      gemFamiliesByEnglishName: {
+        Fissures: "균열",
+      },
+    };
+
+    const tooltip = translateSkillsGemTooltip(
+      {
+        groupIndex: 1,
+        gemIndex: 2,
+        mode: "gem",
+        header: "Branching Fissures I",
+        lines: [
+          {
+            kind: "line",
+            text: "Branching Fissures I",
+            colour: "GEM",
+            size: 20,
+          },
+          { kind: "separator", text: "", colour: null, size: 10 },
+          { kind: "line", text: "Support", colour: "NORMAL", size: 16 },
+          {
+            kind: "line",
+            text: "Category: Fissures",
+            colour: "NORMAL",
+            size: 16,
+          },
+          { kind: "line", text: "Tier: 3", colour: "NORMAL", size: 16 },
+          {
+            kind: "line",
+            text: "Cost Multiplier: 120%",
+            colour: "NORMAL",
+            size: 16,
+          },
+          { kind: "line", text: description, colour: "MAGIC", size: 16 },
+          {
+            kind: "line",
+            text: "Supported Skills' Fissures branch an additional time (Not supported in PoB yet)",
+            colour: "MAGIC",
+            size: 16,
+          },
+        ],
+      },
+      skillTranslations,
+    );
+
+    expect(tooltip.header).toBe("파생하는 균열 I");
+    expect(tooltip.lines.map((line) => line.text)).toEqual([
+      "파생하는 균열 I",
+      "",
+      "보조",
+      "카테고리: 균열",
+      "티어: 3",
+      "소모 배율: 120%",
+      "지면에 균열을 생성하는 스킬을 보조하여, 범위와 피해가 낮아진 추가 보조 균열을 주 균열에서 갈라져 나오게 합니다.",
+      "보조 대상 스킬의 균열이 추가로 한 번 갈라짐 (아직 PoB에서 지원되지 않음)",
+    ]);
+    expect(translateSkillsGemTooltip(tooltip, skillTranslations)).toEqual(
+      tooltip,
+    );
   });
 
   it("memoizes passive tree translation for identical snapshot objects", () => {
@@ -278,6 +377,112 @@ describe("RePoE display translation overlay", () => {
     expect(translateItemTooltip(translated, translations)).toEqual(translated);
   });
 
+  it("translates item tooltip context, item chrome, and comparison lines", () => {
+    const item: PobItemSummary = {
+      id: 7,
+      raw: "Rarity: Rare\nChimeric Gorget\nLapis Amulet",
+      name: "Chimeric Gorget",
+      rarity: "RARE",
+      baseName: "Lapis Amulet",
+      title: "Chimeric Gorget",
+      itemLevel: 72,
+      quality: null,
+      corrupted: false,
+      mirrored: false,
+      shaper: false,
+      elder: false,
+      fractured: false,
+      influences: null,
+      baseType: "Lapis Amulet",
+      baseSubType: "Amulet",
+      implicitLines: ["+9% to all Elemental Resistances"],
+      explicitLines: ["34% increased maximum Energy Shield"],
+    };
+    const tooltip: PobItemsTooltip = {
+      source: "custom",
+      itemId: 7,
+      db: null,
+      slotName: "Amulet",
+      header: "RARE",
+      lines: [
+        { kind: "line", text: "Chimeric Gorget", colour: "RARE", size: 16 },
+        { kind: "line", text: "Lapis Amulet", colour: null, size: 14 },
+        { kind: "line", text: "AMULET", colour: null, size: 14 },
+        { kind: "separator", text: "", colour: null, size: null },
+        {
+          kind: "line",
+          text: "34% increased maximum Energy Shield",
+          colour: null,
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "+9% to all Elemental Resistances",
+          colour: null,
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "+23% to Lightning Resistance",
+          colour: "LIGHTNING",
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "+21% to Chaos Resistance",
+          colour: "CHAOS",
+          size: 14,
+        },
+        { kind: "separator", text: "", colour: null, size: null },
+        {
+          kind: "line",
+          text: "Removing this item from Amulet will give you:",
+          colour: null,
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "Effective Hit Pool: +123",
+          colour: null,
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "Phys Max Hit: -45",
+          colour: null,
+          size: 14,
+        },
+        {
+          kind: "line",
+          text: "Fire Res. Over Max: +9%",
+          colour: null,
+          size: 14,
+        },
+      ],
+    };
+
+    const translated = translateItemTooltip(tooltip, translations, item);
+
+    expect(translated.lines.map((line) => line.text)).toEqual([
+      "Chimeric Gorget",
+      "청금석 목걸이",
+      "목걸이",
+      "",
+      "최대 에너지 보호막 34% 증가",
+      "모든 원소 저항 +9%",
+      "번개 저항 +23%",
+      "카오스 저항 +21%",
+      "",
+      "목걸이에서 이 아이템을 제거하면 다음 변화가 적용됩니다:",
+      "유효 생명력: +123",
+      "물리 최대 피격: -45",
+      "화염 저항 최대 초과: +9%",
+    ]);
+    expect(translateItemTooltip(translated, translations, item)).toEqual(
+      translated,
+    );
+  });
+
   it("translates build metadata and main skill summary display fields only", () => {
     const summary: PobBuildSummary = {
       ok: true,
@@ -295,6 +500,17 @@ describe("RePoE display translation overlay", () => {
       className: "Monk",
       ascendClassId: 2,
       ascendClassName: "Invoker",
+      passivePointBudget: {
+        normal: { used: 102, max: 123, exceeded: false },
+        weaponSet1: { used: 0, max: 24, exceeded: false },
+        weaponSet2: { used: 0, max: 24, exceeded: false },
+        ascendancy: { used: 2, max: 8, exceeded: false },
+        requiredLevel: 79,
+        act: "Endgame",
+        extraSkillPoints: 0,
+        tooltip:
+          "Required Level: 79\nEstimated Progress:\nAct: Endgame\nExtra Skillpoints: 0",
+      },
       classes: [
         {
           id: 3,

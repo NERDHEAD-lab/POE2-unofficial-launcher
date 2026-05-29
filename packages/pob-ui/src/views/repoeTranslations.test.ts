@@ -60,6 +60,10 @@ const translations: PobRepoeTranslationsSnapshot = {
     "Alchemist's Boon": "Alchemist's Boon KO",
     Fireball: "Fireball KO",
   },
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 };
 
 const itemBase = {

@@ -285,6 +285,84 @@ local function json_nullable_number(value)
 	return json.null
 end
 
+local function point_budget_bucket(used, max)
+	return {
+		used = used,
+		max = max,
+		exceeded = used > max,
+	}
+end
+
+local function build_passive_point_budget_snapshot(b)
+	local tooltip = nil
+	if type(b.EstimatePlayerProgress) == "function" then
+		local ok, _, req = pcall(function() return b:EstimatePlayerProgress() end)
+		if ok and type(req) == "string" then
+			tooltip = strip_colour_codes(req)
+		end
+	end
+
+	local pointsUsed, ascUsed, _, _, weaponSet1Used, weaponSet2Used = 0, 0, 0, 0, 0, 0
+	if b.spec and type(b.spec.CountAllocNodes) == "function" then
+		local ok, used, asc, secondaryAsc, sockets, weapon1, weapon2 = pcall(function()
+			return b.spec:CountAllocNodes()
+		end)
+		if ok then
+			pointsUsed = tonumber(used) or 0
+			ascUsed = tonumber(asc) or 0
+			weaponSet1Used = tonumber(weapon1) or 0
+			weaponSet2Used = tonumber(weapon2) or 0
+		end
+	end
+
+	local mainOutput = b.calcsTab and b.calcsTab.mainOutput or nil
+	local extra = type(mainOutput) == "table" and tonumber(mainOutput.ExtraPoints) or 0
+	local extraWeaponSets = type(mainOutput) == "table" and tonumber(mainOutput.PassivePointsToWeaponSetPoints) or 0
+	extra = extra or 0
+	extraWeaponSets = extraWeaponSets or 0
+
+	local maxWeaponSets = tonumber(b.maxWeaponSets) or 0
+	local usedMax = 99 + maxWeaponSets + extra
+	local weaponSetMax = maxWeaponSets + extraWeaponSets
+	local normalPassives = pointsUsed - math.min(weaponSet1Used, weaponSet2Used)
+
+	local acts = b.acts or {}
+	local maxActs = math.max(tonumber(b.maxActs) or #acts, 1)
+	local act = 0
+	local requiredLevel = 1
+	repeat
+		act = act + 1
+		local actInfo = acts[act] or { level = 1, questPoints = 0 }
+		local nextActInfo = acts[act + 1] or {}
+		requiredLevel = math.min(
+			math.max(
+				pointsUsed + 1 - (tonumber(actInfo.questPoints) or 0) - extra - math.min(weaponSet1Used, weaponSet2Used),
+				tonumber(actInfo.level) or 1
+			),
+			100
+		)
+	until act == maxActs or requiredLevel <= (tonumber(nextActInfo.level) or requiredLevel)
+
+	local actLabel = act == maxActs and "Endgame" or "Act " .. tostring(act)
+	tooltip = tooltip or string.format(
+		"Required Level: %d\nEstimated Progress:\nAct: %s\nExtra Skillpoints: %d",
+		requiredLevel,
+		actLabel,
+		extra
+	)
+
+	return {
+		normal = point_budget_bucket(normalPassives, usedMax),
+		weaponSet1 = point_budget_bucket(weaponSet1Used, weaponSetMax),
+		weaponSet2 = point_budget_bucket(weaponSet2Used, weaponSetMax),
+		ascendancy = point_budget_bucket(ascUsed, 8),
+		requiredLevel = requiredLevel,
+		act = actLabel,
+		extraSkillPoints = extra,
+		tooltip = tooltip,
+	}
+end
+
 local function build_metadata_snapshot()
 	local b = current_build()
 	if not b then error("No active BUILD mode") end
@@ -315,6 +393,8 @@ local function build_metadata_snapshot()
 		end
 	end
 
+	local passivePointBudget = build_passive_point_budget_snapshot(b)
+
 	return {
 		level = tonumber(b.characterLevel) or 0,
 		levelAutoMode = b.characterLevelAutoMode == true,
@@ -322,6 +402,7 @@ local function build_metadata_snapshot()
 		className = b.spec and json_nullable_text(b.spec.curClassName) or json.null,
 		ascendClassId = b.spec and json_nullable_number(b.spec.curAscendClassId) or json.null,
 		ascendClassName = b.spec and json_nullable_text(b.spec.curAscendClassName) or json.null,
+		passivePointBudget = passivePointBudget,
 		classes = classes,
 	}
 end
@@ -1973,6 +2054,7 @@ local function tree_node_tooltip(nodeId)
 	return {
 		nodeId = nodeId,
 		header = json_nullable_text(tooltip.tooltipHeader),
+		recipe = safe_string_array(node.recipe),
 		lines = lines,
 	}
 end

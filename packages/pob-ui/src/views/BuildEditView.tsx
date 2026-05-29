@@ -10,16 +10,17 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type {
+  BuildsSaveXmlOptions,
+  BuildsMutationResult,
   PobBuildMetadataAction,
   PobBuildMetadataClassChangeConfirmation,
   PobBuildMetadataClassConfirmationMode,
   PobBuildMetadataSnapshot,
   PobBuildImportMode,
+  PobBuildSummary,
   PobImportExportSnapshot,
   PobRepoeLocale,
   PobRepoeTranslationsSnapshot,
-  BuildsMutationResult,
-  PobBuildSummary,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -42,6 +43,7 @@ import { ItemsView } from "./ItemsView";
 import { LegacyModeView } from "./LegacyModeView";
 import { NotesView } from "./NotesView";
 import { PartyView } from "./PartyView";
+import { PassivePointBudget } from "./PassivePointBudget";
 import { prewarmPassiveTreeResources } from "./passiveTreeResourceCache";
 import { PassiveTreeView } from "./PassiveTreeView";
 import {
@@ -52,6 +54,7 @@ import {
 } from "./repoeTranslations";
 import { SkillsView } from "./SkillsView";
 import { PobUnimplementedButton } from "./UnimplementedButton";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 import type { BuildAction } from "./buildActions";
 import type { ImportExportIntent } from "./buildActions";
@@ -307,7 +310,10 @@ export const BuildEditView = forwardRef<
     ]);
 
     const saveBuildAs = useCallback(
-      async (nextFileName: string): Promise<BuildsMutationResult> => {
+      async (
+        nextFileName: string,
+        options?: BuildsSaveXmlOptions,
+      ): Promise<BuildsMutationResult> => {
         const api = window.pobAPI;
         if (!api) {
           return { status: "error", reason: "pobAPI unavailable" };
@@ -322,6 +328,7 @@ export const BuildEditView = forwardRef<
           subPath,
           nextFileName,
           exported.xml,
+          options,
         );
         if (result.status === "ok") {
           onDirtyChange(false);
@@ -339,7 +346,7 @@ export const BuildEditView = forwardRef<
           if (!fileName) {
             return { status: "error", reason: "current build has no file" };
           }
-          return saveBuildAs(fileName);
+          return saveBuildAs(fileName, { overwrite: true });
         },
         saveDraftAs: saveBuildAs,
       }),
@@ -1162,9 +1169,17 @@ export const BuildEditView = forwardRef<
         </div>
 
         {displayLoadStatus === "error" && loadState.status === "error" ? (
-          <div className="pob-error">
-            {t("buildList.error.generic", { reason: loadState.reason })}
-          </div>
+          <PobErrorBanner
+            message={t("buildList.error.generic", {
+              reason: loadState.reason,
+            })}
+            source="Build load"
+            context={{
+              folder: subPath || "/",
+              file: fileName ?? "draft",
+              build: buildName,
+            }}
+          />
         ) : (
           <div
             className="pob-build-metadata"
@@ -1175,6 +1190,12 @@ export const BuildEditView = forwardRef<
             }
           >
             <div className="pob-build-metadata-controls">
+              {displayBuildMetadata?.passivePointBudget && (
+                <PassivePointBudget
+                  budget={displayBuildMetadata.passivePointBudget}
+                  t={t}
+                />
+              )}
               <label className="pob-build-metadata-field is-mode">
                 <span>{t("buildEdit.metadata.levelMode")}</span>
                 <button
@@ -1280,12 +1301,23 @@ export const BuildEditView = forwardRef<
 
             {(buildMetadataState.status === "error" ||
               buildMetadataActionError) && (
-              <div className="pob-error pob-build-metadata-error">
-                {buildMetadataActionError ??
+              <PobErrorBanner
+                className="pob-build-metadata-error"
+                message={
+                  buildMetadataActionError ??
                   (buildMetadataState.status === "error"
                     ? buildMetadataState.reason
-                    : "")}
-              </div>
+                    : "")
+                }
+                source="Build metadata"
+                context={{
+                  folder: subPath || "/",
+                  file: fileName ?? "draft",
+                  build: buildName,
+                }}
+                dismissible={Boolean(buildMetadataActionError)}
+                onDismiss={() => setBuildMetadataActionError(null)}
+              />
             )}
           </div>
         )}

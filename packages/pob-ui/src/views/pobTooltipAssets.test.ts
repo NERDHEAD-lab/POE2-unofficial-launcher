@@ -22,10 +22,13 @@ describe("pobTooltipAssets", () => {
       height: 38,
       sideWidth: 32,
     });
-    expect(getPobTooltipHeaderAssets("GEM")).toMatchObject({
+    expect(getPobTooltipHeaderAssets("GEM")).toEqual({
       left: "Assets/itemsheadergemleft.png",
-      height: 55,
-      sideWidth: 47,
+      middle: "Assets/itemsheadergemmiddle.png",
+      right: "Assets/itemsheadergemright.png",
+      height: 38,
+      sideWidth: 32,
+      middleWidth: 32,
     });
   });
 

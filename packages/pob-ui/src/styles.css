@@ -1141,6 +1141,9 @@ textarea {
 }
 
 .pob-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 8px 10px;
   padding: 8px 12px;
   background: rgba(200, 74, 74, 0.15);
@@ -1148,6 +1151,53 @@ textarea {
   color: #ff9b9b;
   border-radius: 3px;
   font-size: 12px;
+}
+
+.pob-error-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pob-error-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.pob-error-copy-status {
+  color: #ffc4c4;
+  font-size: 11px;
+}
+
+.pob-error-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.pob-error-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #ffc4c4;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 155, 155, 0.35);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pob-error-action:hover {
+  color: #fff;
+  border-color: rgba(255, 155, 155, 0.75);
+}
+
+.pob-error-action .material-symbols-outlined {
+  font-size: 16px;
 }
 
 .pob-list-empty {
@@ -1530,7 +1580,7 @@ textarea {
 .pob-build-metadata {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(420px, 2fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(620px, 2fr) minmax(260px, 1fr);
   gap: 8px;
   align-items: stretch;
 }
@@ -1539,13 +1589,54 @@ textarea {
   min-height: 58px;
   display: grid;
   grid-template-columns:
-    minmax(118px, 0.8fr) minmax(78px, 0.55fr)
+    minmax(220px, 1.35fr) minmax(118px, 0.8fr) minmax(78px, 0.55fr)
     minmax(150px, 1fr) minmax(170px, 1.15fr);
   gap: 8px;
   padding: 10px;
   background: var(--pob-panel-soft);
   border: 1px solid var(--pob-border);
   border-radius: 4px;
+}
+
+.pob-passive-point-budget {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  color: var(--pob-text);
+  background: var(--pob-bg);
+  border: 1px solid var(--pob-border);
+  border-radius: 3px;
+  cursor: help;
+}
+
+.pob-passive-point-budget:focus-visible {
+  outline: 2px solid rgba(248, 182, 73, 0.7);
+  outline-offset: 2px;
+}
+
+.pob-passive-point-budget-item {
+  flex: 0 0 auto;
+  padding-right: 6px;
+  color: var(--pob-text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pob-passive-point-budget-item:not(:last-child) {
+  border-right: 1px solid var(--pob-border);
+}
+
+.pob-passive-point-budget-item.is-negative {
+  color: #ff9b9b;
+}
+
+.pob-passive-point-budget-item.is-positive {
+  color: #8bdc7d;
 }
 
 .pob-build-metadata-field {
@@ -2138,6 +2229,37 @@ textarea {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.pob-passive-tree-tooltip-recipe {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #f8e6ca;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pob-passive-tree-tooltip-recipe-item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.pob-passive-tree-tooltip-recipe-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pob-passive-tree-tooltip-recipe-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
 .pob-passive-tree-tooltip .is-colour-gold {
   color: #ffd866;
 }
@@ -2547,6 +2669,7 @@ textarea {
 .pob-items-catalog-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  flex: 0 0 auto;
   border-top: 1px solid var(--pob-border);
   background: var(--pob-panel-soft);
 }
@@ -2630,6 +2753,11 @@ textarea {
   min-height: 0;
 }
 
+.pob-item-tooltip:not(.is-floating) {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
 .pob-item-tooltip.is-floating {
   position: fixed;
   z-index: 10000;
@@ -2698,16 +2826,33 @@ textarea {
   inset: 3px calc(var(--pob-tooltip-header-side-width) + 8px);
   z-index: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 8px;
   min-width: 0;
   text-align: center;
   pointer-events: none;
   text-shadow:
     0 1px 1px #000,
     0 0 5px #000;
+}
+
+.pob-tooltip-header-title-lines {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.pob-tooltip-header-title-suffix {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
 }
 
 .pob-tooltip-header-title [class*="tooltip-line"] {
@@ -3105,6 +3250,24 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.pob-items-db-pane {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.pob-items-db-state {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+}
+
+.pob-items-db-state .pob-mode-placeholder-body {
+  margin: 0;
 }
 
 .pob-items-db-filter-row {
@@ -3781,7 +3944,7 @@ textarea {
   text-align: center;
 }
 
-.pob-skills-tooltip.is-tooltip-header-gem
+.pob-skills-tooltip.is-tooltip-header-gem:not(.has-asset-tooltip-header)
   .pob-skills-tooltip-line.is-title:first-child {
   margin: -2px 0 8px;
   padding: 3px 8px 4px;
@@ -4322,6 +4485,7 @@ textarea {
 .pob-note-template-manager {
   display: grid;
   grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.2fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-height: 320px;
 }
@@ -4338,14 +4502,14 @@ textarea {
 .pob-note-template-manager-modal .pob-note-template-manager {
   flex: 1 1 auto;
   grid-template-columns: minmax(200px, 0.75fr) minmax(420px, 1.5fr);
-  min-height: min(560px, calc(88vh - 150px));
+  min-height: min(500px, calc(88vh - 150px));
   overflow: hidden;
 }
 
-.pob-note-template-manager-modal .pob-note-template-list,
+.pob-note-template-manager-modal .pob-note-template-list-column,
 .pob-note-template-manager-modal .pob-note-template-editor {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .pob-note-template-manager-modal .pob-note-template-editor {
@@ -4371,11 +4535,38 @@ textarea {
   line-height: 1.4;
 }
 
-.pob-note-template-list {
+.pob-note-template-list-column,
+.pob-note-template-list-scroll {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+}
+
+.pob-note-template-list-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.pob-note-template-create-button {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--pob-text);
+  background: var(--pob-panel-soft);
+  border: 1px solid var(--pob-border);
+  border-radius: 4px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pob-note-template-create-button:hover {
+  border-color: var(--pob-accent);
 }
 
 .pob-note-template-editor textarea {
@@ -4392,11 +4583,12 @@ textarea {
 
   .pob-note-template-manager-modal .pob-note-template-manager {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, auto) minmax(0, 1fr);
     min-height: 0;
     overflow: visible;
   }
 
-  .pob-note-template-manager-modal .pob-note-template-list {
+  .pob-note-template-manager-modal .pob-note-template-list-column {
     max-height: 220px;
   }
 

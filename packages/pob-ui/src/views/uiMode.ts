@@ -8,8 +8,13 @@ export const DEFAULT_POB_UI_MODE: PobUiMode = "renewed";
 
 export const POB_UI_MODE_SWITCH_ORDER = ["legacy", "renewed"] as const;
 
+export const LOCKED_POB_UI_MODES: readonly PobUiMode[] = ["legacy"];
+
 export const getNextPobUiMode = (mode: PobUiMode): PobUiMode =>
   mode === "renewed" ? "legacy" : "renewed";
+
+export const isPobUiModeLocked = (mode: PobUiMode): boolean =>
+  LOCKED_POB_UI_MODES.includes(mode);
 
 export interface PobUiModePolicy {
   mode: BuildMode;

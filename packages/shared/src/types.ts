@@ -371,7 +371,12 @@ export interface BuildsAPI {
     subPath: string,
     fileName: string,
     xml: string,
+    options?: BuildsSaveXmlOptions,
   ) => Promise<BuildsMutationResult>;
+}
+
+export interface BuildsSaveXmlOptions {
+  overwrite?: boolean;
 }
 
 export interface PobBuildSummary {
@@ -395,6 +400,23 @@ export interface PobBuildMetadataClassOption {
   ascendancies: PobBuildMetadataAscendancyOption[];
 }
 
+export interface PobPassivePointBudgetBucket {
+  used: number;
+  max: number;
+  exceeded: boolean;
+}
+
+export interface PobPassivePointBudget {
+  normal: PobPassivePointBudgetBucket;
+  weaponSet1: PobPassivePointBudgetBucket;
+  weaponSet2: PobPassivePointBudgetBucket;
+  ascendancy: PobPassivePointBudgetBucket;
+  requiredLevel: number;
+  act: string;
+  extraSkillPoints: number;
+  tooltip: string;
+}
+
 export interface PobBuildMetadataSnapshot {
   level: number;
   levelAutoMode: boolean;
@@ -402,6 +424,7 @@ export interface PobBuildMetadataSnapshot {
   className: string | null;
   ascendClassId: number | null;
   ascendClassName: string | null;
+  passivePointBudget: PobPassivePointBudget;
   classes: PobBuildMetadataClassOption[];
 }
 
@@ -728,6 +751,7 @@ export interface PobTreeTooltipLine {
 export interface PobTreeNodeTooltip {
   nodeId: number;
   header: string | null;
+  recipe?: string[];
   lines: PobTreeTooltipLine[];
 }
 
@@ -1140,6 +1164,10 @@ export interface PobRepoeTranslationsSnapshot {
   gemNamesById: Record<string, string>;
   gemNamesBySkillId: Record<string, string>;
   gemNamesByEnglishName: Record<string, string>;
+  skillDescriptionsById: Record<string, string>;
+  skillDescriptionsByEnglishText: Record<string, string>;
+  gemFamiliesByEnglishName: Record<string, string>;
+  skillTagsByEnglishName: Record<string, string>;
 }
 
 export type PobRepoeTranslationsResult =

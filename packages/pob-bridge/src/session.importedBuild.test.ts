@@ -127,6 +127,10 @@ const importedBuildItemTranslations: PobRepoeTranslationsSnapshot = {
   gemNamesById: {},
   gemNamesBySkillId: {},
   gemNamesByEnglishName: {},
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 };
 
 const untranslatedPlagueBandTerms =
@@ -185,6 +189,29 @@ describe("PoBSession Imported Build2 contract", () => {
             (classOption) => classOption.id === buildMetadata.classId,
           ),
         ).toBe(true);
+        expect(buildMetadata.passivePointBudget.normal).toEqual({
+          used: 102,
+          max: 123,
+          exceeded: false,
+        });
+        expect(buildMetadata.passivePointBudget.weaponSet1).toEqual({
+          used: 0,
+          max: 24,
+          exceeded: false,
+        });
+        expect(buildMetadata.passivePointBudget.weaponSet2).toEqual({
+          used: 0,
+          max: 24,
+          exceeded: false,
+        });
+        expect(buildMetadata.passivePointBudget.ascendancy).toEqual({
+          used: 2,
+          max: 8,
+          exceeded: false,
+        });
+        expect(buildMetadata.passivePointBudget.tooltip).toContain(
+          "Required Level:",
+        );
 
         const levelChange = await session.buildMetadataAction({
           type: "setLevel",
@@ -195,6 +222,7 @@ describe("PoBSession Imported Build2 contract", () => {
         if (levelChange.status === "ok") {
           expect(levelChange.snapshot.level).toBe(82);
           expect(levelChange.snapshot.levelAutoMode).toBe(false);
+          expect(levelChange.snapshot.passivePointBudget.normal.used).toBe(102);
         }
 
         const autoModeChange = await session.buildMetadataAction({
@@ -292,6 +320,15 @@ describe("PoBSession Imported Build2 contract", () => {
           );
           expect(JSON.stringify(tooltip)).not.toContain("^x");
           expect(JSON.stringify(tooltip)).not.toContain("^7");
+        }
+        const killerInstinct = tree.nodes.find(
+          (node) => node.name === "Killer Instinct",
+        );
+        expect(killerInstinct?.recipe).toEqual(["Greed", "Paranoia", "Greed"]);
+        if (killerInstinct) {
+          const tooltip = await session.treeNodeTooltip(killerInstinct.id);
+          assertPobTreeNodeTooltip(tooltip);
+          expect(tooltip.recipe).toEqual(["Greed", "Paranoia", "Greed"]);
         }
 
         const items = await session.itemsSnapshot();

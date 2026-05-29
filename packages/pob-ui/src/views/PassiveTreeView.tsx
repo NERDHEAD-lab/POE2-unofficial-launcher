@@ -73,7 +73,7 @@ import { PobTooltipAssetHeader } from "./PobTooltipAssetHeader";
 import {
   buildPobTooltipHeaderAssetStyle,
   buildPobTooltipSharedAssetStyle,
-  collectPobTooltipHeaderTitleEntries,
+  collectPobTreeTooltipHeaderTitleEntries,
 } from "./pobTooltipAssetParts";
 import {
   shouldSkipHeaderSeparator,
@@ -85,6 +85,7 @@ import {
   translateTreeSnapshot,
 } from "./repoeTranslations";
 import { PobUnimplementedButton } from "./UnimplementedButton";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 interface PassiveTreeViewProps {
   active: boolean;
@@ -145,6 +146,29 @@ interface Projection {
   nodes: ProjectedNode[];
   edges: ProjectedEdge[];
 }
+
+interface PassiveTreeTooltipRecipeEntry {
+  name: string;
+  imageSrc: string | null;
+}
+
+const trimPassiveTreeRecipeName = (name: string): string =>
+  name.endsWith("Oil") && name.length > 3 ? name.slice(0, -3) : name;
+
+const treeImageToSrc = (image: TreeImage | null): string | null => {
+  if (!image) return null;
+  if (
+    typeof HTMLCanvasElement !== "undefined" &&
+    image instanceof HTMLCanvasElement
+  ) {
+    try {
+      return image.toDataURL("image/png");
+    } catch {
+      return null;
+    }
+  }
+  return "src" in image && typeof image.src === "string" ? image.src : null;
+};
 
 const projectScene = (
   snapshot: PobTreeSnapshot,
@@ -1209,9 +1233,10 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   }
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Passive tree"
+      />
     );
   }
 
@@ -1260,11 +1285,23 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   const tooltipSharedAssetStyle =
     buildPobTooltipSharedAssetStyle(tooltipVaultPath);
   const richTooltipHeaderTitleEntries = richTooltip
-    ? collectPobTooltipHeaderTitleEntries(
+    ? collectPobTreeTooltipHeaderTitleEntries(
         richTooltip.lines,
         Boolean(tooltipHeaderAssetStyle),
       )
     : [];
+  const richTooltipRecipeEntries: PassiveTreeTooltipRecipeEntry[] =
+    richTooltip?.recipe && ddsLookup
+      ? richTooltip.recipe.map((name) => {
+          const ref = resolveDdsAssetRef(ddsLookup, name);
+          return {
+            name: trimPassiveTreeRecipeName(name),
+            imageSrc: ref
+              ? treeImageToSrc(images[ddsImageKey(ref)] ?? null)
+              : null,
+          };
+        })
+      : [];
   const richTooltipHeaderTitleIndexes = new Set(
     richTooltipHeaderTitleEntries.map((entry) => entry.index),
   );
@@ -1373,7 +1410,30 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
                     lineBaseClass="pob-passive-tree-tooltip-line"
                     titleEntries={richTooltipHeaderTitleEntries}
                     style={tooltipHeaderAssetStyle}
-                  />
+                  >
+                    {richTooltipRecipeEntries.length > 0 && (
+                      <span className="pob-passive-tree-tooltip-recipe">
+                        {richTooltipRecipeEntries.map((recipe, index) => (
+                          <span
+                            className="pob-passive-tree-tooltip-recipe-item"
+                            key={`${recipe.name}-${index}`}
+                          >
+                            <span className="pob-passive-tree-tooltip-recipe-name">
+                              {recipe.name}
+                            </span>
+                            {recipe.imageSrc ? (
+                              <img
+                                alt=""
+                                aria-hidden="true"
+                                className="pob-passive-tree-tooltip-recipe-icon"
+                                src={recipe.imageSrc}
+                              />
+                            ) : null}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </PobTooltipAssetHeader>
                 )}
                 {richTooltip.lines.map((line, index) =>
                   line.kind === "separator" ? (

@@ -7,6 +7,7 @@ import {
   BuildEntry,
   BuildsListResult,
   BuildsMutationResult,
+  BuildsSaveXmlOptions,
   BuildXmlReadResult,
   PobGame,
 } from "@poe2-launcher/shared/types";
@@ -183,6 +184,20 @@ const tryReadXml = async (
   }
 };
 
+export const writeBuildXmlFile = async (
+  dir: string,
+  fileName: string,
+  xml: string,
+  options: BuildsSaveXmlOptions = {},
+): Promise<void> => {
+  assertSafeBuildName(fileName);
+  if (typeof xml !== "string") throw new Error("invalid xml");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, ensureXml(fileName)), xml, {
+    flag: options.overwrite ? "w" : "wx",
+  });
+};
+
 export const registerBuildsHandlers = (): void => {
   ipcMain.handle(
     "builds:list",
@@ -320,15 +335,17 @@ export const registerBuildsHandlers = (): void => {
 
   ipcMain.handle(
     "builds:save-xml",
-    (event, subPath: string, fileName: string, xml: string) =>
+    (
+      event,
+      subPath: string,
+      fileName: string,
+      xml: string,
+      options?: BuildsSaveXmlOptions,
+    ) =>
       tryMutation("save-xml", async () => {
-        assertSafeBuildName(fileName);
-        if (typeof xml !== "string") throw new Error("invalid xml");
         const game = getGameFromSender(event);
-        const dir = resolveFolder(game, subPath);
-        await fs.mkdir(dir, { recursive: true });
-        await fs.writeFile(path.join(dir, ensureXml(fileName)), xml, {
-          flag: "wx",
+        await writeBuildXmlFile(resolveFolder(game, subPath), fileName, xml, {
+          overwrite: options?.overwrite === true,
         });
       }),
   );

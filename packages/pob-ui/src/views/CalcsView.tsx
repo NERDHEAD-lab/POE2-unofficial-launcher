@@ -40,6 +40,7 @@ import {
   translateCalcsSnapshot,
 } from "./repoeTranslations";
 import { PobUnimplementedButton } from "./UnimplementedButton";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 type LoadState =
   | { status: "idle" }
@@ -709,9 +710,12 @@ function BreakdownPanel({
           </p>
         )}
         {displayState.status === "error" && (
-          <p className="pob-error">
-            {t("buildList.error.generic", { reason: displayState.reason })}
-          </p>
+          <PobErrorBanner
+            message={t("buildList.error.generic", {
+              reason: displayState.reason,
+            })}
+            source="Calcs breakdown"
+          />
         )}
         {displayState.status === "ready" &&
           displayState.data.sections.length === 0 && (
@@ -994,9 +998,10 @@ export function CalcsView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Calcs"
+      />
     );
   }
 
@@ -1043,9 +1048,15 @@ export function CalcsView({
       </div>
 
       {actionState.status === "error" && (
-        <div className="pob-error pob-calcs-action-error">
-          {t("buildList.error.generic", { reason: actionState.reason })}
-        </div>
+        <PobErrorBanner
+          className="pob-calcs-action-error"
+          message={t("buildList.error.generic", {
+            reason: actionState.reason,
+          })}
+          source="Calcs action"
+          dismissible
+          onDismiss={() => setActionState({ status: "idle" })}
+        />
       )}
       {unimplementedNotice && (
         <div className="pob-calcs-action-notice" role="status">

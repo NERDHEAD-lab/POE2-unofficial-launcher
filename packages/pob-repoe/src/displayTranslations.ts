@@ -33,6 +33,10 @@ export const EMPTY_REPOE_TRANSLATIONS: PobRepoeTranslationsSnapshot = {
   gemNamesById: {},
   gemNamesBySkillId: {},
   gemNamesByEnglishName: {},
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 };
 
 const translatedByName = (
@@ -192,6 +196,25 @@ const pobDisplayPhrasesKo: Record<string, string> = {
   Projectile: "투사체",
   Spell: "주문",
   "Projectile Spell": "투사체 주문",
+  Fissure: "균열",
+  Fissures: "균열",
+  Amulet: "목걸이",
+  Ring: "반지",
+  Belt: "허리띠",
+  Jewel: "주얼",
+  Flask: "플라스크",
+  Charm: "호신부",
+  "Effective Hit Pool": "유효 생명력",
+  "Phys Max Hit": "물리 최대 피격",
+  "Fire Max Hit": "화염 최대 피격",
+  "Cold Max Hit": "냉기 최대 피격",
+  "Lightning Max Hit": "번개 최대 피격",
+  "Chaos Max Hit": "카오스 최대 피격",
+  "Total Mana": "총 마나",
+  "Mana Regen": "마나 재생",
+  "Fire Res. Over Max": "화염 저항 최대 초과",
+  "Cold Res. Over Max": "냉기 저항 최대 초과",
+  "Lightning Res. Over Max": "번개 저항 최대 초과",
 };
 
 const pobQuestAreaNamesKo: Record<string, string> = {
@@ -432,6 +455,129 @@ const translateDisplayText = (
   );
 };
 
+const cleanGameText = (text: string): string =>
+  text.replace(/\[([^|\]]+)\|([^\]]+)\]/g, "$2").replace(/\[([^\]]+)\]/g, "$1");
+
+const skillGemChromePhrasesKo: Record<string, string> = {
+  Support: "보조",
+  Skill: "스킬",
+};
+
+const skillGemChromeLabelsKo: Record<string, string> = {
+  Category: "카테고리",
+  Tags: "태그",
+  Tier: "티어",
+  Level: "레벨",
+  Quality: "퀄리티",
+  "Cost Multiplier": "소모 배율",
+  "Cost & Reservation Multiplier": "소모 및 점유 배율",
+  "Reservation Multiplier": "점유 배율",
+  "Additional Reservation": "추가 점유",
+  "Cooldown Time": "재사용 대기시간",
+  "Attack Time": "공격 시간",
+  "Cast Time": "시전 시간",
+  "Critical Hit Chance": "치명타 명중 확률",
+  "Attack Damage": "공격 피해",
+};
+
+const translateSkillGemCategoryValue = (
+  value: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string =>
+  value
+    .split(/\s*,\s*/)
+    .map((part) => {
+      const translated =
+        translatedByName(
+          translations,
+          part,
+          translations.gemFamiliesByEnglishName,
+        ) ??
+        translatedByName(
+          translations,
+          part,
+          translations.skillTagsByEnglishName,
+        ) ??
+        translateDisplayText(part, translations);
+      return translated;
+    })
+    .join(", ");
+
+const translateSkillGemChromeValue = (
+  label: string,
+  value: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string => {
+  if (label === "Category" || label === "Tags") {
+    return translateSkillGemCategoryValue(value, translations);
+  }
+  if (label === "Additional Reservation") {
+    return value.replace(/\bSpirit\b/g, "정신력");
+  }
+  if (
+    label === "Cooldown Time" ||
+    label === "Attack Time" ||
+    label === "Cast Time"
+  ) {
+    return value.replace(/\s+sec\b/i, "초");
+  }
+  return value;
+};
+
+const translateSkillGemDescriptionText = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string | null =>
+  translatedByName(
+    translations,
+    text,
+    translations.skillDescriptionsByEnglishText,
+  ) ??
+  translatedByName(
+    translations,
+    cleanGameText(text),
+    translations.skillDescriptionsByEnglishText,
+  );
+
+const translateSkillsGemLineText = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string => {
+  if (!translations.locale.toLowerCase().startsWith("ko")) {
+    return translateDisplayText(text, translations);
+  }
+
+  const unsupported = /^(.*?)(\s*)\(Not supported in PoB yet\)$/i.exec(text);
+  if (unsupported) {
+    const translatedCore = translateSkillsGemLineText(
+      unsupported[1].trimEnd(),
+      translations,
+    );
+    return `${translatedCore}${unsupported[2]}(아직 PoB에서 지원되지 않음)`;
+  }
+
+  const description = translateSkillGemDescriptionText(text, translations);
+  if (description) return cleanGameText(description);
+
+  const phrase = skillGemChromePhrasesKo[text];
+  if (phrase) return phrase;
+
+  const chrome = /^([A-Za-z][A-Za-z &/]+):\s*(.+)$/.exec(text);
+  if (chrome) {
+    const [, label, value] = chrome;
+    const translatedLabel = skillGemChromeLabelsKo[label];
+    if (translatedLabel) {
+      return `${translatedLabel}: ${translateSkillGemChromeValue(
+        label,
+        value,
+        translations,
+      )}`;
+    }
+  }
+
+  return translateDisplayText(text, translations);
+};
+
 const translateMultilineDisplayText = (
   text: string | null | undefined,
   translations: PobRepoeTranslationsSnapshot,
@@ -473,7 +619,9 @@ const translatedItemName = (
   translations: PobRepoeTranslationsSnapshot,
 ): string => {
   const direct =
-    translations.itemNamesById[String(item.id)] ??
+    (typeof item.id === "string"
+      ? translations.itemNamesById[item.id]
+      : null) ??
     translatedByName(
       translations,
       item.name,
@@ -509,6 +657,102 @@ const translatedItemName = (
 
   return item.name;
 };
+
+const itemTooltipClassPhrasesKo: Record<string, string> = {
+  AMULET: "목걸이",
+  RING: "반지",
+  BELT: "허리띠",
+  JEWEL: "주얼",
+  FLASK: "플라스크",
+  CHARM: "호신부",
+  BODY_ARMOUR: "갑옷",
+  BOOTS: "장화",
+  GLOVES: "장갑",
+  HELMET: "투구",
+  QUIVER: "화살통",
+  SHIELD: "방패",
+  WEAPON: "무기",
+};
+
+const translateItemContextLine = (
+  text: string,
+  item: PobItemSummary | PobItemDbSummary | undefined,
+  translations: PobRepoeTranslationsSnapshot,
+): string | null => {
+  if (!item) return null;
+  if (text === item.name || text === item.title) {
+    return translatedItemName(item, translations);
+  }
+  if (
+    text === item.baseName ||
+    text === item.baseType ||
+    text === item.baseSubType
+  ) {
+    return translatedBaseName(item, translations) ?? text;
+  }
+
+  if (item.baseSubType && text === item.baseSubType.toUpperCase()) {
+    return (
+      itemTooltipClassPhrasesKo[text] ??
+      translateDisplayText(item.baseSubType, translations)
+    );
+  }
+
+  for (const value of [item.baseName, item.baseType]) {
+    if (value && text === value.toUpperCase()) {
+      return translatedBaseName(item, translations) ?? text;
+    }
+  }
+
+  return null;
+};
+
+const translateItemTooltipComparisonHeader = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string | null => {
+  const remove = /^Removing this item from (.+) will give you:$/i.exec(text);
+  if (remove) {
+    return `${translateDisplayText(
+      remove[1],
+      translations,
+    )}에서 이 아이템을 제거하면 다음 변화가 적용됩니다:`;
+  }
+
+  const equip = /^Equipping this item in (.+) will give you:$/i.exec(text);
+  if (equip) {
+    return `${translateDisplayText(
+      equip[1],
+      translations,
+    )}에 이 아이템을 장착하면 다음 변화가 적용됩니다:`;
+  }
+
+  return null;
+};
+
+const translateItemTooltipComparisonLine = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+): string | null => {
+  const match = /^([A-Za-z][A-Za-z .]+):\s*(.+)$/.exec(text);
+  if (!match) return null;
+
+  const translatedLabel = translatePobDisplayPhrase(match[1], translations);
+  if (!translatedLabel || translatedLabel === match[1]) return null;
+
+  return `${translatedLabel}: ${match[2]}`;
+};
+
+const translateItemTooltipLineText = (
+  text: string,
+  translations: PobRepoeTranslationsSnapshot,
+  item?: PobItemSummary | PobItemDbSummary,
+): string =>
+  translateItemContextLine(text, item, translations) ??
+  itemTooltipClassPhrasesKo[text] ??
+  translateItemTooltipComparisonHeader(text, translations) ??
+  translateItemTooltipComparisonLine(text, translations) ??
+  translateDisplayText(text, translations);
 
 const translatedBaseName = (
   item: PobItemSummary | PobItemDbSummary,
@@ -1194,6 +1438,18 @@ const translateTooltipLines = (
   );
 };
 
+const translateSkillsGemTooltipLines = (
+  lines: PobTreeTooltipLine[],
+  translations: PobRepoeTranslationsSnapshot,
+): PobTreeTooltipLine[] => {
+  if (!shouldApplyDisplayTranslations(translations)) return lines;
+  return lines.map((line) =>
+    line.kind === "line"
+      ? { ...line, text: translateSkillsGemLineText(line.text, translations) }
+      : line,
+  );
+};
+
 export function translateTreeNodeTooltip(
   tooltip: PobTreeNodeTooltip,
   translations: PobRepoeTranslationsSnapshot,
@@ -1209,12 +1465,20 @@ export function translateTreeNodeTooltip(
 export function translateItemTooltip(
   tooltip: PobItemsTooltip,
   translations: PobRepoeTranslationsSnapshot,
+  item?: PobItemSummary | PobItemDbSummary,
 ): PobItemsTooltip {
   if (!shouldApplyDisplayTranslations(translations)) return tooltip;
   return {
     ...tooltip,
     header: translateNullableDisplayText(tooltip.header, translations),
-    lines: translateTooltipLines(tooltip.lines, translations),
+    lines: tooltip.lines.map((line) =>
+      line.kind === "line"
+        ? {
+            ...line,
+            text: translateItemTooltipLineText(line.text, translations, item),
+          }
+        : line,
+    ),
   };
 }
 
@@ -1226,6 +1490,6 @@ export function translateSkillsGemTooltip(
   return {
     ...tooltip,
     header: translateNullableDisplayText(tooltip.header, translations),
-    lines: translateTooltipLines(tooltip.lines, translations),
+    lines: translateSkillsGemTooltipLines(tooltip.lines, translations),
   };
 }

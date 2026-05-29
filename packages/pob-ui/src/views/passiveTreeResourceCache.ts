@@ -333,6 +333,9 @@ export const buildPassiveTreeResourceManifest = ({
   for (const node of snapshot.nodes) {
     addDds(node.icon, false);
     addDds(node.icon, true);
+    for (const recipe of node.recipe ?? []) {
+      addDds(recipe, false);
+    }
     addDds(node.activeEffectImage, false);
     addDds(getNodeFrameAssetName(node, "alloc"), false);
     addDds(getNodeFrameAssetName(node, "path"), false);

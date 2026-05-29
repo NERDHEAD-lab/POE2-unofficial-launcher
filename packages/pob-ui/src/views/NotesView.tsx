@@ -14,6 +14,7 @@ import {
   getAllNoteTemplates,
   type NoteTemplate,
 } from "./noteTemplates";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 type LoadState =
   | { status: "idle" }
@@ -165,9 +166,10 @@ export function NotesView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Notes"
+      />
     );
   }
 
@@ -294,9 +296,12 @@ export function NotesView({
       )}
 
       {actionError && (
-        <div className="pob-error">
-          {t("buildList.error.generic", { reason: actionError })}
-        </div>
+        <PobErrorBanner
+          message={t("buildList.error.generic", { reason: actionError })}
+          source="Notes action"
+          dismissible
+          onDismiss={() => setActionError(null)}
+        />
       )}
 
       {templatePickerOpen && (

@@ -68,3 +68,14 @@ export const collectPobTooltipHeaderTitleEntries = (
         entry.line.kind === "line" && entry.line.text.trim().length > 0,
     );
 };
+
+export const collectPobTreeTooltipHeaderTitleEntries = (
+  lines: PobTreeTooltipLine[],
+  enabled: boolean,
+): PobTooltipHeaderTitleEntry[] => {
+  if (!enabled) return [];
+  const index = lines.findIndex(
+    (line) => line.kind === "line" && line.text.trim().length > 0,
+  );
+  return index >= 0 ? [{ line: lines[index], index }] : [];
+};

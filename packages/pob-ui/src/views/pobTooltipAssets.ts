@@ -52,9 +52,9 @@ const getTooltipAssetTheme = (
       itemTheme === "foil" || itemTheme === "unique" || itemTheme === "rare";
     return {
       prefix: `itemsheader${itemTheme}`,
-      height: itemTheme === "gem" ? 55 : large ? 58 : 38,
-      sideWidth: itemTheme === "gem" || large ? 47 : 32,
-      middleWidth: itemTheme === "gem" || large ? 47 : 32,
+      height: large ? 58 : 38,
+      sideWidth: large ? 47 : 32,
+      middleWidth: large ? 47 : 32,
     };
   }
   const passiveTheme = passiveTooltipAssetThemeByHeader[key];

@@ -71,6 +71,7 @@ const metadata = (
       OverlayAlloc: 9,
       OverlayUnalloc: 10,
       OverlayPath: 11,
+      Greed: 12,
     },
     "art_disabled.dds.zst": {
       SkillIcon: 5,
@@ -156,6 +157,22 @@ describe("passiveTreeResourceCache", () => {
         .get("art_disabled.dds.zst")
         ?.map((entry) => entry.layer),
     ).toEqual([5]);
+  });
+
+  it("loads notable recipe DDS icons used by tree tooltip headers", () => {
+    const manifest = buildPassiveTreeResourceManifest({
+      snapshot: snapshot({
+        nodes: [node({ recipe: ["Greed"] })],
+      }),
+      metadata: metadata(),
+      vaultPath: "D:/PoB",
+    });
+
+    expect(
+      manifest!.ddsByFile
+        .get("art_active.dds.zst")
+        ?.map((entry) => entry.layer),
+    ).toContain(12);
   });
 
   it("classifies cold, warm, and build switch load scenarios", () => {

@@ -16,6 +16,10 @@ const snapshot = (): PobRepoeTranslationsSnapshot => ({
   gemNamesById: {},
   gemNamesBySkillId: {},
   gemNamesByEnglishName: {},
+  skillDescriptionsById: {},
+  skillDescriptionsByEnglishText: {},
+  gemFamiliesByEnglishName: {},
+  skillTagsByEnglishName: {},
 });
 
 describe("statDescriptionsOverride", () => {

@@ -24,6 +24,7 @@ import {
   EMPTY_REPOE_TRANSLATIONS,
   translateConfigSnapshot,
 } from "./repoeTranslations";
+import { PobErrorBanner } from "../components/PobErrorBanner";
 
 type LoadState =
   | { status: "idle" }
@@ -404,9 +405,10 @@ export function ConfigView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Configuration"
+      />
     );
   }
 
@@ -482,9 +484,15 @@ export function ConfigView({
       </div>
 
       {actionState.status === "error" && (
-        <div className="pob-error pob-config-action-error">
-          {t("buildList.error.generic", { reason: actionState.reason })}
-        </div>
+        <PobErrorBanner
+          className="pob-config-action-error"
+          message={t("buildList.error.generic", {
+            reason: actionState.reason,
+          })}
+          source="Configuration action"
+          dismissible
+          onDismiss={() => setActionState({ status: "idle" })}
+        />
       )}
 
       {filteredSections.length === 0 ? (

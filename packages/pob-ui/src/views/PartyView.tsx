@@ -9,6 +9,8 @@ import type {
   PobPartySnapshot,
 } from "@poe2-launcher/shared/types";
 
+import { PobErrorBanner } from "../components/PobErrorBanner";
+
 type LoadState =
   | { status: "idle" }
   | { status: "loading" }
@@ -189,9 +191,10 @@ export function PartyView({
 
   if (state.status === "error") {
     return (
-      <div className="pob-error">
-        {t("buildList.error.generic", { reason: state.reason })}
-      </div>
+      <PobErrorBanner
+        message={t("buildList.error.generic", { reason: state.reason })}
+        source="Party"
+      />
     );
   }
 
@@ -266,9 +269,13 @@ export function PartyView({
           />
         </div>
         {actionError && (
-          <div className="pob-error pob-party-action-error">
-            {t("buildList.error.generic", { reason: actionError })}
-          </div>
+          <PobErrorBanner
+            className="pob-party-action-error"
+            message={t("buildList.error.generic", { reason: actionError })}
+            source="Party action"
+            dismissible
+            onDismiss={() => setActionError(null)}
+          />
         )}
       </section>
       <div className="pob-party-sections">

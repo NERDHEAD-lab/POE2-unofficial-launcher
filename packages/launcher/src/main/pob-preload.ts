@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { normalizePobSettings } from "@poe2-launcher/shared/pobSettings";
 import type {
   AppConfig,
+  BuildsSaveXmlOptions,
   DebugLogPayload,
   PobBuildMetadataAction,
   PobCalcsAction,
@@ -96,8 +97,12 @@ contextBridge.exposeInMainWorld("pobAPI", {
       ipcRenderer.invoke("builds:save-stub", subPath, fileName),
     readXml: (subPath: string, fileName: string) =>
       ipcRenderer.invoke("builds:read-xml", subPath, fileName),
-    saveXml: (subPath: string, fileName: string, xml: string) =>
-      ipcRenderer.invoke("builds:save-xml", subPath, fileName, xml),
+    saveXml: (
+      subPath: string,
+      fileName: string,
+      xml: string,
+      options?: BuildsSaveXmlOptions,
+    ) => ipcRenderer.invoke("builds:save-xml", subPath, fileName, xml, options),
   },
   vault: {
     status: (): Promise<PobVaultStatusResult> =>
