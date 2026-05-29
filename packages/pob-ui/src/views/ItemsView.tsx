@@ -23,7 +23,6 @@ import type {
   PobItemSlot,
   PobItemSummary,
   PobRepoeTranslationsSnapshot,
-  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -39,12 +38,33 @@ import {
   buildItemTooltipSections,
   computeFloatingItemTooltipPosition,
 } from "./itemsViewTooltip";
+import { PobTooltipAssetHeader } from "./PobTooltipAssetHeader";
 import {
-  filterTranslatedItemDbEntries,
+  buildPobTooltipHeaderAssetStyle,
+  buildPobTooltipSharedAssetStyle,
+  collectPobTooltipHeaderTitleEntries,
+} from "./pobTooltipAssetParts";
+import {
+  createPobAssetUrl,
+  getPobTooltipSeparatorAsset,
+} from "./pobTooltipAssets";
+import {
+  shouldSkipHeaderSeparator,
+  tooltipHeaderClasses,
+  tooltipInfluenceClasses,
+  tooltipLineClasses,
+  tooltipSeparatorClasses,
+} from "./pobTooltipMetadata";
+import {
+  filterTranslatedItemDbEntryViews,
+  type PobItemDbEntrySearchView,
+  type PobSearchLabelProjection,
   translateItemDbEntries,
   translateItemTooltip,
   translateItemsSnapshot,
 } from "./repoeTranslations";
+import { SearchLabelText } from "./SearchLabelText";
+import { PobUnimplementedButton } from "./UnimplementedButton";
 
 type LoadState =
   | { status: "idle" }
@@ -72,6 +92,7 @@ type SelectedItemRef =
 
 interface ItemsViewProps {
   active: boolean;
+  preload?: boolean;
   translations: PobRepoeTranslationsSnapshot;
   onMutated: () => void;
 }
@@ -93,6 +114,15 @@ const rarityClass = (rarity: string): string => {
   return "is-normal";
 };
 
+const plainSearchProjection = (label: string): PobSearchLabelProjection => ({
+  localizedLabel: label,
+  sourceEnglishLabel: null,
+  showSourceEnglish: false,
+  localizedHighlightRanges: [],
+  sourceEnglishHighlightRanges: [],
+  matchedField: null,
+});
+
 const isSameSelection = (
   selectedItemRef: SelectedItemRef | null,
   source: SelectedItemRef["source"],
@@ -111,16 +141,13 @@ const isSameSelection = (
 type ItemTooltipState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; tooltip: PobItemsTooltip; requestKey?: string }
+  | {
+      status: "ready";
+      tooltip: PobItemsTooltip;
+      vaultPath: string | null;
+      requestKey?: string;
+    }
   | { status: "error"; reason: string; requestKey?: string };
-
-const itemTooltipLineClass = (line: PobTreeTooltipLine): string => {
-  const classes = ["pob-item-tooltip-line"];
-  if (line.size !== null && line.size >= 20) classes.push("is-title");
-  if (!line.text.trim()) classes.push("is-empty");
-  if (line.colour) classes.push(`is-colour-${line.colour.toLowerCase()}`);
-  return classes.join(" ");
-};
 
 const toTooltipRequest = (
   ref: SelectedItemRef,
@@ -134,47 +161,152 @@ const toTooltipRequest = (
 
 function RichItemTooltip({
   tooltip,
+  vaultPath,
   floating = false,
   style,
 }: {
   tooltip: PobItemsTooltip;
+  vaultPath?: string | null;
   floating?: boolean;
   style?: CSSProperties;
 }) {
-  const { t } = useTranslation();
   if (tooltip.lines.length === 0) return null;
+  const skippedHeaderSeparatorIndex = tooltip.lines.findIndex(
+    (line) =>
+      line.kind === "separator" &&
+      shouldSkipHeaderSeparator(line.separatorTheme ?? tooltip.header),
+  );
+  const headerAssetStyle = buildPobTooltipHeaderAssetStyle(
+    vaultPath,
+    tooltip.header,
+  );
+  const sharedAssetStyle = buildPobTooltipSharedAssetStyle(vaultPath);
+  const headerTitleEntries = collectPobTooltipHeaderTitleEntries(
+    tooltip.lines,
+    Boolean(headerAssetStyle),
+  );
+  const headerTitleIndexes = new Set(
+    headerTitleEntries.map((entry) => entry.index),
+  );
+  const tooltipStyle = {
+    ...(tooltip.maxWidth
+      ? { ["--pob-item-tooltip-max-width"]: `${tooltip.maxWidth}px` }
+      : {}),
+    ...(sharedAssetStyle ?? {}),
+    ...(headerAssetStyle ?? {}),
+    ...style,
+  } as CSSProperties;
   return (
     <div
-      className={`pob-item-tooltip ${rarityClass(tooltip.header ?? "NORMAL")}${
-        floating ? " is-floating" : ""
-      }`}
+      className={tooltipHeaderClasses(
+        `pob-item-tooltip ${rarityClass(tooltip.header ?? "NORMAL")}${
+          floating ? " is-floating" : ""
+        }${headerAssetStyle ? " has-asset-tooltip-header" : ""}`,
+        tooltip.header,
+      )}
       role={floating ? "tooltip" : undefined}
-      style={style}
+      style={tooltipStyle}
     >
-      {tooltip.header && (
+      {tooltip.header && headerAssetStyle && (
+        <PobTooltipAssetHeader
+          className="pob-item-tooltip-rarity"
+          lineBaseClass="pob-item-tooltip-line"
+          titleEntries={headerTitleEntries}
+          style={headerAssetStyle}
+        >
+          {tooltip.influenceHeader1 && (
+            <span
+              className={tooltipInfluenceClasses(
+                "pob-item-tooltip-influence",
+                tooltip.influenceHeader1,
+                "left",
+              )}
+            />
+          )}
+          {tooltip.influenceHeader2 && (
+            <span
+              className={tooltipInfluenceClasses(
+                "pob-item-tooltip-influence",
+                tooltip.influenceHeader2,
+                "right",
+              )}
+            />
+          )}
+        </PobTooltipAssetHeader>
+      )}
+      {tooltip.header && !headerAssetStyle && (
         <div className="pob-item-tooltip-rarity">
-          {formatRarity(t, tooltip.header)}
+          {tooltip.influenceHeader1 && (
+            <span
+              className={tooltipInfluenceClasses(
+                "pob-item-tooltip-influence",
+                tooltip.influenceHeader1,
+                "left",
+              )}
+            />
+          )}
+          {tooltip.influenceHeader2 && (
+            <span
+              className={tooltipInfluenceClasses(
+                "pob-item-tooltip-influence",
+                tooltip.influenceHeader2,
+                "right",
+              )}
+            />
+          )}
         </div>
       )}
       <section>
-        {tooltip.lines.map((line, index) =>
-          line.kind === "separator" ? (
+        {tooltip.lines.map((line, index) => {
+          if (line.kind === "separator") {
+            if (index === skippedHeaderSeparatorIndex) return null;
+            const separatorAsset = getPobTooltipSeparatorAsset(
+              line.separatorTheme ?? tooltip.header,
+            );
+            const separatorAssetUrl = separatorAsset
+              ? createPobAssetUrl(vaultPath, separatorAsset)
+              : null;
+            return (
+              <div
+                key={`separator-${index}`}
+                className={tooltipSeparatorClasses(
+                  `pob-item-tooltip-separator${
+                    separatorAssetUrl ? " has-asset-separator" : ""
+                  }`,
+                  line,
+                  tooltip.header,
+                )}
+                style={
+                  separatorAssetUrl
+                    ? ({
+                        ["--pob-tooltip-separator"]: `url("${separatorAssetUrl}")`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              />
+            );
+          }
+          if (headerTitleIndexes.has(index)) return null;
+          return (
             <div
-              key={`separator-${index}`}
-              className="pob-item-tooltip-separator"
-            />
-          ) : (
-            <div key={`line-${index}`} className={itemTooltipLineClass(line)}>
+              key={`line-${index}`}
+              className={tooltipLineClasses("pob-item-tooltip-line", line)}
+            >
               {line.text}
             </div>
-          ),
-        )}
+          );
+        })}
       </section>
     </div>
   );
 }
 
-export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
+export function ItemsView({
+  active,
+  preload = false,
+  translations,
+  onMutated,
+}: ItemsViewProps) {
   const { t, i18n } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [selectedItemRef, setSelectedItemRef] =
@@ -184,6 +316,9 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
   const [actionState, setActionState] = useState<ActionState>({
     status: "idle",
   });
+  const [unimplementedNotice, setUnimplementedNotice] = useState<string | null>(
+    null,
+  );
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
   const [customRaw, setCustomRaw] = useState("");
   const [dbSearch, setDbSearch] = useState("");
@@ -195,10 +330,12 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     key: string;
     raw: string;
   }>({ key: "", raw: "" });
+  const loadedSnapshotRef = useRef(false);
   const itemCopyLocaleHint = i18n.resolvedLanguage === "en" ? "en" : "ko";
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSnapshotRef.current) return;
     let cancelled = false;
     const fetchSnapshot = async () => {
       const api = window.pobAPI;
@@ -212,6 +349,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
       const result = await api.session.itemsSnapshot();
       if (cancelled) return;
       if (result.status === "ok") {
+        loadedSnapshotRef.current = true;
         setState({ status: "ready", snapshot: result.snapshot });
       } else {
         setState({ status: "error", reason: result.reason });
@@ -221,10 +359,10 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload]);
 
   useEffect(() => {
-    if (!active || tab === "custom") return;
+    if ((!active && !preload) || tab === "custom") return;
     let cancelled = false;
     const fetchDb = async () => {
       const api = window.pobAPI;
@@ -247,7 +385,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [active, tab]);
+  }, [active, preload, tab]);
 
   const sourceSnapshot = state.status === "ready" ? state.snapshot : null;
   const snapshot = useMemo(
@@ -264,12 +402,21 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
         : null,
     [dbState, translations],
   );
-  const filteredDbEntries = useMemo(
+  const filteredDbEntryViews = useMemo(
     () =>
       dbState.status === "ready" && dbEntries
-        ? filterTranslatedItemDbEntries(dbEntries, dbState.entries, dbSearch)
-        : dbEntries,
-    [dbEntries, dbSearch, dbState],
+        ? filterTranslatedItemDbEntryViews(
+            dbEntries,
+            dbState.entries,
+            dbSearch,
+            translations.locale,
+          )
+        : null,
+    [dbEntries, dbSearch, dbState, translations.locale],
+  );
+  const filteredDbEntries = useMemo(
+    () => filteredDbEntryViews?.map((view) => view.entry) ?? dbEntries,
+    [dbEntries, filteredDbEntryViews],
   );
   const busy = actionState.status === "running";
 
@@ -316,6 +463,7 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
 
   const runAction = async (action: PobItemsAction): Promise<void> => {
     const api = window.pobAPI;
+    setUnimplementedNotice(null);
     if (!api) {
       setActionState({ status: "error", reason: "pobAPI unavailable" });
       return;
@@ -415,23 +563,29 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
               </option>
             ))}
           </select>
-          <button
-            type="button"
+          <PobUnimplementedButton
             className="pob-button"
-            disabled
+            controlId="items.set-manage"
+            notice={t("buildEdit.unimplemented.notice", {
+              reason: t("buildEdit.items.setManageDisabled"),
+            })}
             title={t("buildEdit.items.setManageDisabled")}
+            onNotice={setUnimplementedNotice}
           >
             {t("buildEdit.items.setManage")}
-          </button>
+          </PobUnimplementedButton>
         </label>
-        <button
-          type="button"
+        <PobUnimplementedButton
           className="pob-button pob-items-trade"
-          disabled
+          controlId="items.price-check"
+          notice={t("buildEdit.unimplemented.notice", {
+            reason: t("buildEdit.items.priceCheckDisabled"),
+          })}
           title={t("buildEdit.items.priceCheckDisabled")}
+          onNotice={setUnimplementedNotice}
         >
           {t("buildEdit.items.priceCheck")}
-        </button>
+        </PobUnimplementedButton>
         <div
           className="pob-items-weapon-set"
           aria-label={t("buildEdit.items.weaponSet")}
@@ -471,6 +625,11 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
           {t("buildList.error.generic", { reason: actionState.reason })}
         </div>
       )}
+      {unimplementedNotice && (
+        <div className="pob-items-action-notice" role="status">
+          {unimplementedNotice}
+        </div>
+      )}
 
       <div className="pob-items-cols">
         <SlotPane
@@ -499,13 +658,14 @@ export function ItemsView({ active, translations, onMutated }: ItemsViewProps) {
               translations={translations}
               onSelect={setSelectedItemRef}
               onAction={(action) => void runAction(action)}
+              onUnavailable={setUnimplementedNotice}
               onCreateCustom={() => setCustomEditorOpen(true)}
             />
           ) : (
             <DbPane
               dbKey={tab}
               state={dbState}
-              entries={filteredDbEntries}
+              entryViews={filteredDbEntryViews}
               formatRarityLabel={(r) => formatRarity(t, r)}
               selectedItemRef={selectedItemRef}
               busy={busy}
@@ -749,6 +909,7 @@ interface CustomPaneProps {
   translations: PobRepoeTranslationsSnapshot;
   onSelect: (ref: SelectedItemRef) => void;
   onAction: (action: PobItemsAction) => void;
+  onUnavailable: (notice: string) => void;
   onCreateCustom: () => void;
 }
 
@@ -762,6 +923,7 @@ function CustomPane({
   translations,
   onSelect,
   onAction,
+  onUnavailable,
   onCreateCustom,
 }: CustomPaneProps) {
   const { t } = useTranslation();
@@ -810,14 +972,17 @@ function CustomPane({
               {t("buildEdit.items.actions.delete")}
             </button>
             <span className="pob-items-pane-spacer" />
-            <button
-              type="button"
+            <PobUnimplementedButton
               className="pob-button"
-              disabled
+              controlId="items.craft"
+              notice={t("buildEdit.unimplemented.notice", {
+                reason: t("buildEdit.items.craftDisabled"),
+              })}
               title={t("buildEdit.items.craftDisabled")}
+              onNotice={onUnavailable}
             >
               {t("buildEdit.items.actions.craft")}
-            </button>
+            </PobUnimplementedButton>
             <button
               type="button"
               className="pob-button"
@@ -886,7 +1051,7 @@ function CustomPane({
 interface DbPaneProps {
   dbKey: PobItemsDbKey;
   state: DbState;
-  entries: PobItemDbSummary[] | null;
+  entryViews: PobItemDbEntrySearchView[] | null;
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
@@ -900,7 +1065,7 @@ interface DbPaneProps {
 function DbPane({
   dbKey,
   state,
-  entries,
+  entryViews,
   formatRarityLabel,
   selectedItemRef,
   busy,
@@ -967,7 +1132,7 @@ function DbPane({
       <DbList
         dbKey={dbKey}
         state={state}
-        entries={entries}
+        entryViews={entryViews}
         formatRarityLabel={formatRarityLabel}
         selectedItemRef={selectedItemRef}
         busy={busy}
@@ -1031,7 +1196,11 @@ function ItemTooltipButton({
       .then((result) => {
         if (requestId.current !== nextRequestId) return;
         if (result.status === "ok") {
-          setTooltipState({ status: "ready", tooltip: result.tooltip });
+          setTooltipState({
+            status: "ready",
+            tooltip: result.tooltip,
+            vaultPath: result.vaultPath,
+          });
         } else {
           setTooltipState({ status: "error", reason: result.reason });
         }
@@ -1070,6 +1239,7 @@ function ItemTooltipButton({
       ? createPortal(
           <RichItemTooltip
             tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+            vaultPath={tooltipState.vaultPath}
             floating
             style={computeFloatingItemTooltipPosition({
               pointerX: tooltipPoint.x,
@@ -1235,6 +1405,7 @@ function ItemDetail({
           setTooltipState({
             status: "ready",
             tooltip: result.tooltip,
+            vaultPath: result.vaultPath,
             requestKey,
           });
         } else {
@@ -1313,6 +1484,7 @@ function ItemDetail({
         tooltipState.tooltip.lines.length > 0 ? (
           <RichItemTooltip
             tooltip={translateItemTooltip(tooltipState.tooltip, translations)}
+            vaultPath={tooltipState.vaultPath}
           />
         ) : (
           fallbackTooltip
@@ -1362,7 +1534,7 @@ function ItemDetail({
 interface DbListProps {
   dbKey: PobItemsDbKey;
   state: DbState;
-  entries: PobItemDbSummary[] | null;
+  entryViews: PobItemDbEntrySearchView[] | null;
   formatRarityLabel: (rarity: string) => string;
   selectedItemRef: SelectedItemRef | null;
   busy: boolean;
@@ -1374,7 +1546,7 @@ interface DbListProps {
 function DbList({
   dbKey,
   state,
-  entries,
+  entryViews,
   formatRarityLabel,
   selectedItemRef,
   busy,
@@ -1398,9 +1570,17 @@ function DbList({
       </p>
     );
   }
-  const renderedEntries =
-    entries ?? (state.status === "ready" ? state.entries : []);
-  if (renderedEntries.length === 0) {
+  const renderedViews =
+    entryViews ??
+    (state.status === "ready"
+      ? state.entries.map((entry) => ({
+          entry,
+          sourceEntry: entry,
+          name: plainSearchProjection(entry.name),
+          base: plainSearchProjection(entry.baseName ?? entry.baseType ?? ""),
+        }))
+      : []);
+  if (renderedViews.length === 0) {
     return (
       <p className="pob-mode-placeholder-body">
         {t("buildEdit.items.dbEmpty")}
@@ -1409,7 +1589,8 @@ function DbList({
   }
   return (
     <ul className="pob-items-db-list">
-      {renderedEntries.map((entry) => {
+      {renderedViews.map((view) => {
+        const entry = view.entry;
         const itemRef: SelectedItemRef = {
           source: "db",
           id: entry.id,
@@ -1448,11 +1629,17 @@ function DbList({
                 })
               }
             >
-              <span className="pob-items-db-row-name">{entry.name}</span>
+              <span className="pob-items-db-row-name">
+                <SearchLabelText projection={view.name} />
+              </span>
               <span className="pob-items-db-row-base">
-                {entry.baseName ??
-                  entry.baseType ??
-                  formatRarityLabel(entry.rarity)}
+                <SearchLabelText
+                  projection={
+                    view.base.localizedLabel
+                      ? view.base
+                      : plainSearchProjection(formatRarityLabel(entry.rarity))
+                  }
+                />
               </span>
             </ItemTooltipButton>
           </li>

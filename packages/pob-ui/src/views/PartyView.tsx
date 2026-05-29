@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -17,6 +17,7 @@ type LoadState =
 
 interface PartyViewProps {
   active: boolean;
+  preload?: boolean;
   onMutated?: () => void;
 }
 
@@ -122,14 +123,20 @@ function PartyColumn({
   );
 }
 
-export function PartyView({ active, onMutated }: PartyViewProps) {
+export function PartyView({
+  active,
+  preload = false,
+  onMutated,
+}: PartyViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const loadedSnapshotRef = useRef(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSnapshotRef.current) return;
 
     let cancelled = false;
     const loadParty = async () => {
@@ -143,6 +150,7 @@ export function PartyView({ active, onMutated }: PartyViewProps) {
       const result = await api.session.partySnapshot();
       if (cancelled) return;
       if (result.status === "ok") {
+        loadedSnapshotRef.current = true;
         setState({ status: "ready", snapshot: result.snapshot });
       } else {
         setState({ status: "error", reason: result.reason });
@@ -153,7 +161,7 @@ export function PartyView({ active, onMutated }: PartyViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload]);
 
   const runAction = async (action: PobPartyAction) => {
     const api = window.pobAPI;

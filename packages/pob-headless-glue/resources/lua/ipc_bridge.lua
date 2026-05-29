@@ -1585,6 +1585,76 @@ local function colour_key_for(value)
 	return nil
 end
 
+local function colour_hex_for(value)
+	if type(value) ~= "string" then return nil end
+	local hex = value:match("^%^x(%x%x%x%x%x%x)")
+	if hex then return "#" .. hex end
+	if value == "^8" then return "#7F7F7F" end
+	return nil
+end
+
+local function colour_metadata_for(value)
+	return colour_key_for(value) or json.null, colour_hex_for(value) or json.null
+end
+
+local function section_colour_key(section)
+	if type(section) ~= "table" then return nil end
+	if colorCodes and section.colour == colorCodes.NORMAL and section.id ~= "Armour" then
+		return "NORMAL"
+	end
+	return colour_key_for(section.colour)
+end
+
+local function rich_text_runs(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local runs = {}
+	local buffer = {}
+	local currentColour = json.null
+	local currentColourHex = json.null
+	local sawColour = false
+	local i = 1
+
+	local function flush()
+		if #buffer == 0 then return end
+		runs[#runs + 1] = {
+			text = table.concat(buffer),
+			colour = currentColour,
+			colourHex = currentColourHex,
+		}
+		buffer = {}
+	end
+
+	while i <= #value do
+		local hex = value:match("^%^x(%x%x%x%x%x%x)", i)
+		if hex then
+			flush()
+			currentColour, currentColourHex = colour_metadata_for("^x" .. hex)
+			sawColour = true
+			i = i + 8
+		else
+			local digit = value:match("^%^(%d)", i)
+			if digit then
+				flush()
+				if digit == "7" then
+					currentColour = json.null
+					currentColourHex = json.null
+				else
+					currentColour, currentColourHex = colour_metadata_for("^" .. digit)
+				end
+				sawColour = true
+				i = i + 2
+			else
+				buffer[#buffer + 1] = value:sub(i, i)
+				i = i + 1
+			end
+		end
+	end
+	flush()
+
+	if not sawColour or #runs == 0 then return nil end
+	return runs
+end
+
 local function ensure_calcs_built(tab)
 	if not tab.mainEnv or not tab.calcsEnv or tab.build.buildFlag then
 		tab:BuildOutput()
@@ -1642,25 +1712,59 @@ local function split_tooltip_text(text)
 	return lines
 end
 
+local function tooltip_font_for(font)
+	if main and main.showFlavourText == false then
+		return "VAR"
+	end
+	if type(font) == "string" and font ~= "" then
+		return font
+	end
+	return "VAR"
+end
+
+local function tooltip_line_starts_new_block(line)
+	if type(line) ~= "string" then return false end
+	return line:match("^.*(Equipping)") == "Equipping"
+		or line:match("^.*(Removing)") == "Removing"
+end
+
 local function new_tooltip_recorder()
 	local lines = {}
-	local tooltip = { lines = lines }
-	function tooltip:AddLine(size, text)
+	local currentBlock = 1
+	local tooltip = { lines = lines, center = false }
+	function tooltip:AddLine(size, text, font, background)
+		local fontToUse = tooltip_font_for(font)
 		for _, line in ipairs(split_tooltip_text(text)) do
+			if tooltip_line_starts_new_block(line) then
+				currentBlock = currentBlock + 1
+			end
 			lines[#lines + 1] = {
 				kind = "line",
 				text = strip_colour_codes(line),
 				colour = tooltip_colour_for(line) or json.null,
 				size = nullable_number(size),
+				font = fontToUse,
+				center = self.center == true,
+				background = json_nullable_text(background),
+				block = currentBlock,
 			}
 		end
 	end
 	function tooltip:AddSeparator(size)
+		local lastLine = lines[#lines]
+		if lastLine and lastLine.kind == "separator" then
+			return
+		end
 		lines[#lines + 1] = {
 			kind = "separator",
 			text = "",
 			colour = json.null,
 			size = nullable_number(size),
+			font = json.null,
+			center = self.center == true,
+			background = json.null,
+			block = lastLine and lastLine.block or currentBlock,
+			separatorTheme = json_nullable_text(self.tooltipHeader),
 		}
 	end
 	function tooltip:SetRecipe(recipe)
@@ -1668,6 +1772,14 @@ local function new_tooltip_recorder()
 	end
 	function tooltip:Clear()
 		for index = #lines, 1, -1 do lines[index] = nil end
+		currentBlock = 1
+		self.tooltipHeader = nil
+		self.center = false
+		self.maxWidth = nil
+		self.color = nil
+		self.influenceHeader1 = nil
+		self.influenceHeader2 = nil
+		self.recipe = nil
 	end
 	function tooltip:CheckForUpdate()
 		return true
@@ -1743,6 +1855,9 @@ local function items_tooltip(params)
 		db = dbKey,
 		slotName = slotName,
 		header = json_nullable_text(tooltip.tooltipHeader),
+		influenceHeader1 = json_nullable_text(tooltip.influenceHeader1),
+		influenceHeader2 = json_nullable_text(tooltip.influenceHeader2),
+		maxWidth = nullable_number(tooltip.maxWidth),
 		lines = lines,
 	}
 end
@@ -1866,24 +1981,16 @@ local function format_cell_format(section, format, actor, colData)
 	if type(format) ~= "string" or format == "" then
 		return "", nil
 	end
-	local prefixColour
-	local stripped = format:gsub("^(%^x%x%x%x%x%x%x)", function(c)
-		prefixColour = c
-		return ""
-	end)
-	stripped = stripped:gsub("^%^[%a%d]", function(c)
-		prefixColour = prefixColour or c
-		return ""
-	end)
-	local resolved = stripped
+	local prefixColour = format:match("^(%^x%x%x%x%x%x%x)") or format:match("^(%^[%a%d])")
+	local resolved = format
 	if actor and formatCalcStr then
-		local ok, result = pcall(formatCalcStr, stripped, actor, colData)
+		local ok, result = pcall(formatCalcStr, format, actor, colData)
 		if ok and type(result) == "string" then
 			resolved = result
 		end
 	end
-	if actor and resolved == stripped and section and type(section.FormatStr) == "function" then
-		local ok, result = pcall(section.FormatStr, section, stripped, actor, colData)
+	if actor and resolved == format and section and type(section.FormatStr) == "function" then
+		local ok, result = pcall(section.FormatStr, section, format, actor, colData)
 		if ok and type(result) == "string" then
 			resolved = result
 		end
@@ -2777,8 +2884,21 @@ end
 
 local function row_label_text(rowData)
 	local label = safe_string(rowData.label)
-	if label and label ~= "" then return label end
+	if label and label ~= "" then return strip_colour_codes(label) end
 	return ""
+end
+
+local function leading_colour_code(value)
+	if type(value) ~= "string" then return nil end
+	local hex = value:match("^(%^x%x%x%x%x%x%x)")
+	if hex then return hex end
+	return value:match("^(%^[%a%d])")
+end
+
+local function row_label_colour(rowData)
+	local explicit = rowData and rowData.color
+	if type(explicit) == "string" then return explicit end
+	return leading_colour_code(rowData and rowData.label)
 end
 
 local function cell_breakdown_key(sectionId, subIndex, rowIndex, colIndex, colData)
@@ -2805,17 +2925,34 @@ local function section_rows(tab, actor, section, subSection, subIndex)
 			for colIndex, colData in ipairs(rowData) do
 				if type(colData) == "table" then
 					local text, colour = format_cell_format(section, colData.format, actor, colData)
+					local backgroundColour, backgroundColourHex = colour_metadata_for(rowData.bgCol)
 					cells[#cells + 1] = {
 						text = text,
 						colour = colour or json.null,
+						backgroundColour = backgroundColour,
+						backgroundColourHex = backgroundColourHex,
 						breakdownKey = cell_breakdown_key(section.id, subIndex, rowIndex, colIndex, colData) or json.null,
 					}
 				else
-					cells[#cells + 1] = { text = "", colour = json.null, breakdownKey = json.null }
+					local backgroundColour, backgroundColourHex = colour_metadata_for(rowData.bgCol)
+					cells[#cells + 1] = {
+						text = "",
+						colour = json.null,
+						backgroundColour = backgroundColour,
+						backgroundColourHex = backgroundColourHex,
+						breakdownKey = json.null,
+					}
 				end
 			end
+			local labelColour, labelColourHex = colour_metadata_for(row_label_colour(rowData))
+			local backgroundColour, backgroundColourHex = colour_metadata_for(rowData.bgCol)
 			rows[#rows + 1] = {
 				label = row_label_text(rowData),
+				labelColour = labelColour,
+				labelColourHex = labelColourHex,
+				backgroundColour = backgroundColour,
+				backgroundColourHex = backgroundColourHex,
+				textSize = nullable_number(rowData.textSize),
 				cells = cells,
 			}
 		end
@@ -2826,9 +2963,26 @@ end
 local function sub_section_extra(section, actor, subSection)
 	local extra = subSection.data and subSection.data.extra
 	if type(extra) ~= "string" or extra == "" then return nil end
-	local text, _ = format_cell_format(section, extra, actor, nil)
+	local text = format_cell_format(section, extra, actor, nil)
 	if text == "" then return nil end
 	return text
+end
+
+local function sub_section_extra_rich_text(section, actor, subSection)
+	local extra = subSection.data and subSection.data.extra
+	if type(extra) ~= "string" or extra == "" then return nil end
+	local resolved = extra
+	if actor and formatCalcStr then
+		local ok, result = pcall(formatCalcStr, extra, actor, nil)
+		if ok and type(result) == "string" then resolved = result end
+	end
+	if actor and resolved == extra and section and type(section.FormatStr) == "function" then
+		local ok, result = pcall(section.FormatStr, section, extra, actor, nil)
+		if ok and type(result) == "string" then resolved = result end
+	end
+	resolved = resolved:gsub("{%d*:?output:[%a%.:]+}", "-")
+	resolved = resolved:gsub("{%d+:mod:[%d,]+}", "-")
+	return rich_text_runs(resolved)
 end
 
 local function section_payload(tab, actor, section)
@@ -2840,6 +2994,7 @@ local function section_payload(tab, actor, section)
 			collapsed = safe_bool(subSection.collapsed),
 			defaultCollapsed = safe_bool(subSection.defaultCollapsed),
 			extra = sub_section_extra(section, actor, subSection) or json.null,
+			extraRichText = sub_section_extra_rich_text(section, actor, subSection) or json.null,
 			colWidth = nullable_number(subSection.data and subSection.data.colWidth),
 			rows = section_rows(tab, actor, section, subSection, subIndex),
 		}
@@ -2848,7 +3003,7 @@ local function section_payload(tab, actor, section)
 		id = section.id,
 		group = safe_number(section.group) or 0,
 		widthCols = safe_number(section.widthCols) or 1,
-		colour = colour_key_for(section.colour) or json.null,
+		colour = section_colour_key(section) or json.null,
 		enabled = safe_bool(section.enabled),
 		subSections = subs,
 	}

@@ -16,6 +16,7 @@ import {
   PobPickResult,
 } from "@poe2-launcher/shared/types";
 
+import { isAgentAutomationMode } from "../agentMode";
 import store from "../store";
 import { logger } from "../utils/logger";
 import { getPobInstallPath } from "../utils/registry";
@@ -25,10 +26,13 @@ const POB_OFFICIAL_SITE = "https://pathofbuilding.community/";
 const pobWindows = new Map<PobGame, BrowserWindow>();
 
 const createPobWindow = (game: PobGame): BrowserWindow => {
+  const agentMode = isAgentAutomationMode();
   const existing = pobWindows.get(game);
   if (existing && !existing.isDestroyed()) {
-    if (existing.isMinimized()) existing.restore();
-    existing.focus();
+    if (!agentMode) {
+      if (existing.isMinimized()) existing.restore();
+      existing.focus();
+    }
     return existing;
   }
 
@@ -43,7 +47,7 @@ const createPobWindow = (game: PobGame): BrowserWindow => {
     frame: false,
     titleBarStyle: "hidden",
     autoHideMenuBar: true,
-    show: true,
+    show: !agentMode,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -78,6 +82,10 @@ const createPobWindow = (game: PobGame): BrowserWindow => {
     logger.error(`[PoB] render-process-gone:`, details);
   });
   win.once("ready-to-show", () => {
+    if (agentMode) {
+      logger.log(`[PoB] ready-to-show (agent hidden)`);
+      return;
+    }
     logger.log(`[PoB] ready-to-show, showing window`);
     win.show();
     win.focus();

@@ -4,6 +4,7 @@ import type { PobCalcsSection } from "@poe2-launcher/shared/types";
 
 import {
   displayCalcsCellText,
+  displayCalcsRichTextRuns,
   distributeSectionsIntoColumns,
   filterSections,
   matchesGroupFilter,
@@ -163,6 +164,29 @@ describe("calcsViewSections.displayCalcsCellText", () => {
 
   it("keeps normalized unavailable values as explicit dashes", () => {
     expect(displayCalcsCellText("-")).toBe("-");
+  });
+});
+
+describe("calcsViewSections.displayCalcsRichTextRuns", () => {
+  it("uses PoB rich colour runs when they are present", () => {
+    expect(
+      displayCalcsRichTextRuns("27, 121, 127", [
+        { text: "27", colour: "LIFE", colourHex: "#E05030" },
+        { text: ", ", colour: null, colourHex: null },
+        { text: "121", colour: null, colourHex: "#70FF70" },
+      ]),
+    ).toEqual([
+      { text: "27", colour: "LIFE", colourHex: "#E05030" },
+      { text: ", ", colour: null, colourHex: null },
+      { text: "121", colour: null, colourHex: "#70FF70" },
+    ]);
+  });
+
+  it("falls back to a plain run for legacy snapshots", () => {
+    expect(displayCalcsRichTextRuns("75+0/75+3", undefined)).toEqual([
+      { text: "75+0/75+3", colour: null, colourHex: null },
+    ]);
+    expect(displayCalcsRichTextRuns(null, undefined)).toEqual([]);
   });
 });
 

@@ -23,6 +23,7 @@ type LoadState =
 
 interface NotesViewProps {
   active: boolean;
+  preload?: boolean;
   buildName: string;
   onMutated?: () => void;
 }
@@ -40,7 +41,12 @@ const textEncoder = new TextEncoder();
 const toUtf8ByteOffset = (value: string, offset: number): number =>
   textEncoder.encode(value.slice(0, offset)).length;
 
-export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
+export function NotesView({
+  active,
+  preload = false,
+  buildName,
+  onMutated,
+}: NotesViewProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<LoadState>({ status: "idle" });
@@ -48,6 +54,7 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
   const [mode, setMode] = useState<NotesMode>("edit");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const loadedSnapshotRef = useRef(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<PendingTemplate>(null);
   const [templates, setTemplates] = useState<NoteTemplate[]>(() =>
@@ -55,7 +62,8 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
   );
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSnapshotRef.current) return;
 
     let cancelled = false;
     const loadNotes = async () => {
@@ -69,6 +77,7 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
       const result = await api.session.notesSnapshot();
       if (cancelled) return;
       if (result.status === "ok") {
+        loadedSnapshotRef.current = true;
         setState({ status: "ready", snapshot: result.snapshot });
         setDraftText(result.snapshot.text);
       } else {
@@ -80,7 +89,7 @@ export function NotesView({ active, buildName, onMutated }: NotesViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload]);
 
   const renderedMarkdown = useMemo(
     () =>

@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   PobCalcsAction,
   PobCalcsBreakdown,
   PobCalcsColour,
+  PobCalcsRichTextRun,
   PobCalcsRow,
   PobCalcsSection,
   PobCalcsSkillSelect,
@@ -15,6 +23,7 @@ import type {
 
 import {
   displayCalcsCellText,
+  displayCalcsRichTextRuns,
   distributeSectionsIntoColumns,
   filterSections,
   type CalcsGroupFilter,
@@ -30,6 +39,7 @@ import {
   translateCalcsBreakdown,
   translateCalcsSnapshot,
 } from "./repoeTranslations";
+import { PobUnimplementedButton } from "./UnimplementedButton";
 
 type LoadState =
   | { status: "idle" }
@@ -50,6 +60,7 @@ type BreakdownState =
 
 interface CalcsViewProps {
   active: boolean;
+  preload?: boolean;
   onMutated?: () => void;
   translations?: PobRepoeTranslationsSnapshot;
 }
@@ -63,8 +74,48 @@ const GROUP_FILTER_KEYS: CalcsGroupFilter[] = [
   "defence",
 ];
 
-const colourClass = (colour: PobCalcsColour | null): string =>
+const colourClass = (colour: PobCalcsColour | null | undefined): string =>
   colour ? ` is-colour-${colour.toLowerCase()}` : "";
+
+const cssVariableStyle = (
+  variables: Record<`--${string}`, string | null | undefined>,
+): CSSProperties | undefined => {
+  const entries = Object.entries(variables).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string",
+  );
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries) as CSSProperties;
+};
+
+const textColourStyle = (
+  colourHex: string | null | undefined,
+): CSSProperties | undefined => (colourHex ? { color: colourHex } : undefined);
+
+function CalcsRichText({
+  text,
+  richText,
+  className,
+}: {
+  text: string | null;
+  richText?: PobCalcsRichTextRun[] | null;
+  className: string;
+}) {
+  const runs = displayCalcsRichTextRuns(text, richText);
+  if (runs.length === 0) return null;
+  return (
+    <span className={className}>
+      {runs.map((run, index) => (
+        <span
+          key={`${index}-${run.text}`}
+          className={colourClass(run.colour).trim() || undefined}
+          style={textColourStyle(run.colourHex)}
+        >
+          {run.text}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 const formatStat = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return "-";
@@ -115,10 +166,17 @@ interface SkillSelectCardProps {
   data: PobCalcsSkillSelect;
   busy: boolean;
   onAction: (action: PobCalcsAction) => void;
+  onUnavailable: (notice: string) => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }
 
-function SkillSelectCard({ data, busy, onAction, t }: SkillSelectCardProps) {
+function SkillSelectCard({
+  data,
+  busy,
+  onAction,
+  onUnavailable,
+  t,
+}: SkillSelectCardProps) {
   const renderDropdown = (
     field: PobCalcsSkillSelect["socketGroup"],
     labelKey: string,
@@ -237,17 +295,31 @@ function SkillSelectCard({ data, busy, onAction, t }: SkillSelectCardProps) {
         {data.spectreLibrary.shown && (
           <label className="pob-calcs-skillselect-row">
             <span>{t("buildEdit.calcs.skillSelect.spectreLibrary")}</span>
-            <button type="button" disabled>
+            <PobUnimplementedButton
+              controlId="calcs.spectre-library"
+              notice={t("buildEdit.unimplemented.notice", {
+                reason: t("buildEdit.calcs.skillSelect.spectreLibraryDisabled"),
+              })}
+              title={t("buildEdit.calcs.skillSelect.spectreLibraryDisabled")}
+              onNotice={onUnavailable}
+            >
               {data.spectreLibrary.label}
-            </button>
+            </PobUnimplementedButton>
           </label>
         )}
         {data.beastLibrary.shown && (
           <label className="pob-calcs-skillselect-row">
             <span>{t("buildEdit.calcs.skillSelect.beastLibrary")}</span>
-            <button type="button" disabled>
+            <PobUnimplementedButton
+              controlId="calcs.beast-library"
+              notice={t("buildEdit.unimplemented.notice", {
+                reason: t("buildEdit.calcs.skillSelect.beastLibraryDisabled"),
+              })}
+              title={t("buildEdit.calcs.skillSelect.beastLibraryDisabled")}
+              onNotice={onUnavailable}
+            >
               {data.beastLibrary.label}
-            </button>
+            </PobUnimplementedButton>
           </label>
         )}
         {renderDropdown(
@@ -338,9 +410,11 @@ function SectionCard({
                   </span>
                 </button>
               )}
-              {sub.extra && (
-                <span className="pob-calcs-subsection-extra">{sub.extra}</span>
-              )}
+              <CalcsRichText
+                text={sub.extra}
+                richText={sub.extraRichText}
+                className="pob-calcs-subsection-extra"
+              />
               <button
                 type="button"
                 className="pob-calcs-collapse-toggle"
@@ -539,14 +613,31 @@ function CalcsRowView({
   onCellHover,
   onCellClick,
 }: CalcsRowViewProps) {
+  const rowStyle = cssVariableStyle({
+    "--pob-calcs-row-background": row.backgroundColourHex,
+    "--pob-calcs-row-font-size":
+      row.textSize !== null && row.textSize !== undefined
+        ? `${row.textSize}px`
+        : undefined,
+  });
+  const labelStyle = textColourStyle(row.labelColourHex);
   return (
-    <tr className="pob-calcs-row">
-      <th scope="row">{row.label}</th>
+    <tr className="pob-calcs-row" style={rowStyle}>
+      <th
+        scope="row"
+        className={"pob-calcs-row-label" + colourClass(row.labelColour)}
+        style={labelStyle}
+      >
+        {row.label}
+      </th>
       {row.cells.map((cell, idx) => {
         const interactive =
           typeof cell.breakdownKey === "string" && cell.breakdownKey !== "";
         const isActive =
           interactive && cell.breakdownKey === activeBreakdownKey;
+        const cellStyle = cssVariableStyle({
+          "--pob-calcs-cell-background": cell.backgroundColourHex,
+        });
         return (
           <td
             key={idx}
@@ -556,6 +647,7 @@ function CalcsRowView({
               (interactive ? " is-interactive" : "") +
               (isActive ? " is-active" : "")
             }
+            style={cellStyle}
             onMouseEnter={
               interactive ? () => onCellHover(cell.breakdownKey) : undefined
             }
@@ -714,6 +806,7 @@ function BreakdownPanel({
 
 export function CalcsView({
   active,
+  preload = false,
   onMutated,
   translations = EMPTY_REPOE_TRANSLATIONS,
 }: CalcsViewProps) {
@@ -724,6 +817,9 @@ export function CalcsView({
   const [actionState, setActionState] = useState<ActionState>({
     status: "idle",
   });
+  const [unimplementedNotice, setUnimplementedNotice] = useState<string | null>(
+    null,
+  );
   const [breakdown, setBreakdown] = useState<BreakdownState>({
     status: "idle",
   });
@@ -731,9 +827,11 @@ export function CalcsView({
     readFavoriteIds(CALCS_FAVORITES_STORAGE_KEY),
   );
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadedSnapshotRef = useRef(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSnapshotRef.current) return;
     let cancelled = false;
 
     const fetchSnapshot = async () => {
@@ -748,6 +846,7 @@ export function CalcsView({
       const result = await api.session.calcsSnapshot();
       if (cancelled) return;
       if (result.status === "ok") {
+        loadedSnapshotRef.current = true;
         setState({ status: "ready", snapshot: result.snapshot });
       } else {
         setState({ status: "error", reason: result.reason });
@@ -758,7 +857,7 @@ export function CalcsView({
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload]);
 
   const snapshot = state.status === "ready" ? state.snapshot : null;
   const displaySnapshot = useMemo(
@@ -770,6 +869,7 @@ export function CalcsView({
   const runAction = useCallback(
     async (action: PobCalcsAction): Promise<void> => {
       const api = window.pobAPI;
+      setUnimplementedNotice(null);
       if (!api) {
         setActionState({ status: "error", reason: "pobAPI unavailable" });
         return;
@@ -947,6 +1047,11 @@ export function CalcsView({
           {t("buildList.error.generic", { reason: actionState.reason })}
         </div>
       )}
+      {unimplementedNotice && (
+        <div className="pob-calcs-action-notice" role="status">
+          {unimplementedNotice}
+        </div>
+      )}
 
       <div className="pob-calcs-body">
         <div className="pob-calcs-stack">
@@ -954,6 +1059,7 @@ export function CalcsView({
             data={displaySnapshot.skillSelect}
             busy={actionState.status === "running"}
             onAction={(action) => void runAction(action)}
+            onUnavailable={setUnimplementedNotice}
             t={t}
           />
           <CalcsMasonry

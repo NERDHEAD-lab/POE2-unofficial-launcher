@@ -1,5 +1,8 @@
 import { POB_ORIGINAL_CALCS_GROUP_FILTERS } from "@poe2-launcher/shared/pobOriginalContract";
-import type { PobCalcsSection } from "@poe2-launcher/shared/types";
+import type {
+  PobCalcsRichTextRun,
+  PobCalcsSection,
+} from "@poe2-launcher/shared/types";
 
 export type CalcsGroupFilter = keyof typeof POB_ORIGINAL_CALCS_GROUP_FILTERS;
 
@@ -48,6 +51,15 @@ export function filterSections(
 
 export function displayCalcsCellText(text: string): string {
   return text;
+}
+
+export function displayCalcsRichTextRuns(
+  text: string | null,
+  richText: PobCalcsRichTextRun[] | null | undefined,
+): PobCalcsRichTextRun[] {
+  if (richText && richText.length > 0) return richText;
+  if (!text) return [];
+  return [{ text, colour: null, colourHex: null }];
 }
 
 function sectionHeight(

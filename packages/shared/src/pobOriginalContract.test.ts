@@ -4,6 +4,7 @@ import {
   assertPobBuildMetadataActionResult,
   assertPobBuildMetadataSnapshot,
   assertPobImportExportSnapshot,
+  assertPobCalcsSnapshot,
   assertPobCalcsBreakdown,
   assertPobItemsTooltip,
   assertPobMainSkillSummarySnapshot,
@@ -68,6 +69,98 @@ describe("pobOriginalContract strict shape assertions", () => {
     };
 
     expect(() => assertPobCalcsBreakdown(breakdown)).not.toThrow();
+  });
+
+  it("validates calcs visual metadata projection shape", () => {
+    const snapshot = {
+      search: "",
+      skillSelect: {
+        skillNumber: 1,
+        buffMode: "EFFECTIVE",
+        buffModeOptions: [
+          { value: "UNBUFFED", label: "Unbuffed" },
+          { value: "BUFFED", label: "Buffed" },
+          { value: "COMBAT", label: "In Combat" },
+          { value: "EFFECTIVE", label: "Effective DPS" },
+        ],
+        showMinion: false,
+        showMinionShown: false,
+        socketGroup: { selected: 1, options: [] },
+        mainSkill: { selected: null, options: [] },
+        statSet: { selected: null, options: [] },
+        skillPart: { selected: null, shown: false, options: [] },
+        skillStages: { value: null, shown: false },
+        mineCount: { value: null, shown: false },
+        minion: { selected: null, shown: false, options: [] },
+        spectreLibrary: {
+          label: "Manage Spectres...",
+          shown: false,
+          enabled: false,
+        },
+        beastLibrary: {
+          label: "Manage Beasts...",
+          shown: false,
+          enabled: false,
+        },
+        minionSkill: { selected: null, shown: false, options: [] },
+        minionSkillStatSet: { selected: null, shown: false, options: [] },
+      },
+      sections: [
+        {
+          id: "Attributes",
+          group: 2,
+          widthCols: 1,
+          colour: "NORMAL",
+          enabled: true,
+          subSections: [
+            {
+              id: "Attributes",
+              label: "Attributes",
+              collapsed: false,
+              defaultCollapsed: false,
+              extra: "27, 121, 127",
+              extraRichText: [
+                { text: "27", colour: "LIFE", colourHex: "#E05030" },
+                { text: ", ", colour: null, colourHex: null },
+                { text: "121", colour: null, colourHex: "#70FF70" },
+                { text: ", ", colour: null, colourHex: null },
+                { text: "127", colour: "MANA", colourHex: "#7070FF" },
+              ],
+              colWidth: null,
+              rows: [
+                {
+                  label: "Strength",
+                  labelColour: "LIFE",
+                  labelColourHex: "#E05030",
+                  backgroundColour: null,
+                  backgroundColourHex: "#071907",
+                  textSize: 12,
+                  cells: [
+                    {
+                      text: "27",
+                      colour: null,
+                      backgroundColour: null,
+                      backgroundColourHex: "#071907",
+                      breakdownKey: "Attributes:1:1:1",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      summary: {
+        combinedDPS: null,
+        fullDPS: null,
+        totalEHP: null,
+        life: null,
+        energyShield: null,
+        mana: null,
+      },
+    };
+
+    expect(() => assertPobCalcsSnapshot(snapshot)).not.toThrow();
   });
 
   it("validates build metadata projection shape", () => {
@@ -163,25 +256,42 @@ describe("pobOriginalContract strict shape assertions", () => {
       nodeId: 123,
       header: "NOTABLE",
       lines: [
-        { kind: "line", text: "Mindful Awareness", colour: null, size: 24 },
+        {
+          kind: "line",
+          text: "Mindful Awareness",
+          colour: null,
+          size: 24,
+          font: "FONTIN",
+          center: true,
+          background: null,
+        },
         { kind: "separator", text: "", colour: null, size: 14 },
         {
           kind: "line",
           text: "Unallocating this node will give you:",
           colour: "NORMAL",
           size: 14,
+          font: "VAR",
+          center: false,
+          background: null,
         },
         {
           kind: "line",
           text: "-56 Deflection Rating",
           colour: "NEGATIVE",
           size: 14,
+          font: "VAR",
+          center: true,
+          background: null,
         },
         {
           kind: "line",
           text: "9,267 Gold required to unallocate these nodes",
           colour: "GOLD",
           size: 14,
+          font: "VAR",
+          center: false,
+          background: null,
         },
       ],
     };
@@ -245,6 +355,9 @@ describe("pobOriginalContract strict shape assertions", () => {
           text: "Supported Attacks Gain 25% of Damage as Extra Lightning Damage",
           colour: "MAGIC",
           size: 16,
+          font: "FONTIN SC",
+          center: true,
+          background: "GemHoverModBg",
         },
       ],
     };
@@ -259,25 +372,44 @@ describe("pobOriginalContract strict shape assertions", () => {
       db: "uniqueDB",
       slotName: null,
       header: "UNIQUE",
+      influenceHeader1: "Desecrated",
+      influenceHeader2: "Mutated",
+      maxWidth: 600,
       lines: [
         {
           kind: "line",
           text: "Mahuxotl's Machination",
           colour: "UNIQUE",
           size: 20,
+          font: "FONTIN SC",
+          center: true,
+          background: null,
+          block: 1,
         },
-        { kind: "separator", text: "", colour: null, size: 10 },
+        {
+          kind: "separator",
+          text: "",
+          colour: null,
+          size: 10,
+          block: 1,
+          separatorTheme: "UNIQUE",
+        },
         {
           kind: "line",
           text: "Exclusive to: Trial of Chaos",
           colour: "NEGATIVE",
           size: 16,
+          font: "FONTIN SC",
+          center: true,
+          background: null,
+          block: 1,
         },
         {
           kind: "line",
           text: "Tip: Press Ctrl+D to disable the display of stat differences.",
           colour: "TIP",
           size: 14,
+          block: 2,
         },
       ],
     };

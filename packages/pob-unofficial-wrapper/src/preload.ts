@@ -4,6 +4,7 @@ import type {
   PobBuildMetadataAction,
   PobCalcsAction,
   PobConfigAction,
+  DebugLogPayload,
   PobDetectedPayload,
   PobGame,
   PobImportExportAction,
@@ -20,6 +21,7 @@ import type {
   PobSettings,
   PobSkillsAction,
   PobSkillsTooltipMode,
+  PobTreePerfDebugContext,
   PobVaultRefreshRequest,
 } from "@poe2-launcher/shared/types";
 
@@ -38,6 +40,7 @@ contextBridge.exposeInMainWorld("pobAPI", {
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   toggleMaximizeWindow: () => ipcRenderer.send("window-toggle-maximize"),
   closeWindow: () => ipcRenderer.send("window-close"),
+  debugLog: (log: DebugLogPayload) => ipcRenderer.send("debug-log:send", log),
   settings: {
     get: (): Promise<PobSettings> => invoke("pob-wrapper:settings-get"),
     set: (settings: Partial<PobSettings>): Promise<PobSettings> =>
@@ -92,8 +95,10 @@ contextBridge.exposeInMainWorld("pobAPI", {
     buildMetadataAction: (action: PobBuildMetadataAction) =>
       invoke("pob:build-metadata-action", action),
     mainSkillSummary: () => invoke("pob:main-skill-summary"),
-    treeSnapshot: () => invoke("pob:tree-snapshot"),
-    treeMetadata: () => invoke("pob:tree-metadata"),
+    treeSnapshot: (debugContext?: PobTreePerfDebugContext) =>
+      invoke("pob:tree-snapshot", debugContext),
+    treeMetadata: (debugContext?: PobTreePerfDebugContext) =>
+      invoke("pob:tree-metadata", debugContext),
     treeNodeTooltip: (nodeId: number) =>
       invoke("pob:tree-node-tooltip", nodeId),
     treeAllocate: (nodeId: number) => invoke("pob:tree-allocate", nodeId),

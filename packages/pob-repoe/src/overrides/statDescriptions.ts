@@ -126,10 +126,14 @@ function conditionMatches(
 }
 
 function formatTemplate(template: string, values: number[]): string {
-  return template.replace(/\{(\d+)\}/g, (_match, index: string) => {
-    const value = values[Number(index)];
-    return value === undefined ? "" : String(value);
-  });
+  return template.replace(
+    /\{(\d+)(?::([^}]+))?\}/g,
+    (_match, index: string, format: string | undefined) => {
+      const value = values[Number(index)];
+      if (value === undefined) return "";
+      return format?.startsWith("+") && value > 0 ? `+${value}` : String(value);
+    },
+  );
 }
 
 const putIdVariant = (

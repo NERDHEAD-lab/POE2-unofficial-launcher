@@ -1,5 +1,7 @@
 import type {
+  DebugLogPayload,
   PobSessionAPI,
+  PobTreePerfDebugContext,
   PobTreeMetadataResult,
   PobTreeResult,
   PobTreeSnapshot,
@@ -53,6 +55,8 @@ export type PassiveTreeLoadStage =
   | "metadata"
   | "resource-manifest"
   | "resource-load"
+  | "translate-tree"
+  | "project-scene"
   | "canvas-draw";
 
 export interface PassiveTreePerfMeasure {
@@ -61,6 +65,9 @@ export interface PassiveTreePerfMeasure {
   durationMs: number;
   resourceCount?: number;
   cacheHits?: number;
+  nodeCount?: number;
+  treeVersion?: string | null;
+  buildKey?: string;
 }
 
 export type PassiveTreePerfReporter = (measure: PassiveTreePerfMeasure) => void;
@@ -97,6 +104,7 @@ export interface PassiveTreeResourceLoadInput {
 
 export interface PassiveTreeResourceLoadOptions {
   scenario: PassiveTreeLoadScenario;
+  buildKey?: string;
   reportMeasure?: PassiveTreePerfReporter;
   onImage?: (key: string, image: TreeImage) => void;
   fetchImpl?: typeof fetch;
@@ -124,7 +132,7 @@ const now = (): number =>
     ? performance.now()
     : Date.now();
 
-const shouldLogPerformance = (): boolean => {
+export const isPassiveTreePerfEnabled = (): boolean => {
   try {
     return (
       typeof window !== "undefined" &&
@@ -135,16 +143,48 @@ const shouldLogPerformance = (): boolean => {
   }
 };
 
+const formatPassiveTreePerfLine = (measure: PassiveTreePerfMeasure): string => {
+  const parts = [
+    measure.scenario,
+    measure.stage,
+    `${measure.durationMs.toFixed(1)}ms`,
+  ];
+  if (measure.treeVersion) parts.push(`tree=${measure.treeVersion}`);
+  if (typeof measure.nodeCount === "number") {
+    parts.push(`nodes=${measure.nodeCount}`);
+  }
+  if (typeof measure.resourceCount === "number") {
+    parts.push(`resources=${measure.resourceCount}`);
+  }
+  if (typeof measure.cacheHits === "number") {
+    parts.push(`cacheHits=${measure.cacheHits}`);
+  }
+  if (measure.buildKey) parts.push(`build=${measure.buildKey}`);
+  return `[pob-tree] ${parts.join(" ")}`;
+};
+
+const createDebugLogPayload = (
+  measure: PassiveTreePerfMeasure,
+): DebugLogPayload => ({
+  type: "POB_TREE",
+  content: formatPassiveTreePerfLine(measure),
+  isError: false,
+  timestamp: Date.now(),
+  typeColor: "#8be9fd",
+  textColor: "#f8f8f2",
+  priority: 2,
+});
+
 export const defaultPassiveTreePerfReporter: PassiveTreePerfReporter = (
   measure,
 ) => {
-  if (!shouldLogPerformance()) return;
-  console.debug(
-    `[pob-tree] ${measure.scenario} ${measure.stage} ${measure.durationMs.toFixed(
-      1,
-    )}ms`,
-    measure,
-  );
+  if (!isPassiveTreePerfEnabled()) return;
+  console.debug(formatPassiveTreePerfLine(measure), measure);
+  try {
+    window.pobAPI?.debugLog?.(createDebugLogPayload(measure));
+  } catch {
+    // Debug reporting must never affect Tree rendering.
+  }
 };
 
 export const timePassiveTreeStage = async <T>(
@@ -164,6 +204,38 @@ export const timePassiveTreeStage = async <T>(
     });
   }
 };
+
+export const timePassiveTreeSyncStage = <T>(
+  scenario: PassiveTreeLoadScenario,
+  stage: PassiveTreeLoadStage,
+  work: () => T,
+  reportMeasure: PassiveTreePerfReporter = defaultPassiveTreePerfReporter,
+  details: Partial<Omit<PassiveTreePerfMeasure, "scenario" | "stage">> = {},
+): T => {
+  const startedAt = now();
+  try {
+    return work();
+  } finally {
+    reportMeasure({
+      scenario,
+      stage,
+      durationMs: now() - startedAt,
+      ...details,
+    });
+  }
+};
+
+export const createPassiveTreePerfDebugContext = (
+  scenario: PassiveTreeLoadScenario,
+  buildKey: string,
+): PobTreePerfDebugContext | undefined =>
+  isPassiveTreePerfEnabled()
+    ? {
+        enabled: true,
+        scenario,
+        buildKey,
+      }
+    : undefined;
 
 export const passiveTreeResourceCacheKeyToString = (
   key: PassiveTreeResourceCacheKey,
@@ -370,6 +442,9 @@ export const loadPassiveTreeResources = async (
     scenario: options.scenario,
     stage: "resource-manifest",
     durationMs: now() - manifestStart,
+    treeVersion: input.snapshot.treeVersion,
+    nodeCount: input.snapshot.nodes.length,
+    buildKey: options.buildKey,
   });
   if (!manifest) return null;
 
@@ -419,6 +494,9 @@ export const loadPassiveTreeResources = async (
     durationMs: now() - startedAt,
     resourceCount: manifest.resourceCount,
     cacheHits,
+    treeVersion: input.snapshot.treeVersion,
+    nodeCount: input.snapshot.nodes.length,
+    buildKey: options.buildKey,
   });
 
   return { manifest, images, cacheHits };

@@ -305,6 +305,32 @@ for (const value of Object.values(POB_ORIGINAL_CALCS_GROUP_FILTERS)) {
 }
 const skillsTooltipModes = new Set<string>(["gem", "quality", "enabled"]);
 
+const assertNullableCalcsColour = (value: unknown, path: string): void => {
+  if (value === null) return;
+  assertString(value, path);
+  if (!calcsColours.has(value)) fail(path, "a colour");
+};
+
+const assertOptionalNullableCalcsColour = (
+  value: unknown,
+  path: string,
+): void => {
+  if (value !== undefined) assertNullableCalcsColour(value, path);
+};
+
+const assertOptionalCalcsRichText = (value: unknown, path: string): void => {
+  if (value === undefined || value === null) return;
+  assertArray(value, path);
+  value.forEach((run, index) => {
+    const runPath = `${path}[${index}]`;
+    assertRecord(run, runPath);
+    assertKnownKeys(run, runPath, ["text", "colour", "colourHex"]);
+    assertString(run.text, `${runPath}.text`);
+    assertNullableCalcsColour(run.colour, `${runPath}.colour`);
+    assertNullableString(run.colourHex, `${runPath}.colourHex`);
+  });
+};
+
 const assertStringArray = (value: unknown, path: string): void => {
   assertArray(value, path);
   value.forEach((entry, index) => assertString(entry, `${path}[${index}]`));
@@ -347,7 +373,17 @@ const assertTooltipLines = (value: unknown, path: string): void => {
   value.forEach((line, index) => {
     const linePath = `${path}[${index}]`;
     assertRecord(line, linePath);
-    assertKnownKeys(line, linePath, ["kind", "text", "colour", "size"]);
+    assertKnownKeys(line, linePath, [
+      "kind",
+      "text",
+      "colour",
+      "size",
+      "font",
+      "center",
+      "background",
+      "block",
+      "separatorTheme",
+    ]);
     assertString(line.kind, `${linePath}.kind`);
     if (line.kind !== "line" && line.kind !== "separator") {
       fail(`${linePath}.kind`, "a tooltip line kind");
@@ -359,6 +395,14 @@ const assertTooltipLines = (value: unknown, path: string): void => {
       fail(`${linePath}.colour`, "a PoB tooltip colour");
     }
     assertNullableNumber(line.size, `${linePath}.size`);
+    assertOptionalNullableString(line.font, `${linePath}.font`);
+    assertOptionalBoolean(line.center, `${linePath}.center`);
+    assertOptionalNullableString(line.background, `${linePath}.background`);
+    assertOptionalNullableNumber(line.block, `${linePath}.block`);
+    assertOptionalNullableString(
+      line.separatorTheme,
+      `${linePath}.separatorTheme`,
+    );
   });
 };
 
@@ -619,6 +663,9 @@ export function assertPobItemsTooltip(
     "db",
     "slotName",
     "header",
+    "influenceHeader1",
+    "influenceHeader2",
+    "maxWidth",
     "lines",
   ]);
   assertString(value.source, "itemsTooltip.source");
@@ -639,6 +686,15 @@ export function assertPobItemsTooltip(
   }
   assertNullableString(value.slotName, "itemsTooltip.slotName");
   assertNullableString(value.header, "itemsTooltip.header");
+  assertOptionalNullableString(
+    value.influenceHeader1,
+    "itemsTooltip.influenceHeader1",
+  );
+  assertOptionalNullableString(
+    value.influenceHeader2,
+    "itemsTooltip.influenceHeader2",
+  );
+  assertOptionalNullableNumber(value.maxWidth, "itemsTooltip.maxWidth");
   assertTooltipLines(value.lines, "itemsTooltip.lines");
 }
 
@@ -1054,8 +1110,7 @@ export function assertPobCalcsSnapshot(
     assertNumber(section.widthCols, `${path}.widthCols`);
     assertBoolean(section.enabled, `${path}.enabled`);
     if (section.colour !== null) {
-      assertString(section.colour, `${path}.colour`);
-      if (!calcsColours.has(section.colour)) fail(`${path}.colour`, "a colour");
+      assertNullableCalcsColour(section.colour, `${path}.colour`);
     }
     assertArray(section.subSections, `${path}.subSections`);
     section.subSections.forEach((sub, subIndex) => {
@@ -1067,6 +1122,7 @@ export function assertPobCalcsSnapshot(
         "collapsed",
         "defaultCollapsed",
         "extra",
+        "extraRichText",
         "colWidth",
         "rows",
       ]);
@@ -1075,25 +1131,64 @@ export function assertPobCalcsSnapshot(
       assertBoolean(sub.collapsed, `${subPath}.collapsed`);
       assertBoolean(sub.defaultCollapsed, `${subPath}.defaultCollapsed`);
       assertNullableString(sub.extra, `${subPath}.extra`);
+      assertOptionalCalcsRichText(
+        sub.extraRichText,
+        `${subPath}.extraRichText`,
+      );
       assertNullableNumber(sub.colWidth, `${subPath}.colWidth`);
       assertArray(sub.rows, `${subPath}.rows`);
       sub.rows.forEach((row, rowIndex) => {
         const rowPath = `${subPath}.rows[${rowIndex}]`;
         assertRecord(row, rowPath);
-        assertKnownKeys(row, rowPath, ["label", "cells"]);
+        assertKnownKeys(row, rowPath, [
+          "label",
+          "labelColour",
+          "labelColourHex",
+          "backgroundColour",
+          "backgroundColourHex",
+          "textSize",
+          "cells",
+        ]);
         assertString(row.label, `${rowPath}.label`);
+        assertOptionalNullableCalcsColour(
+          row.labelColour,
+          `${rowPath}.labelColour`,
+        );
+        assertOptionalNullableString(
+          row.labelColourHex,
+          `${rowPath}.labelColourHex`,
+        );
+        assertOptionalNullableCalcsColour(
+          row.backgroundColour,
+          `${rowPath}.backgroundColour`,
+        );
+        assertOptionalNullableString(
+          row.backgroundColourHex,
+          `${rowPath}.backgroundColourHex`,
+        );
+        assertOptionalNullableNumber(row.textSize, `${rowPath}.textSize`);
         assertArray(row.cells, `${rowPath}.cells`);
         row.cells.forEach((cell, cellIndex) => {
           const cellPath = `${rowPath}.cells[${cellIndex}]`;
           assertRecord(cell, cellPath);
-          assertKnownKeys(cell, cellPath, ["text", "colour", "breakdownKey"]);
+          assertKnownKeys(cell, cellPath, [
+            "text",
+            "colour",
+            "backgroundColour",
+            "backgroundColourHex",
+            "breakdownKey",
+          ]);
           assertString(cell.text, `${cellPath}.text`);
           assertNullableString(cell.breakdownKey, `${cellPath}.breakdownKey`);
-          if (cell.colour !== null) {
-            assertString(cell.colour, `${cellPath}.colour`);
-            if (!calcsColours.has(cell.colour))
-              fail(`${cellPath}.colour`, "a colour");
-          }
+          assertNullableCalcsColour(cell.colour, `${cellPath}.colour`);
+          assertOptionalNullableCalcsColour(
+            cell.backgroundColour,
+            `${cellPath}.backgroundColour`,
+          );
+          assertOptionalNullableString(
+            cell.backgroundColourHex,
+            `${cellPath}.backgroundColourHex`,
+          );
         });
       });
     });

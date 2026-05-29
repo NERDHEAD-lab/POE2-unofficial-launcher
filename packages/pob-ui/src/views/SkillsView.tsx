@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -13,13 +20,31 @@ import type {
   PobSkillsGemTooltip,
   PobSkillsSnapshot,
   PobSkillsTooltipMode,
-  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
+import { PobTooltipAssetHeader } from "./PobTooltipAssetHeader";
 import {
+  buildPobTooltipHeaderAssetStyle,
+  buildPobTooltipSharedAssetStyle,
+  collectPobTooltipHeaderTitleEntries,
+} from "./pobTooltipAssetParts";
+import {
+  createPobAssetUrl,
+  getPobTooltipSeparatorAsset,
+} from "./pobTooltipAssets";
+import {
+  shouldSkipHeaderSeparator,
+  tooltipHeaderClasses,
+  tooltipLineClasses,
+  tooltipSeparatorClasses,
+} from "./pobTooltipMetadata";
+import {
+  filterTranslatedGemCatalogEntryViews,
+  type PobGemCatalogEntrySearchView,
   translateSkillsGemTooltip,
   translateSkillsSnapshot,
 } from "./repoeTranslations";
+import { SearchLabelText } from "./SearchLabelText";
 
 type LoadState =
   | { status: "idle" }
@@ -34,6 +59,7 @@ type ActionState =
 
 interface SkillsViewProps {
   active: boolean;
+  preload?: boolean;
   translations: PobRepoeTranslationsSnapshot;
   onMutated: () => void;
 }
@@ -53,44 +79,110 @@ const gemToneClass = (color: string): string => {
   return "";
 };
 
+const MAX_GEM_SEARCH_OPTIONS = 48;
+
 type GemTooltipState =
   | { status: "idle" }
   | { status: "loading"; mode: PobSkillsTooltipMode }
-  | { status: "ready"; tooltip: PobSkillsGemTooltip }
+  | {
+      status: "ready";
+      tooltip: PobSkillsGemTooltip;
+      vaultPath: string | null;
+    }
   | { status: "error"; reason: string };
-
-const skillsTooltipLineClass = (line: PobTreeTooltipLine): string => {
-  const classes = ["pob-skills-tooltip-line"];
-  if (line.size !== null && line.size >= 20) classes.push("is-title");
-  if (!line.text.trim()) classes.push("is-empty");
-  if (line.colour) classes.push(`is-colour-${line.colour.toLowerCase()}`);
-  return classes.join(" ");
-};
 
 function SkillsGemTooltip({
   tooltip,
+  vaultPath,
   translations,
 }: {
   tooltip: PobSkillsGemTooltip;
+  vaultPath: string | null;
   translations: PobRepoeTranslationsSnapshot;
 }) {
   const displayTooltip = translateSkillsGemTooltip(tooltip, translations);
   if (displayTooltip.lines.length === 0) return null;
+  const skippedHeaderSeparatorIndex = displayTooltip.lines.findIndex(
+    (line) =>
+      line.kind === "separator" &&
+      shouldSkipHeaderSeparator(line.separatorTheme ?? displayTooltip.header),
+  );
+  const headerAssetStyle = buildPobTooltipHeaderAssetStyle(
+    vaultPath,
+    displayTooltip.header,
+  );
+  const sharedAssetStyle = buildPobTooltipSharedAssetStyle(vaultPath);
+  const headerTitleEntries = collectPobTooltipHeaderTitleEntries(
+    displayTooltip.lines,
+    Boolean(headerAssetStyle),
+  );
+  const headerTitleIndexes = new Set(
+    headerTitleEntries.map((entry) => entry.index),
+  );
   return (
-    <div className="pob-skills-tooltip" role="tooltip">
+    <div
+      className={tooltipHeaderClasses(
+        `pob-skills-tooltip${
+          headerAssetStyle ? " has-asset-tooltip-header" : ""
+        }`,
+        displayTooltip.header,
+      )}
+      role="tooltip"
+      style={
+        {
+          ...(sharedAssetStyle ?? {}),
+          ...(headerAssetStyle ?? {}),
+        } as CSSProperties
+      }
+    >
+      {displayTooltip.header && headerAssetStyle && (
+        <PobTooltipAssetHeader
+          className="pob-skills-tooltip-header"
+          lineBaseClass="pob-skills-tooltip-line"
+          titleEntries={headerTitleEntries}
+          style={headerAssetStyle}
+        />
+      )}
       <div className="pob-skills-tooltip-lines">
-        {displayTooltip.lines.map((line, index) =>
-          line.kind === "separator" ? (
+        {displayTooltip.lines.map((line, index) => {
+          if (line.kind === "separator") {
+            if (index === skippedHeaderSeparatorIndex) return null;
+            const separatorAsset = getPobTooltipSeparatorAsset(
+              line.separatorTheme ?? displayTooltip.header,
+            );
+            const separatorAssetUrl = separatorAsset
+              ? createPobAssetUrl(vaultPath, separatorAsset)
+              : null;
+            return (
+              <div
+                key={`separator-${index}`}
+                className={tooltipSeparatorClasses(
+                  `pob-skills-tooltip-separator${
+                    separatorAssetUrl ? " has-asset-separator" : ""
+                  }`,
+                  line,
+                  displayTooltip.header,
+                )}
+                style={
+                  separatorAssetUrl
+                    ? ({
+                        ["--pob-tooltip-separator"]: `url("${separatorAssetUrl}")`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              />
+            );
+          }
+          if (headerTitleIndexes.has(index)) return null;
+          return (
             <div
-              key={`separator-${index}`}
-              className="pob-skills-tooltip-separator"
-            />
-          ) : (
-            <div key={`line-${index}`} className={skillsTooltipLineClass(line)}>
+              key={`line-${index}`}
+              className={tooltipLineClasses("pob-skills-tooltip-line", line)}
+            >
               {line.text}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
     </div>
   );
@@ -98,6 +190,7 @@ function SkillsGemTooltip({
 
 export function SkillsView({
   active,
+  preload = false,
   translations,
   onMutated,
 }: SkillsViewProps) {
@@ -108,9 +201,11 @@ export function SkillsView({
     status: "idle",
   });
   const [manageOpen, setManageOpen] = useState(false);
+  const loadedSnapshotRef = useRef(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSnapshotRef.current) return;
     let cancelled = false;
 
     const fetchSnapshot = async () => {
@@ -125,6 +220,7 @@ export function SkillsView({
       const result = await api.session.skillsSnapshot();
       if (cancelled) return;
       if (result.status === "ok") {
+        loadedSnapshotRef.current = true;
         setState({ status: "ready", snapshot: result.snapshot });
         setSelectedGroupIndex(result.snapshot.groups[0]?.index ?? 1);
       } else {
@@ -136,7 +232,7 @@ export function SkillsView({
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload]);
 
   const sourceSnapshot = state.status === "ready" ? state.snapshot : null;
   const snapshot = useMemo(
@@ -761,11 +857,30 @@ function GemRow({
 }: GemRowProps) {
   const { t } = useTranslation();
   const [nameValue, setNameValue] = useState(gem.displayName || gem.nameSpec);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [activeOptionIndex, setActiveOptionIndex] = useState(0);
   const [tooltipState, setTooltipState] = useState<GemTooltipState>({
     status: "idle",
   });
   const tooltipRequestId = useRef(0);
-  const datalistId = `pob-skills-gem-list-${group.index}-${gem.index}`;
+  const listboxId = `pob-skills-gem-list-${group.index}-${gem.index}`;
+  const gemOptions = useMemo(
+    () =>
+      filterTranslatedGemCatalogEntryViews(
+        availableGems,
+        rawAvailableGems,
+        nameValue,
+        translations.locale,
+      ).slice(0, MAX_GEM_SEARCH_OPTIONS),
+    [availableGems, nameValue, rawAvailableGems, translations.locale],
+  );
+  const showGemOptions =
+    optionsOpen && !busy && gem.canEdit && gemOptions.length > 0;
+  const activeGemOptionIndex =
+    gemOptions.length === 0
+      ? 0
+      : Math.min(activeOptionIndex, gemOptions.length - 1);
+  const activeGemOption = gemOptions[activeGemOptionIndex] ?? null;
 
   const commitName = () => {
     const value = nameValue.trim();
@@ -779,6 +894,50 @@ function GemRow({
       gemIndex: gem.index,
       patch: match ? { gemId: match.id } : { nameSpec: value },
     });
+  };
+
+  const selectGemOption = (option: PobGemCatalogEntrySearchView) => {
+    setNameValue(option.name.localizedLabel);
+    setOptionsOpen(false);
+    onAction({
+      type: "setGem",
+      groupIndex: group.index,
+      gemIndex: gem.index,
+      patch: { gemId: option.sourceEntry.id },
+    });
+  };
+
+  const handleNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOptionsOpen(true);
+      setActiveOptionIndex((index) =>
+        gemOptions.length === 0 ? 0 : (index + 1) % gemOptions.length,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOptionsOpen(true);
+      setActiveOptionIndex((index) =>
+        gemOptions.length === 0
+          ? 0
+          : (index - 1 + gemOptions.length) % gemOptions.length,
+      );
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (showGemOptions && activeGemOption) {
+        selectGemOption(activeGemOption);
+      } else {
+        event.currentTarget.blur();
+      }
+      return;
+    }
+    if (event.key === "Escape") {
+      setOptionsOpen(false);
+    }
   };
 
   const showTooltip = (mode: PobSkillsTooltipMode) => {
@@ -796,7 +955,11 @@ function GemRow({
       .then((result) => {
         if (tooltipRequestId.current !== requestId) return;
         if (result.status === "ok") {
-          setTooltipState({ status: "ready", tooltip: result.tooltip });
+          setTooltipState({
+            status: "ready",
+            tooltip: result.tooltip,
+            vaultPath: result.vaultPath,
+          });
         } else {
           setTooltipState({ status: "error", reason: result.reason });
         }
@@ -844,27 +1007,62 @@ function GemRow({
       >
         x
       </button>
-      <label>
+      <div className="pob-skills-gem-combobox">
         <input
           type="text"
-          list={datalistId}
           value={nameValue}
           disabled={busy || !gem.canEdit}
           placeholder={t("buildEdit.skills.gem.namePlaceholder")}
-          onChange={(event) => setNameValue(event.target.value)}
-          onFocus={() => showTooltip("gem")}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showGemOptions}
+          aria-controls={showGemOptions ? listboxId : undefined}
+          aria-activedescendant={
+            showGemOptions && activeGemOption
+              ? `${listboxId}-option-${activeGemOptionIndex}`
+              : undefined
+          }
+          onChange={(event) => {
+            setNameValue(event.target.value);
+            setActiveOptionIndex(0);
+            setOptionsOpen(true);
+          }}
+          onFocus={() => {
+            setActiveOptionIndex(0);
+            setOptionsOpen(true);
+            showTooltip("gem");
+          }}
           onMouseEnter={() => showTooltip("gem")}
           onBlur={() => {
             commitName();
+            setOptionsOpen(false);
             hideTooltip();
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.currentTarget.blur();
-            }
-          }}
+          onKeyDown={handleNameKeyDown}
         />
-      </label>
+        {showGemOptions && (
+          <div id={listboxId} className="pob-skills-gem-options" role="listbox">
+            {gemOptions.map((option, index) => (
+              <button
+                key={option.sourceEntry.id}
+                id={`${listboxId}-option-${index}`}
+                type="button"
+                role="option"
+                aria-selected={index === activeGemOptionIndex}
+                className={
+                  "pob-skills-gem-option" +
+                  (index === activeGemOptionIndex ? " is-active" : "")
+                }
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveOptionIndex(index)}
+                onClick={() => selectGemOption(option)}
+              >
+                <SearchLabelText projection={option.name} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <input
         type="number"
         min={1}
@@ -976,23 +1174,10 @@ function GemRow({
       {tooltipState.status === "ready" && (
         <SkillsGemTooltip
           tooltip={tooltipState.tooltip}
+          vaultPath={tooltipState.vaultPath}
           translations={translations}
         />
       )}
-      <datalist id={datalistId}>
-        {availableGems.map((entry) => (
-          <option key={entry.id} value={entry.name} />
-        ))}
-        {rawAvailableGems
-          .filter((entry) =>
-            availableGems.every(
-              (displayEntry) => displayEntry.name !== entry.name,
-            ),
-          )
-          .map((entry) => (
-            <option key={`raw-${entry.id}`} value={entry.name} />
-          ))}
-      </datalist>
     </div>
   );
 }

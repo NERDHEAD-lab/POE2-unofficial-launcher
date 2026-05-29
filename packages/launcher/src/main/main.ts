@@ -36,6 +36,10 @@ import {
 } from "@poe2-launcher/shared/types";
 import { BASE_URLS } from "@poe2-launcher/shared/urls";
 
+import {
+  getAgentRemoteDebuggingPort,
+  isAgentAutomationMode,
+} from "./agentMode";
 import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
 import {
@@ -169,6 +173,18 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+
+const agentRemoteDebuggingPort = getAgentRemoteDebuggingPort();
+if (agentRemoteDebuggingPort) {
+  app.commandLine.appendSwitch(
+    "remote-debugging-port",
+    agentRemoteDebuggingPort,
+  );
+}
+if (isAgentAutomationMode()) {
+  app.commandLine.appendSwitch("disable-background-timer-throttling");
+  app.commandLine.appendSwitch("disable-renderer-backgrounding");
+}
 
 /**
  * Checks if the launcher version has changed since the last run.
@@ -1672,7 +1688,8 @@ async function createWindow() {
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Check for --hidden arg (Start Minimized)
-      const startHidden = process.argv.includes("--hidden");
+      const startHidden =
+        process.argv.includes("--hidden") || isAgentAutomationMode();
       if (!startHidden) {
         mainWindow.show();
         // [Fix] Show Debug Console ONLY AFTER main window is shown to ensure correct Z-order/Focus

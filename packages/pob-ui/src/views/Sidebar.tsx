@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import type {
   BuildEntry,
   BuildsMutationResult,
+  PobSettings,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -18,6 +19,7 @@ import {
   filterBuildEntries,
   getFolderAncestors,
   getFolderName,
+  getTargetAfterDeletingActiveItem,
   getParentSubPath,
   joinSubPath,
   sortBuildEntries,
@@ -53,11 +55,14 @@ interface SidebarProps {
   autosave: boolean;
   collapsed: boolean;
   mainSkillSummary: MainSkillSummaryPanelState;
+  settings: PobSettings;
   sortKey: SortKey;
   refreshToken: number;
   onAutosaveChange: (enabled: boolean) => void;
+  onActiveTargetDeleted: (target: BuildTarget) => void;
   onNewBuild: () => void;
   onSelect: (target: BuildTarget) => void;
+  onSettingsChange: (settings: Partial<PobSettings>) => void;
   onSortChange: (sortKey: SortKey) => void;
   onToggleCollapse: () => void;
 }
@@ -110,18 +115,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   autosave,
   collapsed,
   mainSkillSummary,
+  settings,
   sortKey,
   refreshToken,
   onAutosaveChange,
+  onActiveTargetDeleted,
   onNewBuild,
   onSelect,
+  onSettingsChange,
   onSortChange,
   onToggleCollapse,
 }) => {
   const { t } = useTranslation();
   const api = window.pobAPI?.builds;
 
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set([""]));
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(settings.buildExplorerExpandedPaths),
+  );
   const [entriesByPath, setEntriesByPath] = useState<Map<string, BuildEntry[]>>(
     () => new Map(),
   );
@@ -141,17 +151,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null,
   );
-  const [mainSkillCollapsed, setMainSkillCollapsed] = useState(false);
+  const [mainSkillCollapsed, setMainSkillCollapsed] = useState(
+    settings.mainSkillPanelCollapsed,
+  );
   const [mainSkillPanelHeight, setMainSkillPanelHeight] = useState(() =>
     getMainSkillSummaryDefaultHeight(window.innerHeight),
   );
   const [mainSkillPanelMaxHeight, setMainSkillPanelMaxHeight] = useState(() =>
     getMainSkillSummaryMaxHeight(window.innerHeight),
   );
-  const [mainSkillPanelRatio, setMainSkillPanelRatio] = useState(0.5);
+  const [mainSkillPanelRatio, setMainSkillPanelRatio] = useState(
+    settings.mainSkillPanelHeightRatio,
+  );
   const mainSkillResizeRef = useRef<{
     startY: number;
     startHeight: number;
+    lastRatio: number;
   } | null>(null);
 
   useEffect(() => {
@@ -294,10 +309,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           next.add(subPath);
           void loadPath(subPath);
         }
+        onSettingsChange({ buildExplorerExpandedPaths: [...next] });
         return next;
       });
     },
-    [loadPath],
+    [loadPath, onSettingsChange],
   );
 
   const handleNewFolder = useCallback(
@@ -414,22 +430,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             item.subPath,
           );
           if (!ok) return;
-          if (item.kind === "file" && selectedFile === item.name) {
-            onSelect({ subPath: item.subPath, fileName: null });
-          }
-          if (item.kind === "folder") {
-            const deletedPath = joinSubPath(item.subPath, item.name);
-            if (
-              currentPath === deletedPath ||
-              currentPath.startsWith(`${deletedPath}/`)
-            ) {
-              onSelect({ subPath: item.subPath, fileName: null });
-            }
+          const deletedTarget = getTargetAfterDeletingActiveItem(
+            { subPath: currentPath, fileName: selectedFile },
+            item,
+          );
+          if (deletedTarget) {
+            onActiveTargetDeleted(deletedTarget);
           }
         },
       });
     },
-    [api, currentPath, handleMutation, onSelect, selectedFile, t],
+    [api, currentPath, handleMutation, onActiveTargetDeleted, selectedFile, t],
   );
 
   const runMenuAction = useCallback(
@@ -758,10 +769,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         height,
         mainSkillPanelMaxHeight,
       );
-      setMainSkillPanelHeight(nextHeight);
-      setMainSkillPanelRatio(
-        getMainSkillSummaryHeightRatio(nextHeight, mainSkillPanelMaxHeight),
+      const nextRatio = getMainSkillSummaryHeightRatio(
+        nextHeight,
+        mainSkillPanelMaxHeight,
       );
+      setMainSkillPanelHeight(nextHeight);
+      setMainSkillPanelRatio(nextRatio);
+      return nextRatio;
     },
     [mainSkillPanelMaxHeight],
   );
@@ -773,26 +787,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
       mainSkillResizeRef.current = {
         startY: event.clientY,
         startHeight: mainSkillPanelHeight,
+        lastRatio: mainSkillPanelRatio,
       };
 
       const handleMove = (moveEvent: MouseEvent) => {
         const resize = mainSkillResizeRef.current;
         if (!resize) return;
-        setClampedMainSkillHeight(
+        resize.lastRatio = setClampedMainSkillHeight(
           resize.startHeight - (moveEvent.clientY - resize.startY),
         );
       };
 
       const handleUp = () => {
+        const ratio = mainSkillResizeRef.current?.lastRatio;
         mainSkillResizeRef.current = null;
         window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
+        if (ratio !== undefined) {
+          onSettingsChange({ mainSkillPanelHeightRatio: ratio });
+        }
       };
 
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [mainSkillCollapsed, mainSkillPanelHeight, setClampedMainSkillHeight],
+    [
+      mainSkillCollapsed,
+      mainSkillPanelHeight,
+      mainSkillPanelRatio,
+      onSettingsChange,
+      setClampedMainSkillHeight,
+    ],
   );
 
   const handleMainSkillResizeKeyDown = useCallback(
@@ -800,22 +825,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (mainSkillCollapsed) return;
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setClampedMainSkillHeight(mainSkillPanelHeight + 16);
+        onSettingsChange({
+          mainSkillPanelHeightRatio: setClampedMainSkillHeight(
+            mainSkillPanelHeight + 16,
+          ),
+        });
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
-        setClampedMainSkillHeight(mainSkillPanelHeight - 16);
+        onSettingsChange({
+          mainSkillPanelHeightRatio: setClampedMainSkillHeight(
+            mainSkillPanelHeight - 16,
+          ),
+        });
       } else if (event.key === "Home") {
         event.preventDefault();
-        setClampedMainSkillHeight(MAIN_SKILL_SUMMARY_MIN_HEIGHT);
+        onSettingsChange({
+          mainSkillPanelHeightRatio: setClampedMainSkillHeight(
+            MAIN_SKILL_SUMMARY_MIN_HEIGHT,
+          ),
+        });
       } else if (event.key === "End") {
         event.preventDefault();
-        setClampedMainSkillHeight(mainSkillPanelMaxHeight);
+        onSettingsChange({
+          mainSkillPanelHeightRatio: setClampedMainSkillHeight(
+            mainSkillPanelMaxHeight,
+          ),
+        });
       }
     },
     [
       mainSkillCollapsed,
       mainSkillPanelHeight,
       mainSkillPanelMaxHeight,
+      onSettingsChange,
       setClampedMainSkillHeight,
     ],
   );
@@ -1172,7 +1214,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 className="pob-sidebar-main-skill-toggle"
                 aria-expanded={!mainSkillCollapsed}
-                onClick={() => setMainSkillCollapsed((value) => !value)}
+                onClick={() => {
+                  const next = !mainSkillCollapsed;
+                  setMainSkillCollapsed(next);
+                  onSettingsChange({ mainSkillPanelCollapsed: next });
+                }}
                 title={t(
                   mainSkillCollapsed
                     ? "sidebar.mainSkillSummary.expand"

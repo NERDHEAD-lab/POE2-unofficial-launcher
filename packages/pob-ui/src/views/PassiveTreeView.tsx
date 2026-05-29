@@ -13,7 +13,6 @@ import type {
   PobTreeNode,
   PobTreeNodeTooltip,
   PobTreeSnapshot,
-  PobTreeTooltipLine,
 } from "@poe2-launcher/shared/types";
 
 import {
@@ -54,10 +53,12 @@ import {
   asTreeMetadata,
   buildPassiveTreeResourceManifest,
   classifyPassiveTreeLoadScenario,
+  createPassiveTreePerfDebugContext,
   defaultPassiveTreePerfReporter,
   loadPassiveTreeResources,
   passiveTreeResourceCacheKeyToString,
   timePassiveTreeStage,
+  timePassiveTreeSyncStage,
   type PassiveTreeLoadContext,
   type PassiveTreeMetadata,
   type PassiveTreeLoadScenario,
@@ -68,13 +69,26 @@ import {
   estimatePassiveTreeTooltipHeight,
   resolvePassiveTreeTooltipPlacement,
 } from "./passiveTreeTooltip";
+import { PobTooltipAssetHeader } from "./PobTooltipAssetHeader";
+import {
+  buildPobTooltipHeaderAssetStyle,
+  buildPobTooltipSharedAssetStyle,
+  collectPobTooltipHeaderTitleEntries,
+} from "./pobTooltipAssetParts";
+import {
+  shouldSkipHeaderSeparator,
+  tooltipHeaderClasses,
+  tooltipLineClasses,
+} from "./pobTooltipMetadata";
 import {
   translateTreeNodeTooltip,
   translateTreeSnapshot,
 } from "./repoeTranslations";
+import { PobUnimplementedButton } from "./UnimplementedButton";
 
 interface PassiveTreeViewProps {
   active: boolean;
+  preload?: boolean;
   sessionKey: string;
   translations: PobRepoeTranslationsSnapshot;
 }
@@ -87,6 +101,7 @@ type LoadState =
       snapshot: PobTreeSnapshot;
       metadata: PassiveTreeMetadata;
       vaultPath: string;
+      scenario: PassiveTreeLoadScenario;
     }
   | { status: "error"; reason: string };
 
@@ -105,16 +120,6 @@ const nodeColor = (node: PobTreeNode): string => {
   if (node.isSocket) return "#118ab2";
   if (node.isMastery) return "#9d4edd";
   return "#5b6b78";
-};
-
-const treeTooltipLineClass = (line: PobTreeTooltipLine): string => {
-  const classes = ["pob-passive-tree-tooltip-line"];
-  if (line.size !== null && line.size >= 20) classes.push("is-title");
-  if (line.text === "") classes.push("is-empty");
-  if (line.colour !== null) {
-    classes.push(`is-colour-${line.colour.toLowerCase()}`);
-  }
-  return classes.join(" ");
 };
 
 interface ProjectedNode extends PobTreeNode {
@@ -230,6 +235,7 @@ let lastPassiveTreeLoadContext: PassiveTreeLoadContext | null = null;
 
 export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   active,
+  preload = false,
   sessionKey,
   translations,
 }) => {
@@ -243,6 +249,9 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     pan: { x: 0, y: 0 },
   });
   const [treeSearch, setTreeSearch] = useState("");
+  const [unimplementedNotice, setUnimplementedNotice] = useState<string | null>(
+    null,
+  );
   const [hoveredNode, setHoveredNode] = useState<{
     id: number;
     name: string;
@@ -260,6 +269,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   const [busy, setBusy] = useState(false);
   const projectionRef = useRef<Projection | null>(null);
   const resourceKeyRef = useRef<string | null>(null);
+  const loadedSessionKeyRef = useRef<string | null>(null);
   const loadScenarioRef = useRef<PassiveTreeLoadScenario>("cold-start");
   const dragRef = useRef<{
     startX: number;
@@ -271,7 +281,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !preload) return;
+    if (loadedSessionKeyRef.current === sessionKey) return;
     let cancelled = false;
 
     const fetchSnapshot = async () => {
@@ -283,17 +294,21 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         return;
       }
       setState({ status: "loading" });
+      const debugContext = createPassiveTreePerfDebugContext(
+        loadScenarioRef.current,
+        sessionKey,
+      );
       const [result, metaResult] = await Promise.all([
         timePassiveTreeStage(
           loadScenarioRef.current,
           "snapshot",
-          () => api.session.treeSnapshot(),
+          () => api.session.treeSnapshot(debugContext),
           defaultPassiveTreePerfReporter,
         ),
         timePassiveTreeStage(
           loadScenarioRef.current,
           "metadata",
-          () => api.session.treeMetadata(),
+          () => api.session.treeMetadata(debugContext),
           defaultPassiveTreePerfReporter,
         ),
       ]);
@@ -306,19 +321,40 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         setState({ status: "error", reason: metaResult.reason });
         return;
       }
+      const metadata = asTreeMetadata(metaResult.metadata);
+      const manifest = buildPassiveTreeResourceManifest({
+        snapshot: result.snapshot,
+        metadata,
+        vaultPath: metaResult.vaultPath,
+      });
+      let scenario = loadScenarioRef.current;
+      if (manifest) {
+        const currentContext = {
+          buildKey: sessionKey,
+          resourceKey: manifest.cacheKey,
+        };
+        scenario = classifyPassiveTreeLoadScenario(
+          lastPassiveTreeLoadContext,
+          currentContext,
+        );
+        loadScenarioRef.current = scenario;
+        lastPassiveTreeLoadContext = currentContext;
+      }
       setState({
         status: "ready",
         snapshot: result.snapshot,
-        metadata: asTreeMetadata(metaResult.metadata),
+        metadata,
         vaultPath: metaResult.vaultPath,
+        scenario,
       });
+      loadedSessionKeyRef.current = sessionKey;
     };
 
     void fetchSnapshot();
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, preload, sessionKey]);
 
   useLayoutEffect(() => {
     const node = containerRef.current;
@@ -349,23 +385,42 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     return () => observer.disconnect();
   }, [state.status]);
 
-  const translatedSnapshot = useMemo(
-    () =>
-      state.status === "ready"
-        ? translateTreeSnapshot(state.snapshot, translations)
-        : null,
-    [state, translations],
-  );
+  const translatedSnapshot = useMemo(() => {
+    if (state.status !== "ready") return null;
+    return timePassiveTreeSyncStage(
+      state.scenario,
+      "translate-tree",
+      () => translateTreeSnapshot(state.snapshot, translations),
+      defaultPassiveTreePerfReporter,
+      {
+        nodeCount: state.snapshot.nodes.length,
+        treeVersion: state.snapshot.treeVersion,
+        buildKey: sessionKey,
+      },
+    );
+  }, [state, translations, sessionKey]);
 
   const projection = useMemo(() => {
     if (!translatedSnapshot) return null;
-    return projectScene(
-      translatedSnapshot,
-      size.width,
-      size.height,
-      zoomFromLevel(view.zoomLevel),
-      view.pan.x,
-      view.pan.y,
+    const scenario = state.status === "ready" ? state.scenario : "cold-start";
+    return timePassiveTreeSyncStage(
+      scenario,
+      "project-scene",
+      () =>
+        projectScene(
+          translatedSnapshot,
+          size.width,
+          size.height,
+          zoomFromLevel(view.zoomLevel),
+          view.pan.x,
+          view.pan.y,
+        ),
+      defaultPassiveTreePerfReporter,
+      {
+        nodeCount: translatedSnapshot.nodes.length,
+        treeVersion: translatedSnapshot.treeVersion,
+        buildKey: sessionKey,
+      },
     );
   }, [
     translatedSnapshot,
@@ -374,6 +429,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     view.zoomLevel,
     view.pan.x,
     view.pan.y,
+    sessionKey,
+    state,
   ]);
 
   const metadata = state.status === "ready" ? state.metadata : null;
@@ -397,17 +454,6 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     const manifest = buildPassiveTreeResourceManifest(loadInput);
     if (!manifest) return;
 
-    const currentContext = {
-      buildKey: sessionKey,
-      resourceKey: manifest.cacheKey,
-    };
-    const scenario = classifyPassiveTreeLoadScenario(
-      lastPassiveTreeLoadContext,
-      currentContext,
-    );
-    loadScenarioRef.current = scenario;
-    lastPassiveTreeLoadContext = currentContext;
-
     const resourceKey = passiveTreeResourceCacheKeyToString(manifest.cacheKey);
     if (resourceKeyRef.current !== resourceKey) {
       resourceKeyRef.current = resourceKey;
@@ -415,7 +461,8 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     }
 
     void loadPassiveTreeResources(loadInput, {
-      scenario,
+      scenario: state.scenario,
+      buildKey: sessionKey,
       onImage: (key, image) => {
         if (cancelled) return;
         setImages((prev) =>
@@ -857,13 +904,16 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
       }
     }
     defaultPassiveTreePerfReporter({
-      scenario: loadScenarioRef.current,
+      scenario: state.scenario,
       stage: "canvas-draw",
       durationMs:
         (typeof performance !== "undefined" &&
         typeof performance.now === "function"
           ? performance.now()
           : Date.now()) - drawStartedAt,
+      nodeCount: projection.nodes.length,
+      treeVersion: state.status === "ready" ? state.snapshot.treeVersion : null,
+      buildKey: sessionKey,
     });
   }, [
     projection,
@@ -876,6 +926,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     hoveredNode,
     treeSearch,
     view.zoomLevel,
+    sessionKey,
   ]);
 
   const hitTest = useCallback(
@@ -1202,6 +1253,33 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
           anchorY: hoveredNode.y,
           estimatedHeight: tooltipHeight,
         });
+  const tooltipVaultPath = state.status === "ready" ? state.vaultPath : null;
+  const tooltipHeaderAssetStyle = richTooltip
+    ? buildPobTooltipHeaderAssetStyle(tooltipVaultPath, richTooltip.header)
+    : null;
+  const tooltipSharedAssetStyle =
+    buildPobTooltipSharedAssetStyle(tooltipVaultPath);
+  const richTooltipHeaderTitleEntries = richTooltip
+    ? collectPobTooltipHeaderTitleEntries(
+        richTooltip.lines,
+        Boolean(tooltipHeaderAssetStyle),
+      )
+    : [];
+  const richTooltipHeaderTitleIndexes = new Set(
+    richTooltipHeaderTitleEntries.map((entry) => entry.index),
+  );
+  const richTooltipSkippedHeaderSeparatorIndex = richTooltip
+    ? richTooltip.lines.findIndex(
+        (line) =>
+          line.kind === "separator" &&
+          shouldSkipHeaderSeparator(line.separatorTheme ?? richTooltip.header),
+      )
+    : -1;
+  const richTooltipStyle = {
+    ...(tooltipSharedAssetStyle ?? {}),
+    ...(tooltipHeaderAssetStyle ?? {}),
+    ...(tooltipStyle ?? {}),
+  } as React.CSSProperties;
   return (
     <div className="pob-passive-tree-pane">
       <div className="pob-passive-tree-toolbar">
@@ -1249,14 +1327,22 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
         >
           +
         </button>
-        <button
-          type="button"
-          disabled
+        <PobUnimplementedButton
+          controlId="tree.find-timeless-jewel"
+          notice={t("buildEdit.unimplemented.notice", {
+            reason: t("buildEdit.tree.findTimelessJewelDisabled"),
+          })}
           title={t("buildEdit.tree.findTimelessJewelDisabled")}
+          onNotice={setUnimplementedNotice}
         >
           {t("buildEdit.tree.findTimelessJewel")}
-        </button>
+        </PobUnimplementedButton>
       </div>
+      {unimplementedNotice && (
+        <div className="pob-passive-tree-notice" role="status">
+          {unimplementedNotice}
+        </div>
+      )}
       <div className="pob-passive-tree-canvas-wrap" ref={containerRef}>
         <canvas
           ref={canvasRef}
@@ -1270,23 +1356,39 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
           aria-busy={busy}
         />
         {hoveredNode && (
-          <div className="pob-passive-tree-tooltip" style={tooltipStyle}>
+          <div
+            className={tooltipHeaderClasses(
+              `pob-passive-tree-tooltip${
+                tooltipHeaderAssetStyle ? " has-asset-tooltip-header" : ""
+              }`,
+              richTooltip?.header,
+            )}
+            style={richTooltipStyle}
+          >
             {richTooltip ? (
               <>
-                {richTooltip.header && (
-                  <div className="pob-passive-tree-tooltip-title">
-                    {richTooltip.header}
-                  </div>
+                {tooltipHeaderAssetStyle && richTooltip.header && (
+                  <PobTooltipAssetHeader
+                    className="pob-passive-tree-tooltip-header"
+                    lineBaseClass="pob-passive-tree-tooltip-line"
+                    titleEntries={richTooltipHeaderTitleEntries}
+                    style={tooltipHeaderAssetStyle}
+                  />
                 )}
                 {richTooltip.lines.map((line, index) =>
                   line.kind === "separator" ? (
+                    index === richTooltipSkippedHeaderSeparatorIndex ? null : (
+                      <div
+                        className="pob-passive-tree-tooltip-separator"
+                        key={`${hoveredNode.id}-separator-${index}`}
+                      />
+                    )
+                  ) : richTooltipHeaderTitleIndexes.has(index) ? null : (
                     <div
-                      className="pob-passive-tree-tooltip-separator"
-                      key={`${hoveredNode.id}-separator-${index}`}
-                    />
-                  ) : (
-                    <div
-                      className={treeTooltipLineClass(line)}
+                      className={tooltipLineClasses(
+                        "pob-passive-tree-tooltip-line",
+                        line,
+                      )}
                       key={`${hoveredNode.id}-line-${index}-${line.text}`}
                     >
                       {line.text}

@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { normalizePobSettings } from "@poe2-launcher/shared/pobSettings";
 import type {
   AppConfig,
+  DebugLogPayload,
   PobBuildMetadataAction,
   PobCalcsAction,
   PobConfigAction,
@@ -21,6 +22,7 @@ import type {
   PobSettings,
   PobSkillsAction,
   PobSkillsTooltipMode,
+  PobTreePerfDebugContext,
   PobVaultGenerationsResult,
   PobVaultRefreshRequest,
   PobVaultRefreshResult,
@@ -44,6 +46,7 @@ contextBridge.exposeInMainWorld("pobAPI", {
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   toggleMaximizeWindow: () => ipcRenderer.send("window-toggle-maximize"),
   closeWindow: () => ipcRenderer.send("window-close"),
+  debugLog: (log: DebugLogPayload) => ipcRenderer.send("debug-log:send", log),
   settings: {
     get: async (): Promise<PobSettings> => {
       const pob = await getPobConfig();
@@ -123,8 +126,10 @@ contextBridge.exposeInMainWorld("pobAPI", {
     buildMetadataAction: (action: PobBuildMetadataAction) =>
       ipcRenderer.invoke("pob:build-metadata-action", action),
     mainSkillSummary: () => ipcRenderer.invoke("pob:main-skill-summary"),
-    treeSnapshot: () => ipcRenderer.invoke("pob:tree-snapshot"),
-    treeMetadata: () => ipcRenderer.invoke("pob:tree-metadata"),
+    treeSnapshot: (debugContext?: PobTreePerfDebugContext) =>
+      ipcRenderer.invoke("pob:tree-snapshot", debugContext),
+    treeMetadata: (debugContext?: PobTreePerfDebugContext) =>
+      ipcRenderer.invoke("pob:tree-metadata", debugContext),
     treeNodeTooltip: (nodeId: number) =>
       ipcRenderer.invoke("pob:tree-node-tooltip", nodeId),
     treeAllocate: (nodeId: number) =>

@@ -43,6 +43,9 @@ export type PobGame = "POE1" | "POE2";
 export interface PobSettings {
   autosaveDrafts: boolean;
   sidebarCollapsed: boolean;
+  buildExplorerExpandedPaths: string[];
+  mainSkillPanelCollapsed: boolean;
+  mainSkillPanelHeightRatio: number;
   autoVaultUpdate: boolean;
   vaultGenerationLimit: number;
 }
@@ -219,6 +222,12 @@ export interface DebugLogPayload {
   typeColor?: string; // Hex color for the [TYPE] label
   textColor?: string; // Hex color for the content text
   priority?: number;
+}
+
+export interface PobTreePerfDebugContext {
+  enabled: boolean;
+  scenario?: string;
+  buildKey?: string;
 }
 
 export interface ChangelogItem {
@@ -709,6 +718,11 @@ export interface PobTreeTooltipLine {
   text: string;
   colour: PobTreeTooltipColour | null;
   size: number | null;
+  font?: string | null;
+  center?: boolean;
+  background?: string | null;
+  block?: number | null;
+  separatorTheme?: string | null;
 }
 
 export interface PobTreeNodeTooltip {
@@ -732,7 +746,7 @@ export interface PobSkillsGemTooltip {
 }
 
 export type PobSkillsGemTooltipResult =
-  | { status: "ok"; tooltip: PobSkillsGemTooltip }
+  | { status: "ok"; tooltip: PobSkillsGemTooltip; vaultPath: string | null }
   | { status: "error"; reason: string };
 
 export type PobTreeMetadataResult =
@@ -904,11 +918,14 @@ export interface PobItemsTooltip {
   db: PobItemsDbKey | null;
   slotName: string | null;
   header: string | null;
+  influenceHeader1?: string | null;
+  influenceHeader2?: string | null;
+  maxWidth?: number | null;
   lines: PobTreeTooltipLine[];
 }
 
 export type PobItemsTooltipResult =
-  | { status: "ok"; tooltip: PobItemsTooltip }
+  | { status: "ok"; tooltip: PobItemsTooltip; vaultPath: string | null }
   | { status: "error"; reason: string };
 
 export type PobItemsAction =
@@ -1218,11 +1235,24 @@ export interface PobCalcsSkillSelect {
 export interface PobCalcsCell {
   text: string;
   colour: PobCalcsColour | null;
+  backgroundColour?: PobCalcsColour | null;
+  backgroundColourHex?: string | null;
   breakdownKey: string | null;
+}
+
+export interface PobCalcsRichTextRun {
+  text: string;
+  colour: PobCalcsColour | null;
+  colourHex: string | null;
 }
 
 export interface PobCalcsRow {
   label: string;
+  labelColour?: PobCalcsColour | null;
+  labelColourHex?: string | null;
+  backgroundColour?: PobCalcsColour | null;
+  backgroundColourHex?: string | null;
+  textSize?: number | null;
   cells: PobCalcsCell[];
 }
 
@@ -1232,6 +1262,7 @@ export interface PobCalcsSubSection {
   collapsed: boolean;
   defaultCollapsed: boolean;
   extra: string | null;
+  extraRichText?: PobCalcsRichTextRun[] | null;
   colWidth: number | null;
   rows: PobCalcsRow[];
 }
@@ -1473,8 +1504,12 @@ export interface PobSessionAPI {
     action: PobBuildMetadataAction,
   ) => Promise<PobBuildMetadataActionResult>;
   mainSkillSummary: () => Promise<PobMainSkillSummaryResult>;
-  treeSnapshot: () => Promise<PobTreeResult>;
-  treeMetadata: () => Promise<PobTreeMetadataResult>;
+  treeSnapshot: (
+    debugContext?: PobTreePerfDebugContext,
+  ) => Promise<PobTreeResult>;
+  treeMetadata: (
+    debugContext?: PobTreePerfDebugContext,
+  ) => Promise<PobTreeMetadataResult>;
   treeNodeTooltip: (nodeId: number) => Promise<PobTreeNodeTooltipResult>;
   treeAllocate: (nodeId: number) => Promise<PobTreeResult>;
   treeDeallocate: (nodeId: number) => Promise<PobTreeResult>;
@@ -1517,6 +1552,7 @@ export interface PobWindowAPI {
   minimizeWindow: () => void;
   toggleMaximizeWindow: () => void;
   closeWindow: () => void;
+  debugLog?: (log: DebugLogPayload) => void;
   builds: BuildsAPI;
   session: PobSessionAPI;
   vault: {

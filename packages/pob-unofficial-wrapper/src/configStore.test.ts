@@ -23,7 +23,13 @@ describe("pob-unofficial-wrapper config store", () => {
       pob: {
         poe1: { installLocation: "C:\\PoB1", source: "manual" },
         poe2: { installLocation: 123, source: "manual" },
-        settings: { autosaveDrafts: true, vaultGenerationLimit: 99 },
+        settings: {
+          autosaveDrafts: true,
+          buildExplorerExpandedPaths: ["", "Monk\\Invoker"],
+          mainSkillPanelCollapsed: true,
+          mainSkillPanelHeightRatio: -1,
+          vaultGenerationLimit: 99,
+        },
       },
       pobWrapper: {
         lastLocation: {
@@ -43,6 +49,9 @@ describe("pob-unofficial-wrapper config store", () => {
     expect(config.pob?.settings).toEqual({
       ...DEFAULT_POB_SETTINGS,
       autosaveDrafts: true,
+      buildExplorerExpandedPaths: ["", "Monk/Invoker"],
+      mainSkillPanelCollapsed: true,
+      mainSkillPanelHeightRatio: 0,
       vaultGenerationLimit: 5,
     });
     expect(config.pobWrapper?.lastLocation?.buildMode).toBe("CALCS");
@@ -58,6 +67,8 @@ describe("pob-unofficial-wrapper config store", () => {
 
     const settings = await setPobSettings(store, {
       sidebarCollapsed: true,
+      buildExplorerExpandedPaths: ["", "Builds"],
+      mainSkillPanelHeightRatio: 0.75,
       vaultGenerationLimit: 3,
     });
     await setPobInstallEntry(store, "POE2", {
@@ -68,6 +79,8 @@ describe("pob-unofficial-wrapper config store", () => {
     expect(settings).toEqual({
       ...DEFAULT_POB_SETTINGS,
       sidebarCollapsed: true,
+      buildExplorerExpandedPaths: ["", "Builds"],
+      mainSkillPanelHeightRatio: 0.75,
       vaultGenerationLimit: 3,
     });
     expect(await getPobInstallEntry(store, "POE2")).toEqual({

@@ -6,6 +6,11 @@ export type PobUiMode = (typeof POB_UI_MODES)[number];
 
 export const DEFAULT_POB_UI_MODE: PobUiMode = "renewed";
 
+export const POB_UI_MODE_SWITCH_ORDER = ["legacy", "renewed"] as const;
+
+export const getNextPobUiMode = (mode: PobUiMode): PobUiMode =>
+  mode === "renewed" ? "legacy" : "renewed";
+
 export interface PobUiModePolicy {
   mode: BuildMode;
   legacyParityRequired: readonly string[];

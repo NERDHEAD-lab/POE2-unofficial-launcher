@@ -78,6 +78,7 @@ import {
   PobTreeResult,
   PobTreeNodeTooltip,
   PobTreeNodeTooltipResult,
+  PobTreePerfDebugContext,
   PobTreeSnapshot,
   PobVaultGenerationsResult,
   PobVaultRefreshRequest,
@@ -730,6 +731,45 @@ const toSessionError = (err: unknown): { status: "error"; reason: string } => ({
   reason: errorMessage(err),
 });
 
+const now = (): number =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const readTreePerfDebugContext = (
+  value: unknown,
+): PobTreePerfDebugContext | undefined => {
+  if (!isRecord(value) || value.enabled !== true) return undefined;
+  return {
+    enabled: true,
+    scenario: typeof value.scenario === "string" ? value.scenario : undefined,
+    buildKey: typeof value.buildKey === "string" ? value.buildKey : undefined,
+  };
+};
+
+const shortenDebugValue = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  return value.length > 24
+    ? `${value.slice(0, 10)}...${value.slice(-10)}`
+    : value;
+};
+
+const logTreePerf = (
+  context: PobTreePerfDebugContext | undefined,
+  stage: string,
+  durationMs: number,
+  details: Record<string, string | number | null | undefined> = {},
+): void => {
+  if (!context?.enabled) return;
+  const parts = [context.scenario ?? "-", stage, `${durationMs.toFixed(1)}ms`];
+  const buildKey = shortenDebugValue(context.buildKey);
+  if (buildKey) parts.push(`build=${buildKey}`);
+  for (const [key, value] of Object.entries(details)) {
+    if (value !== undefined && value !== null) parts.push(`${key}=${value}`);
+  }
+  logger.log(`[pob-tree] ${parts.join(" ")}`);
+};
+
 const readItemCopyParseRequest = (
   request: unknown,
 ): PobItemsParseCopyTextRequest => {
@@ -1033,30 +1073,46 @@ export function registerPobSessionHandlers(
     event: Electron.IpcMainInvokeEvent,
     op: "snapshot" | "allocate" | "deallocate",
     nodeId?: unknown,
+    debugContextInput?: unknown,
   ): Promise<PobTreeResult> => {
+    const debugContext = readTreePerfDebugContext(debugContextInput);
+    const ipcStart = now();
     try {
       const session = getPobSession(getGameFromSender(event));
       let snapshot: PobTreeSnapshot;
       if (op === "snapshot") {
+        const rpcStart = now();
         snapshot = await session.treeSnapshot();
+        logTreePerf(debugContext, "lua:pob.tree.snapshot", now() - rpcStart, {
+          treeVersion: snapshot.treeVersion,
+          nodes: snapshot.nodes.length,
+        });
       } else {
         if (typeof nodeId !== "number") {
           throw new Error(`pob:tree-${op} requires numeric nodeId`);
         }
+        const rpcStart = now();
         snapshot =
           op === "allocate"
             ? await session.treeAllocate(nodeId)
             : await session.treeDeallocate(nodeId);
+        logTreePerf(debugContext, `lua:pob.tree.${op}`, now() - rpcStart, {
+          treeVersion: snapshot.treeVersion,
+          nodes: snapshot.nodes.length,
+          nodeId,
+        });
       }
       return { status: "ok", snapshot };
     } catch (err) {
       logger.warn(`[PoBSession] tree-${op} failed:`, err);
       return toSessionError(err);
+    } finally {
+      logTreePerf(debugContext, `ipc:pob:tree-${op}`, now() - ipcStart);
     }
   };
 
-  ipcMain.handle("pob:tree-snapshot", async (event) =>
-    callTree(event, "snapshot"),
+  ipcMain.handle("pob:tree-snapshot", async (event, debugContext: unknown) =>
+    callTree(event, "snapshot", undefined, debugContext),
   );
   ipcMain.handle(
     "pob:tree-node-tooltip",
@@ -1075,24 +1131,39 @@ export function registerPobSessionHandlers(
       }
     },
   );
-  ipcMain.handle("pob:tree-allocate", async (event, nodeId: unknown) =>
-    callTree(event, "allocate", nodeId),
+  ipcMain.handle(
+    "pob:tree-allocate",
+    async (event, nodeId: unknown, debugContext: unknown) =>
+      callTree(event, "allocate", nodeId, debugContext),
   );
-  ipcMain.handle("pob:tree-deallocate", async (event, nodeId: unknown) =>
-    callTree(event, "deallocate", nodeId),
+  ipcMain.handle(
+    "pob:tree-deallocate",
+    async (event, nodeId: unknown, debugContext: unknown) =>
+      callTree(event, "deallocate", nodeId, debugContext),
   );
 
-  ipcMain.handle("pob:tree-metadata", async (event) => {
-    try {
-      const session = getPobSession(getGameFromSender(event));
-      const metadata = await session.call<unknown>("pob.tree.metadata");
-      const vaultPath = await session.getVaultPath();
-      return { status: "ok", metadata, vaultPath };
-    } catch (err) {
-      logger.warn(`[PoBSession] tree-metadata failed:`, err);
-      return toSessionError(err);
-    }
-  });
+  ipcMain.handle(
+    "pob:tree-metadata",
+    async (event, debugContextInput: unknown) => {
+      const debugContext = readTreePerfDebugContext(debugContextInput);
+      const ipcStart = now();
+      try {
+        const session = getPobSession(getGameFromSender(event));
+        const rpcStart = now();
+        const metadata = await session.call<unknown>("pob.tree.metadata");
+        logTreePerf(debugContext, "lua:pob.tree.metadata", now() - rpcStart);
+        const vaultStart = now();
+        const vaultPath = await session.getVaultPath();
+        logTreePerf(debugContext, "main:tree-vault-path", now() - vaultStart);
+        return { status: "ok", metadata, vaultPath };
+      } catch (err) {
+        logger.warn(`[PoBSession] tree-metadata failed:`, err);
+        return toSessionError(err);
+      } finally {
+        logTreePerf(debugContext, "ipc:pob:tree-metadata", now() - ipcStart);
+      }
+    },
+  );
 
   ipcMain.handle(
     "pob:repoe-translations",
@@ -1161,10 +1232,12 @@ export function registerPobSessionHandlers(
             "pob:items-tooltip requires source = custom|shared|db",
           );
         }
-        const tooltip = await getPobSession(
-          getGameFromSender(event),
-        ).itemsTooltip(request as unknown as PobItemsTooltipRequest);
-        return { status: "ok", tooltip };
+        const session = getPobSession(getGameFromSender(event));
+        const [tooltip, vaultPath] = await Promise.all([
+          session.itemsTooltip(request as unknown as PobItemsTooltipRequest),
+          session.getVaultPath(),
+        ]);
+        return { status: "ok", tooltip, vaultPath };
       } catch (err) {
         logger.warn("[PoBSession] items-tooltip failed:", err);
         return toSessionError(err);
@@ -1269,10 +1342,12 @@ export function registerPobSessionHandlers(
             "pob:skills-gem-tooltip requires mode = gem|quality|enabled",
           );
         }
-        const tooltip = await getPobSession(
-          getGameFromSender(event),
-        ).skillsGemTooltip(groupIndex, gemIndex, mode);
-        return { status: "ok", tooltip };
+        const session = getPobSession(getGameFromSender(event));
+        const [tooltip, vaultPath] = await Promise.all([
+          session.skillsGemTooltip(groupIndex, gemIndex, mode),
+          session.getVaultPath(),
+        ]);
+        return { status: "ok", tooltip, vaultPath };
       } catch (err) {
         logger.warn("[PoBSession] skills-gem-tooltip failed:", err);
         return toSessionError(err);

@@ -7,6 +7,7 @@ import {
   registerPobSessionHandlers,
   verifyPobInstallation,
 } from "@poe2-launcher/pob-bridge";
+import type { DebugLogPayload } from "@poe2-launcher/shared/types";
 
 import { createJsonPobWrapperConfigStore } from "./configStore";
 import { createPobWrapperInstallLocationService } from "./installLocation";
@@ -104,6 +105,15 @@ ipcMain.on("window-toggle-maximize", (event) => {
 
 ipcMain.on("window-close", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
+});
+
+ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
+  const content = `[${log.type}] ${log.content}`;
+  if (log.isError) {
+    console.error(content);
+  } else {
+    console.log(content);
+  }
 });
 
 void app.whenReady().then(() => {

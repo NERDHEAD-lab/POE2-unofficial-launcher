@@ -6,34 +6,63 @@ const parserData = {
   en: {
     itemClasses: {
       Gloves: { display_name: "Gloves" },
+      "One Hand Maces": { display_name: "One Hand Maces" },
     },
     baseItems: {
       "Metadata/Items/Armours/Gloves/GlovesDex1": {
         display_name: "Rawhide Gloves",
+      },
+      "Metadata/Items/Weapons/OneHandWeapons/OneHandMaces/WoodenClub": {
+        display_name: "Wooden Club",
       },
     },
     uniques: {
       "Metadata/Items/Uniques/Armours/Gloves/Example": {
         name: "The Example",
       },
+      "Metadata/Items/Uniques/Weapons/OneHandMaces/Brynhand": {
+        name: "Brynhand's Mark",
+      },
     },
   },
   ko: {
     itemClasses: {
       Gloves: { display_name: "장갑" },
+      "One Hand Maces": { display_name: "한손 철퇴" },
     },
     baseItems: {
       "Metadata/Items/Armours/Gloves/GlovesDex1": {
         display_name: "생가죽 장갑",
+      },
+      "Metadata/Items/Weapons/OneHandWeapons/OneHandMaces/WoodenClub": {
+        display_name: "목재 곤봉",
       },
     },
     uniques: {
       "Metadata/Items/Uniques/Armours/Gloves/Example": {
         name: "예시",
       },
+      "Metadata/Items/Uniques/Weapons/OneHandMaces/Brynhand": {
+        name: "브린핸드의 징표",
+      },
     },
   },
   statTranslations: [
+    {
+      ids: ["attack_physical_damage_+"],
+      English: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "Adds {0} to {1} Physical Damage",
+        },
+      ],
+      Korean: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "물리 피해 {0}~{1} 추가",
+        },
+      ],
+    },
     {
       ids: ["base_maximum_life"],
       English: [
@@ -50,6 +79,21 @@ const parserData = {
       ],
     },
     {
+      ids: ["accuracy_rating_+"],
+      English: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "+{0} to Accuracy Rating",
+        },
+      ],
+      Korean: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "정확도 +{0}",
+        },
+      ],
+    },
+    {
       ids: ["attack_speed_+%"],
       English: [
         {
@@ -61,6 +105,36 @@ const parserData = {
         {
           condition: [{ min: null, max: null }],
           string: "공격 속도 {0}% 증가",
+        },
+      ],
+    },
+    {
+      ids: ["attack_speed_-%"],
+      English: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "{0}% reduced Attack Speed",
+        },
+      ],
+      Korean: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "공격 속도 {0}% 감소",
+        },
+      ],
+    },
+    {
+      ids: ["strength_+"],
+      English: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "+{0} to Strength",
+        },
+      ],
+      Korean: [
+        {
+          condition: [{ min: null, max: null }],
+          string: "힘 +{0}",
         },
       ],
     },
@@ -141,6 +215,45 @@ describe("PoB item copy parser", () => {
         "Rawhide Gloves",
       ]);
     }
+  });
+
+  it("translates headerless Korean item copies with equipment property lines", () => {
+    const raw = [
+      "브린핸드의 징표",
+      "목재 곤봉",
+      "한손 철퇴",
+      "물리 피해: 19-26",
+      "치명타 명중 확률: 5.00%",
+      "초당 공격 횟수: 1.16",
+      "Item Level: 81",
+      "물리 피해 13~16 추가",
+      "정확도 +44",
+      "공격 속도 20% 감소",
+      "힘 +10",
+      "기절 축적 2배 유발",
+    ].join("\n");
+
+    const result = parseItemCopyText({ rawText: raw, data: parserData });
+
+    expect(result).toEqual({
+      status: "ok",
+      locale: "ko",
+      englishText: [
+        "Brynhand's Mark",
+        "Wooden Club",
+        "One Hand Maces",
+        "Physical Damage: 19-26",
+        "Critical Hit Chance: 5.00%",
+        "Attacks per Second: 1.16",
+        "Item Level: 81",
+        "Adds 13 to 16 Physical Damage",
+        "+44 to Accuracy Rating",
+        "20% reduced Attack Speed",
+        "+10 to Strength",
+        "Causes Double Stun Buildup",
+      ].join("\n"),
+      warnings: [],
+    });
   });
 
   it("rejects unmapped Korean modifier lines instead of sending them to Lua", () => {

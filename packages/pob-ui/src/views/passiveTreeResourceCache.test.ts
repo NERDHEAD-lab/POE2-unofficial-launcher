@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PobTreeNode, PobTreeSnapshot } from "@poe2-launcher/shared/types";
 
 import {
   buildPassiveTreeResourceManifest,
   classifyPassiveTreeLoadScenario,
+  defaultPassiveTreePerfReporter,
   passiveTreeResourceCacheKeyToString,
+  timePassiveTreeSyncStage,
   type PassiveTreeMetadata,
 } from "./passiveTreeResourceCache";
 
@@ -79,6 +81,12 @@ const metadata = (
 });
 
 describe("passiveTreeResourceCache", () => {
+  afterEach(() => {
+    window.localStorage.removeItem("pob:treePerf");
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, "pobAPI");
+  });
+
   it("builds a static resource key that ignores build allocation state", () => {
     const unallocated = buildPassiveTreeResourceManifest({
       snapshot: snapshot({ nodes: [node({ alloc: false })] }),
@@ -173,5 +181,58 @@ describe("passiveTreeResourceCache", () => {
         buildKey: "build-b:0",
       }),
     ).toBe("build-switch");
+  });
+
+  it("reports opt-in performance measures to console and main debug log", () => {
+    const debugLog = vi.fn();
+    Object.defineProperty(window, "pobAPI", {
+      configurable: true,
+      value: { debugLog },
+    });
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
+    window.localStorage.setItem("pob:treePerf", "1");
+
+    defaultPassiveTreePerfReporter({
+      scenario: "cold-start",
+      stage: "snapshot",
+      durationMs: 12.34,
+      nodeCount: 42,
+      treeVersion: "0_4",
+      buildKey: "Imported Build2",
+    });
+
+    expect(consoleDebug).toHaveBeenCalledWith(
+      expect.stringContaining("[pob-tree] cold-start snapshot 12.3ms"),
+      expect.objectContaining({ stage: "snapshot" }),
+    );
+    expect(debugLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "POB_TREE",
+        content: expect.stringContaining("nodes=42"),
+        isError: false,
+      }),
+    );
+  });
+
+  it("times synchronous Tree stages for translation and projection", () => {
+    const measures: unknown[] = [];
+    const result = timePassiveTreeSyncStage(
+      "warm-return",
+      "translate-tree",
+      () => 42,
+      (measure) => measures.push(measure),
+      { nodeCount: 3, treeVersion: "0_4" },
+    );
+
+    expect(result).toBe(42);
+    expect(measures).toHaveLength(1);
+    expect(measures[0]).toMatchObject({
+      scenario: "warm-return",
+      stage: "translate-tree",
+      nodeCount: 3,
+      treeVersion: "0_4",
+    });
   });
 });

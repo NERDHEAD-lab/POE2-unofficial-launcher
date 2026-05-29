@@ -101,6 +101,7 @@ const KOREAN_STATIC_LINES: Record<string, string> = {
   미확인: "Unidentified",
   타락: "Corrupted",
   성역화됨: "Sanctified",
+  "기절 축적 2배 유발": "Causes Double Stun Buildup",
 };
 
 const stringValue = (value: unknown): string | null =>
@@ -113,6 +114,26 @@ const normalizeLineEndings = (text: string): string =>
 
 const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizePropertyValue = (value: string): string =>
+  value.trim().replace(/\s*[~–—]\s*/g, "-");
+
+const translateKoreanPropertyLine = (line: string): string | null => {
+  const property = line.match(/^(.+?):\s*(.+)$/);
+  if (!property) return null;
+  const label = property[1].trim();
+  const value = normalizePropertyValue(property[2]);
+  const propertyMap: Record<string, string> = {
+    "물리 피해": "Physical Damage",
+    "치명타 명중 확률": "Critical Hit Chance",
+    "초당 공격 횟수": "Attacks per Second",
+    방어도: "Armour",
+    회피: "Evasion Rating",
+    "에너지 보호막": "Energy Shield",
+  };
+  const englishLabel = propertyMap[label];
+  return englishLabel ? `${englishLabel}: ${value}` : null;
+};
 
 function firstRecordName(record: RePoeNamedRecord | undefined): string | null {
   if (!record) return null;
@@ -385,6 +406,12 @@ function translateKoreanItemText(
     const staticLine = KOREAN_STATIC_LINES[line];
     if (staticLine) {
       output.push(staticLine);
+      continue;
+    }
+
+    const propertyLine = translateKoreanPropertyLine(line);
+    if (propertyLine) {
+      output.push(propertyLine);
       continue;
     }
 

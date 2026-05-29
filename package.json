@@ -19,6 +19,8 @@
   "scripts": {
     "setup": "node -e \"if(!require('fs').existsSync('node_modules')) { require('child_process').execSync('npm install', {stdio: 'inherit'}) }\"",
     "dev": "chcp 65001 && vite",
+    "dev:agent": "node scripts/pob-agent-tree.mjs",
+    "dev:agent:app": "chcp 65001 && cross-env POE2_AGENT_MODE=1 POE2_AGENT_DEBUG_PORT=9323 vite",
     "dev:wsl": "command -v pwsh.exe >/dev/null && PS=pwsh.exe || PS=powershell.exe; \"$PS\" -NoProfile -Command \"chcp 65001; npm run dev\"",
     "dev:crash:immediate": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=IMMEDIATE vite",
     "dev:crash:delayed": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=DELAYED vite",
@@ -74,6 +76,7 @@
     "husky": "^9.0.11",
     "jsdom": "^29.0.0",
     "lint-staged": "^16.0.0",
+    "playwright": "^1.60.0",
     "prettier": "^3.2.5",
     "typescript": "^6.0.0",
     "typescript-eslint": "^8.53.0",

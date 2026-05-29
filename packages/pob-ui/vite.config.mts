@@ -17,6 +17,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@poe2-launcher/pob-repoe": path.resolve(
+        repoRoot,
+        "packages/pob-repoe/src",
+      ),
       "@poe2-launcher/shared": path.resolve(repoRoot, "packages/shared/src"),
     },
   },

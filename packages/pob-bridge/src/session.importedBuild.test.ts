@@ -9,6 +9,11 @@ import {
   decodePobBuildCodeXml,
   encodePobBuildCodeXml,
 } from "@poe2-launcher/pob-repoe/buildCode";
+import {
+  translateConfigSnapshot,
+  translateItemTooltip,
+  translateItemsSnapshot,
+} from "@poe2-launcher/pob-repoe/displayTranslations";
 import { parseItemCopyText } from "@poe2-launcher/pob-repoe/itemCopyParser";
 import type { PoBVault } from "@poe2-launcher/pob-vault";
 import {
@@ -31,7 +36,10 @@ import {
   POB_ORIGINAL_CALCS_BUFF_MODES,
   POB_ORIGINAL_ITEMS_DB_KEYS,
 } from "@poe2-launcher/shared/pobOriginalContract";
-import type { PobCalcsSnapshot } from "@poe2-launcher/shared/types";
+import type {
+  PobCalcsSnapshot,
+  PobRepoeTranslationsSnapshot,
+} from "@poe2-launcher/shared/types";
 
 import { PoBSession } from "./session";
 
@@ -73,6 +81,56 @@ const staticVault = (vaultPath: string): PoBVault =>
     getActive: vi.fn(async () => ({ version: "source", vaultPath })),
     ensureSnapshot: vi.fn(async () => ({ version: "source", vaultPath })),
   }) as unknown as PoBVault;
+
+const importedBuildItemTranslations: PobRepoeTranslationsSnapshot = {
+  locale: "ko",
+  available: true,
+  nodeNamesById: {},
+  nodeStatLinesById: {},
+  statLinesByEnglishLine: {},
+  statLineTemplates: [
+    { english: "+#% to Cold Resistance", localized: "냉기 저항 +#%" },
+    { english: "+#% to Fire Resistance", localized: "화염 저항 +#%" },
+    { english: "{0:+d}% to Fire Resistance", localized: "화염 저항 {0:+d}%" },
+    {
+      english: "{0}% increased Stun Threshold",
+      localized: "기절 한계치 {0}% 증가",
+    },
+    {
+      english: "{0}% increased Elemental Ailment Threshold",
+      localized: "원소 상태 이상 한계치 {0}% 증가",
+    },
+    {
+      english: "{0}% increased maximum Life",
+      localized: "최대 생명력 {0}% 증가",
+    },
+    { english: "+# to Accuracy Rating", localized: "정확도 +#" },
+    { english: "+# to maximum Life", localized: "최대 생명력 +#" },
+    { english: "+# to Intelligence", localized: "지능 +#" },
+    { english: "-# Intelligence", localized: "지능 -#" },
+    { english: "-#% Fire Resistance", localized: "화염 저항 -#%" },
+    { english: "-#% Cold Resistance", localized: "냉기 저항 -#%" },
+    {
+      english: "Adds # to # Cold Damage to Attacks",
+      localized: "공격 시 냉기 피해 #~# 추가",
+    },
+    {
+      english: "Gain # Mana per enemy killed",
+      localized: "적 처치 시 마나 # 획득",
+    },
+  ],
+  itemNamesById: {},
+  itemNamesByEnglishName: {
+    "Plague Band": "역병 반지",
+    "Sapphire Ring": "사파이어 반지",
+  },
+  gemNamesById: {},
+  gemNamesBySkillId: {},
+  gemNamesByEnglishName: {},
+};
+
+const untranslatedPlagueBandTerms =
+  /\b(?:Cold Resistance|Cold damage to Attacks|Accuracy Rating|maximum Life|Intelligence|Fire Resistance|Mana per enemy killed|Requires Level)\b/i;
 
 const calcsCardValue = (
   calcs: PobCalcsSnapshot,
@@ -265,6 +323,109 @@ describe("PoBSession Imported Build2 contract", () => {
           expect(JSON.stringify(itemTooltip)).not.toContain("^x");
           expect(JSON.stringify(itemTooltip)).not.toContain("^7");
         }
+        const plagueBand = items.items.find((item) =>
+          item.raw.includes("Plague Band"),
+        );
+        expect(plagueBand).toBeDefined();
+        if (plagueBand) {
+          expect(plagueBand.implicitLines).toContain("+21% to Cold Resistance");
+          expect(plagueBand.explicitLines).toContain(
+            "Adds 1 to 3 Cold damage to Attacks",
+          );
+
+          const translatedItems = translateItemsSnapshot(
+            items,
+            importedBuildItemTranslations,
+          );
+          expect(
+            translateItemsSnapshot(
+              translatedItems,
+              importedBuildItemTranslations,
+            ),
+          ).toEqual(translatedItems);
+          const translatedPlagueBand = translatedItems.items.find(
+            (item) => item.id === plagueBand.id,
+          );
+          expect(translatedPlagueBand).toMatchObject({
+            id: plagueBand.id,
+            title: "역병 반지",
+            baseName: "사파이어 반지",
+          });
+          const translatedPlagueBandLines = [
+            ...(translatedPlagueBand?.implicitLines ?? []),
+            ...(translatedPlagueBand?.explicitLines ?? []),
+          ];
+          expect(translatedPlagueBandLines).toEqual(
+            expect.arrayContaining([
+              "냉기 저항 +21%",
+              "공격 시 냉기 피해 1~3 추가",
+              "정확도 +336",
+              "최대 생명력 +16",
+              "지능 +15",
+              "화염 저항 +31%",
+              "적 처치 시 마나 7 획득",
+            ]),
+          );
+          expect(
+            translatedPlagueBandLines.filter((line) =>
+              untranslatedPlagueBandTerms.test(line),
+            ),
+          ).toEqual([]);
+
+          const plagueBandTooltip = await session.itemsTooltip({
+            source: "custom",
+            itemId: plagueBand.id,
+          });
+          assertPobItemsTooltip(plagueBandTooltip);
+          expect(plagueBandTooltip.maxWidth).toBe(600);
+          expect(plagueBandTooltip.influenceHeader1).toBeNull();
+          expect(plagueBandTooltip.influenceHeader2).toBeNull();
+          expect(plagueBandTooltip.lines[0]).toMatchObject({
+            font: "FONTIN SC",
+            center: true,
+            block: 1,
+          });
+          expect(
+            plagueBandTooltip.lines.find((line) => line.kind === "separator"),
+          ).toMatchObject({
+            block: 1,
+            separatorTheme: "RARE",
+          });
+          const translatedTooltip = translateItemTooltip(
+            plagueBandTooltip,
+            importedBuildItemTranslations,
+          );
+          expect(
+            translateItemTooltip(
+              translatedTooltip,
+              importedBuildItemTranslations,
+            ),
+          ).toEqual(translatedTooltip);
+          const translatedTooltipText = translatedTooltip.lines.map(
+            (line) => line.text,
+          );
+          expect(translatedTooltipText).toEqual(
+            expect.arrayContaining([
+              "역병 반지",
+              "사파이어 반지",
+              "요구 레벨 12",
+              "냉기 저항 +21%",
+              "공격 시 냉기 피해 1~3 추가",
+            ]),
+          );
+          expect(
+            translatedTooltipText.filter((line) =>
+              untranslatedPlagueBandTerms.test(line),
+            ),
+          ).toEqual([]);
+          expect(
+            plagueBandTooltip.lines.find((line) => line.text === "Plague Band"),
+          ).toMatchObject({
+            font: "FONTIN SC",
+            center: true,
+            background: null,
+          });
+        }
         for (const dbKey of POB_ORIGINAL_ITEMS_DB_KEYS) {
           const list = await session.itemsDbList(dbKey);
           assertPobItemsDbList(list);
@@ -319,6 +480,13 @@ describe("PoBSession Imported Build2 contract", () => {
           expect(gemTooltipText).toContain("Storm Wave");
           expect(gemTooltipText).toContain("Level: 18");
           expect(gemTooltipText).toContain("Quality: +20%");
+          expect(
+            gemTooltip.lines.find((line) => line.text === "Storm Wave"),
+          ).toMatchObject({
+            font: "FONTIN SC",
+            center: true,
+            background: null,
+          });
           expect(
             gemTooltipText.some((line) => line.startsWith("Requires ")),
           ).toBe(true);
@@ -385,6 +553,51 @@ describe("PoBSession Imported Build2 contract", () => {
           true,
         );
         expect(JSON.stringify(mainSkillSummary)).not.toContain("^x");
+
+        const config = await session.configSnapshot();
+        const translatedConfig = translateConfigSnapshot(
+          config,
+          importedBuildItemTranslations,
+        );
+        expect(config.sections.map((section) => section.label)).toEqual(
+          expect.arrayContaining(["General", "Quest Rewards", "Enemy Stats"]),
+        );
+        expect(
+          translatedConfig.sections.map((section) => section.label),
+        ).toEqual(expect.arrayContaining(["일반", "퀘스트 보상", "적 능력치"]));
+        const questRewards = translatedConfig.sections.find(
+          (section) => section.label === "퀘스트 보상",
+        );
+        expect(questRewards).toBeDefined();
+        expect(questRewards?.options.map((option) => option.label)).toEqual(
+          expect.arrayContaining([
+            "액트 3: 맹독 지하실",
+            "액트 4: 망자의 전당",
+            "막간 2: 카리 교차로",
+          ]),
+        );
+        expect(
+          questRewards?.options.flatMap((option) =>
+            option.options.map((entry) => entry.label),
+          ),
+        ).toEqual(
+          expect.arrayContaining([
+            "화염 저항 +5%",
+            "기절 한계치 25% 증가",
+            "원소 상태 이상 한계치 30% 증가",
+          ]),
+        );
+        expect(
+          questRewards?.options.flatMap((option) =>
+            option.options.map((entry) => entry.value),
+          ),
+        ).toEqual(
+          expect.arrayContaining([
+            "+5% to Fire Resistance",
+            "25% increased Stun Threshold",
+            "30% increased Elemental Ailment Threshold",
+          ]),
+        );
 
         const party = await session.partySnapshot();
         assertPobPartySnapshot(party);

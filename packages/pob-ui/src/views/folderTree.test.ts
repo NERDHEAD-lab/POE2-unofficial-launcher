@@ -6,6 +6,7 @@ import {
   canMoveItemToFolder,
   getFolderAncestors,
   getNextUnnamedBuildName,
+  getTargetAfterDeletingActiveItem,
   joinSubPath,
 } from "./folderTree";
 
@@ -68,5 +69,28 @@ describe("folderTree", () => {
         "Showcases/Nested",
       ),
     ).toBe(false);
+  });
+
+  it("returns a clean navigation target when the active build item is deleted", () => {
+    expect(
+      getTargetAfterDeletingActiveItem(
+        { subPath: "Monk", fileName: "Imported Build2" },
+        { kind: "file", subPath: "Monk", name: "Imported Build2" },
+      ),
+    ).toEqual({ subPath: "Monk", fileName: null });
+
+    expect(
+      getTargetAfterDeletingActiveItem(
+        { subPath: "Monk/Invoker", fileName: "Imported Build2" },
+        { kind: "folder", subPath: "Monk", name: "Invoker" },
+      ),
+    ).toEqual({ subPath: "Monk", fileName: null });
+
+    expect(
+      getTargetAfterDeletingActiveItem(
+        { subPath: "Monk", fileName: "Imported Build2" },
+        { kind: "file", subPath: "Monk", name: "Other Build" },
+      ),
+    ).toBeNull();
   });
 });

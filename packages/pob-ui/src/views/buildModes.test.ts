@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { POB_BUILD_MODES } from "./buildModes";
+import { getBuildModePreloadOrder, POB_BUILD_MODES } from "./buildModes";
 
 const defaultSourceRoot = "D:\\project_poe2\\PathOfBuilding-PoE2-KR\\src";
 const sourceRoot = process.env.POB_INSTALL_LOCATION ?? defaultSourceRoot;
@@ -21,6 +21,17 @@ describe("POB_BUILD_MODES", () => {
       "tree",
       "skills",
       "items",
+      "calcs",
+      "party",
+      "notes",
+    ]);
+  });
+
+  it("preloads the active mode first and keeps the PoB mode order after it", () => {
+    expect(getBuildModePreloadOrder("items")).toEqual([
+      "items",
+      "tree",
+      "skills",
       "calcs",
       "party",
       "notes",

@@ -115,6 +115,30 @@ export const getNextUnnamedBuildName = (
 export const isSameTarget = (a: BuildTarget, b: BuildTarget): boolean =>
   a.subPath === b.subPath && a.fileName === b.fileName;
 
+export const getTargetAfterDeletingActiveItem = (
+  current: BuildTarget,
+  deleted: SidebarItemRef,
+): BuildTarget | null => {
+  if (
+    deleted.kind === "file" &&
+    current.fileName === deleted.name &&
+    current.subPath === deleted.subPath
+  ) {
+    return { subPath: deleted.subPath, fileName: null };
+  }
+
+  if (deleted.kind !== "folder") return null;
+
+  const deletedPath = joinSubPath(deleted.subPath, deleted.name);
+  if (
+    current.subPath === deletedPath ||
+    current.subPath.startsWith(`${deletedPath}/`)
+  ) {
+    return { subPath: deleted.subPath, fileName: null };
+  }
+  return null;
+};
+
 export const canMoveItemToFolder = (
   item: SidebarItemRef,
   dstSubPath: string,

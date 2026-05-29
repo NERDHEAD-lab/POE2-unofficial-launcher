@@ -32,6 +32,10 @@ describe("statDescriptionsOverride", () => {
             English: [{ string: "+{0} to maximum Life" }],
           },
           {
+            ids: ["base_fire_resistance_%"],
+            English: [{ string: "{0:+d}% to Fire Resistance" }],
+          },
+          {
             ids: ["cannot_be_stunned"],
             English: [{ string: "Cannot be Stunned" }],
           },
@@ -42,6 +46,10 @@ describe("statDescriptionsOverride", () => {
           {
             ids: ["base_maximum_life"],
             Korean: [{ string: "최대 생명력 +{0}" }],
+          },
+          {
+            ids: ["base_fire_resistance_%"],
+            Korean: [{ string: "화염 저항 {0:+d}%" }],
           },
           {
             ids: ["cannot_be_stunned"],
@@ -60,10 +68,21 @@ describe("statDescriptionsOverride", () => {
     );
     expect(target.statLineTemplates).toEqual([
       { english: "+{0} to maximum Life", localized: "최대 생명력 +{0}" },
+      {
+        english: "{0:+d}% to Fire Resistance",
+        localized: "화염 저항 {0:+d}%",
+      },
     ]);
     expect(
       statDescriptionsOverride.translateById(index, "base_maximum_life", [32]),
     ).toBe("최대 생명력 +32");
+    expect(
+      statDescriptionsOverride.translateById(
+        index,
+        "base_fire_resistance_%",
+        [5],
+      ),
+    ).toBe("화염 저항 +5%");
   });
 
   it("keeps the index empty when disabled or locale is English", () => {

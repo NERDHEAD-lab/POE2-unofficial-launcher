@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   POB_UI_MODE_POLICIES,
+  POB_UI_MODE_SWITCH_ORDER,
   createPobSnapshotProjection,
+  getNextPobUiMode,
   preservePobActionPayload,
 } from "./uiMode";
 
@@ -46,5 +48,11 @@ describe("uiMode facade", () => {
     };
 
     expect(preservePobActionPayload(action)).toBe(action);
+  });
+
+  it("orders the switch as legacy to unofficial while keeping renewed default semantics", () => {
+    expect(POB_UI_MODE_SWITCH_ORDER).toEqual(["legacy", "renewed"]);
+    expect(getNextPobUiMode("legacy")).toBe("renewed");
+    expect(getNextPobUiMode("renewed")).toBe("legacy");
   });
 });

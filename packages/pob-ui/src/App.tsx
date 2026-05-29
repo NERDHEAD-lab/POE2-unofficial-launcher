@@ -20,7 +20,11 @@ import {
 import { BuildEditView } from "./views/BuildEditView";
 import { getNextUnnamedBuildName, isSameTarget } from "./views/folderTree";
 import { Sidebar } from "./views/Sidebar";
-import { DEFAULT_POB_UI_MODE, POB_UI_MODES } from "./views/uiMode";
+import { DEFAULT_POB_UI_MODE, getNextPobUiMode } from "./views/uiMode";
+import {
+  buildPobUnimplementedClassName,
+  getPobUnimplementedControlAttributes,
+} from "./views/unimplementedControls";
 import {
   createWrapperLastLocation,
   restoreWrapperLocation,
@@ -34,6 +38,8 @@ import type { PobUiMode } from "./views/uiMode";
 
 const LANGS = ["ko", "en"] as const;
 type Lang = (typeof LANGS)[number];
+
+const LOCKED_POB_UI_MODES: readonly PobUiMode[] = [];
 
 interface PendingAction {
   kind: "navigate" | "close";
@@ -97,6 +103,7 @@ const App: React.FC = () => {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [activeMode, setActiveMode] = useState<BuildMode>("tree");
   const [uiMode, setUiMode] = useState<PobUiMode>(DEFAULT_POB_UI_MODE);
+  const [uiModeNotice, setUiModeNotice] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [autosave, setAutosave] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -526,6 +533,16 @@ const App: React.FC = () => {
     });
   }, [updatePobSettings]);
 
+  const handleActiveTargetDeleted = useCallback(
+    (nextTarget: BuildTarget) => {
+      setDirty(false);
+      setPending(null);
+      commitNavigation(nextTarget, { resetDraft: true });
+      setRefreshToken((value) => value + 1);
+    },
+    [commitNavigation],
+  );
+
   const handleHistory = useCallback(
     (delta: -1 | 1) => {
       const nextIndex = historyIndex + delta;
@@ -605,6 +622,29 @@ const App: React.FC = () => {
           }
         : null;
 
+  const nextUiMode = getNextPobUiMode(uiMode);
+  const nextUiModeLocked = LOCKED_POB_UI_MODES.includes(nextUiMode);
+  const uiModeSwitchClassName = nextUiModeLocked
+    ? buildPobUnimplementedClassName(
+        uiMode === "renewed" ? "is-renewed" : "is-legacy",
+      )
+    : uiMode === "renewed"
+      ? "is-renewed"
+      : "is-legacy";
+  const uiModeSwitchAttributes = nextUiModeLocked
+    ? getPobUnimplementedControlAttributes("ui-mode.switch")
+    : {};
+  const handleUiModeToggle = () => {
+    if (nextUiModeLocked) {
+      setUiModeNotice(
+        t("buildEdit.unimplemented.notice", { reason: t("uiMode.disabled") }),
+      );
+      return;
+    }
+    setUiModeNotice(null);
+    setUiMode(nextUiMode);
+  };
+
   return (
     <div className="pob-app">
       <header className="pob-titlebar">
@@ -628,22 +668,37 @@ const App: React.FC = () => {
           </div>
         )}
         <div className="pob-titlebar-right">
-          <div
-            className="pob-ui-mode-switch"
-            role="group"
-            aria-label={t("uiMode.label")}
-          >
-            {POB_UI_MODES.map((mode) => (
+          <div className="pob-ui-mode-stack">
+            <div className="pob-ui-mode-switch" aria-label={t("uiMode.label")}>
+              <span className="pob-ui-mode-label">{t("uiMode.label")} :</span>
+              <span className={uiMode === "legacy" ? "is-active" : ""}>
+                {t("uiMode.legacy")}
+              </span>
               <button
-                key={mode}
+                {...uiModeSwitchAttributes}
                 type="button"
-                aria-pressed={uiMode === mode}
-                className={uiMode === mode ? "is-active" : ""}
-                onClick={() => setUiMode(mode)}
+                role="switch"
+                aria-checked={uiMode === "renewed"}
+                aria-label={t("uiMode.switchLabel")}
+                title={
+                  nextUiModeLocked
+                    ? t("uiMode.disabled")
+                    : t("uiMode.switchLabel")
+                }
+                className={uiModeSwitchClassName}
+                onClick={handleUiModeToggle}
               >
-                {t(`uiMode.${mode}`)}
+                <span aria-hidden="true" />
               </button>
-            ))}
+              <span className={uiMode === "renewed" ? "is-active" : ""}>
+                {t("uiMode.renewed")}
+              </span>
+            </div>
+            {uiModeNotice && (
+              <span className="pob-ui-mode-notice" role="status">
+                {uiModeNotice}
+              </span>
+            )}
           </div>
           <div className="pob-lang">
             <label>{t("lang.label")}:</label>
@@ -701,16 +756,20 @@ const App: React.FC = () => {
         }
       >
         <Sidebar
+          key={settingsLoaded ? "settings-ready" : "settings-loading"}
           currentPath={target.subPath}
           selectedFile={target.fileName}
           autosave={autosave}
           collapsed={sidebarCollapsed}
           mainSkillSummary={mainSkillSummary}
+          settings={pobSettings}
           sortKey={sortKey}
           refreshToken={refreshToken}
           onAutosaveChange={handleAutosaveChange}
+          onActiveTargetDeleted={handleActiveTargetDeleted}
           onNewBuild={handleNewBuild}
           onSelect={(nextTarget) => void requestNavigation(nextTarget)}
+          onSettingsChange={handleVaultSettingsChange}
           onSortChange={setSortKey}
           onToggleCollapse={toggleSidebar}
         />
