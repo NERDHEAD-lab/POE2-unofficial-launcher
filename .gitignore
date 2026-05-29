@@ -77,6 +77,9 @@ typings/
 .cache
 .parcel-cache
 
+# PoB source cache for Lua parity tests
+.cache/pob-source/
+
 # Next.js build output
 .next
 out

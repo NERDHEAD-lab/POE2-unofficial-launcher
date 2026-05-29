@@ -4,15 +4,23 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertPobTestSourceAvailable,
+  resolvePobTestSource,
+  shouldRunPobSourceTest,
+} from "@poe2-launcher/shared/pobTestSource";
+
+import {
   POB_BUILD_ACTIONS,
   POB_BUILD_HEADER_ACTIONS,
   resolveImportExportPanelVisibility,
 } from "./buildActions";
 
-const defaultSourceRoot = "D:\\project_poe2\\PathOfBuilding-PoE2-KR\\src";
-const sourceRoot = process.env.POB_INSTALL_LOCATION ?? defaultSourceRoot;
+const pobSource = resolvePobTestSource();
+const sourceRoot = pobSource.sourceRoot;
 const buildLuaPath = path.join(sourceRoot, "Modules", "Build.lua");
-const runIfPobSourceAvailable = fs.existsSync(buildLuaPath) ? it : it.skip;
+const runIfPobSourceAvailable = shouldRunPobSourceTest(pobSource)
+  ? it
+  : it.skip;
 
 const actionButtonPattern =
   /self\.controls\.mode(?:Import|Config)\s*=\s*new\("ButtonControl",[^\n]*,\s*"([^"]+)",\s*function/g;
@@ -67,6 +75,7 @@ describe("POB_BUILD_ACTIONS", () => {
   runIfPobSourceAvailable(
     "matches PoB Build.lua import/config action button order",
     () => {
+      assertPobTestSourceAvailable(pobSource);
       const buildLua = fs.readFileSync(buildLuaPath, "utf8");
       const actionLabels = [...buildLua.matchAll(actionButtonPattern)].map(
         ([, label]) => toActionId(label),

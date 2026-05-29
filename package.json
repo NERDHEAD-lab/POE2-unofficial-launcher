@@ -32,6 +32,7 @@
     "lint": "eslint packages/launcher/src packages/shared/src packages/pob-repoe/src packages/pob-vault/src packages/pob-bridge/src packages/pob-ui/src packages/pob-unofficial-wrapper/src packages/pob-headless-glue && node scripts/check-pob-i18n-domain.mjs",
     "lint:fix": "eslint packages/launcher/src packages/shared/src packages/pob-repoe/src packages/pob-vault/src packages/pob-bridge/src packages/pob-ui/src packages/pob-unofficial-wrapper/src packages/pob-headless-glue --fix",
     "format": "prettier --write .",
+    "pob:source:prepare": "node scripts/prepare-pob-source.mjs",
     "test": "vitest",
     "prepare": "husky"
   },

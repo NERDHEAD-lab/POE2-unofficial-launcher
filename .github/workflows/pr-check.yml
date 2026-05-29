@@ -22,8 +22,15 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Prepare PoB source
+        run: npm run pob:source:prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Test
         run: npm test
+        env:
+          POB_SOURCE_REQUIRED: "1"
 
       - name: Build Check
         run: npm run build:check

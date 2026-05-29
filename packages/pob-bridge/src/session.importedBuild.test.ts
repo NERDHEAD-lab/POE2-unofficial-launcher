@@ -36,6 +36,11 @@ import {
   POB_ORIGINAL_CALCS_BUFF_MODES,
   POB_ORIGINAL_ITEMS_DB_KEYS,
 } from "@poe2-launcher/shared/pobOriginalContract";
+import {
+  assertPobTestSourceAvailable,
+  resolvePobTestSource,
+  shouldRunPobSourceTest,
+} from "@poe2-launcher/shared/pobTestSource";
 import type {
   PobCalcsSnapshot,
   PobRepoeTranslationsSnapshot,
@@ -57,8 +62,8 @@ vi.mock("electron", () => ({
   },
 }));
 
-const defaultSourceRoot = "D:\\project_poe2\\PathOfBuilding-PoE2-KR\\src";
-const sourceRoot = process.env.POB_INSTALL_LOCATION ?? defaultSourceRoot;
+const pobSource = resolvePobTestSource();
+const sourceRoot = pobSource.sourceRoot;
 const importedBuildPath = path.resolve(
   "packages",
   "launcher",
@@ -71,16 +76,22 @@ const importedBuildPath = path.resolve(
 );
 
 const sourceAvailable =
-  fs.existsSync(path.join(sourceRoot, "Modules", "Build.lua")) &&
-  fs.existsSync(importedBuildPath);
+  pobSource.sourceAvailable && fs.existsSync(importedBuildPath);
 
-const runIfPobSourceAvailable = sourceAvailable ? it : it.skip;
+const runIfPobSourceAvailable =
+  sourceAvailable || shouldRunPobSourceTest(pobSource) ? it : it.skip;
 
 const staticVault = (vaultPath: string): PoBVault =>
   ({
     getActive: vi.fn(async () => ({ version: "source", vaultPath })),
     ensureSnapshot: vi.fn(async () => ({ version: "source", vaultPath })),
   }) as unknown as PoBVault;
+
+const readImportedBuildXml = async () => {
+  assertPobTestSourceAvailable(pobSource);
+  expect(fs.existsSync(importedBuildPath)).toBe(true);
+  return fsp.readFile(importedBuildPath, "utf8");
+};
 
 const importedBuildItemTranslations: PobRepoeTranslationsSnapshot = {
   locale: "ko",
@@ -158,7 +169,7 @@ describe("PoBSession Imported Build2 contract", () => {
   runIfPobSourceAvailable(
     "matches PoB Lua structures for tree, items, skills, and calcs",
     async () => {
-      const xml = await fsp.readFile(importedBuildPath, "utf8");
+      const xml = await readImportedBuildXml();
       const session = new PoBSession({
         installLocation: sourceRoot,
         resourceRoot: path.resolve(
@@ -940,7 +951,7 @@ describe("PoBSession Imported Build2 contract", () => {
   runIfPobSourceAvailable(
     "exports Imported Build2 as a direct PoB build code that can be re-imported",
     async () => {
-      const xml = await fsp.readFile(importedBuildPath, "utf8");
+      const xml = await readImportedBuildXml();
       const sourceCode = encodePobBuildCodeXml(xml);
       const session = new PoBSession({
         installLocation: sourceRoot,
@@ -1033,6 +1044,7 @@ describe("PoBSession Imported Build2 contract", () => {
   runIfPobSourceAvailable(
     "accepts parser-normalized Korean item copy text through the Lua item path",
     async () => {
+      assertPobTestSourceAvailable(pobSource);
       const parsed = parseItemCopyText({
         rawText: ["아이템 희귀도: 일반", "감싼 육척봉"].join("\n"),
         data: {
