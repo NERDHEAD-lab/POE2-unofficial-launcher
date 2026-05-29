@@ -17,7 +17,7 @@
 - Renderer 는 `packages/pob-ui`, bridge/vault/repoe/headless glue 는 각 workspace package 로 분리
 - UI 자체 문자열은 `packages/pob-ui/src/i18n/{ko,en}.json`; 게임 데이터 번역은 `packages/pob-repoe`
 
-**현재 상태 (2026-05-29)**: PR-20 RePoE/display UX follow-up squash commit `826859e feat(POB): POB 연동 기능 추가 20 (RePoE display coverage follow-up)` 이 로컬 `feat/next-release` 에 생성됐고 아직 push 전이다. [PR-21](plan/PR-21.md)은 PR-20 이후 사용자 제보 이슈를 분석해 실제 수행 항목으로 기록할 빈 follow-up 문서로 `next` 상태이며, Passive Tree resource/cache/render 최적화는 [PR-22](plan/PR-22.md)로 이관해 `pending` 상태로 둔다. 장기 후순위 항목은 [plan/BACKLOG.md](plan/BACKLOG.md) 에 보관한다.
+**현재 상태 (2026-05-29)**: PR-21 visible bug follow-up 후속 commit과 CI `npm ci` lockfile 보정 commit `70f21c5 chore: fix npm ci lockfile entries` 까지 로컬 `feat/next-release` 에 생성됐다. Passive Tree resource/cache/render 최적화는 [PR-22](plan/PR-22.md)로 이관해 `next` 상태로 둔다. 장기 후순위 항목은 [plan/BACKLOG.md](plan/BACKLOG.md) 에 보관한다.
 
 PR-N 수동 검증 결과:
 
@@ -65,8 +65,8 @@ PR-N 수동 검증 결과:
 | 8 | [PR-18](plan/PR-18.md) | done | complete | work/pob-pr-18 | 9466ec1 | lint, focused test, npm test, build:check 통과 | 완료 |
 | 9 | [PR-19](plan/PR-19.md) | done | complete | work/pob-pr-19-current-plan | b2092a1 | PR-19.18 focused parser tests, lint, npm test, build:check 통과 | push 요청 대기 |
 | 10 | [PR-20](plan/PR-20.md) | done | complete | work/pob-pr-20 | 826859e | dev:agent with Unnamed build, lint, npm test, build:check 통과 | 완료 |
-| 11 | [PR-21](plan/PR-21.md) | next | 사용자 제보 이슈 대기 | 예정 (`work/pob-pr-21`) | 없음 | 없음 | 사용자 제보 이슈 분석 후 PR-21 실제 항목으로 기록 |
-| 12 | [PR-22](plan/PR-22.md) | pending | PR-22.1 baseline agent measurement | 예정 (`work/pob-pr-22`) | 없음 | 없음 | PR-21 완료 후 Passive Tree resource/cache/render optimization 착수 |
+| 11 | [PR-21](plan/PR-21.md) | done | complete | work/pob-pr-21 | 633efe5 | focused toast/ui-mode tests, lint, npm test, build:check 통과 | push 요청 대기 |
+| 12 | [PR-22](plan/PR-22.md) | next | PR-22.1 baseline agent measurement | 예정 (`work/pob-pr-22`) | 없음 | 없음 | Passive Tree resource/cache/render optimization 착수 |
 
 각 PR 의 세부 컨텍스트는 해당 PR 문서의 `Resume Cursor`, `Context Notes`, `Subagent Reports`, `Decisions / Risks` 에만 기록한다. handoff 는 위 표처럼 재개 포인터와 마지막 검증 상태만 유지한다.
 

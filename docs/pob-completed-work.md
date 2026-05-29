@@ -112,7 +112,7 @@
 
 ---
 
-## PR-11~PR-20 완료 이력
+## PR-11~PR-21 완료 이력
 
 - PR-11 `8fc34e9` Imported Build2 parity
   - Imported Build2 기준 Tree / Skills / Items / Calcs / Party 표시 데이터, 라벨, tooltip 계약을 점검하고 주요 parity gap을 보정했다.
@@ -147,6 +147,13 @@
   - Tree/Skill/Item tooltip metadata와 asset-backed header/separator renderer, Item tooltip overlay 회귀를 보정했다.
   - Calcs visual/overflow, Items DB localized row projection, wrapper UI state persistence, active build delete guard, Korean item copy parser를 마감했다.
   - Windows 검증: `npm run dev:agent` with `POE2_AGENT_SECOND_BUILD_NAME="Unnamed build"`, `npm run lint`, `npm test`, `npm run build:check`
+- PR-21 `86f2902`, `633efe5` Visible bug follow-up
+  - Tree/Skills/Items tooltip parity, item/detail/list layout, save overwrite semantics, Notes template manager layout을 사용자 제보 기준으로 보정했다.
+  - 공통 copyable/dismissible error banner, passive point budget header, legacy UI mode lock, 미구현 marker 정책과 하단 공통 toast를 추가했다.
+  - Windows 검증: focused tests, `npm run lint`, `npm test`, `npm run build:check`
+- CI prep `70f21c5` npm ci lockfile fix
+  - CI `npm ci`가 실패하지 않도록 `@emnapi/core` / `@emnapi/runtime` optional lockfile entry 누락을 보정했다.
+  - Windows 검증: `npm ci --dry-run --ignore-scripts --no-audit --no-fund`
 
 ---
 
