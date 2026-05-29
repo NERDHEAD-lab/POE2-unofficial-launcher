@@ -10,6 +10,8 @@ const CACHE_DIR = path.resolve(
 );
 const SOURCE_ROOT = path.join(CACHE_DIR, "src");
 const SENTINEL = path.join(SOURCE_ROOT, "Modules", "Build.lua");
+const CACHE_MARKER = path.join(CACHE_DIR, ".pob-source-ref");
+const resolveOnly = process.argv.includes("--resolve-only");
 
 const parseGitHubRepo = (repoUrl) => {
   const httpsMatch = repoUrl.match(
@@ -140,6 +142,24 @@ const resolveRef = async () => {
   }
 };
 
+const sanitizeCachePart = (value) =>
+  value
+    .replace(/[^A-Za-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 160) || "source";
+
+const writeGitHubOutput = (outputs) => {
+  const githubOutput = process.env.GITHUB_OUTPUT;
+  if (!githubOutput) {
+    return;
+  }
+
+  const body = Object.entries(outputs)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(os.EOL);
+  fs.appendFileSync(githubOutput, `${body}${os.EOL}`, "utf8");
+};
+
 const ensureClone = () => {
   if (!fs.existsSync(CACHE_DIR)) {
     fs.mkdirSync(path.dirname(CACHE_DIR), { recursive: true });
@@ -158,6 +178,15 @@ const ensureClone = () => {
 };
 
 const checkoutRef = (ref) => {
+  if (
+    fs.existsSync(SENTINEL) &&
+    fs.existsSync(CACHE_MARKER) &&
+    fs.readFileSync(CACHE_MARKER, "utf8").trim() === ref
+  ) {
+    console.log(`[pob-source] Cache already contains ${ref}`);
+    return;
+  }
+
   git(["-C", CACHE_DIR, "fetch", "--tags", "--prune", "origin"]);
 
   let checkoutTarget = ref;
@@ -188,8 +217,24 @@ const writeGitHubEnv = () => {
 
 const main = async () => {
   const ref = await resolveRef();
+  const cacheKey = [
+    sanitizeCachePart(repoSlug ?? repoUrl),
+    sanitizeCachePart(ref),
+  ].join("-");
+
   console.log(`[pob-source] Repository: ${repoUrl}`);
   console.log(`[pob-source] Ref: ${ref}`);
+  console.log(`[pob-source] Cache key: ${cacheKey}`);
+
+  writeGitHubOutput({
+    ref,
+    "cache-key": cacheKey,
+  });
+
+  if (resolveOnly) {
+    return;
+  }
+
   console.log(`[pob-source] Cache: ${CACHE_DIR}`);
 
   ensureClone();
@@ -200,6 +245,7 @@ const main = async () => {
   }
 
   const commit = gitOutput(["-C", CACHE_DIR, "rev-parse", "HEAD"]);
+  fs.writeFileSync(CACHE_MARKER, `${ref}${os.EOL}`, "utf8");
   writeGitHubEnv();
 
   console.log(`[pob-source] Checked out ${commit}`);
