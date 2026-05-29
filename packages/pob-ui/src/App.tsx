@@ -10,6 +10,7 @@ import type {
 
 import iconUrl from "./assets/icon.ico";
 import { PobErrorBanner } from "./components/PobErrorBanner";
+import { PobToast, type PobToastVariant } from "./components/PobToast";
 import {
   VaultSettingsModal,
   type VaultGenerationsState,
@@ -101,12 +102,17 @@ const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const editRef = useRef<BuildEditViewHandle>(null);
   const autoRefreshKeyRef = useRef<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const [target, setTarget] = useState<BuildTarget>(INITIAL_TARGET);
   const [history, setHistory] = useState<BuildTarget[]>([INITIAL_TARGET]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [activeMode, setActiveMode] = useState<BuildMode>("tree");
   const [uiMode, setUiMode] = useState<PobUiMode>(DEFAULT_POB_UI_MODE);
-  const [uiModeNotice, setUiModeNotice] = useState<string | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    visible: boolean;
+    variant: PobToastVariant;
+  }>({ message: "", visible: false, variant: "info" });
   const [dirty, setDirty] = useState(false);
   const [autosave, setAutosave] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -135,6 +141,28 @@ const App: React.FC = () => {
     { status: "idle" },
   );
   const [hoverDebugLabel, setHoverDebugLabel] = useState("");
+
+  const showToast = useCallback(
+    (message: string, variant: PobToastVariant = "info") => {
+      setToast({ message, visible: true, variant });
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast((current) => ({ ...current, visible: false }));
+      }, 2_500);
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -639,12 +667,11 @@ const App: React.FC = () => {
     : {};
   const handleUiModeToggle = () => {
     if (nextUiModeLocked) {
-      setUiModeNotice(
+      showToast(
         t("buildEdit.unimplemented.notice", { reason: t("uiMode.disabled") }),
       );
       return;
     }
-    setUiModeNotice(null);
     setUiMode(nextUiMode);
   };
 
@@ -697,11 +724,6 @@ const App: React.FC = () => {
                 {t("uiMode.renewed")}
               </span>
             </div>
-            {uiModeNotice && (
-              <span className="pob-ui-mode-notice" role="status">
-                {uiModeNotice}
-              </span>
-            )}
           </div>
           <div className="pob-lang">
             <label>{t("lang.label")}:</label>
@@ -803,6 +825,7 @@ const App: React.FC = () => {
             onRenamed={handleBuildRenamed}
             onSaveRequest={() => void saveActiveBuild()}
             onSavedAs={handleSavedAs}
+            onToast={showToast}
           />
         </section>
       </main>
@@ -846,6 +869,11 @@ const App: React.FC = () => {
           onClose={() => setSettingsOpen(false)}
         />
       )}
+      <PobToast
+        message={toast.message}
+        visible={toast.visible}
+        variant={toast.variant}
+      />
     </div>
   );
 };

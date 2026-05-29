@@ -92,6 +92,7 @@ interface PassiveTreeViewProps {
   preload?: boolean;
   sessionKey: string;
   translations: PobRepoeTranslationsSnapshot;
+  onToast?: (notice: string) => void;
 }
 
 type LoadState =
@@ -262,6 +263,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
   preload = false,
   sessionKey,
   translations,
+  onToast,
 }) => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -285,6 +287,16 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const showUnimplementedNotice = useCallback(
+    (notice: string) => {
+      if (onToast) {
+        onToast(notice);
+        return;
+      }
+      setUnimplementedNotice(notice);
+    },
+    [onToast],
+  );
   const [hoverTooltip, setHoverTooltip] = useState<{
     nodeId: number;
     tooltip: PobTreeNodeTooltip | null;
@@ -1370,7 +1382,7 @@ export const PassiveTreeView: React.FC<PassiveTreeViewProps> = ({
             reason: t("buildEdit.tree.findTimelessJewelDisabled"),
           })}
           title={t("buildEdit.tree.findTimelessJewelDisabled")}
-          onNotice={setUnimplementedNotice}
+          onNotice={showUnimplementedNotice}
         >
           {t("buildEdit.tree.findTimelessJewel")}
         </PobUnimplementedButton>

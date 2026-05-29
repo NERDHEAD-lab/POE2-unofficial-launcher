@@ -64,6 +64,7 @@ interface CalcsViewProps {
   preload?: boolean;
   onMutated?: () => void;
   translations?: PobRepoeTranslationsSnapshot;
+  onToast?: (notice: string) => void;
 }
 
 const CALCS_FAVORITES_STORAGE_KEY = "pob.calcs.sectionFavorites";
@@ -813,6 +814,7 @@ export function CalcsView({
   preload = false,
   onMutated,
   translations = EMPTY_REPOE_TRANSLATIONS,
+  onToast,
 }: CalcsViewProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
@@ -832,6 +834,16 @@ export function CalcsView({
   );
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedSnapshotRef = useRef(false);
+  const showUnimplementedNotice = useCallback(
+    (notice: string) => {
+      if (onToast) {
+        onToast(notice);
+        return;
+      }
+      setUnimplementedNotice(notice);
+    },
+    [onToast],
+  );
 
   useEffect(() => {
     if (!active && !preload) return;
@@ -1070,7 +1082,7 @@ export function CalcsView({
             data={displaySnapshot.skillSelect}
             busy={actionState.status === "running"}
             onAction={(action) => void runAction(action)}
-            onUnavailable={setUnimplementedNotice}
+            onUnavailable={showUnimplementedNotice}
             t={t}
           />
           <CalcsMasonry

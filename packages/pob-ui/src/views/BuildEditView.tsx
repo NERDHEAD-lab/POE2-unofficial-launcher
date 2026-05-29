@@ -80,6 +80,7 @@ interface BuildEditViewProps {
   onRenamed: (fileName: string) => void;
   onSaveRequest: () => void;
   onSavedAs: (fileName: string) => void;
+  onToast: (message: string) => void;
 }
 
 type LoadState =
@@ -157,6 +158,7 @@ export const BuildEditView = forwardRef<
       onRenamed,
       onSaveRequest,
       onSavedAs,
+      onToast,
     },
     ref,
   ) => {
@@ -731,6 +733,7 @@ export const BuildEditView = forwardRef<
             preload={preload}
             sessionKey={passiveTreeSessionKey}
             translations={repoeTranslations}
+            onToast={onToast}
           />
         );
       }
@@ -741,6 +744,7 @@ export const BuildEditView = forwardRef<
             preload={preload}
             translations={repoeTranslations}
             onMutated={markBuildMutated}
+            onToast={onToast}
           />
         );
       }
@@ -761,6 +765,7 @@ export const BuildEditView = forwardRef<
             preload={preload}
             translations={repoeTranslations}
             onMutated={markBuildMutated}
+            onToast={onToast}
           />
         );
       }
@@ -790,9 +795,12 @@ export const BuildEditView = forwardRef<
       );
     };
 
-    const showImportExportUnavailable = useCallback((notice: string) => {
-      setBuildCodeStatus({ kind: "info", message: notice });
-    }, []);
+    const showImportExportUnavailable = useCallback(
+      (notice: string) => {
+        onToast(notice);
+      },
+      [onToast],
+    );
 
     const generateBuildCode = useCallback(async () => {
       const api = window.pobAPI;

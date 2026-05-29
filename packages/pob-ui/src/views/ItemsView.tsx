@@ -96,6 +96,7 @@ interface ItemsViewProps {
   preload?: boolean;
   translations: PobRepoeTranslationsSnapshot;
   onMutated: () => void;
+  onToast?: (notice: string) => void;
 }
 
 const RARITY_KEYS = new Set(["NORMAL", "MAGIC", "RARE", "UNIQUE", "RELIC"]);
@@ -307,6 +308,7 @@ export function ItemsView({
   preload = false,
   translations,
   onMutated,
+  onToast,
 }: ItemsViewProps) {
   const { t, i18n } = useTranslation();
   const [state, setState] = useState<LoadState>({ status: "idle" });
@@ -333,6 +335,16 @@ export function ItemsView({
   }>({ key: "", raw: "" });
   const loadedSnapshotRef = useRef(false);
   const itemCopyLocaleHint = i18n.resolvedLanguage === "en" ? "en" : "ko";
+  const showUnimplementedNotice = useCallback(
+    (notice: string) => {
+      if (onToast) {
+        onToast(notice);
+        return;
+      }
+      setUnimplementedNotice(notice);
+    },
+    [onToast],
+  );
 
   useEffect(() => {
     if (!active && !preload) return;
@@ -572,7 +584,7 @@ export function ItemsView({
               reason: t("buildEdit.items.setManageDisabled"),
             })}
             title={t("buildEdit.items.setManageDisabled")}
-            onNotice={setUnimplementedNotice}
+            onNotice={showUnimplementedNotice}
           >
             {t("buildEdit.items.setManage")}
           </PobUnimplementedButton>
@@ -584,7 +596,7 @@ export function ItemsView({
             reason: t("buildEdit.items.priceCheckDisabled"),
           })}
           title={t("buildEdit.items.priceCheckDisabled")}
-          onNotice={setUnimplementedNotice}
+          onNotice={showUnimplementedNotice}
         >
           {t("buildEdit.items.priceCheck")}
         </PobUnimplementedButton>
@@ -666,7 +678,7 @@ export function ItemsView({
               translations={translations}
               onSelect={setSelectedItemRef}
               onAction={(action) => void runAction(action)}
-              onUnavailable={setUnimplementedNotice}
+              onUnavailable={showUnimplementedNotice}
               onCreateCustom={() => setCustomEditorOpen(true)}
             />
           ) : (

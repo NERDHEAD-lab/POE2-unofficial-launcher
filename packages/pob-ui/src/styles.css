@@ -144,15 +144,6 @@ textarea {
   -webkit-app-region: no-drag;
 }
 
-.pob-ui-mode-notice {
-  max-width: 220px;
-  overflow: hidden;
-  color: var(--pob-accent);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .pob-ui-mode-switch .pob-ui-mode-label {
   color: var(--pob-text);
   font-weight: 700;
@@ -1115,6 +1106,47 @@ textarea {
 .pob-control-unimplemented:focus-visible {
   border-color: var(--pob-accent);
   background: rgba(223, 207, 153, 0.08);
+}
+
+.pob-window-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 2200;
+  max-width: min(520px, calc(100vw - 48px));
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: 1px solid rgba(223, 207, 153, 0.38);
+  border-left: 4px solid var(--pob-accent);
+  border-radius: 4px;
+  color: var(--pob-text);
+  background: rgba(22, 22, 22, 0.94);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.pob-window-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.pob-window-toast.is-success {
+  border-left-color: #5fc05f;
+}
+
+.pob-window-toast.is-error {
+  border-left-color: var(--pob-danger);
 }
 
 .pob-btn-primary {
