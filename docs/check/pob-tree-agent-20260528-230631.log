@@ -1,0 +1,10 @@
+[2026-05-28T23:06:31.648Z] [agent] starting hidden Electron agent on CDP port 9323
+[2026-05-28T23:06:31.649Z] [agent] target build: Imported Build2
+[2026-05-28T23:06:31.650Z] [agent:error] Error: spawn EINVAL
+    at ChildProcess.spawn (node:internal/child_process:421:11)
+    at spawn (node:child_process:796:9)
+    at run (file:///D:/project_poe2/POE2-unofficial-launcher/scripts/pob-agent-tree.mjs:174:16)
+    at file:///D:/project_poe2/POE2-unofficial-launcher/scripts/pob-agent-tree.mjs:254:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:413:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:660:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)

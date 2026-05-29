@@ -64,6 +64,17 @@ If dirty planning docs block branch switching, back them up as a patch/archive, 
 - If subagents are unavailable or not worth the overhead, rely on `docs/current-plan.md`, `docs/pob-handoff.md`, and the active `docs/plan/PR-*.md` as the resumable context boundary.
 - Do not continue from memory when resuming after compaction. Re-read the current plan, handoff, and the affected code slice before editing.
 
+## Current Plan Inbox
+
+`docs/current-plan.md` is an unstaged inbox for user feedback that has not been routed yet. It is not the source of truth for PR progress.
+
+- Keep the file terse: only `잔여작업` and `백로그` sections with checklist items.
+- Put near-term/actionable items under `잔여작업`; put deferred ideas under `백로그`.
+- At session start, read only the unrouted checklist items.
+- Route each `잔여작업` item into the active PR checklist or handoff cursor, then remove it from `current-plan`.
+- Route each `백로그` item into the appropriate PR/backlog document, usually PR-18 or PR-19, then remove it from `current-plan`.
+- Do not store sub-step progress, commit hashes, validation state, or subagent reports in `current-plan`; use handoff plus the active PR `Resume Cursor`.
+
 ## Compaction-Safe Progress Tracking
 
 For PR-11+ residual work, minimize resume risk by using document cursors instead of scanning every PR:

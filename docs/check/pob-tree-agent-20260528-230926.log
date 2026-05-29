@@ -1,0 +1,397 @@
+[2026-05-28T23:09:26.194Z] [agent] starting hidden Electron agent on CDP port 9323
+[2026-05-28T23:09:26.194Z] [agent] target build: Imported Build2
+[2026-05-28T23:09:26.387Z] [dev:stdout] > poe2-unofficial-launcher@1.2.6 dev:agent:app
+[2026-05-28T23:09:26.387Z] [dev:stdout] > chcp 65001 && cross-env POE2_AGENT_MODE=1 POE2_AGENT_DEBUG_PORT=9323 vite
+[2026-05-28T23:09:26.429Z] [dev:stdout] Active code page: 65001
+[2026-05-28T23:09:26.736Z] [dev:stderr] [33m`resolve.alias` contains an alias with `customResolver` option. This is deprecated and will be removed in Vite 9. Please use a custom plugin with a resolveId hook and `enforce: 'pre'` instead.[39m
+[2026-05-28T23:09:26.772Z] [dev:stdout]   [32m[1mVITE[22m v8.0.14[39m  [2mready in [0m[1m250[22m[2m[0m ms[22m
+[2026-05-28T23:09:26.773Z] [dev:stdout]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m54321[22m/[39m
+[2026-05-28T23:09:26.773Z] [dev:stdout] [2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2026-05-28T23:09:26.778Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.779Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.779Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.786Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.786Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.786Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.794Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.794Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.794Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.802Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.802Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.802Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.806Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.806Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.806Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.811Z] [dev:stdout] [36mvite v8.0.14 [32mbuilding client environment for development...[36m[39m
+[2026-05-28T23:09:26.812Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.812Z] [dev:stdout] watching for file changes...[39m
+[2026-05-28T23:09:26.820Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.821Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.821Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.821Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.821Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.821Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.821Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.834Z] [dev:stdout] [2Ktransforming...[2K
+[2026-05-28T23:09:26.834Z] [dev:stdout] transforming...[2Ktransforming...[2Ktransforming...[2Ktransforming...[2Ktransforming...
+[2026-05-28T23:09:26.871Z] [dev:stdout] ✓ 3 modules transformed.
+[2026-05-28T23:09:26.871Z] [dev:stdout] ✓ 5 modules transformed.
+[2026-05-28T23:09:26.871Z] [dev:stdout] ✓ 3 modules transformed.
+[2026-05-28T23:09:26.871Z] [dev:stdout] ✓ 4 modules transformed.
+[2026-05-28T23:09:26.871Z] [dev:stdout] ✓ 121 modules transformed.
+[2026-05-28T23:09:26.893Z] [dev:stdout] ✓ 668 modules transformed.
+[2026-05-28T23:09:26.893Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.894Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.894Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.894Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.920Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.921Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.921Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.921Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.921Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.923Z] [dev:stdout] dist-electron/pob-preload.js  6.40 kB │ gzip: 1.58 kB
+[2026-05-28T23:09:26.923Z] [dev:stdout] dist-electron/kakao/preload.js  30.57 kB │ gzip: 7.98 kB
+[2026-05-28T23:09:26.923Z] [dev:stdout] dist-electron/workers/OtfMutatorWorker.js  7.84 kB │ gzip: 3.18 kB
+[2026-05-28T23:09:26.923Z] [dev:stdout] dist-electron/preload.js  16.43 kB │ gzip: 4.27 kB
+[2026-05-28T23:09:26.925Z] [dev:stdout] [36mbuilt in 101ms.[39m
+[2026-05-28T23:09:26.925Z] [dev:stdout] [36mbuilt in 101ms.[39m
+[2026-05-28T23:09:26.925Z] [dev:stdout] [36mbuilt in 102ms.[39m
+[2026-05-28T23:09:26.925Z] [dev:stdout] [36mbuilt in 102ms.[39m
+[2026-05-28T23:09:26.927Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.928Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.928Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.928Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.948Z] [dev:stdout] [2Ktransforming...[2K
+[2026-05-28T23:09:26.948Z] [dev:stdout] transforming...
+[2026-05-28T23:09:26.950Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.951Z] [dev:stdout] ✓ 3 modules transformed.
+[2026-05-28T23:09:26.971Z] [dev:stdout] dist-electron/workers/FontMutatorWorker.js  572.89 kB │ gzip: 126.86 kB
+[2026-05-28T23:09:26.975Z] [dev:stdout] [36mbuilt in 150ms.[39m
+[2026-05-28T23:09:26.978Z] [dev:stdout] ✓ 4 modules transformed.
+[2026-05-28T23:09:26.978Z] [dev:stdout] [36m
+[2026-05-28T23:09:26.978Z] [dev:stdout] build started...[39m
+[2026-05-28T23:09:26.985Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.986Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.986Z] [dev:stdout] [2Ktransforming...
+[2026-05-28T23:09:26.990Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:26.990Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:26.991Z] [dev:stdout] dist-electron/workers/OtfMutatorWorker.js  7.84 kB │ gzip: 3.18 kB
+[2026-05-28T23:09:26.991Z] [dev:stdout] [36mbuilt in 63ms.[39m
+[2026-05-28T23:09:27.001Z] [dev:stdout] ✓ 121 modules transformed.
+[2026-05-28T23:09:27.001Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:27.002Z] [dev:stdout] dist-electron/kakao/preload.js  30.57 kB │ gzip: 7.98 kB
+[2026-05-28T23:09:27.002Z] [dev:stdout] [36mbuilt in 74ms.[39m
+[2026-05-28T23:09:27.015Z] [dev:stdout] rendering chunks...
+[2026-05-28T23:09:27.029Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:27.034Z] [dev:stdout] dist-electron/workers/FontMutatorWorker.js  572.89 kB │ gzip: 126.86 kB
+[2026-05-28T23:09:27.035Z] [dev:stdout] [36mbuilt in 56ms.[39m
+[2026-05-28T23:09:27.076Z] [dev:stdout] computing gzip size...
+[2026-05-28T23:09:27.102Z] [dev:stdout] dist-electron/main.js  2,776.86 kB │ gzip: 631.89 kB
+[2026-05-28T23:09:27.102Z] [dev:stdout] [36mbuilt in 281ms.[39m
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: DEBUG:LOG (Handler: DebugLogHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: ConfigChangeSyncHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:DELETE (Handler: ConfigDeleteSyncHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:GAME_START_CLICK (Handler: StartPoe1KakaoHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:GAME_START_CLICK (Handler: StartPoe2KakaoHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:GAME_START_CLICK (Handler: StartPoeGggHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PROCESS:START (Handler: CleanupLauncherWindowHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: GAME:STATUS_CHANGE (Handler: GameStatusSyncHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PROCESS:START (Handler: GameProcessStartHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PROCESS:STOP (Handler: GameProcessStopHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: GameInstallCheckHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: SYSTEM:WAKE_UP (Handler: SystemWakeUpHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:UPDATE_CHECK (Handler: UpdateCheckHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:UPDATE_DOWNLOAD (Handler: UpdateDownloadHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:UPDATE_INSTALL (Handler: UpdateInstallHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: LOG:SESSION_START (Handler: LogSessionHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: LOG:WEB_ROOT_FOUND (Handler: LogWebRootHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: LOG:ERROR_DETECTED (Handler: LogErrorHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PROCESS:STOP (Handler: AutoPatchProcessStopHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PATCH:PROGRESS (Handler: PatchProgressHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: AutoLaunchHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: PROCESS:WILL_TERMINATE (Handler: ProcessWillTerminateHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: DEVTOOLS:SYNC_VISIBILITY (Handler: DevToolsVisibilityHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: ChangelogCheckHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: UI:SHOW_CHANGELOG (Handler: ChangelogUISyncHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: UacHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: InactiveWindowVisibilityHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: APP:UPDATE_WINDOW_TITLE (Handler: UpdateWindowTitleHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: DisplaySettingsHandler)
+[2026-05-28T23:09:27.603Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: GAME:STATUS_CHANGE (Handler: ActiveSessionTracker)
+[2026-05-28T23:09:27.604Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: DebugWindowTicker)
+[2026-05-28T23:09:27.604Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: DevToolsSyncManager)
+[2026-05-28T23:09:27.604Z] [dev:stdout] [오전 8:09:27] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: WindowTitleSyncManager)
+[2026-05-28T23:09:27.624Z] [dev:stderr] DevTools listening on ws://127.0.0.1:9323/devtools/browser/d3b14d80-7bd2-415c-97b7-b5a1868d93e5
+[2026-05-28T23:09:27.625Z] [dev:stdout] [오전 8:09:27] [ipc-font] Font IPC Handlers registered
+[2026-05-28T23:09:27.629Z] [dev:stdout] [오전 8:09:27] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:27.630Z] [dev:stdout] [오전 8:09:27] [process_normal] Spawning Normal Session...
+[2026-05-28T23:09:29.584Z] [agent] CDP endpoint is ready
+[2026-05-28T23:09:29.727Z] [dev:stdout] [오전 8:09:29] [process_normal] Normal Client Connected!
+[2026-05-28T23:09:29.783Z] [dev:stdout] [오전 8:09:29] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:29.783Z] [dev:stdout] [오전 8:09:29] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" -Name "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe"
+[2026-05-28T23:09:29.787Z] [dev:stdout] [오전 8:09:29] [process_normal] RUNASINVOKER
+[2026-05-28T23:09:29.787Z] [dev:stdout] [오전 8:09:29] [GENERAL] [SimpleUac] Check Status: true (Path: C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe)
+[2026-05-28T23:09:29.788Z] [dev:stdout] [오전 8:09:29] [GENERAL] [AutoLaunch] Syncing settings: OpenAtLogin=true, Minimized=true
+[2026-05-28T23:09:29.788Z] [dev:stdout] [오전 8:09:29] [GENERAL] [AutoLaunch] Dev mode detected. Skipping OS registration. (HIDDEN_ARG="--hidden")
+[2026-05-28T23:09:29.808Z] [dev:stdout] [오전 8:09:29] [GENERAL] [WindowResolution] Applying rules. Auto: true, Mode: 1440x960, WorkArea: 5120x1440
+[2026-05-28T23:09:29.809Z] [dev:stdout] [오전 8:09:29] [GENERAL] [WindowResolution] Current: 1440x960, Target: 1440x960, Resizable: true
+[2026-05-28T23:09:29.820Z] [dev:stdout] [오전 8:09:29] [GENERAL] [Security] Applying policy to partition: default
+[2026-05-28T23:09:29.821Z] [dev:stdout] [오전 8:09:29] [GENERAL] [Security] Applying policy to partition: persist:kakao_game
+[2026-05-28T23:09:29.823Z] [dev:stdout] [오전 8:09:29] [GENERAL] [Security] Applying policy to partition: persist:ggg_game
+[2026-05-28T23:09:29.823Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] Registered handler for event: TOOL:FORCE_REPAIR (Handler: ToolForceRepairHandler)
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] ***************************************************************************************
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL]  _   _  _____ ______ ______  _   _  _____   ___  ______          _       ___  ______
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] | \ | ||  ___|| ___ \|  _  \| | | ||  ___| / _ \ |  _  \        | |     / _ \ | ___ \
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] |  \| || |__  | |_/ /| | | || |_| || |__  / /_\ \| | | | ______ | |    / /_\ \| |_/ /
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] | . ` ||  __| |    / | | | ||  _  ||  __| |  _  || | | ||______|| |    |  _  || ___ \
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] | |\  || |___ | |\ \ | |/ / | | | || |___ | | | || |/ /         | |____| | | || |_/ /
+[2026-05-28T23:09:29.824Z] [dev:stdout] [오전 8:09:29] [GENERAL] \_| \_/\____/ \_| \_||___/  \_| |_/\____/ \_| |_/|___/          \_____/\_| |_/\____/
+[2026-05-28T23:09:29.825Z] [dev:stdout] [오전 8:09:29] [GENERAL] ***************************************************************************************
+[2026-05-28T23:09:29.825Z] [dev:stdout] [오전 8:09:29] [GENERAL] [Main] Main Logger initialized.
+[2026-05-28T23:09:29.825Z] [dev:stdout] [오전 8:09:29] [GENERAL] [Main] Checking initial status for all game contexts...
+[2026-05-28T23:09:29.826Z] [dev:stdout] [오전 8:09:29] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\DaumGames\POE") {
+[2026-05-28T23:09:29.826Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\DaumGames\POE" -Name "InstallPath" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:29.826Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:29.826Z] [dev:stdout]             $prop."InstallPath"
+[2026-05-28T23:09:29.826Z] [dev:stdout]         }
+[2026-05-28T23:09:29.826Z] [dev:stdout]       }
+[2026-05-28T23:09:29.826Z] [dev:stdout] [오전 8:09:29] [GENERAL] [AutoLaunch] Syncing settings: OpenAtLogin=true, Minimized=true
+[2026-05-28T23:09:29.826Z] [dev:stdout] [오전 8:09:29] [GENERAL] [AutoLaunch] Dev mode detected. Skipping OS registration. (HIDDEN_ARG="--hidden")
+[2026-05-28T23:09:29.826Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service registered: ThemeCacheManager
+[2026-05-28T23:09:29.826Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service registered: ProcessWatcher
+[2026-05-28T23:09:29.827Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service registered: LogWatcher
+[2026-05-28T23:09:29.827Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] Registered handler for event: CONFIG:CHANGE (Handler: PatchReservationRefreshHandler)
+[2026-05-28T23:09:29.827Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] Registered handler for event: PATCH:RETRY_REQUESTED (Handler: PatchReservationRetryHandler)
+[2026-05-28T23:09:29.827Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service registered: PatchReservationService
+[2026-05-28T23:09:29.827Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service registered: UpdateSchedulerService
+[2026-05-28T23:09:29.828Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Initializing all services...
+[2026-05-28T23:09:29.835Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Loaded themes from local themes.json.
+[2026-05-28T23:09:29.835Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Starting full theme asset pre-caching...
+[2026-05-28T23:09:29.836Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Checking for remote theme updates...
+[2026-05-28T23:09:29.836Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Themes are still fresh (< 4h). Skipping remote sync.
+[2026-05-28T23:09:29.836Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service initialized: ThemeCacheManager
+[2026-05-28T23:09:29.836Z] [dev:stdout] [오전 8:09:29] [PROCESS_WATCHER] Starting Watcher Service (PID-based)...
+[2026-05-28T23:09:29.837Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service initialized: ProcessWatcher
+[2026-05-28T23:09:29.837Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] Registered handler for event: PROCESS:START (Handler: anonymous_PROCESS:START_1780009769837_0.04732478190430889)
+[2026-05-28T23:09:29.837Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] Registered handler for event: PROCESS:STOP (Handler: anonymous_PROCESS:STOP_1780009769837_0.6498961307122582)
+[2026-05-28T23:09:29.838Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service initialized: LogWatcher
+[2026-05-28T23:09:29.838Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service initialized: PatchReservationService
+[2026-05-28T23:09:29.838Z] [dev:stdout] [오전 8:09:29] [GENERAL] [UpdateSchedulerService] Starting background update scheduler.
+[2026-05-28T23:09:29.838Z] [dev:stdout] [오전 8:09:29] [GENERAL] [ServiceManager] Service initialized: UpdateSchedulerService
+[2026-05-28T23:09:29.846Z] [dev:stdout] [오전 8:09:29] [process_normal] G:\Daum Games\Path of Exile
+[2026-05-28T23:09:29.849Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 📢 Emit: GAME:STATUS_CHANGE { gameId: 'POE1', serviceId: 'Kakao Games', status: 'idle' }
+[2026-05-28T23:09:29.849Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: GameStatusSyncHandler
+[2026-05-28T23:09:29.850Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: ActiveSessionTracker
+[2026-05-28T23:09:29.850Z] [dev:stdout] [오전 8:09:29] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\DaumGames\POE2") {
+[2026-05-28T23:09:29.850Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\DaumGames\POE2" -Name "InstallPath" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:29.850Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:29.850Z] [dev:stdout]             $prop."InstallPath"
+[2026-05-28T23:09:29.850Z] [dev:stdout]         }
+[2026-05-28T23:09:29.850Z] [dev:stdout]       }
+[2026-05-28T23:09:29.852Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Loaded themes from local themes.json.
+[2026-05-28T23:09:29.852Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Starting full theme asset pre-caching...
+[2026-05-28T23:09:29.852Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Checking for remote theme updates...
+[2026-05-28T23:09:29.852Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Themes are still fresh (< 4h). Skipping remote sync.
+[2026-05-28T23:09:29.871Z] [dev:stdout] [오전 8:09:29] [process_normal] G:\Daum Games\Path of Exile2
+[2026-05-28T23:09:29.872Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 📢 Emit: GAME:STATUS_CHANGE { gameId: 'POE2', serviceId: 'Kakao Games', status: 'idle' }
+[2026-05-28T23:09:29.872Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: GameStatusSyncHandler
+[2026-05-28T23:09:29.873Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: ActiveSessionTracker
+[2026-05-28T23:09:29.873Z] [dev:stdout] [오전 8:09:29] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\GrindingGearGames\Path of Exile") {
+[2026-05-28T23:09:29.873Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\GrindingGearGames\Path of Exile" -Name "InstallLocation" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:29.873Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:29.873Z] [dev:stdout]             $prop."InstallLocation"
+[2026-05-28T23:09:29.873Z] [dev:stdout]         }
+[2026-05-28T23:09:29.873Z] [dev:stdout]       }
+[2026-05-28T23:09:29.882Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 📢 Emit: GAME:STATUS_CHANGE { gameId: 'POE1', serviceId: 'GGG', status: 'uninstalled' }
+[2026-05-28T23:09:29.882Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: GameStatusSyncHandler
+[2026-05-28T23:09:29.882Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: ActiveSessionTracker
+[2026-05-28T23:09:29.882Z] [dev:stdout] [오전 8:09:29] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\GrindingGearGames\Path of Exile 2") {
+[2026-05-28T23:09:29.882Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\GrindingGearGames\Path of Exile 2" -Name "InstallLocation" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:29.882Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:29.882Z] [dev:stdout]             $prop."InstallLocation"
+[2026-05-28T23:09:29.882Z] [dev:stdout]         }
+[2026-05-28T23:09:29.882Z] [dev:stdout]       }
+[2026-05-28T23:09:29.886Z] [dev:stdout] [오전 8:09:29] [process_normal] G:\Grinding Gear Games\Path of Exile 2\
+[2026-05-28T23:09:29.886Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 📢 Emit: GAME:STATUS_CHANGE { gameId: 'POE2', serviceId: 'GGG', status: 'idle' }
+[2026-05-28T23:09:29.886Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: GameStatusSyncHandler
+[2026-05-28T23:09:29.887Z] [dev:stdout] [오전 8:09:29] [EVENT_BUS] 👉 Executing Handler: ActiveSessionTracker
+[2026-05-28T23:09:29.988Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Full theme asset pre-caching completed.
+[2026-05-28T23:09:29.992Z] [dev:stdout] [오전 8:09:29] [THEME_CACHE] Full theme asset pre-caching completed.
+[2026-05-28T23:09:30.090Z] [renderer:launcher:debug] [vite] connecting...
+[2026-05-28T23:09:30.098Z] [renderer:launcher:debug] [vite] connected.
+[2026-05-28T23:09:30.122Z] [renderer:launcher:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-28T23:09:30.139Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [Renderer] Renderer Logger initialized.
+[2026-05-28T23:09:30.181Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.182Z] [agent] enabled pob:treePerf localStorage flag
+[2026-05-28T23:09:30.198Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UAC-Migration] Starting Legacy Detection...
+[2026-05-28T23:09:30.198Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.199Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer requested title update. Broadcasting...
+[2026-05-28T23:09:30.199Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Title Broadcasted: PoE 2 Unofficial Launcher v1.2.6
+[2026-05-28T23:09:30.199Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 📢 Emit: UI:UPDATE_CHECK
+[2026-05-28T23:09:30.200Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 👉 Executing Handler: UpdateCheckHandler
+[2026-05-28T23:09:30.200Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UpdateHandler] Skipping update check in development mode.
+[2026-05-28T23:09:30.202Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching developer notices...
+[2026-05-28T23:09:30.208Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer is ready to receive fatal errors.
+[2026-05-28T23:09:30.208Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.211Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UAC-Migration] Starting Legacy Detection...
+[2026-05-28T23:09:30.211Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.211Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer requested title update. Broadcasting...
+[2026-05-28T23:09:30.212Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 📢 Emit: UI:UPDATE_CHECK
+[2026-05-28T23:09:30.212Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 👉 Executing Handler: UpdateCheckHandler
+[2026-05-28T23:09:30.212Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UpdateHandler] Skipping update check in development mode.
+[2026-05-28T23:09:30.214Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching developer notices...
+[2026-05-28T23:09:30.215Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer is ready to receive fatal errors.
+[2026-05-28T23:09:30.215Z] [dev:stdout] [오전 8:09:30] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:30.216Z] [dev:stdout] [오전 8:09:30] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:30.216Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ScheduledTask -TaskName "SkipDaumGameStarterUAC" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:30.216Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" -Name "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe"
+[2026-05-28T23:09:30.222Z] [dev:stdout] [오전 8:09:30] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:30.222Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" -Name "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe"
+[2026-05-28T23:09:30.223Z] [dev:stdout] [오전 8:09:30] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:30.224Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ScheduledTask -TaskName "SkipDaumGameStarterUAC" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:30.258Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Successfully fetched 4 developer notices.
+[2026-05-28T23:09:30.258Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Successfully fetched 4 developer notices.
+[2026-05-28T23:09:30.262Z] [dev:stdout] [오전 8:09:30] [sync-engine] Using cached font catalog (matches 24h policy).
+[2026-05-28T23:09:30.266Z] [renderer:launcher:debug] [vite] connecting...
+[2026-05-28T23:09:30.282Z] [dev:stdout] [오전 8:09:30] [THEME_CACHE] [Theme] POE2: Successfully applied remote theme '0.4'.
+[2026-05-28T23:09:30.290Z] [renderer:launcher:debug] [vite] connected.
+[2026-05-28T23:09:30.349Z] [dev:stdout] [오전 8:09:30] [THEME_CACHE] [Theme] POE1: Successfully applied remote theme '3.28'.
+[2026-05-28T23:09:30.353Z] [renderer:launcher:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-28T23:09:30.355Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [Renderer] Renderer Logger initialized.
+[2026-05-28T23:09:30.396Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.402Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UAC-Migration] Starting Legacy Detection...
+[2026-05-28T23:09:30.402Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.403Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer requested title update. Broadcasting...
+[2026-05-28T23:09:30.405Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 📢 Emit: UI:UPDATE_CHECK
+[2026-05-28T23:09:30.405Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 👉 Executing Handler: UpdateCheckHandler
+[2026-05-28T23:09:30.406Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UpdateHandler] Skipping update check in development mode.
+[2026-05-28T23:09:30.408Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching developer notices...
+[2026-05-28T23:09:30.409Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer is ready to receive fatal errors.
+[2026-05-28T23:09:30.409Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.414Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UAC-Migration] Starting Legacy Detection...
+[2026-05-28T23:09:30.414Z] [dev:stdout] [오전 8:09:30] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Classes\daumgamestarter\shell\open\command" -Name "(default)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "(default)"
+[2026-05-28T23:09:30.415Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer requested title update. Broadcasting...
+[2026-05-28T23:09:30.416Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 📢 Emit: UI:UPDATE_CHECK
+[2026-05-28T23:09:30.416Z] [dev:stdout] [오전 8:09:30] [EVENT_BUS] 👉 Executing Handler: UpdateCheckHandler
+[2026-05-28T23:09:30.416Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UpdateHandler] Skipping update check in development mode.
+[2026-05-28T23:09:30.418Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching developer notices...
+[2026-05-28T23:09:30.419Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Renderer is ready to receive fatal errors.
+[2026-05-28T23:09:30.429Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Successfully fetched 4 developer notices.
+[2026-05-28T23:09:30.432Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Successfully fetched 4 developer notices.
+[2026-05-28T23:09:30.478Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [Theme] Theme definitions synced from main process.
+[2026-05-28T23:09:30.538Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [Theme] POE2 theme is already up-to-date in cache.
+[2026-05-28T23:09:30.825Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [Splash] Theme synced. Splash screen removed.
+[2026-05-28T23:09:30.848Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [App] Remote versions loaded: [Object, Object]
+[2026-05-28T23:09:30.848Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [App] Remote versions loaded: [Object, Object]
+[2026-05-28T23:09:30.939Z] [dev:stdout] [오전 8:09:30] [GENERAL] [UAC-Migration] No legacy traces found.
+[2026-05-28T23:09:30.942Z] [dev:stdout] [오전 8:09:30] [process_normal] RUNASINVOKER
+[2026-05-28T23:09:30.943Z] [dev:stdout] [오전 8:09:30] [GENERAL] [SimpleUac] Check Status: true (Path: C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe)
+[2026-05-28T23:09:30.944Z] [dev:stdout] [오전 8:09:30] [process_normal] RUNASINVOKER
+[2026-05-28T23:09:30.945Z] [dev:stdout] [오전 8:09:30] [GENERAL] [SimpleUac] Check Status: true (Path: C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe)
+[2026-05-28T23:09:30.976Z] [renderer:launcher:log] [오전 8:09:30] [GENERAL] [FSM] IDLE -> ANIMATING
+[2026-05-28T23:09:30.978Z] [dev:stdout] [오전 8:09:30] [GENERAL] [Main] Starting hidden (minimized to tray).
+[2026-05-28T23:09:30.979Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching notice for Kakao Games-POE2...
+[2026-05-28T23:09:30.980Z] [dev:stdout] [오전 8:09:30] [NEWS_SERVICE] Fetching patch-notes for Kakao Games-POE2...
+[2026-05-28T23:09:31.415Z] [dev:stdout] [오전 8:09:31] [GENERAL] [UAC-Migration] No legacy traces found.
+[2026-05-28T23:09:31.418Z] [dev:stdout] [오전 8:09:31] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:31.418Z] [dev:stdout] [오전 8:09:31] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" -Name "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe"
+[2026-05-28T23:09:31.420Z] [dev:stdout] [오전 8:09:31] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:31.420Z] [dev:stdout] [오전 8:09:31] [process_normal] > Get-ScheduledTask -TaskName "SkipDaumGameStarterUAC" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:31.441Z] [dev:stdout] [오전 8:09:31] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:31.441Z] [dev:stdout] [오전 8:09:31] [process_normal] > Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" -Name "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe"
+[2026-05-28T23:09:31.443Z] [dev:stdout] [오전 8:09:31] [process_normal] C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe "%1"
+[2026-05-28T23:09:31.443Z] [dev:stdout] [오전 8:09:31] [process_normal] > Get-ScheduledTask -TaskName "SkipDaumGameStarterUAC" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:31.445Z] [dev:stdout] [오전 8:09:31] [process_normal] RUNASINVOKER
+[2026-05-28T23:09:31.445Z] [dev:stdout] [오전 8:09:31] [GENERAL] [SimpleUac] Check Status: true (Path: C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe)
+[2026-05-28T23:09:31.739Z] [dev:stdout] [오전 8:09:31] [NEWS_SERVICE] Successfully fetched patch-notes for Kakao Games-POE2.
+[2026-05-28T23:09:31.782Z] [dev:stdout] [오전 8:09:31] [NEWS_SERVICE] Successfully fetched notice for Kakao Games-POE2.
+[2026-05-28T23:09:31.791Z] [dev:stdout] [오전 8:09:31] [NEWS_SERVICE] Fetching notice for Kakao Games-POE2...
+[2026-05-28T23:09:31.792Z] [dev:stdout] [오전 8:09:31] [NEWS_SERVICE] Fetching patch-notes for Kakao Games-POE2...
+[2026-05-28T23:09:31.925Z] [dev:stdout] [오전 8:09:31] [GENERAL] [UAC-Migration] No legacy traces found.
+[2026-05-28T23:09:31.926Z] [dev:stdout] [오전 8:09:31] [process_normal] RUNASINVOKER
+[2026-05-28T23:09:31.927Z] [dev:stdout] [오전 8:09:31] [GENERAL] [SimpleUac] Check Status: true (Path: C:\Users\Default\AppData\Roaming\DaumGames\DaumGameStarter.exe)
+[2026-05-28T23:09:31.983Z] [dev:stdout] [오전 8:09:31] [GENERAL] [PoB] using stored location G:\Path of Building Community (PoE2) (HKCU)
+[2026-05-28T23:09:31.984Z] [dev:stdout] [오전 8:09:31] [GENERAL] [PoB] creating window for POE2, preload=D:\project_poe2\POE2-unofficial-launcher\dist-electron\pob-preload.js
+[2026-05-28T23:09:31.990Z] [dev:stdout] [오전 8:09:31] [GENERAL] [PoB] loadURL http://localhost:54321/pob.html#game=POE2
+[2026-05-28T23:09:31.997Z] [agent] clicked PoB Unofficial Wrapper launcher button
+[2026-05-28T23:09:32.053Z] [renderer:pob:debug] [vite] connecting...
+[2026-05-28T23:09:32.059Z] [renderer:pob:debug] [vite] connected.
+[2026-05-28T23:09:32.115Z] [renderer:pob:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-28T23:09:32.126Z] [dev:stdout] [오전 8:09:32] [GENERAL] [PoB] ready-to-show (agent hidden)
+[2026-05-28T23:09:32.176Z] [dev:stdout] [오전 8:09:32] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Path of Building Community (PoE2)") {
+[2026-05-28T23:09:32.176Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Path of Building Community (PoE2)" -Name "InstallLocation" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:32.176Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:32.176Z] [dev:stdout]             $prop."InstallLocation"
+[2026-05-28T23:09:32.176Z] [dev:stdout]         }
+[2026-05-28T23:09:32.176Z] [dev:stdout]       }
+[2026-05-28T23:09:32.177Z] [dev:stdout] [오전 8:09:32] [process_normal] > if (Test-Path "Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Path of Building Community (PoE2)") {
+[2026-05-28T23:09:32.178Z] [dev:stdout]         $prop = Get-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Path of Building Community (PoE2)" -Name "InstallLocation" -ErrorAction SilentlyContinue
+[2026-05-28T23:09:32.178Z] [dev:stdout]         if ($prop) {
+[2026-05-28T23:09:32.178Z] [dev:stdout]             $prop."InstallLocation"
+[2026-05-28T23:09:32.178Z] [dev:stdout]         }
+[2026-05-28T23:09:32.178Z] [dev:stdout]       }
+[2026-05-28T23:09:32.422Z] [dev:stdout] [오전 8:09:32] [GENERAL] [UAC-Migration] No legacy traces found.
+[2026-05-28T23:09:32.423Z] [dev:stdout] [오전 8:09:32] [process_normal] "G:\Path of Building Community (PoE2)"
+[2026-05-28T23:09:32.424Z] [dev:stdout] [오전 8:09:32] [process_normal] "G:\Path of Building Community (PoE2)"
+[2026-05-28T23:09:32.544Z] [dev:stdout] [오전 8:09:32] [NEWS_SERVICE] Successfully fetched patch-notes for Kakao Games-POE2.
+[2026-05-28T23:09:32.575Z] [dev:stdout] [오전 8:09:32] [NEWS_SERVICE] Successfully fetched notice for Kakao Games-POE2.
+[2026-05-28T23:09:37.001Z] [agent] PoB wrapper page attached
+[2026-05-28T23:09:38.026Z] [agent] selected build: Imported Build2
+[2026-05-28T23:09:38.092Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] spawning luajit (cwd=C:\Users\nerdl\AppData\Roaming\POE2 Unofficial Launcher\pob-vault\0.15.0)
+[2026-05-28T23:09:38.124Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Loading main script...
+[2026-05-28T23:09:38.302Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Unicode support detected
+[2026-05-28T23:09:38.319Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Loading passive tree data for version '0_4'...
+[2026-05-28T23:09:38.345Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Loading passive tree assets...
+[2026-05-28T23:09:38.348Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Processing tree...
+[2026-05-28T23:09:38.459Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 63493
+[2026-05-28T23:09:38.459Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 24665
+[2026-05-28T23:09:38.464Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 35715
+[2026-05-28T23:09:38.464Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 28429
+[2026-05-28T23:09:38.464Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 26353
+[2026-05-28T23:09:38.464Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 950
+[2026-05-28T23:09:38.474Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 45406
+[2026-05-28T23:09:38.474Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 50198
+[2026-05-28T23:09:38.474Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 5162
+[2026-05-28T23:09:38.474Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 11495
+[2026-05-28T23:09:38.477Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 10889
+[2026-05-28T23:09:38.477Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 62386
+[2026-05-28T23:09:38.477Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 39383
+[2026-05-28T23:09:38.482Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 51916
+[2026-05-28T23:09:38.482Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 54579
+[2026-05-28T23:09:38.482Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] missing node 16732
+[2026-05-28T23:09:38.517Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Validating auth token
+[2026-05-28T23:09:38.624Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Startup time: 0 ms
+[2026-05-28T23:09:38.725Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Uniques loaded
+[2026-05-28T23:09:38.764Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Rares loaded
+[2026-05-28T23:09:38.764Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] READY
+[2026-05-28T23:09:38.772Z] [dev:stdout] [오전 8:09:38] [GENERAL] [PoBSession] Validating auth token
+[2026-05-28T23:09:39.312Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start lua:pob.tree.snapshot 208.0ms build=/Imported Build2:0 treeVersion=0_4 nodes=4701
+[2026-05-28T23:09:39.312Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start ipc:pob:tree-snapshot 208.5ms build=/Imported Build2:0
+[2026-05-28T23:09:39.380Z] [renderer:pob:debug] [pob-tree] cold-start snapshot 273.4ms {scenario: cold-start, stage: snapshot, durationMs: 273.40000000596046}
+[2026-05-28T23:09:39.459Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start lua:pob.tree.metadata 354.9ms build=/Imported Build2:0
+[2026-05-28T23:09:39.460Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start main:tree-vault-path 1.1ms build=/Imported Build2:0
+[2026-05-28T23:09:39.460Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start ipc:pob:tree-metadata 356.6ms build=/Imported Build2:0
+[2026-05-28T23:09:39.509Z] [renderer:pob:debug] [pob-tree] cold-start metadata 404.4ms {scenario: cold-start, stage: metadata, durationMs: 404.3999999910593}
+[2026-05-28T23:09:39.698Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start lua:pob.tree.snapshot 593.8ms build=/Imported Build2:0 treeVersion=0_4 nodes=4701
+[2026-05-28T23:09:39.699Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start ipc:pob:tree-snapshot 594.6ms build=/Imported Build2:0
+[2026-05-28T23:09:39.818Z] [renderer:pob:debug] [pob-tree] cold-start snapshot 657.3ms {scenario: cold-start, stage: snapshot, durationMs: 657.2999999970198}
+[2026-05-28T23:09:39.909Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start lua:pob.tree.metadata 805.0ms build=/Imported Build2:0
+[2026-05-28T23:09:39.910Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start main:tree-vault-path 0.5ms build=/Imported Build2:0
+[2026-05-28T23:09:39.910Z] [dev:stdout] [오전 8:09:39] [GENERAL] [pob-tree] cold-start ipc:pob:tree-metadata 806.1ms build=/Imported Build2:0
+[2026-05-28T23:09:40.063Z] [renderer:pob:debug] [pob-tree] cold-start metadata 958.7ms {scenario: cold-start, stage: metadata, durationMs: 958.7000000029802}
+[2026-05-28T23:09:42.864Z] [renderer:pob:debug] [pob-tree] cold-start translate-tree 2772.3ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: translate-tree, durationMs: 2772.2999999970198, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.864Z] [renderer:pob:debug] [pob-tree] cold-start translate-tree 0.0ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: translate-tree, durationMs: 0, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.867Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 3.1ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 3.0999999940395355, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.869Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 1.8ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 1.7999999970197678, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.890Z] [renderer:pob:debug] [pob-tree] cold-start resource-manifest 5.4ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: resource-manifest, durationMs: 5.4000000059604645, treeVersion: 0_4, nodeCount: 4701}
+[2026-05-28T23:09:42.922Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 19.6ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 19.599999994039536, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.922Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 2.2ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 2.2000000029802322, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.922Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 1.4ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 1.4000000059604645, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:42.941Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 16.7ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 16.700000002980232, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-28T23:09:43.109Z] [agent] passive tree canvas is visible
+[2026-05-28T23:09:43.109Z] [agent] captured 23 tree perf log lines

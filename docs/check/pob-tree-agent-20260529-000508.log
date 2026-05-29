@@ -1,0 +1,63 @@
+[2026-05-29T00:05:08.117Z] [agent] starting hidden Electron agent on CDP port 9323
+[2026-05-29T00:05:08.118Z] [agent] target build: Imported Build2
+[2026-05-29T00:05:08.316Z] [dev:stdout] > poe2-unofficial-launcher@1.2.6 dev:agent:app
+[2026-05-29T00:05:08.316Z] [dev:stdout] > chcp 65001 && cross-env POE2_AGENT_MODE=1 POE2_AGENT_DEBUG_PORT=9323 vite
+[2026-05-29T00:05:08.358Z] [dev:stdout] Active code page: 65001
+[2026-05-29T00:05:08.663Z] [dev:stderr] [33m`resolve.alias` contains an alias with `customResolver` option. This is deprecated and will be removed in Vite 9. Please use a custom plugin with a resolveId hook and `enforce: 'pre'` instead.[39m
+[2026-05-29T00:05:08.693Z] [dev:stderr] [31merror when starting dev server:
+[2026-05-29T00:05:08.693Z] [dev:stderr] Error: Port 54321 is already in use
+[2026-05-29T00:05:08.693Z] [dev:stderr]     at httpServerStart (file:///D:/project_poe2/POE2-unofficial-launcher/node_modules/vite/dist/node/chunks/node.js:10661:10)
+[2026-05-29T00:05:08.693Z] [dev:stderr]     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[2026-05-29T00:05:08.693Z] [dev:stderr]     at async startServer (file:///D:/project_poe2/POE2-unofficial-launcher/node_modules/vite/dist/node/chunks/node.js:26389:30)
+[2026-05-29T00:05:08.693Z] [dev:stderr]     at async Object.listen (file:///D:/project_poe2/POE2-unofficial-launcher/node_modules/vite/dist/node/chunks/node.js:26206:4)
+[2026-05-29T00:05:08.693Z] [dev:stderr]     at async CAC.<anonymous> (file:///D:/project_poe2/POE2-unofficial-launcher/node_modules/vite/dist/node/cli.js:721:3)[39m
+[2026-05-29T00:07:36.117Z] [agent] CDP endpoint is ready
+[2026-05-29T00:07:36.647Z] [agent] enabled pob:treePerf localStorage flag
+[2026-05-29T00:07:36.682Z] [renderer:launcher:debug] [vite] connecting...
+[2026-05-29T00:07:36.696Z] [renderer:launcher:debug] [vite] connected.
+[2026-05-29T00:07:36.712Z] [renderer:launcher:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-29T00:07:36.730Z] [renderer:launcher:log] [오전 9:07:36] [GENERAL] [Renderer] Renderer Logger initialized.
+[2026-05-29T00:07:36.852Z] [renderer:launcher:debug] [vite] connecting...
+[2026-05-29T00:07:36.869Z] [renderer:launcher:debug] [vite] connected.
+[2026-05-29T00:07:36.942Z] [renderer:launcher:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-29T00:07:36.943Z] [renderer:launcher:log] [오전 9:07:36] [GENERAL] [Renderer] Renderer Logger initialized.
+[2026-05-29T00:07:37.060Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [Theme] Theme definitions synced from main process.
+[2026-05-29T00:07:37.105Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [Theme] POE2 theme is already up-to-date in cache.
+[2026-05-29T00:07:37.406Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [Splash] Theme synced. Splash screen removed.
+[2026-05-29T00:07:37.495Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [App] Remote versions loaded: [Object, Object]
+[2026-05-29T00:07:37.495Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [App] Remote versions loaded: [Object, Object]
+[2026-05-29T00:07:37.527Z] [renderer:launcher:log] [오전 9:07:37] [GENERAL] [FSM] IDLE -> ANIMATING
+[2026-05-29T00:07:38.545Z] [agent] clicked PoB Unofficial Wrapper launcher button
+[2026-05-29T00:07:38.604Z] [renderer:pob:debug] [vite] connecting...
+[2026-05-29T00:07:38.619Z] [renderer:pob:debug] [vite] connected.
+[2026-05-29T00:07:38.672Z] [renderer:pob:info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[2026-05-29T00:07:43.559Z] [agent] PoB wrapper page attached
+[2026-05-29T00:07:44.581Z] [agent] selected build: Imported Build2
+[2026-05-29T00:07:45.821Z] [renderer:pob:debug] [pob-tree] cold-start snapshot 293.2ms {scenario: cold-start, stage: snapshot, durationMs: 293.20000000298023}
+[2026-05-29T00:07:45.978Z] [renderer:pob:debug] [pob-tree] cold-start metadata 451.5ms {scenario: cold-start, stage: metadata, durationMs: 451.5}
+[2026-05-29T00:07:46.308Z] [renderer:pob:debug] [pob-tree] cold-start snapshot 644.3ms {scenario: cold-start, stage: snapshot, durationMs: 644.2999999970198}
+[2026-05-29T00:07:46.416Z] [renderer:pob:debug] [pob-tree] cold-start metadata 889.1ms {scenario: cold-start, stage: metadata, durationMs: 889.0999999940395}
+[2026-05-29T00:07:49.053Z] [renderer:pob:debug] [pob-tree] cold-start translate-tree 2480.2ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: translate-tree, durationMs: 2480.2000000029802, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.053Z] [renderer:pob:debug] [pob-tree] cold-start translate-tree 0.0ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: translate-tree, durationMs: 0, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.057Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 3.7ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 3.699999988079071, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.059Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 2.0ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 2, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.093Z] [renderer:pob:debug] [pob-tree] cold-start resource-manifest 5.4ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: resource-manifest, durationMs: 5.4000000059604645, treeVersion: 0_4, nodeCount: 4701}
+[2026-05-29T00:07:49.125Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 16.8ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 16.799999997019768, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.135Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 3.3ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 3.2999999970197678, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.137Z] [renderer:pob:debug] [pob-tree] cold-start project-scene 1.6ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: project-scene, durationMs: 1.6000000089406967, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.165Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 24.7ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 24.700000002980232, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.543Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 92.5ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 92.5, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.843Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 47.9ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 47.900000005960464, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:49.958Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 49.2ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 49.20000000298023, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:50.156Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 51.5ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 51.5, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:50.385Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 57.1ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 57.1000000089407, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:50.841Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 65.9ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 65.90000000596046, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:51.268Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 51.6ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 51.599999994039536, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:51.652Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 64.2ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 64.19999998807907, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:52.272Z] [renderer:pob:debug] [pob-tree] cold-start resource-load 3178.1ms tree=0_4 nodes=4701 resources=1179 cacheHits=0 build=/Imported Build2:0 {scenario: cold-start, stage: resource-load, durationMs: 3178.0999999940395, resourceCount: 1179, cacheHits: 0}
+[2026-05-29T00:07:52.342Z] [renderer:pob:debug] [pob-tree] cold-start canvas-draw 61.7ms tree=0_4 nodes=4701 build=/Imported Build2:0 {scenario: cold-start, stage: canvas-draw, durationMs: 61.70000000298023, nodeCount: 4701, treeVersion: 0_4}
+[2026-05-29T00:07:54.031Z] [agent] Imported Build2 tree-state {"title":"Imported Build2","selectedBuild":"Imported Build2레벨 81 Invoker…","treeClass":"Monk","treeVersion":"트리 버전 0_4","treeAlloc":"할당 노드: 102","metadataClass":"몽크","metadataAscendancy":"인보커"}
+[2026-05-29T00:07:54.031Z] [agent] passive tree canvas is visible
+[2026-05-29T00:07:57.640Z] [agent] Imported Build2 item-tooltip-state {"hasTooltip":true,"hasAssetHeader":true,"headerLeft":"url(\"pob-asset://asset/?path=C%3A%2FUsers%2Fnerdl%2FAppData%2FRoaming%2FPOE2%20Unofficial%20Launcher%2Fpob-vault%2F0.15.0%2FAssets%2Fitemsheaderrareleft.png\")","headerMiddle":"url(\"pob-asset://asset/?path=C%3A%2FUsers%2Fnerdl%2FAppData%2FRoaming%2FPOE2%20Unofficial%20Launcher%2Fpob-vault%2F0.15.0%2FAssets%2Fitemsheaderraremiddle.png\")","headerRight":"url(\"pob-asset://asset/?path=C%3A%2FUsers%2Fnerdl%2FAppData%2FRoaming%2FPOE2%20Unofficial%20Launcher%2Fpob-vault%2F0.15.0%2FAssets%2Fitemsheaderrareright.png\")","hasAssetSeparator":true,"separatorImage":"url(\"pob-asset://asset/?path=C%3A%2FUsers%2Fnerdl%2FAppData%2FRoaming%2FPOE2%20Unofficial%20Launcher%2Fpob-vault%2F0.15.0%2FAssets%2Fitemsseparatorrare.png\")","text":"Chimeric Gorget청금석 목걸이Amulet요구 레벨 8지능 +1334% increased maximum Energy Shield생명력 최대치 +71마나 최대치 +12+9% to all Elemental Resistances+23% to Lightning Resistance+21% to Chaos ResistanceRemoving this item from Amulet will give you:-13 Intelligence-1,714 Effective Hit Pool (-29.8%)-217 Phys Max Hit (-9.0%)-1,293 Fire Max Hit (-15.1%)-2,146 Cold Max Hit (-25.1%)-4,682 Lightning Max Hit (-56.8%)-651 Chaos Max Hit (-27.0%)-74 Total Life (-5.2%)-40 Total Mana (-5.3%)-2.7 Mana Regen-143 Energy Shield (-14.6%)-2% Fire Resistance-7% Fire Res. Over Max-6% Cold Resistance-3% Cold Res. Over Max-32% Lightning Resistance-21% Chaos ResistanceTip: Press Ctrl+D to disable the display of stat differences."}
+[2026-05-29T00:08:02.603Z] [agent] warm-return tab switch completed lua-snapshot-delta=0 translate-tree-delta=0
+[2026-05-29T00:08:02.603Z] [agent] captured 23 tree perf log lines

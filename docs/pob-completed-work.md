@@ -112,6 +112,44 @@
 
 ---
 
+## PR-11~PR-20 완료 이력
+
+- PR-11 `8fc34e9` Imported Build2 parity
+  - Imported Build2 기준 Tree / Skills / Items / Calcs / Party 표시 데이터, 라벨, tooltip 계약을 점검하고 주요 parity gap을 보정했다.
+  - Windows 검증: `npm run lint`, `npm test`, `npm run build:check`
+- PR-12 `04f42b0` Import / Export parity
+  - PoB build code import/export와 character import 관련 read/write 계약, UI 상태, 원본 domain 보존을 정리했다.
+  - Windows 검증: `npm run lint`, `npm test`, `npm run build:check`
+- PR-13 `67e8c1c` Notes Markdown templates
+  - Notes tab과 template 관리 흐름, Markdown 표시/편집 UX를 확장했다.
+  - Windows 검증: `npm run lint`, `npm test`, `npm run build:check`
+- PR-14 `5d87431` Legacy / Renewed UI mode foundation
+  - Legacy/Renewed UI mode 기반, UI mode switch, mode별 렌더링 경계를 정리했다.
+  - Windows 검증: focused test, `npm run lint`, `npm test`, `npm run build:check`
+- PR-15 `1bdffd9` RePoE data replacement
+  - RePoE 데이터 대체 범위를 확장하고 item/gem/stat/tree 표시 번역과 다국어 검색 기반을 보강했다.
+  - Windows 검증: focused test, `npm run lint`, `npm test`, `npm run build:check`
+- PR-16 `b8ecef9` Passive tree precision
+  - Passive Tree node/connector/path/allocation 표시 정밀도와 원본 PoB 계약 회귀를 보강했다.
+  - Windows 검증: focused test, `npm run lint`, `npm test`, `npm run build:check`
+- PR-17 `b246d9c` Tree resource caching
+  - Tree resource manifest/cache, DDS/PNG resource load, warm-return 성능 기반을 정리했다.
+  - Windows 검증: focused test, `npm run lint`, `npm test`, `npm run build:check`
+- PR-18 `9466ec1` Build Explorer UX
+  - Build Explorer metadata, folder/tree UX, side panel 상태와 빌드 선택 흐름 polish를 마감했다.
+  - Windows 검증: focused test, `npm run lint`, `npm test`, `npm run build:check`
+- PR-19 `b2092a1` Wrapper UI polish
+  - current-plan 잔여작업을 PR-19로 승격해 wrapper layout, Tree/Items/Calcs/Notes UX, parser regression을 처리했다.
+  - Windows 검증: PR-19.18 focused parser tests, `npm run lint`, `npm test`, `npm run build:check`
+- PR-20 `826859e` RePoE display coverage follow-up
+  - RePoE/display translation coverage, Skills/Items search bilingual display, Config/metadata/main skill/socket group 번역 coverage를 보강했다.
+  - Tree 성능 계측과 hidden Electron agent harness를 추가하고 build switch session isolation, translation cache, hidden tab preload를 적용했다.
+  - Tree/Skill/Item tooltip metadata와 asset-backed header/separator renderer, Item tooltip overlay 회귀를 보정했다.
+  - Calcs visual/overflow, Items DB localized row projection, wrapper UI state persistence, active build delete guard, Korean item copy parser를 마감했다.
+  - Windows 검증: `npm run dev:agent` with `POE2_AGENT_SECOND_BUILD_NAME="Unnamed build"`, `npm run lint`, `npm test`, `npm run build:check`
+
+---
+
 ## PR-ELSE 완료 이력
 
 - PR-ELSE.1 `2320c58` Build mode navigation + Configuration modal
