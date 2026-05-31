@@ -139,3 +139,23 @@ python3 .agents/skills/poe-theme-updater/scripts/update_theme.py \
 This commits `assets/themes/<…>` + `themes.json` onto `gh-pages` as one commit
 and pushes. The hash workflow then fills `assetsHashes`. Report the commit to the
 user.
+
+### 6. Offer to clean up `.cache/` (don't auto-delete)
+
+The press kit (often tens to hundreds of MB) and the review doc stay in
+`.cache/` after the commit. They're gitignored so they never touch `git status`,
+but they accumulate on disk season after season. Once the theme is committed and
+the assets are safely copied into `assets/themes/<game>/<id>/`, they're no longer
+needed.
+
+**Do not delete automatically** — the maintainer may want to re-inspect the kit.
+Just point out what's reclaimable and let them decide:
+
+```bash
+du -sh .cache/presskit .cache/review.md 2>/dev/null   # show what would be freed
+# Only if the user says yes:
+rm -rf .cache/presskit .cache/review.md
+```
+
+Touch only this skill's own scratch (`presskit/`, `review.md`); leave anything
+else in `.cache/` alone.
