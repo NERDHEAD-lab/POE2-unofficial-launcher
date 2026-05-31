@@ -80,10 +80,19 @@ s = requests.Session(); s.headers.update({"User-Agent": "Mozilla/5.0"})
 #    embeddedfolderview returns the full list as simple HTML).
 html = s.get(f"https://drive.google.com/embeddedfolderview?id={fid}#list", timeout=30).text
 files = re.findall(r'id="entry-([0-9A-Za-z_-]+)".*?flip-entry-title">([^<]+)<', html, re.S)
-# 2) Keep only logo/key-art candidates (skip cinematics, atlas shots, docs, video).
+# 2) Keep logo AND background candidates. Background names vary a LOT
+#    (key-art, BG, background, splash, wallpaper, NNNNxNNNN, free-weekend, ...),
+#    so the filter is deliberately wide — better to over-grab than to miss the
+#    one usable background. Drop obvious non-assets (cinematics, boss/atlas
+#    shots, docs, video, ascendancy art).
+KEEP = re.compile(r'logo|wordmark|key.?art|keyart|background|\bbg\b|splash|'
+                  r'wallpaper|\d{3,4}x\d{3,4}|free.?weekend|main', re.I)
+SKIP = re.compile(r'cinematic|trailer|livestream|infographic|transcript|'
+                  r'fact.?sheet|press.?release|ascendancy|boss|gameplay|'
+                  r'atlas|rune|breach|delirium|ritual', re.I)
 cand = [(i, n) for i, n in files
-        if re.search(r'logo|key.?art|wordmark', n, re.I)
-        and re.search(r'\.(png|jpe?g|webp)$', n, re.I)]
+        if re.search(r'\.(png|jpe?g|webp)$', n, re.I)
+        and KEEP.search(n) and not SKIP.search(n)]
 def dl(i, n):
     r = s.get(f"https://drive.google.com/uc?export=download&id={i}", timeout=120)
     d = r.content
@@ -101,11 +110,28 @@ for i, n in cand:
 PY
 ```
 
-Look at what came down. If the kit has no obvious clean logo (only a
-`Logo_Background.png`-style composite), re-run with a broader filter or list all
-files and pick by eye. Avoid logos baked onto a scene and gigantic full-key-art
-PNGs; prefer a transparent wordmark + a `...No-Logo` key-art for the background.
-The AI in [[poe-theme-updater]] makes the final logo/background call.
+This step only **gathers** candidates — it does **not** choose. The filter is
+heuristic and the file names lie often (the season's league name may differ from
+the press kit's expansion name, e.g. league "Fate of the Vaal" shipping in a
+"The Last of the Druids" kit). So if the regex grabbed too few — especially **no
+plausible background** — re-list all files and add the missing ones by hand. Err
+toward pulling a few extra; downloads land in gitignored `.cache/presskit/`.
+
+[[poe-theme-updater]] makes the final pick (and asks the user when there is more
+than one background candidate). To make that pick possible, the candidate set you
+hand over should contain, when they exist:
+
+- **the clean logo** — a transparent-background PNG showing the **game name +
+  season/league name** lock-up as a free-floating emblem (background scene shows
+  _through_ the empty areas, including inside the letters). Reject anything where
+  the logo sits on a baked scene (`Logo_Background.png`-style) or is welded into
+  the key art (`*_FULL`, `*-with-Logo`) — those fail because their corners/edges
+  are opaque.
+- **the background candidates** — high-res key art **without** the logo baked in
+  (`*No-Logo`, `*KEYART*Background`, `*Transparent`, free-weekend art, 4K `BG`
+  files). There are usually several and they are not interchangeable, so pass
+  them ALL through; the updater shows them to the user to choose. Skip tiny promo
+  banners and the giant logo-bearing composites.
 
 ### 3. Return the result
 

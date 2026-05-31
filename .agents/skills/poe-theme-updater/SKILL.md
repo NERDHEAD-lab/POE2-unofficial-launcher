@@ -60,15 +60,41 @@ Division of labor:
 Confirm metadata: `game`, `version_id`, `season_name`, `start_date` (UTC,
 web-search it if unknown).
 
-### 2. Pick the logo and background yourself
+### 2. Pick the logo (you) and the background (ask the user)
 
-List the images and **look at them** (Read the image files). Choose:
+List the images and **look at them** (Read the image files — Read renders them, so
+you can actually see each one). There is no reliable filename rule; judge by eye.
 
-- **logo** — the clean season wordmark/logo, ideally a transparent PNG, NOT
-  composited on a background.
-- **background** — the high-res key art, WITHOUT logo text baked in.
+**Logo — you pick it.** It has a hard, objective standard, so this is your call,
+not the user's. A valid logo is a **transparent-background PNG showing the game
+name + season/league name as a free-floating emblem lock-up** — the kind of thing
+that reads as "the logo" on its own. Concretely:
 
-This judgment is yours — there is no reliable filename rule. Note the two paths.
+- Transparent everywhere around (and _between_) the artwork: all 4 corners
+  transparent, the outer edge ≥95% transparent, and the empty areas inside/around
+  the letters let a background show through. (`update_theme.py` enforces this; a
+  composite fails it.)
+- It is an **emblem/wordmark**, not a scene. Reject anything composited on a
+  baked background (`Logo_Background.png`-style) or welded into the key art
+  (`*_FULL`, `*-with-Logo`). Those have opaque corners and will fail the script.
+- Centered, roughly symmetric, tightly cropped. Game title on top, season name
+  under it (an April-Fool's theme may swap in a different game's logo by design —
+  that's fine).
+
+**Background — the user picks it.** Which key art "fits" as the launcher
+background is a taste call the maintainer wants to make, and a kit usually ships
+several non-interchangeable options (different crops, free-weekend art, with/without
+foreground). So do **not** auto-choose:
+
+1. Gather every plausible background — high-res key art **without** the logo baked
+   in. Skip tiny promo banners and logo-bearing composites.
+2. If there is exactly one, use it. If there are **two or more**, look at each,
+   then **ask the maintainer with `AskUserQuestion`** — one option per candidate,
+   labelled by filename, with a one-line visual description (e.g. "winged ancient
+   warrior, fiery wings, 4K, no logo"). Use their choice.
+3. Only then do you have both paths for step 3.
+
+Note the chosen logo path and the chosen background path.
 
 ### 3. Stage the theme (script, stage 1)
 
