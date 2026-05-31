@@ -1,0 +1,4 @@
+# Theme tooling scratch space: extracted press kits + generated review docs.
+# poe-theme-updater extracts press kits and writes review.md here; nothing in
+# this directory should ever be committed.
+.cache/
