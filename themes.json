@@ -79,7 +79,11 @@
         "background": "assets/themes/poe2/0.5.0/bg.jpg",
         "logo": "assets/themes/poe2/0.5.0/logo.png"
       },
-      "startDate": "2026-05-29 20:00:00"
+      "startDate": "2026-05-29 20:00:00",
+      "assetsHashes": {
+        "background": "d78ba905",
+        "logo": "3608b403"
+      }
     }
   ]
 }
