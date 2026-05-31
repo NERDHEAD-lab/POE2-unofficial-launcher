@@ -44,13 +44,18 @@ Division of labor:
 ### 1. Get the press-kit ZIP and extract it to .cache/
 
 - If the user gave a ZIP/path, use it. Otherwise **invoke [[poe-searcher]]** with
-  the game + season name/version; it returns `PRESSKIT_ZIP=...` / `GAME=...`.
-- Extract into the ignored scratch dir:
+  the game + season name/version. It returns either `PRESSKIT_ZIP=...` (a zip) or
+  `PRESSKIT_DIR=...` (a folder it already populated from a Google Drive press kit
+  when no direct zip existed), plus `GAME=...`.
+- If you got `PRESSKIT_ZIP`, extract it into the ignored scratch dir:
 
   ```bash
   mkdir -p .cache/presskit
   python3 -c "import zipfile; zipfile.ZipFile('<PRESSKIT_ZIP>').extractall('.cache/presskit')"
   ```
+
+  If you got `PRESSKIT_DIR` instead, the assets are already there — skip the
+  extract and pick the logo/background from that dir in step 2.
 
 Confirm metadata: `game`, `version_id`, `season_name`, `start_date` (UTC,
 web-search it if unknown).
