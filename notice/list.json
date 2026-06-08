@@ -8,14 +8,6 @@
     "hash": "324abaf49dd16649f577ff6681c31ee4"
   },
   {
-    "id": 3,
-    "title": "PoE & PoE 2 Unofficial Launcher 로드맵 공지",
-    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]PoE & PoE 2 Unofficial Launcher 로드맵 공지.md",
-    "date": "2026-04-04",
-    "priority": true,
-    "hash": "80db8411e1311e86a23067b26c773b9d"
-  },
-  {
     "id": 8,
     "title": "Unable to start PathOfExile_KG.exe 조치 가이드 (임시)",
     "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/Unable to start PathOfExile_KG.exe 조치 가이드.md",
@@ -30,5 +22,13 @@
     "date": "2026-03-31",
     "priority": false,
     "hash": "bb71b21eaa4e43960fe82cbd904d2fec"
+  },
+  {
+    "id": 10,
+    "title": "PoE & PoE 2 Unofficial Launcher 로드맵 공지",
+    "url": "https://nerdhead-lab.github.io/POE2-unofficial-launcher/notice/[notice]roadmap.md",
+    "date": "2026-06-08",
+    "priority": true,
+    "hash": "fe00782867f219c286cac44e04a430f2"
   }
 ]
