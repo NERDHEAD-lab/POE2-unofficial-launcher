@@ -27,6 +27,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
+    "roadmap:issue-body": "node scripts/build-roadmap-issue-body.cjs",
+    "roadmap:notice": "node scripts/build-roadmap-notice.cjs",
     "test": "vitest",
     "prepare": "husky"
   },
