@@ -11,7 +11,17 @@ const path = require("path");
  * Usage: node scripts/generate-notice-list.js
  */
 
-const NOTICE_DIR = path.join(__dirname, "../notice");
+function readArgValue(name) {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return null;
+  return process.argv[index + 1] || null;
+}
+
+const noticeDirOverride =
+  readArgValue("--notice-dir") || process.env.NOTICE_DIR;
+const NOTICE_DIR = noticeDirOverride
+  ? path.resolve(process.cwd(), noticeDirOverride)
+  : path.join(__dirname, "../notice");
 const OUTPUT_FILE = path.join(NOTICE_DIR, "list.json");
 
 function getHash(content) {
@@ -105,7 +115,7 @@ function generateList() {
     path.join(__dirname, "../../POE2-quick-launch-for-kakao-gh-pages"),
   ].find((p) => fs.existsSync(p));
 
-  if (siblingGHPagesDir) {
+  if (!noticeDirOverride && siblingGHPagesDir) {
     console.log(`Detected sibling gh-pages directory: ${siblingGHPagesDir}`);
     const targetNoticeDir = path.join(siblingGHPagesDir, "notice");
 
