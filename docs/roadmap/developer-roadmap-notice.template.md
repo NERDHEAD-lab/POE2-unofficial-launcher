@@ -1,4 +1,4 @@
-# PoE & PoE 2 Unofficial Launcher 로드맵
+# PoE & PoE 2 Unofficial Launcher 로드맵 공지
 
 런처 개발 로드맵은 버전 단위 약속 대신 우선순위 기준으로 관리합니다.
 완료된 항목은 하단으로 이동하며, 진행 순서는 서비스 안정성과 사용자 영향도를 기준으로 조정될 수 있습니다.
