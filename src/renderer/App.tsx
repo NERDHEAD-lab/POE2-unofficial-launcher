@@ -49,6 +49,7 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 import { useGameState } from "./contexts/GameStateContext";
 import { VersionService, RemoteVersions } from "./services/VersionService";
+import { getGameStartButtonLabel } from "./utils/game-start-label";
 import { logger } from "./utils/logger";
 import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";
 
@@ -726,6 +727,11 @@ function App() {
     remoteVersions,
   ]);
 
+  const gameStartButtonLabel = useMemo(
+    () => getGameStartButtonLabel(activeGameStatus.status, isUpdateNeeded),
+    [activeGameStatus.status, isUpdateNeeded],
+  );
+
   useEffect(() => {
     if (window.electronAPI) {
       // 1. Initial Load
@@ -1368,13 +1374,7 @@ function App() {
 
                 <GameStartButton
                   onClick={handleGameStart}
-                  label={
-                    activeGameStatus.status === "uninstalled"
-                      ? "설치하기"
-                      : isUpdateNeeded
-                        ? "업데이트"
-                        : "게임 시작"
-                  }
+                  label={gameStartButtonLabel}
                   className={isButtonDisabled ? "disabled" : ""}
                   style={
                     isButtonDisabled
