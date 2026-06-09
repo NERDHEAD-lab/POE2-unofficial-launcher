@@ -36,13 +36,10 @@ The wiki update follows the INGEST operation in the wiki's `CLAUDE.md` (surgical
 
 ## GitHub CLI token
 
-- Do not run `gh auth switch` or `gh auth login` for repo-local GitHub work; those commands mutate shared GitHub CLI state and can affect other running agents.
-- `.env` is gitignored and may contain a repo-local `GH_TOKEN`. `gh` does not read `.env` automatically.
-- Never print `.env` or token values. Check only whether `.env` is ignored or whether `GH_TOKEN` is present.
-- Prefer injecting `GH_TOKEN` only into the current command/process:
-  - One command: `GH_TOKEN="$(grep '^GH_TOKEN=' .env | cut -d= -f2-)" gh pr view 187`
-  - Current shell: `set -a; source .env; set +a; gh pr view 187; unset GH_TOKEN`
-- If scripting, read `.env` and pass `GH_TOKEN` through the child process environment instead of changing global `gh` auth state.
+Before any repo-local `gh` command or GitHub HTTPS push, use the
+`github-cli-token` skill at `.agents/skills/github-cli-token/SKILL.md`.
+It defines the repo-local `GH_TOKEN` injection pattern and avoids mutating
+global GitHub CLI auth state.
 
 ## WSL execution rules
 
