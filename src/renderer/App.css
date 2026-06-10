@@ -27,6 +27,8 @@
 }
 
 :root {
+  --launcher-font-family: "Noto Sans KR", "Malgun Gothic", "Segoe UI",
+    sans-serif;
   --theme-text: #c8c8c8;
   --text-secondary: #888888;
   --theme-accent: #dfcf99;
@@ -39,7 +41,7 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: "Fontin", "Noto Sans KR", sans-serif;
+  font-family: var(--launcher-font-family);
   overflow: hidden;
   user-select: none;
   background-color: #000000; /* True black for fade transition */

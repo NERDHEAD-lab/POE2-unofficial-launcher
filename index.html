@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Unofficial Launcher</title>
     <style>
+      :root {
+        --launcher-font-family: "Noto Sans KR", "Malgun Gothic", "Segoe UI",
+          sans-serif;
+      }
+
       /* Splash Screen Styles */
       #launcher-splash {
         position: fixed;
@@ -32,7 +37,7 @@
       }
 
       .splash-logo {
-        font-family: "Fontin", "Noto Sans KR", sans-serif;
+        font-family: var(--launcher-font-family);
         font-size: 32px;
         color: #dfcf99; /* theme-accent */
         text-transform: uppercase;

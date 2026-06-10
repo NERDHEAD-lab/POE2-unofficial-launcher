@@ -39,7 +39,7 @@ const TitleBar: React.FC<TitleBarProps> = ({
               opacity: 0.8,
               borderRadius: "2px",
               cursor: "pointer",
-              fontFamily: "Fontin-SmallCaps, sans-serif",
+              fontFamily: "var(--launcher-font-family)",
               fontSize: "13px",
               letterSpacing: "1px",
               textTransform: "uppercase",
