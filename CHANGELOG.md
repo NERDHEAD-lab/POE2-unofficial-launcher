@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.3.1...1.3.2) (2026-06-10)
+
+
+### Bug Fixes
+
+* 커스텀 게임 폰트가 런처 UI 폰트에 영향을 주지 않도록 분리 ([332efee](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/332efee45625698e84f77d76096eaaede7c9e9ac))
+
 ## [1.3.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.3.0...1.3.1) (2026-06-10)
 
 
