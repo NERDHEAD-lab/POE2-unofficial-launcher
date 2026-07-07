@@ -19,7 +19,7 @@ if (typeof opentype.parse !== "function") {
  *
  * 변경 사항:
  * 1. id: 파일 바이너리 SHA-256 해시로 고정
- * 2. displayNames: 다국어 이름 객체로 확장 ({ ko, en, ... })
+ * 2. fullNames/familyNames: 다국어 이름 객체로 확장 ({ ko, en, ... })
  * 3. license: 다국어 라이선스 객체로 확장
  * 4. previewPath: preview/${id}.png 규칙 강제
  */
