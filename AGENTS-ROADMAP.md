@@ -22,12 +22,3 @@
       `npm test` `[Windows-pwsh]`.
 - [ ] FontManager `generateFontThumbnail`의 `replace('fill="black"', …)` dead code
       정리(opentype v2 `toSVG`는 기본 fill 속성을 생략). — 다음 폰트 작업 시.
-- [ ] `scripts/generate-font-assets.ts`의 `RemoteFontItem` 인터페이스가
-      `displayNames`를 선언하나 코드는 `fullNames`/`familyNames`를 출력(배포
-      스키마와 일치하는 쪽은 코드). tsx는 타입을 벗겨 무해하나 향후 `scripts/`
-      타입체크 도입 시 즉시 에러 — 인터페이스를 실출력에 맞추거나 scripts를
-      tsconfig에 편입. (2026-07 Fable5 후속 리뷰)
-- [ ] opentype.js ESM footgun: 순수 Node ESM `import('opentype.js')`에서 `parse`가
-      undefined(UMD main + exports map 부재). `automate-font-list` 러너를 ESM(예:
-      `node --experimental-strip-types`)으로 바꾸면 조용히 파손 — 현 tsx CJS 경로는
-      무관. 러너 변경 시 명시 검증. (위 opentype 정리 항목 연관)

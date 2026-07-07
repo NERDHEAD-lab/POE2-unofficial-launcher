@@ -5,6 +5,15 @@ import path from "node:path";
 import { createCanvas } from "canvas";
 import * as opentype from "opentype.js";
 
+// opentype.js v2는 CJS(require) 전제로 로드된다(워크플로는 tsx=CJS). 러너를 순수
+// ESM으로 바꾸면 named export가 유실돼 parse가 undefined가 되고 이후 조용히 깨지므로,
+// 즉시 명확한 에러로 실패시킨다.
+if (typeof opentype.parse !== "function") {
+  throw new Error(
+    "opentype.parse를 찾을 수 없습니다 — opentype.js가 CJS가 아닌 ESM으로 로드된 것으로 보입니다. 이 스크립트는 tsx(CJS) 실행 전제입니다.",
+  );
+}
+
 /**
  * 폰트 원격 저장소 자동화 스크립트 (NORMALIZED VERSION)
  *
@@ -18,7 +27,8 @@ import * as opentype from "opentype.js";
 interface RemoteFontItem {
   id: string;
   fileName: string;
-  displayNames: { [lang: string]: string };
+  fullNames: { [lang: string]: string };
+  familyNames: { [lang: string]: string };
   previewPath: string;
   fileSize: number;
   license: { [lang: string]: string };
