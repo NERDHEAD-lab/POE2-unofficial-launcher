@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { createCanvas } from "canvas";
-import opentype from "opentype.js";
+import * as opentype from "opentype.js";
 
 /**
  * 폰트 원격 저장소 자동화 스크립트 (NORMALIZED VERSION)
@@ -46,22 +46,41 @@ function calculateHash(filePath: string): string {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-const getAllNames = (
-  nameObj: { [lang: string]: string | undefined } | undefined,
-) => {
-  if (!nameObj) return {};
-  const names: { [lang: string]: string } = {};
-  // 가용한 모든 언어 필드 수집
-  Object.keys(nameObj).forEach((lang) => {
-    const val = nameObj[lang];
-    if (typeof val === "string") names[lang] = val;
-  });
-  return names;
+// [v2] opentype.js v2의 names는 플랫폼별 구조({unicode,macintosh,windows})로
+// 변경됨. 세 플랫폼을 병합해 언어별 이름을 수집한다(우선순위: windows >
+// macintosh > unicode). @types/opentype.js가 아직 v1이라 unknown으로 받는다.
+type NameTable = Record<string, Record<string, string | undefined> | undefined>;
+
+const getAllNames = (names: unknown, prop: string) => {
+  const n = names as {
+    unicode?: NameTable;
+    macintosh?: NameTable;
+    windows?: NameTable;
+  };
+  const result: { [lang: string]: string } = {};
+  // 낮은 우선순위 플랫폼부터 채워, 높은 우선순위가 같은 언어를 덮어쓴다
+  for (const platform of [n.unicode, n.macintosh, n.windows]) {
+    const nameObj = platform?.[prop];
+    if (!nameObj) continue;
+    // 가용한 모든 언어 필드 수집
+    Object.keys(nameObj).forEach((lang) => {
+      const val = nameObj[lang];
+      if (typeof val === "string") result[lang] = val;
+    });
+  }
+  return result;
 };
 
 async function generatePreview(fontPath: string, destPath: string) {
   try {
-    const font = await opentype.load(fontPath);
+    // [v2] opentype.js v2는 load(path)를 제거 → 버퍼를 읽어 parse.
+    const buffer = await fs.promises.readFile(fontPath);
+    const font = opentype.parse(
+      buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      ),
+    );
     const text = "Path of Exile 2 - 한글 테스트";
     const fontSize = 48;
     const canvas = createCanvas(800, 120);
@@ -122,16 +141,25 @@ async function main() {
     const fullPreviewPath = path.join(PREVIEW_DIR, `${id}.png`);
 
     try {
-      const font = await opentype.load(filePath);
-      const names = font.names;
+      // [v2] opentype.js v2는 load(path)를 제거 → 버퍼를 읽어 parse.
+      const fileBuffer = await fs.promises.readFile(filePath);
+      const font = opentype.parse(
+        fileBuffer.buffer.slice(
+          fileBuffer.byteOffset,
+          fileBuffer.byteOffset + fileBuffer.byteLength,
+        ),
+      );
+      const names: unknown = font.names;
 
-      const fullNames = getAllNames(names.fullName);
-      const familyNames = getAllNames(names.fontFamily);
-      const license = getAllNames(names.license);
-      const licenseUrl = (names.licenseURL?.en ||
-        names.licenseURL?.ko ||
-        Object.values(names.licenseURL || {})[0] ||
-        "") as string;
+      const fullNames = getAllNames(names, "fullName");
+      const familyNames = getAllNames(names, "fontFamily");
+      const license = getAllNames(names, "license");
+      const licenseUrlNames = getAllNames(names, "licenseURL");
+      const licenseUrl =
+        licenseUrlNames.en ||
+        licenseUrlNames.ko ||
+        Object.values(licenseUrlNames)[0] ||
+        "";
 
       // Smart Merge: 기존 데이터 매핑 (파일명 또는 이전 해시 기반)
       const existing = existingList.find(
