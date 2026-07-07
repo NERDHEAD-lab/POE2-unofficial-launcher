@@ -253,8 +253,9 @@ export class FontManager {
           fileBuffer.byteOffset + fileBuffer.byteLength,
         ),
       );
-    } catch {
-      throw new Error("폰트 데이터를 파싱할 수 없습니다.");
+    } catch (err) {
+      logger.error(`Failed to parse font file: ${filePath}`, err);
+      throw new Error("폰트 데이터를 파싱할 수 없습니다.", { cause: err });
     }
 
     // 한글 지원 체크
