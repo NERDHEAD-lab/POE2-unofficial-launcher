@@ -12,3 +12,13 @@
       — DoD: WSL에서 `git commit`이 `--no-verify` 없이 통과 / 검증: WSL 실커밋
       1회 `[WSL]` + Windows 커밋 회귀 없음 `[Windows-pwsh]`.
       의사코드: `docs/archive/2026-05-20-residual-work.md` §2.5.
+- [ ] opentype.js v2 정리: v2 자체 타입 번들 여부 확인 → 번들 시
+      `@types/opentype.js@^1.3.3` 제거(현재 잔존; v1 타입이 `opentype.load`를 유효해
+      보이게 만들어 v2 no-op 스텁을 가림). 미번들이면 유지. — DoD: `build:check`
+      green 유지 / 검증: `[Windows-pwsh]`. (2026-07 renovate 배치 F2)
+- [ ] FontManager 폰트명 추출(`pickFontName`)을 순수 함수로 추출 + 우선순위 엣지
+      단위 테스트(macintosh-only ko, fontFamily 폴백, names 부재 등). 현재는 실폰트
+      계약 테스트(`opentype-v2-contract.integration.test.ts`)만 존재. — 검증:
+      `npm test` `[Windows-pwsh]`.
+- [ ] FontManager `generateFontThumbnail`의 `replace('fill="black"', …)` dead code
+      정리(opentype v2 `toSVG`는 기본 fill 속성을 생략). — 다음 폰트 작업 시.
