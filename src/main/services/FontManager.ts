@@ -4,7 +4,7 @@ import path from "node:path";
 import { Worker } from "node:worker_threads";
 
 import { app } from "electron";
-import opentype from "opentype.js";
+import * as opentype from "opentype.js";
 
 import { SyncEngine } from "./SyncEngine";
 import {
@@ -117,6 +117,37 @@ export class FontManager {
   }
 
   /**
+   * opentype.js v2의 플랫폼별 names 구조({unicode,macintosh,windows})에서 표시
+   * 이름을 추출한다. v1의 평탄 접근(fullName/fontFamily × ko/en) 우선순위를
+   * 보존하며, @types/opentype.js가 아직 v1이라 unknown으로 받아 접근한다.
+   */
+  private pickFontName(names: unknown): string | undefined {
+    type NameTable = Record<
+      string,
+      Record<string, string | undefined> | undefined
+    >;
+    const n = names as {
+      unicode?: NameTable;
+      macintosh?: NameTable;
+      windows?: NameTable;
+    };
+    const platforms = [n.windows, n.macintosh, n.unicode];
+    const pick = (prop: string, lang: string): string | undefined => {
+      for (const p of platforms) {
+        const v = p?.[prop]?.[lang];
+        if (v) return v;
+      }
+      return undefined;
+    };
+    return (
+      pick("fullName", "ko") ||
+      pick("fullName", "en") ||
+      pick("fontFamily", "ko") ||
+      pick("fontFamily", "en")
+    );
+  }
+
+  /**
    * Buffer로부터 메타데이터 및 실시간 미리보기 추출 (가져오기 마법사 최적화)
    */
   public async extractMetadataFromBuffer(
@@ -135,13 +166,8 @@ export class FontManager {
           ),
         );
 
-        // 이름 추출 로직 (fullName 우선)
-        const originalName =
-          font.names.fullName?.ko ||
-          font.names.fullName?.en ||
-          font.names.fontFamily?.ko ||
-          font.names.fontFamily?.en ||
-          fallbackName;
+        // 이름 추출 (v2 플랫폼별 names 대응, fullName 우선)
+        const originalName = this.pickFontName(font.names) || fallbackName;
 
         // 실시간 미리보기 생성
         const previewDataUrl = this.generateFontThumbnail(font);
@@ -216,88 +242,69 @@ export class FontManager {
       throw new Error(`파일에 접근할 수 없습니다: ${filePath}`);
     }
 
-    return new Promise((resolve, reject) => {
-      try {
-        opentype.load(
-          filePath,
-          async (err: Error | null, font: opentype.Font | undefined) => {
-            if (err || !font)
-              return reject(
-                err || new Error("폰트 데이터를 파싱할 수 없습니다."),
-              );
+    // [v2] opentype.js v2는 load(path, cb)를 제거 → 버퍼를 읽어 parse.
+    // 버퍼는 파싱과 해시(ID)에 공용으로 재사용한다.
+    const fileBuffer = await fs.readFile(filePath);
+    let font: opentype.Font;
+    try {
+      font = opentype.parse(
+        fileBuffer.buffer.slice(
+          fileBuffer.byteOffset,
+          fileBuffer.byteOffset + fileBuffer.byteLength,
+        ),
+      );
+    } catch (err) {
+      logger.error(`Failed to parse font file: ${filePath}`, err);
+      throw new Error("폰트 데이터를 파싱할 수 없습니다.", { cause: err });
+    }
 
-            // 한글 지원 체크
-            if (
-              !font.charToGlyph("가")?.unicode &&
-              font.charToGlyph("가")?.index === 0
-            ) {
-              return reject(
-                new Error("한글(KR) 글리프를 지원하지 않는 폰트입니다."),
-              );
-            }
+    // 한글 지원 체크
+    if (
+      !font.charToGlyph("가")?.unicode &&
+      font.charToGlyph("가")?.index === 0
+    ) {
+      throw new Error("한글(KR) 글리프를 지원하지 않는 폰트입니다.");
+    }
 
-            // [v15] 이름 추출 로직 고도화: 스타일 정보가 포함된 fullName 우선
-            const originalName =
-              overrideOriginalName ||
-              font.names.fullName?.ko ||
-              font.names.fullName?.en ||
-              font.names.fontFamily?.ko ||
-              font.names.fontFamily?.en ||
-              "Unknown Font";
+    // [v15] 이름 추출 로직 고도화: 스타일 정보가 포함된 fullName 우선
+    const originalName =
+      overrideOriginalName || this.pickFontName(font.names) || "Unknown Font";
 
-            // [v15] 중복 체크 기준을 '해시(ID)'로 변경
-            // 이름(originalName)이 같더라도 해시가 다르면 다른 폰트(Bold 등)로 허용
-            const fileBuffer = await fs.readFile(filePath);
-            const id = crypto
-              .createHash("sha256")
-              .update(fileBuffer)
-              .digest("hex");
+    // [v15] 중복 체크 기준을 '해시(ID)'로 변경
+    // 이름(originalName)이 같더라도 해시가 다르면 다른 폰트(Bold 등)로 허용
+    const id = crypto.createHash("sha256").update(fileBuffer).digest("hex");
 
-            const existing = this.fontsMap.get(id);
-            if (existing) {
-              logger.info(
-                `Font with hash '${id.substring(0, 8)}' already exists.`,
-              );
-              return reject(
-                new Error(
-                  `동일한 내용의 폰트('${originalName}')가 이미 라이브러리에 등록되어 있습니다.`,
-                ),
-              );
-            }
+    const existing = this.fontsMap.get(id);
+    if (existing) {
+      logger.info(`Font with hash '${id.substring(0, 8)}' already exists.`);
+      throw new Error(
+        `동일한 내용의 폰트('${originalName}')가 이미 라이브러리에 등록되어 있습니다.`,
+      );
+    }
 
-            const extension = path.extname(filePath).toLowerCase();
-            const newFileName = `${id}${extension}`;
-            const destPath = path.join(this.customFontsDir, newFileName);
+    const extension = path.extname(filePath).toLowerCase();
+    const newFileName = `${id}${extension}`;
+    const destPath = path.join(this.customFontsDir, newFileName);
 
-            try {
-              await fs.copyFile(filePath, destPath);
+    await fs.copyFile(filePath, destPath);
 
-              // [v14] 서버 프리뷰가 있더라도 로컬에서 직접 추출한 썸네일을 우선 사용
-              const localPreview = this.generateFontThumbnail(font);
+    // [v14] 서버 프리뷰가 있더라도 로컬에서 직접 추출한 썸네일을 우선 사용
+    const localPreview = this.generateFontThumbnail(font);
 
-              const now = Date.now();
-              const data: CustomFontData = {
-                id,
-                alias: customAlias || originalName, // 카탈로그에서 온 경우 이미 fullName이 alias로 주입됨
-                fileName: newFileName,
-                originalName,
-                previewDataUrl: localPreview || previewDataUrl || "",
-                previewVersion: 2,
-                createdAt: now,
-                updatedAt: now,
-                remoteSourceId: remoteSourceId || undefined,
-              };
-              await this.saveFontMetadata(data);
-              resolve(data);
-            } catch (e) {
-              reject(e);
-            }
-          },
-        );
-      } catch (e) {
-        reject(e);
-      }
-    });
+    const now = Date.now();
+    const data: CustomFontData = {
+      id,
+      alias: customAlias || originalName, // 카탈로그에서 온 경우 이미 fullName이 alias로 주입됨
+      fileName: newFileName,
+      originalName,
+      previewDataUrl: localPreview || previewDataUrl || "",
+      previewVersion: 2,
+      createdAt: now,
+      updatedAt: now,
+      remoteSourceId: remoteSourceId || undefined,
+    };
+    await this.saveFontMetadata(data);
+    return data;
   }
 
   /**
