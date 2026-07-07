@@ -52,6 +52,7 @@
   - [ ] 디스코드를 통해 신청된 후원자 명단을 런처에 표시
 - [ ] MAU 측정
   - [ ] Google Analytics Tools 연동 검토
+- [ ] 폰트 설치 HKLM → HKCU 전환 — UAC 승인 없이 폰트 설치
 
 ## P3 - 장기 검토
 
