@@ -8,10 +8,11 @@
 
 ## 백로그
 
-- [ ] husky pre-commit: WSL 감지 시 lint-staged를 Windows pwsh로 위임
-      — DoD: WSL에서 `git commit`이 `--no-verify` 없이 통과 / 검증: WSL 실커밋
-      1회 `[WSL]` + Windows 커밋 회귀 없음 `[Windows-pwsh]`.
-      의사코드: `docs/archive/2026-05-20-residual-work.md` §2.5.
+- [x] ~~husky pre-commit: WSL 감지 시 lint-staged를 Windows pwsh로 위임~~
+      → **완료 (#241, 2026-07-08).** `.husky/pre-commit`가 WSL 감지 시 pwsh에 위임
+      (`wslpath` 동적 경로, fail-closed). 검증: WSL 커밋 `--no-verify` 없이 통과
+      `[WSL]` + Windows pwsh 회귀 없음 `[Windows-pwsh]`. 근거:
+      `docs/archive/2026-05-20-residual-work.md` §2.5.
 - [x] ~~opentype.js v2 정리: `@types/opentype.js` 제거 검토~~ → **유지 결정 (2026-07-08).**
       opentype.js@2.0.0은 자체 타입 미번들(package.json `types`/`typings` 필드 없음,
       패키지 내 `.d.ts` 0개) → 제거 시 opentype.js가 완전 untyped(implicit any). v1
