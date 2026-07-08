@@ -1,1 +1,16 @@
-npx lint-staged
+# WSL에서는 공유 node_modules에 Linux 네이티브 바인딩(unrs-resolver/rollup 등)이
+# 없어 lint-staged→eslint가 "Cannot find native binding"으로 실패한다. 같은
+# node_modules를 Windows pwsh(npm ci)로 채워 두기 때문. → WSL 감지 시 lint-staged
+# 실행을 Windows pwsh에 위임한다(경로는 wslpath로 동적 산출, 하드코딩 금지).
+if grep -qiE 'microsoft|WSL' /proc/version 2>/dev/null; then
+  WINDIR="$(wslpath -w "$PWD" 2>/dev/null || true)"
+  PS="$(command -v pwsh.exe || command -v powershell.exe || true)"
+  if [ -z "$PS" ] || [ -z "$WINDIR" ]; then
+    echo "husky(pre-commit): WSL 감지했으나 pwsh/wslpath 미탐지 — lint-staged를 실행할 수 없습니다." >&2
+    echo "  Windows pwsh에서 커밋하거나 도구 설치를 확인하세요(--no-verify로 강제하지 말 것)." >&2
+    exit 1
+  fi
+  "$PS" -NoProfile -Command "\$ErrorActionPreference='Stop'; Set-Location -LiteralPath '$WINDIR'; npx lint-staged; if (\$null -eq \$LASTEXITCODE) { exit 1 }; exit \$LASTEXITCODE"
+else
+  npx lint-staged
+fi
