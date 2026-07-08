@@ -17,9 +17,9 @@
       패키지 내 `.d.ts` 0개) → 제거 시 opentype.js가 완전 untyped(implicit any). v1
       타입이 v2 API를 유효해 보이게 하는 오인 위험은 opentype-v2-contract 테스트 +
       ESM 로드 가드(#237/#238)로 보완됨. 소스 변경 없음, `build:check` 이미 green.
-- [ ] FontManager 폰트명 추출(`pickFontName`)을 순수 함수로 추출 + 우선순위 엣지
-      단위 테스트(macintosh-only ko, fontFamily 폴백, names 부재 등). 현재는 실폰트
-      계약 테스트(`opentype-v2-contract.integration.test.ts`)만 존재. — 검증:
-      `npm test` `[Windows-pwsh]`.
-- [ ] FontManager `generateFontThumbnail`의 `replace('fill="black"', …)` dead code
-      정리(opentype v2 `toSVG`는 기본 fill 속성을 생략). — 다음 폰트 작업 시.
+- [x] ~~FontManager 폰트명 추출(`pickFontName`)을 순수 함수로 추출 + 우선순위 엣지
+      단위 테스트~~ → **완료 (#239, 2026-07-08).** `src/main/services/pickFontName.ts`로
+      분리, `pickFontName.test.ts` 엣지 10건(우선순위·폴스루·부재·플랫폼-바깥 판별). 동작 무변경.
+- [x] ~~FontManager `generateFontThumbnail`의 `replace('fill="black"', …)` dead code
+      정리~~ → **완료 (#239, 2026-07-08).** v2 `toSVG`는 fill 생략(`0196b3a`·v1부터 dead)
+      → 제거 + 소비처 보정 계약 주석화 + opentype-v2-contract에 fill 생략 계약 고정.
