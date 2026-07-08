@@ -72,8 +72,9 @@ Routine fixes and edits inside an agreed task proceed without asking.
 
 **PR·머지** — PR 본문 = Summary + 배경/동기만, "Test plan" 류 섹션 금지.
 모든 gh 작업은 `github-cli-token` 스킬 절차. master 머지 = 자동 릴리스이므로
-반드시 사용자 승인 후 실행 (stop-and-ask #4와 동일). 커밋은 WSL husky 제약
-시 Windows에서 수행하거나 단건 승인으로 처리 (아래 WSL 규칙).
+반드시 사용자 승인 후 실행 (stop-and-ask #4와 동일). 커밋은 WSL·Windows
+어디서든 가능하다 — pre-commit이 WSL을 감지해 lint-staged를 Windows pwsh에
+위임한다(#241, 아래 WSL 규칙).
 
 **커밋 규약** — 커밋 제목은 release-please가 CHANGELOG(릴리스 노트)로
 사용자에게 그대로 노출한다(본문은 미노출). Conventional Commits
@@ -199,14 +200,16 @@ dependencies need reinstalling (lock conflict, native binding error,
 pre-commit hook failing on unrs-resolver, etc.), ask the user to run
 `npm ci` from Windows pwsh — do not auto-repair from WSL.
 
-If a pre-commit hook fails in WSL due to native-binding mismatch, do not try
-to fix the environment. Either ask the user to commit from Windows, or get
-explicit approval for `--no-verify` for that single commit.
+The pre-commit hook works in WSL: `.husky/pre-commit` detects WSL and delegates
+lint-staged to Windows pwsh (path via `wslpath -w`), so `git commit` from WSL
+passes without `--no-verify` while still running eslint/prettier through the
+Windows `node_modules` (#241). If pwsh/`wslpath` are missing it fails closed
+(`exit 1`) — do not reach for `--no-verify`; fix the tooling or commit from
+Windows instead.
 
-The `commit-msg` hook (commitlint) is pure JS with no native bindings, so it
-runs fine in WSL — unlike the eslint/vitest binding issues above. Do not
-generalize the pre-commit WSL breakage to it or reach for `--no-verify` on its
-account.
+The `commit-msg` hook (commitlint) is pure JS with no native bindings and also
+runs fine in WSL. Both commit hooks are fine in WSL; only the `npm`
+install/build/lint/test commands above still require Windows.
 
 Tasks requiring in-game verification (e.g. font work, launcher boot): a
 passing build is not sufficient — always request the user's live check on
