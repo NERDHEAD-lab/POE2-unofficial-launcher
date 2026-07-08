@@ -6,6 +6,7 @@ import { Worker } from "node:worker_threads";
 import { app } from "electron";
 import * as opentype from "opentype.js";
 
+import { pickFontName } from "./pickFontName";
 import { SyncEngine } from "./SyncEngine";
 import {
   TARGET_SERVICES_CONFIG,
@@ -117,37 +118,6 @@ export class FontManager {
   }
 
   /**
-   * opentype.js v2의 플랫폼별 names 구조({unicode,macintosh,windows})에서 표시
-   * 이름을 추출한다. v1의 평탄 접근(fullName/fontFamily × ko/en) 우선순위를
-   * 보존하며, @types/opentype.js가 아직 v1이라 unknown으로 받아 접근한다.
-   */
-  private pickFontName(names: unknown): string | undefined {
-    type NameTable = Record<
-      string,
-      Record<string, string | undefined> | undefined
-    >;
-    const n = names as {
-      unicode?: NameTable;
-      macintosh?: NameTable;
-      windows?: NameTable;
-    };
-    const platforms = [n.windows, n.macintosh, n.unicode];
-    const pick = (prop: string, lang: string): string | undefined => {
-      for (const p of platforms) {
-        const v = p?.[prop]?.[lang];
-        if (v) return v;
-      }
-      return undefined;
-    };
-    return (
-      pick("fullName", "ko") ||
-      pick("fullName", "en") ||
-      pick("fontFamily", "ko") ||
-      pick("fontFamily", "en")
-    );
-  }
-
-  /**
    * Buffer로부터 메타데이터 및 실시간 미리보기 추출 (가져오기 마법사 최적화)
    */
   public async extractMetadataFromBuffer(
@@ -167,7 +137,7 @@ export class FontManager {
         );
 
         // 이름 추출 (v2 플랫폼별 names 대응, fullName 우선)
-        const originalName = this.pickFontName(font.names) || fallbackName;
+        const originalName = pickFontName(font.names) || fallbackName;
 
         // 실시간 미리보기 생성
         const previewDataUrl = this.generateFontThumbnail(font);
@@ -211,9 +181,12 @@ export class FontManager {
       const pathData = font.getPath(text, x, y, fontSize);
       const svgPath = pathData.toSVG(2);
 
+      // opentype.js v2의 toSVG는 fill 속성을 생략한다(→ SVG 기본값인 검은색 path).
+      // 표시 측이 이를 보정한다: FontManagerModal은 흰 배경, ExternalFontImportModal은
+      // invert(1) 필터. 여기서 fill을 주입하면 두 미리보기 렌더가 깨지므로 그대로 둔다.
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
         <rect width="100%" height="100%" fill="transparent" />
-        ${svgPath.replace('fill="black"', 'fill="white"')}
+        ${svgPath}
       </svg>`;
 
       return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
@@ -268,7 +241,7 @@ export class FontManager {
 
     // [v15] 이름 추출 로직 고도화: 스타일 정보가 포함된 fullName 우선
     const originalName =
-      overrideOriginalName || this.pickFontName(font.names) || "Unknown Font";
+      overrideOriginalName || pickFontName(font.names) || "Unknown Font";
 
     // [v15] 중복 체크 기준을 '해시(ID)'로 변경
     // 이름(originalName)이 같더라도 해시가 다르면 다른 폰트(Bold 등)로 허용

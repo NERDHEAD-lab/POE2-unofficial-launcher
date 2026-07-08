@@ -60,6 +60,8 @@ describe("opentype.js v2 계약 (FontManager 의존 표면)", () => {
     const svg = font.getPath("가", 0, 0, 32).toSVG(2);
     expect(typeof svg).toBe("string");
     expect(svg.length).toBeGreaterThan(0);
+    // v2 toSVG는 fill 속성을 생략 → FontManager가 replace 없이 path를 그대로 삽입하는 근거.
+    expect(svg).not.toContain("fill=");
     const os2 = font.tables.os2 as { sTypoAscender?: unknown };
     expect(typeof os2.sTypoAscender).toBe("number");
   });
