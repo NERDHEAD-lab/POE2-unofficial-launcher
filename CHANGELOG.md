@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.2...1.4.3) (2026-07-08)
+
+
+### Bug Fixes
+
+* 런처 업데이트 안내 문구가 진행 상태와 맞지 않는 문제 개선 ([943221b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/943221b212112ad35f557061efdc3d751b7edcb2))
+* 폰트 목록 자동화 스크립트를 opentype.js v2로 마이그레이션 ([ff21510](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ff21510fab052ce10514125175415cdd3fa6b96f))
+
 ## [1.4.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.1...1.4.2) (2026-06-20)
 
 
