@@ -44,7 +44,7 @@
     "github-markdown-css": "^5.9.0",
     "jszip": "^3.10.1",
     "marked": "^18.0.0",
-    "node-html-parser": "^7.0.2",
+    "node-html-parser": "^9.0.0",
     "opentype.js": "^2.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
