@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.4...1.4.5) (2026-07-19)
+
+
+### Bug Fixes
+
+* 예약 패치 실행이 예상보다 오래 걸릴 때 실패 알림이 표시되는 문제 수정 ([#250](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/250)) ([9da626b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/9da626b392baa8b364b3b36595c9cf1aaf051862))
+
+## [1.4.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.3...1.4.4) (2026-07-19)
+
+
+### Bug Fixes
+
+* 외부 링크를 열 수 없을 때 치명적 오류가 표시되는 문제 수정 ([#248](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/248)) ([e54074d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e54074df8bdbb6f57d6bfca282a28feba1525cae))
+
 ## [1.4.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.2...1.4.3) (2026-07-08)
 
 

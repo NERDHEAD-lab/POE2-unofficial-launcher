@@ -103,6 +103,7 @@ import {
   printBanner,
 } from "./utils/logger";
 import { LogParser } from "./utils/LogParser";
+import { openExternalSafely } from "./utils/open-external";
 import { PowerShellManager } from "./utils/powershell";
 import {
   getGameInstallPath,
@@ -2026,7 +2027,7 @@ async function createWindow() {
   // [Security] Force external links to open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http:") || url.startsWith("https:")) {
-      shell.openExternal(url);
+      void openExternalSafely(url, mainWindow);
     }
     return { action: "deny" };
   });
@@ -2040,7 +2041,7 @@ async function createWindow() {
 
     if (!isInternal && (url.startsWith("http:") || url.startsWith("https:"))) {
       event.preventDefault();
-      shell.openExternal(url);
+      void openExternalSafely(url, mainWindow);
     }
   });
 
