@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.3...1.4.4) (2026-07-19)
+
+
+### Bug Fixes
+
+* 외부 링크를 열 수 없을 때 치명적 오류가 표시되는 문제 수정 ([#248](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/248)) ([e54074d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e54074df8bdbb6f57d6bfca282a28feba1525cae))
+
 ## [1.4.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.2...1.4.3) (2026-07-08)
 
 
