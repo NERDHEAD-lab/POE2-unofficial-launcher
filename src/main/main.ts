@@ -65,8 +65,8 @@ import {
   reconcileGameInstallStatus,
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
-import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
+import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import {
   archiveAutomationDumpSession,
   discardAutomationDumpSession,
@@ -81,8 +81,8 @@ import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
-import { GameVersionScanner } from "./services/GameVersionScanner";
 import { diagnosticLogStore } from "./services/DiagnosticLogStore";
+import { GameVersionScanner } from "./services/GameVersionScanner";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
 import {

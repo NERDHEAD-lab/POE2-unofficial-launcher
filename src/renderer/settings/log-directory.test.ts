@@ -26,7 +26,7 @@ const createContext = (): SettingChangeContext => ({
   setVariant: vi.fn(),
   setOptions: vi.fn(),
   getButtonText: vi.fn(() => ""),
-  getVariant: vi.fn(() => "default"),
+  getVariant: vi.fn((): "default" => "default"),
 });
 
 describe("로그 폴더 경로 설정", () => {

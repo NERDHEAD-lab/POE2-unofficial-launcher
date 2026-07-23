@@ -14,18 +14,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  DIAGNOSTIC_LOG_ENTRY_BYTES,
+  DiagnosticLogStore,
+  redactDiagnosticLogContent,
+  toLocalDateKey,
+} from "./DiagnosticLogStore";
+import {
   getLogHistory,
   Logger,
   recordDebugLogPayload,
   setupDiagnosticLogSink,
   setupMainLogger,
 } from "../utils/logger";
-import {
-  DIAGNOSTIC_LOG_ENTRY_BYTES,
-  DiagnosticLogStore,
-  redactDiagnosticLogContent,
-  toLocalDateKey,
-} from "./DiagnosticLogStore";
 
 import type { DebugLogPayload } from "../../shared/types";
 import type { AppContext, DebugLogEvent } from "../events/types";
