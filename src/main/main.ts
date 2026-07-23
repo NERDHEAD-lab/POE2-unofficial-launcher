@@ -3176,7 +3176,7 @@ ipcMain.handle("theme:sync-force", async () => {
 });
 
 app.whenReady().then(async () => {
-  await diagnosticLogStore.initialize(app.getPath("logs"), getLogHistory());
+  diagnosticLogStore.initialize(app.getPath("logs"), getLogHistory());
   setupDiagnosticLogSink((payload) => diagnosticLogStore.append(payload));
   registerDiagnosticLogIpc(diagnosticLogStore);
 

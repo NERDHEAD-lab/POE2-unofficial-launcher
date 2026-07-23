@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 
 import {
+  app,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -21,6 +22,9 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 vi.mock("electron", () => ({
+  app: {
+    getPath: vi.fn(() => "D:\\AppData\\POE2 Unofficial Launcher\\logs"),
+  },
   BrowserWindow: {
     fromWebContents: vi.fn(),
   },
@@ -81,6 +85,9 @@ describe("registerDiagnosticLogIpc", () => {
 
     await expect(
       availabilityHandler({} as IpcMainInvokeEvent, Number.NaN),
+    ).resolves.toEqual({ status: "invalid" });
+    await expect(
+      availabilityHandler({} as IpcMainInvokeEvent, Number.MAX_VALUE),
     ).resolves.toEqual({ status: "invalid" });
     expect(store.getDateAvailability).not.toHaveBeenCalled();
   });
@@ -146,6 +153,30 @@ describe("registerDiagnosticLogIpc", () => {
         1_721_808_000_000,
       ),
     ).resolves.toEqual({ status: "missing" });
+    expect(fs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite files inside the managed log directory", async () => {
+    const store = createStore();
+    registerDiagnosticLogIpc(store);
+    vi.mocked(BrowserWindow.fromWebContents).mockReturnValue({} as BrowserWindow);
+    vi.mocked(app.getPath).mockReturnValue(
+      "D:\\AppData\\POE2 Unofficial Launcher\\logs",
+    );
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+      canceled: false,
+      filePath:
+        "D:\\AppData\\POE2 Unofficial Launcher\\logs\\launcher-2026-07-24.001.log",
+    });
+    const saveHandler = getHandler("launcher-log:save-for-timestamp");
+
+    await expect(
+      saveHandler(
+        { sender: {} } as IpcMainInvokeEvent,
+        1_721_808_000_000,
+      ),
+    ).resolves.toEqual({ status: "failed" });
+    expect(store.createDateSnapshot).not.toHaveBeenCalled();
     expect(fs.writeFile).not.toHaveBeenCalled();
   });
 

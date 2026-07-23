@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import JSZip from "jszip";
 
 import type {
@@ -82,6 +83,10 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
           return { status: "canceled" };
         }
 
+        if (isPathInsideDirectory(app.getPath("logs"), filePath)) {
+          return { status: "failed" };
+        }
+
         const snapshot = await store.createDateSnapshot(timestamp);
         if (!snapshot) {
           return { status: "missing" };
@@ -105,7 +110,11 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
 }
 
 function isFiniteTimestamp(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    !Number.isNaN(new Date(value).getTime())
+  );
 }
 
 function toLocalDateKey(timestamp: number): string {
@@ -114,4 +123,17 @@ function toLocalDateKey(timestamp: number): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function isPathInsideDirectory(directory: string, targetPath: string): boolean {
+  const relative = path.relative(
+    path.resolve(directory),
+    path.resolve(targetPath),
+  );
+  return (
+    relative === "" ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== ".." &&
+      !path.isAbsolute(relative))
+  );
 }
