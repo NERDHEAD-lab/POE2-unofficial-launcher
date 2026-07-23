@@ -33,6 +33,7 @@ export abstract class LoggerBase {
     content: string,
     isError: boolean,
     textColor?: string,
+    timestamp?: number,
   ): void;
 
   public log = (message: unknown, ...args: unknown[]) => {
@@ -52,6 +53,14 @@ export abstract class LoggerBase {
 
   public error = (message: unknown, ...args: unknown[]) => {
     this.executeLog(message, args, true, "#FF5555");
+  };
+
+  public errorAt = (
+    timestamp: number,
+    message: unknown,
+    ...args: unknown[]
+  ) => {
+    this.executeLog(message, args, true, "#FF5555", false, timestamp);
   };
 
   /**
@@ -77,12 +86,13 @@ export abstract class LoggerBase {
     isError: boolean,
     overrideTextColor?: string,
     forceNoTerminal?: boolean,
+    timestamp?: number,
   ) {
     const content = this.formatMessage(message, args);
 
     // 1. Console Output (Local Terminal or Developer Tools)
-    const timestamp = new Date().toLocaleTimeString();
-    const prefix = `[${timestamp}] [${this.type}]`;
+    const consoleTimestamp = new Date().toLocaleTimeString();
+    const prefix = `[${consoleTimestamp}] [${this.type}]`;
 
     if (this.useConsole && !forceNoTerminal) {
       if (isError) {
@@ -94,7 +104,12 @@ export abstract class LoggerBase {
 
     // 2. Debug Console Sync (Process-specific implementation)
     // We send a simplified version of the message to the debug console
-    this.emit(content, isError, overrideTextColor || this.textColor);
+    this.emit(
+      content,
+      isError,
+      overrideTextColor || this.textColor,
+      timestamp,
+    );
   }
 
   private formatMessage(message: unknown, args: unknown[]): string {

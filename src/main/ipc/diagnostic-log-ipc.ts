@@ -1,10 +1,11 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import JSZip from "jszip";
 
 import { toLocalDateKey } from "../services/DiagnosticLogStore";
+import {
+  assertSaveDestinationOutsideManagedDirectory,
+  writeFileWithAtomicReplacement,
+} from "../utils/safe-save-file";
 
 import type {
   LauncherLogAvailability,
@@ -91,9 +92,11 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
           return { status: "canceled" };
         }
 
-        if (isPathInsideDirectory(app.getPath("logs"), filePath)) {
-          return { status: "failed" };
-        }
+        const logDirectory = app.getPath("logs");
+        await assertSaveDestinationOutsideManagedDirectory(
+          logDirectory,
+          filePath,
+        );
 
         const snapshot = await store.createDateSnapshot(
           parsedTimestamp.timestamp,
@@ -107,10 +110,14 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
           .sort((a, b) => a.name.localeCompare(b.name))
           .forEach((segment) => {
             zip.file(segment.name, segment.content);
-          });
+        });
 
         const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
-        await fs.writeFile(filePath, zipBuffer);
+        await writeFileWithAtomicReplacement(
+          logDirectory,
+          filePath,
+          zipBuffer,
+        );
         return { status: "saved" };
       } catch {
         return { status: "failed" };
@@ -126,17 +133,4 @@ function parseTimestamp(
 
   const dateKey = toLocalDateKey(value);
   return dateKey ? { timestamp: value, dateKey } : null;
-}
-
-function isPathInsideDirectory(directory: string, targetPath: string): boolean {
-  const relative = path.relative(
-    path.resolve(directory),
-    path.resolve(targetPath),
-  );
-  return (
-    relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) &&
-      relative !== ".." &&
-      !path.isAbsolute(relative))
-  );
 }

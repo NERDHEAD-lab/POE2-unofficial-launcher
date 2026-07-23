@@ -98,11 +98,7 @@ export const Root = () => {
           onClose={() => setReportData(null)}
         />
       )}
-      <ErrorBoundary
-        onFatalError={(errorDetails) =>
-          setFatalError({ errorDetails, occurredAt: Date.now() })
-        }
-      >
+      <ErrorBoundary onFatalError={setFatalError}>
         <GameStateProvider>
           {isDebug ? <DebugConsole /> : <App />}
         </GameStateProvider>

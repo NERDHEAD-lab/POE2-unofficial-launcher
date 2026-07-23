@@ -93,12 +93,17 @@ export class Logger extends LoggerBase {
     super(options);
   }
 
-  protected emit(content: string, isError: boolean, textColor?: string): void {
+  protected emit(
+    content: string,
+    isError: boolean,
+    textColor?: string,
+    timestamp?: number,
+  ): void {
     const payload: DebugLogEvent["payload"] = {
       type: this.type,
       content: content,
       isError: isError,
-      timestamp: Date.now(),
+      timestamp: timestamp ?? Date.now(),
       typeColor: this.typeColor,
       textColor: textColor || (isError ? "#FF5555" : this.textColor),
       priority: this.priority,

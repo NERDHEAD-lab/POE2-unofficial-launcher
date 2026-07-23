@@ -21,6 +21,7 @@ import JSZip from "jszip";
 import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
 import { registerCoreEventHandlers } from "./events/register-handlers";
+import { createFatalErrorRecord } from "./fatal-error";
 import {
   setConfigWithEvent,
   deleteConfigWithEvent,
@@ -171,16 +172,7 @@ let fatalErrorBuffer: FatalErrorPayload | null = null;
 let isRendererReadyForFatalError = false;
 
 function handleFatalError(error: Error | unknown, type: string) {
-  const occurredAt = Date.now();
-  const errorMessage =
-    error instanceof Error ? error.stack || error.message : String(error);
-  const fullMessage = `[${type}] ${errorMessage}`;
-  const payload: FatalErrorPayload = {
-    errorDetails: fullMessage,
-    occurredAt,
-  };
-
-  logger.error(`[Fatal] ${fullMessage}`);
+  const { payload, errorMessage } = createFatalErrorRecord(error, type);
 
   if (
     isRendererReadyForFatalError &&

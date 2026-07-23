@@ -171,8 +171,11 @@ describe("DiagnosticLogStore", () => {
       "Cookie: sid=cookie-secret",
       "Set-Cookie: refresh=cookie-response-secret",
       '{"password":"pw-secret","access_token":"access-secret","auth_code":"auth-code-secret","authorization_code":"authorization-code-secret","token":"json-token-secret","session":"json-session-secret","code":"ERR_ABORTED"}',
-      "refresh_token=refresh-secret id_token=id-secret client_secret=client-secret",
+      "refresh_token=refresh-secret id_token=id-secret client_secret=client-value-secret",
+      '{"accessToken":"camel-access","refreshToken":"camel-refresh","idToken":"camel-id","clientSecret":"camel-client","authCode":"camel-auth","authorizationCode":"camel-authorization"}',
+      "access-token=hyphen-access refresh-token=hyphen-refresh client-secret=hyphen-client",
       "https://example.test/callback?code=code-secret&token=token-secret&session=session-secret",
+      "https://example.test/callback?accessToken=query-camel&client-secret=query-hyphen",
     ].join("\n");
 
     const redacted = redactDiagnosticLogContent(content);
@@ -189,10 +192,21 @@ describe("DiagnosticLogStore", () => {
       "json-session-secret",
       "refresh-secret",
       "id-secret",
-      "client-secret",
+      "client-value-secret",
       "code-secret",
       "token-secret",
       "session-secret",
+      "camel-access",
+      "camel-refresh",
+      "camel-id",
+      "camel-client",
+      "camel-auth",
+      "camel-authorization",
+      "hyphen-access",
+      "hyphen-refresh",
+      "hyphen-client",
+      "query-camel",
+      "query-hyphen",
     ]) {
       expect(redacted).not.toContain(secret);
     }
@@ -310,9 +324,56 @@ describe("DiagnosticLogStore", () => {
 
     expect(() => store.initialize(invalidDirectory, [])).not.toThrow();
     expect(() => store.append(payload("ignored"))).not.toThrow();
-    expect(store.getDateAvailability(Date.now())).toBeNull();
-    expect(store.createDateSnapshot(Date.now())).toBeNull();
+    expect(() => store.getDateAvailability(Date.now())).toThrow(
+      "Diagnostic log store is not initialized",
+    );
+    expect(() => store.createDateSnapshot(Date.now())).toThrow(
+      "Diagnostic log store is not initialized",
+    );
     expect(consoleError).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the store active after a transient initial cleanup failure", () => {
+    const directory = createTemporaryDirectory();
+    const store = new DiagnosticLogStore({
+      now: () => new Date(2026, 6, 24, 12).getTime(),
+    });
+    const cleanup = vi
+      .spyOn(
+        store as unknown as { cleanup: () => void },
+        "cleanup",
+      )
+      .mockImplementationOnce(() => {
+        throw new Error("locked old segment");
+      });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // Expected best-effort cleanup failure.
+    });
+
+    store.initialize(directory, []);
+    store.append(payload("recovered"));
+
+    expect(cleanup).toHaveBeenCalledTimes(2);
+    expect(readOnlyLogFile(directory)).toContain("recovered");
+    expect(consoleError).toHaveBeenCalledOnce();
+  });
+
+  it("propagates query I/O failures instead of reporting missing logs", () => {
+    const directory = createTemporaryDirectory();
+    const store = new DiagnosticLogStore({
+      now: () => new Date(2026, 6, 24, 12).getTime(),
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // Expected fail-closed diagnostic.
+    });
+    store.initialize(directory, []);
+    rmSync(directory, { recursive: true, force: true });
+
+    expect(() =>
+      store.getDateAvailability(payload("").timestamp),
+    ).toThrow();
+    expect(() => store.createDateSnapshot(payload("").timestamp)).toThrow();
+    expect(consoleError).toHaveBeenCalledOnce();
   });
 
   it("replays bootstrap logs once and sends each runtime payload to the sink once", () => {
@@ -361,5 +422,22 @@ describe("DiagnosticLogStore", () => {
 
     expect(order).toEqual(["sink", "event"]);
     expect(getLogHistory().at(-1)?.content).toBe("ordered");
+  });
+
+  it("preserves an explicit fatal occurrence timestamp in the log payload", () => {
+    const recorded: DebugLogPayload[] = [];
+    const occurredAt = new Date(2026, 6, 24, 23, 59, 59, 999).getTime();
+    setupDiagnosticLogSink((entry) => recorded.push(entry));
+    const testLogger = new Logger({ type: "TEST", useConsole: false });
+
+    testLogger.errorAt(occurredAt, "fatal at midnight");
+
+    expect(recorded.at(-1)).toEqual(
+      expect.objectContaining({
+        content: "fatal at midnight",
+        isError: true,
+        timestamp: occurredAt,
+      }),
+    );
   });
 });

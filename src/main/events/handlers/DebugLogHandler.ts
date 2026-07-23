@@ -9,7 +9,7 @@ export const DebugLogHandler: EventHandler<DebugLogEvent> = {
   handle: async (event: DebugLogEvent, context: AppContext) => {
     const payloadWithTimestamp = {
       ...event.payload,
-      timestamp: event.timestamp || Date.now(),
+      timestamp: event.payload.timestamp ?? event.timestamp ?? Date.now(),
     };
 
     if (

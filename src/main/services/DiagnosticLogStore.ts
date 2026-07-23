@@ -67,11 +67,11 @@ export function toLocalDateKey(timestamp: number): string | null {
 
 export function redactDiagnosticLogContent(content: string): string {
   const queryCredential =
-    /([?&](?:code|token|session|access_token|refresh_token|id_token|client_secret)=)[^&#\s"'<>]*/gi;
+    /([?&](?:code|token|session|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth(?:orization)?[_-]?code)=)[^&#\s"'<>]*/gi;
   const quotedCredential =
-    /((?:["']?(?:authorization|cookie|set-cookie|password|access_token|refresh_token|id_token|client_secret|auth_code|authorization_code|token|session)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
+    /((?:["']?(?:authorization|cookie|set-cookie|password|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth(?:orization)?[_-]?code|token|session)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
   const unquotedCredential =
-    /((?:authorization|cookie|set-cookie|password|access_token|refresh_token|id_token|client_secret|auth_code|authorization_code|token|session)\s*[:=]\s*)(?!\[REDACTED\])([^\s,;&}\]]+)/gi;
+    /((?:authorization|cookie|set-cookie|password|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth(?:orization)?[_-]?code|token|session)\s*[:=]\s*)(?!\[REDACTED\])([^\s,;&}\]]+)/gi;
   const credentialHeader =
     /^(\s*(?:authorization|cookie|set-cookie)\s*:\s*).*$/gim;
 
@@ -200,14 +200,24 @@ export class DiagnosticLogStore {
       }
 
       this.directory = directory;
-      this.cleanup();
+    } catch (error) {
+      this.directory = null;
+      this.reportFailure("initialize", error);
+      return;
+    }
 
+    try {
+      this.cleanup();
+    } catch (error) {
+      this.reportFailure("initial cleanup", error);
+    }
+
+    try {
       for (const payload of bootstrapLogs) {
         this.append(payload);
       }
     } catch (error) {
-      this.directory = null;
-      this.reportFailure("initialize", error);
+      this.reportFailure("bootstrap replay", error);
     }
   }
 
@@ -252,7 +262,10 @@ export class DiagnosticLogStore {
 
   getDateAvailability(timestamp: number): DiagnosticLogAvailability | null {
     const dateKey = toLocalDateKey(timestamp);
-    if (!this.directory || !dateKey) return null;
+    if (!dateKey) return null;
+    if (!this.directory) {
+      throw new Error("Diagnostic log store is not initialized");
+    }
 
     try {
       const files = this.listLogFiles().filter(
@@ -267,18 +280,28 @@ export class DiagnosticLogStore {
       };
     } catch (error) {
       this.reportFailure("get availability", error);
-      return null;
+      throw error;
     }
   }
 
   createDateSnapshot(timestamp: number): DiagnosticLogSnapshot | null {
     const dateKey = toLocalDateKey(timestamp);
-    if (!this.directory || !dateKey) return null;
+    if (!dateKey) return null;
+    if (!this.directory) {
+      throw new Error("Diagnostic log store is not initialized");
+    }
 
+    let files: DiagnosticLogFile[];
     try {
-      const files = this.listLogFiles()
+      files = this.listLogFiles()
         .filter((file) => file.dateKey === dateKey)
         .sort((a, b) => a.segmentIndex - b.segmentIndex);
+    } catch (error) {
+      this.reportFailure("list snapshot files", error);
+      throw error;
+    }
+
+    try {
       const segments: DiagnosticLogSnapshot["segments"] = [];
 
       for (const file of files) {
@@ -299,8 +322,11 @@ export class DiagnosticLogStore {
         ),
       };
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return null;
+      }
       this.reportFailure("create snapshot", error);
-      return null;
+      throw error;
     }
   }
 
