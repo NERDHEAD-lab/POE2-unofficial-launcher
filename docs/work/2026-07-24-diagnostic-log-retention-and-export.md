@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 단계: 자동 검증 완료, 분리 리뷰 대기
+- 단계: 리뷰 라운드 1 지적 수정·재검증 완료, 라운드 2 대기
 - 기준 브랜치: `master`
 - 구현 브랜치: `feat/diagnostic-log-retention`
 - 전달 단위: 기존 핫픽스와 분리된 별도 PR
@@ -396,9 +396,47 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 - 실제 Electron은 `npm run dev`가 `--hidden`/`--mute-audio`를 Electron에
   전달하지 않아 무간섭 실행을 보장할 수 없으므로 자동 검증하지 않았다.
 
+### 2026-07-24 — 리뷰 라운드 1
+
+- 판정: `반려`
+- HIGH: startup cleanup I/O 실패가 저장소를 세션 전체에서 비활성화
+- HIGH: camelCase credential key가 평문으로 남는 redaction 누락
+- MEDIUM: EventBus/main fatal/renderer fatal의 원점 timestamp 불일치
+- MEDIUM: 실제 저장소 I/O 오류를 `missing`으로 잘못 축소
+- MEDIUM: lexical 목적지 검사만으로 junction/symlink/hardlink 별칭을 통한
+  원본 segment 덮어쓰기를 막지 못함
+
+### 2026-07-24 — 라운드 1 수정·재검증
+
+- 수정 commit: `7f5bba9`
+- 검증 대상 tree: `b379f464d8ce3f94d15c396f7917c8e847942adb`
+- startup cleanup을 best-effort로 격리하고 저장소 소유권과 이후 append를
+  유지했다.
+- camelCase·snake_case·하이픈 credential key 값을 치환하고 일반
+  `"code":"ERR_ABORTED"`는 보존했다.
+- `LoggerBase.errorAt()`으로 main/renderer fatal 로그와 payload가 같은
+  `occurredAt`을 사용하고, `DebugLogHandler`는 원본 payload timestamp를
+  보존한다.
+- 실제 store query/snapshot I/O 실패를 IPC `unavailable`/`failed`로
+  전달한다.
+- native dialog 이후 실제 logs root와 목적지 부모의 canonical path를
+  확인하고, ZIP은 목적지와 같은 디렉터리의 exclusive 임시 파일에 쓴 뒤
+  atomic rename으로 교체한다.
+- `[Windows-pwsh]` `CI=1 npm test`: exit 0
+  - 47 files passed, 3 skipped
+  - 237 tests passed, 9 skipped
+  - startup cleanup 복구, credential 변형, 자정 timestamp, real-store I/O,
+    safe-save 4개 경계 테스트 포함
+- `[Windows-pwsh]` `npm run lint`: exit 0
+- `[Windows-pwsh]` `npm run build:check`: exit 0
+- junction-parent 테스트는 Windows에서 실제 junction 생성·realpath 경로로
+  skip 없이 통과했다.
+- hardlink alias 목적지를 교체한 뒤 managed 원본 inode와 내용이 모두
+  유지됨을 검증했다.
+
 ### 남은 검증
 
-- 분리 리뷰 최대 3라운드
+- 분리 리뷰 라운드 2
 - `[사용자]` 오류 보고서 ZIP 저장과 정보 탭 경로 복사 실동작 확인
 - 핫픽스 선행 merge 후 rebase·전체 gate·분리 리뷰 재실행
 
