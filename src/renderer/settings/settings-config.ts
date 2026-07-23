@@ -1083,6 +1083,44 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
               }
             },
           },
+          {
+            id: "btn_copy_logs",
+            type: "button",
+            label: "로그 폴더 경로",
+            buttonText: "경로 복사",
+            defaultValue: false,
+            icon: "content_copy",
+            onInit: async ({ addDescription, resetDescription }) => {
+              try {
+                const logsPath = await window.electronAPI.getPath("logs");
+                resetDescription();
+                addDescription(logsPath, "info");
+              } catch (error) {
+                resetDescription();
+                addDescription(
+                  "로그 폴더 경로를 불러오지 못했습니다.",
+                  "error",
+                );
+                logger.error(
+                  "[Settings] Failed to load log directory path:",
+                  error,
+                );
+              }
+            },
+            onClickListener: async ({ showToast }) => {
+              try {
+                const logsPath = await window.electronAPI.getPath("logs");
+                await navigator.clipboard.writeText(logsPath);
+                showToast("로그 폴더 경로가 복사되었습니다.", "success");
+              } catch (error) {
+                logger.error(
+                  "[Settings] Failed to copy log directory path:",
+                  error,
+                );
+                showToast("로그 폴더 경로 복사에 실패했습니다.", "error");
+              }
+            },
+          },
         ],
       },
     ],
