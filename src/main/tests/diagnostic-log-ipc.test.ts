@@ -89,6 +89,12 @@ describe("registerDiagnosticLogIpc", () => {
     await expect(
       availabilityHandler({} as IpcMainInvokeEvent, Number.MAX_VALUE),
     ).resolves.toEqual({ status: "invalid" });
+    await expect(
+      availabilityHandler(
+        {} as IpcMainInvokeEvent,
+        new Date(10_000, 0, 1).getTime(),
+      ),
+    ).resolves.toEqual({ status: "invalid" });
     expect(store.getDateAvailability).not.toHaveBeenCalled();
   });
 

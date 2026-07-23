@@ -4,6 +4,8 @@ import path from "node:path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import JSZip from "jszip";
 
+import { toLocalDateKey } from "../services/DiagnosticLogStore";
+
 import type {
   LauncherLogAvailability,
   LauncherLogSaveResult,
@@ -37,14 +39,17 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
   ipcMain.handle(
     AVAILABILITY_CHANNEL,
     async (_event, timestamp: unknown): Promise<LauncherLogAvailability> => {
-      if (!isFiniteTimestamp(timestamp)) {
+      const parsedTimestamp = parseTimestamp(timestamp);
+      if (!parsedTimestamp) {
         return { status: "invalid" };
       }
 
       try {
-        const availability = await store.getDateAvailability(timestamp);
+        const availability = await store.getDateAvailability(
+          parsedTimestamp.timestamp,
+        );
         if (!availability) {
-          return { status: "missing", dateKey: toLocalDateKey(timestamp) };
+          return { status: "missing", dateKey: parsedTimestamp.dateKey };
         }
 
         return { status: "available", ...availability };
@@ -57,7 +62,8 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
   ipcMain.handle(
     SAVE_CHANNEL,
     async (event, timestamp: unknown): Promise<LauncherLogSaveResult> => {
-      if (!isFiniteTimestamp(timestamp)) {
+      const parsedTimestamp = parseTimestamp(timestamp);
+      if (!parsedTimestamp) {
         return { status: "failed" };
       }
 
@@ -67,7 +73,9 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
           return { status: "failed" };
         }
 
-        const availability = await store.getDateAvailability(timestamp);
+        const availability = await store.getDateAvailability(
+          parsedTimestamp.timestamp,
+        );
         if (!availability) {
           return { status: "missing" };
         }
@@ -87,7 +95,9 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
           return { status: "failed" };
         }
 
-        const snapshot = await store.createDateSnapshot(timestamp);
+        const snapshot = await store.createDateSnapshot(
+          parsedTimestamp.timestamp,
+        );
         if (!snapshot) {
           return { status: "missing" };
         }
@@ -109,20 +119,13 @@ export function registerDiagnosticLogIpc(store: DiagnosticLogStorePort): void {
   );
 }
 
-function isFiniteTimestamp(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isFinite(value) &&
-    !Number.isNaN(new Date(value).getTime())
-  );
-}
+function parseTimestamp(
+  value: unknown,
+): { timestamp: number; dateKey: string } | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
 
-function toLocalDateKey(timestamp: number): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const dateKey = toLocalDateKey(value);
+  return dateKey ? { timestamp: value, dateKey } : null;
 }
 
 function isPathInsideDirectory(directory: string, targetPath: string): boolean {

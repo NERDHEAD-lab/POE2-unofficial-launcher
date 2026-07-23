@@ -73,6 +73,7 @@ describe("DiagnosticLogStore", () => {
 
     expect(toLocalDateKey(timestamp)).toBe("2026-01-02");
     expect(toLocalDateKey(Number.NaN)).toBeNull();
+    expect(toLocalDateKey(new Date(10_000, 0, 1).getTime())).toBeNull();
   });
 
   it("rotates before an entry would cross the segment byte limit", () => {

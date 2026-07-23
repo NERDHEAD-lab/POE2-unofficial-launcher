@@ -56,7 +56,10 @@ export function toLocalDateKey(timestamp: number): string | null {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;
 
-  const year = String(date.getFullYear()).padStart(4, "0");
+  const fullYear = date.getFullYear();
+  if (fullYear < 0 || fullYear > 9999) return null;
+
+  const year = String(fullYear).padStart(4, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -86,7 +89,9 @@ function isValidDateKey(dateKey: string): boolean {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
+  const date = new Date(0);
+  date.setHours(0, 0, 0, 0);
+  date.setFullYear(year, month - 1, day);
 
   return (
     date.getFullYear() === year &&
