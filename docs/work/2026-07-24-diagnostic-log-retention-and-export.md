@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 단계: 리뷰 라운드 1 지적 수정·재검증 완료, 라운드 2 대기
+- 단계: 리뷰 라운드 2 통과, 사용자 검증·hotfix merge barrier 대기
 - 기준 브랜치: `master`
 - 구현 브랜치: `feat/diagnostic-log-retention`
 - 전달 단위: 기존 핫픽스와 분리된 별도 PR
@@ -434,9 +434,21 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 - hardlink alias 목적지를 교체한 뒤 managed 원본 inode와 내용이 모두
   유지됨을 검증했다.
 
+### 2026-07-24 — 리뷰 라운드 2
+
+- 판정: `통과 — 제품 코드 지적 없음`
+- 라운드 1의 startup recovery, credential 변형, single occurredAt,
+  unavailable/failed 구분, destination alias 보호 5건 closure를 확인했다.
+- bootstrap→runtime exactly-once, 기존 `report:save`, FatalErrorModal typed
+  계약, M3 로그 경로 복사, AppConfig/migration/dependency/lockfile 무변경을
+  비회귀로 확인했다.
+- 리뷰어는 기록된 Windows gate와 제품 tree를 대조했으며 gate를 재실행하지
+  않았다.
+- 실제 Electron `[사용자]` DoD와 hotfix merge 후 rebase·재검증은 별도
+  pending이며 현재 통과 판정에 포함하지 않는다.
+
 ### 남은 검증
 
-- 분리 리뷰 라운드 2
 - `[사용자]` 오류 보고서 ZIP 저장과 정보 탭 경로 복사 실동작 확인
 - 핫픽스 선행 merge 후 rebase·전체 gate·분리 리뷰 재실행
 
