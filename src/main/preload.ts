@@ -23,6 +23,9 @@ import {
   GameInstallPathClearSource,
   GameInstallPathDiagnostics,
   GameInstallPathSaveResult,
+  FatalErrorPayload,
+  LauncherLogAvailability,
+  LauncherLogSaveResult,
 } from "../shared/types";
 
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
@@ -107,6 +110,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   saveReport: (files: { name: string; content: string }[]) =>
     ipcRenderer.invoke("report:save", files),
+  getLauncherLogAvailability: (
+    timestamp: number,
+  ): Promise<LauncherLogAvailability> =>
+    ipcRenderer.invoke("launcher-log:get-export-availability", timestamp),
+  saveLauncherLogsForTimestamp: (
+    timestamp: number,
+  ): Promise<LauncherLogSaveResult> =>
+    ipcRenderer.invoke("launcher-log:save-for-timestamp", timestamp),
   getNews: (
     game: AppConfig["activeGame"],
     service: AppConfig["serviceChannel"],
@@ -371,9 +382,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   // [Fatal Error Handling]
-  onFatalError: (callback: (errorDetails: string) => void) => {
-    const handler = (_event: IpcRendererEvent, errorDetails: string) =>
-      callback(errorDetails);
+  onFatalError: (callback: (payload: FatalErrorPayload) => void) => {
+    const handler = (_event: IpcRendererEvent, payload: FatalErrorPayload) =>
+      callback(payload);
     ipcRenderer.on("app:fatal-error", handler);
     return () => ipcRenderer.off("app:fatal-error", handler);
   },

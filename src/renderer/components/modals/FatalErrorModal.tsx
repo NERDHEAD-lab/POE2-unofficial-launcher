@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { SUPPORT_URLS } from "../../../shared/urls";
 import "../../settings/Settings.css";
 import iconDiscord from "../../assets/icon-discord.svg?raw";
 import iconGithub from "../../assets/icon-github.svg?raw";
 import { Toast } from "../ui/Toast";
+
+import type { LauncherLogAvailability } from "../../../shared/types";
 
 export type ModalType = "fatal" | "bug" | "suggestion";
 
@@ -23,6 +25,7 @@ interface ModalConfig {
 interface FatalErrorModalProps {
   errorDetails: string;
   errorSummary?: string;
+  occurredAt?: number;
   type?: ModalType;
   launcherVersion?: string;
   onClose?: () => void;
@@ -31,6 +34,7 @@ interface FatalErrorModalProps {
 const FatalErrorModal: React.FC<FatalErrorModalProps> = ({
   errorDetails,
   errorSummary,
+  occurredAt,
   type = "fatal",
   launcherVersion = "Unknown",
   onClose,
@@ -39,11 +43,23 @@ const FatalErrorModal: React.FC<FatalErrorModalProps> = ({
   const [emailCopied, setEmailCopied] = useState(false);
   const [userDescription, setUserDescription] = useState("");
   const [showDiscordMenu, setShowDiscordMenu] = useState(false);
-  const [timestamp] = useState(new Date().toLocaleString());
-  const [toast, setToast] = useState({ visible: false, message: "" });
+  const [logAvailability, setLogAvailability] =
+    useState<LauncherLogAvailability | null>(null);
+  const [isCheckingLogs, setIsCheckingLogs] = useState(
+    type !== "suggestion" && occurredAt !== undefined,
+  );
+  const [isSavingLogs, setIsSavingLogs] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    variant: "success" | "warning" | "error";
+  }>({ visible: false, message: "", variant: "success" });
 
-  const showToast = (message: string) => {
-    setToast({ visible: true, message });
+  const showToast = (
+    message: string,
+    variant: "success" | "warning" | "error" = "success",
+  ) => {
+    setToast({ visible: true, message, variant });
     setTimeout(() => setToast((prev) => ({ ...prev, visible: false })), 3000);
   };
 
@@ -106,11 +122,53 @@ const FatalErrorModal: React.FC<FatalErrorModalProps> = ({
     }
   }, [type]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    if (!config.showLogs) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    if (occurredAt === undefined) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    window.electronAPI
+      .getLauncherLogAvailability(occurredAt)
+      .then((availability) => {
+        if (isActive) {
+          setLogAvailability(availability);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setLogAvailability({ status: "unavailable" });
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsCheckingLogs(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [config.showLogs, occurredAt]);
+
   const displayLogs =
     errorDetails && errorDetails.trim() !== ""
       ? errorDetails
       : "최근에 발생한 오류가 없습니다.";
   const displaySummary = errorSummary?.trim() ?? "";
+  const timestamp =
+    typeof occurredAt === "number" && Number.isFinite(occurredAt)
+      ? new Date(occurredAt).toLocaleString()
+      : "확인되지 않음";
   const modalWidth = config.showLogs ? "900px" : "750px";
   const modalHeight = config.showLogs ? "min(820px, 92vh)" : "650px";
   const userInputMinHeight = config.showLogs ? "88px" : "100px";
@@ -159,6 +217,72 @@ ${reportLogSection}
         console.error("Failed to copy email:", err);
       });
   };
+
+  const handleDownloadLogs = async () => {
+    if (
+      isSavingLogs ||
+      occurredAt === undefined ||
+      logAvailability?.status !== "available"
+    ) {
+      return;
+    }
+
+    setIsSavingLogs(true);
+    try {
+      const result =
+        await window.electronAPI.saveLauncherLogsForTimestamp(occurredAt);
+
+      switch (result.status) {
+        case "saved":
+          showToast("로그 파일이 저장되었습니다.");
+          break;
+        case "canceled":
+          break;
+        case "missing":
+          setLogAvailability({
+            status: "missing",
+            dateKey: logAvailability.dateKey,
+          });
+          showToast(
+            "해당 날짜의 로그가 더 이상 존재하지 않습니다.",
+            "warning",
+          );
+          break;
+        case "failed":
+          showToast("로그 파일을 저장하지 못했습니다.", "error");
+          break;
+      }
+    } catch {
+      showToast("로그 파일을 저장하지 못했습니다.", "error");
+    } finally {
+      setIsSavingLogs(false);
+    }
+  };
+
+  const logDownloadTitle = getLogDownloadTitle({
+    occurredAt,
+    availability: logAvailability,
+    isChecking:
+      isCheckingLogs ||
+      (config.showLogs &&
+        occurredAt !== undefined &&
+        logAvailability === null),
+    isSaving: isSavingLogs,
+  });
+  const isLogAvailabilityPending =
+    isCheckingLogs ||
+    (config.showLogs &&
+      occurredAt !== undefined &&
+      logAvailability === null);
+  const canDownloadLogs =
+    !isLogAvailabilityPending &&
+    !isSavingLogs &&
+    logAvailability?.status === "available";
+  const logDownloadLabel = isSavingLogs
+    ? "로그 저장 중…"
+    : isLogAvailabilityPending
+      ? "로그 확인 중…"
+      : "로그 다운로드";
 
   // Custom Confirmation Dialog for UI Consistency
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -493,7 +617,7 @@ ${reportLogSection}
                   fontFamily: "monospace",
                 }}
               >
-                <span>현재 시간: {timestamp}</span>
+                <span>발생 시간: {timestamp}</span>
                 <span>런처 버전: {launcherVersion}</span>
               </div>
             </div>
@@ -539,13 +663,56 @@ ${reportLogSection}
             >
               <div
                 style={{
-                  color: "#555",
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
                 }}
               >
-                최근 오류 정보 (Recent Error Trace):
+                <div
+                  style={{
+                    color: "#555",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  최근 오류 정보 (Recent Error Trace):
+                </div>
+                <button
+                  className="setting-btn default"
+                  onClick={handleDownloadLogs}
+                  disabled={!canDownloadLogs}
+                  title={logDownloadTitle}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    minWidth: "142px",
+                    height: "32px",
+                    opacity: canDownloadLogs ? 1 : 0.55,
+                    cursor: canDownloadLogs ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "17px" }}
+                  >
+                    {isSavingLogs ? "progress_activity" : "download"}
+                  </span>
+                  <span>{logDownloadLabel}</span>
+                </button>
+              </div>
+              <div
+                style={{
+                  color: "#8a8a8a",
+                  fontSize: "11px",
+                  lineHeight: "1.5",
+                }}
+              >
+                다운로드한 로그에는 계정 ID, 로컬 경로, 페이지 URL 등 개인정보가
+                포함될 수 있습니다. 공유 전에 내용을 확인해 주세요.
               </div>
               {displaySummary && (
                 <div
@@ -768,11 +935,50 @@ ${reportLogSection}
       <Toast
         visible={toast.visible}
         message={toast.message}
-        variant="success"
+        variant={toast.variant}
       />
       {renderConfirmDialog()}
     </div>
   );
 };
+
+function getLogDownloadTitle({
+  occurredAt,
+  availability,
+  isChecking,
+  isSaving,
+}: {
+  occurredAt?: number;
+  availability: LauncherLogAvailability | null;
+  isChecking: boolean;
+  isSaving: boolean;
+}): string {
+  if (isSaving) return "로그 파일을 저장하고 있습니다.";
+  if (isChecking) return "오류 시점의 로그 파일을 확인하고 있습니다.";
+  if (occurredAt === undefined) {
+    return "정확한 오류 시점이 없어 다운로드할 로그를 선택할 수 없습니다.";
+  }
+
+  switch (availability?.status) {
+    case "available":
+      return `${availability.dateKey} 로그 ${availability.segmentCount}개 (${formatBytes(
+        availability.totalBytes,
+      )})를 ZIP으로 저장합니다.`;
+    case "missing":
+      return `${availability.dateKey}에 보관된 로그 파일이 없습니다.`;
+    case "invalid":
+      return "오류 시점 정보가 올바르지 않습니다.";
+    case "unavailable":
+      return "로그 저장소를 확인할 수 없습니다.";
+    default:
+      return "로그 파일을 확인할 수 없습니다.";
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+}
 
 export default FatalErrorModal;

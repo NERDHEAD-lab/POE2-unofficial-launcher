@@ -311,6 +311,27 @@ export interface DebugLogPayload {
   priority?: number;
 }
 
+export interface FatalErrorPayload {
+  errorDetails: string;
+  occurredAt: number;
+}
+
+export type LauncherLogAvailability =
+  | {
+      status: "available";
+      dateKey: string;
+      segmentCount: number;
+      totalBytes: number;
+    }
+  | { status: "missing"; dateKey: string }
+  | { status: "invalid" | "unavailable" };
+
+export type LauncherLogSaveResult =
+  | { status: "saved" }
+  | { status: "canceled" }
+  | { status: "missing" }
+  | { status: "failed" };
+
 export interface ChangelogItem {
   version: string;
   date: string;
@@ -518,6 +539,12 @@ export interface ElectronAPI {
   ) => Promise<boolean | BackupMetadata>; // New
   getDebugHistory: () => Promise<DebugLogPayload[]>;
   saveReport: (files: { name: string; content: string }[]) => Promise<boolean>;
+  getLauncherLogAvailability: (
+    timestamp: number,
+  ) => Promise<LauncherLogAvailability>;
+  saveLauncherLogsForTimestamp: (
+    timestamp: number,
+  ) => Promise<LauncherLogSaveResult>;
   getNews: (
     game: AppConfig["activeGame"],
     service: AppConfig["serviceChannel"],
@@ -612,7 +639,7 @@ export interface ElectronAPI {
   dismissKakaoStarterMigrationPrompt: () => Promise<boolean>;
 
   // [Fatal Error Handling]
-  onFatalError: (callback: (errorDetails: string) => void) => () => void;
+  onFatalError: (callback: (payload: FatalErrorPayload) => void) => () => void;
   reportFatalReady: () => void;
 
   // [Font Management]

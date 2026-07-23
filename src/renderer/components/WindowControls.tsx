@@ -112,6 +112,7 @@ const WindowControls: React.FC<WindowControlsProps> = ({
     const event = new CustomEvent("SHOW_REPORT_MODAL", {
       detail: {
         ...report,
+        occurredAt: selectedLog.timestamp,
         type: "bug",
       },
     });

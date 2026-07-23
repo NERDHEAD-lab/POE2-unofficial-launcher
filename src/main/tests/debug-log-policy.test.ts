@@ -109,6 +109,25 @@ describe("debug log policy", () => {
     expect(report.errorSummary).toContain(
       "진단 덤프 파일: D:\\Launcher\\debug-dumps\\kakao-start.zip",
     );
+    expect(report.occurredAt).toBe(selectedLog.timestamp);
+  });
+
+  it("uses the newest recent error timestamp for manual reports", () => {
+    const report = buildErrorReportData([
+      log({ isError: true, content: "first", timestamp: 10 }),
+      log({ content: "normal", timestamp: 30 }),
+      log({ isError: true, content: "latest", timestamp: 20 }),
+    ]);
+
+    expect(report.occurredAt).toBe(20);
+  });
+
+  it("does not invent an occurrence timestamp without an error", () => {
+    const report = buildErrorReportData([
+      log({ content: "normal", timestamp: 30 }),
+    ]);
+
+    expect(report.occurredAt).toBeUndefined();
   });
 
   it("uses concise notification labels and relative time", () => {
