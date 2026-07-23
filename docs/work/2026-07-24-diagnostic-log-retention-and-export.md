@@ -2,14 +2,14 @@
 
 ## 상태
 
-- 단계: 구현 통합 완료, 자동 검증 대기
+- 단계: 자동 검증 완료, 분리 리뷰 대기
 - 기준 브랜치: `master`
 - 구현 브랜치: `feat/diagnostic-log-retention`
 - 전달 단위: 기존 핫픽스와 분리된 별도 PR
 - 구현 권한: 2026-07-24 사용자 승인
 - stop-and-ask: 신규 renderer→main IPC 2개 및 fatal IPC payload 변경 승인
-- 남은 장벽: Windows gate, 분리 리뷰, 사용자 실동작 확인, 핫픽스 선행 merge
-  후 rebase·재검증
+- 남은 장벽: 분리 리뷰, 사용자 실동작 확인, 핫픽스 선행 merge 후
+  rebase·재검증
 
 구현은 별도 worktree 세 개에서 병렬로 진행해 integration branch에
 통합했다. 로그 기능 브랜치는 기존 핫픽스가 `master`에 먼저 반영되기 전에는
@@ -369,14 +369,35 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 - integration 점검에서 Date 표현 범위를 벗어난 timestamp를 거부하고 내부
   managed logs 경로를 ZIP 저장 대상으로 사용할 수 없도록 IPC 경계를
   보강했다.
+- 파일명 규칙 밖의 연도 timestamp가 retention 대상에서 빠지지 않도록
+  canonical local date key를 `0000..9999` 범위로 제한하고 IPC와 저장소가
+  같은 변환 함수를 사용하게 했다.
 - AppConfig schema/default/metadata, migration, dependency와 lockfile은
   변경하지 않았다.
 
+### 2026-07-24 — 자동 검증
+
+- 검증 대상 tree: `f522d366ad06a90660723efcff2fd218a7cf8ab7`
+  (`28294a1` 검증 뒤 commit message만 고친 `604ab6f`와 동일)
+- `[Windows-pwsh]` `CI=1 npm test`: exit 0
+  - 42 files passed, 3 skipped
+  - 224 tests passed, 9 skipped
+  - `DiagnosticLogStore.test.ts` 12개
+  - `diagnostic-log-ipc.test.ts` 7개
+  - `debug-log-policy.test.ts` 10개
+  - `log-directory.test.ts` 4개
+- `[Windows-pwsh]` `npm run lint`: exit 0
+- `[Windows-pwsh]` `npm run build:check`: exit 0
+  - TypeScript와 전체 Vite bundle 빌드 완료
+  - Windows Git이 WSL worktree `.git` 포인터를 해석하지 못한 hash fallback
+    경고가 있었으나 gate exit와 build 결과에는 영향 없음
+- 검증용 `node_modules` junction은 정확한 공유 target을 확인한 뒤 junction
+  자체만 제거했고 공유 target을 보존했다.
+- 실제 Electron은 `npm run dev`가 `--hidden`/`--mute-audio`를 Electron에
+  전달하지 않아 무간섭 실행을 보장할 수 없으므로 자동 검증하지 않았다.
+
 ### 남은 검증
 
-- `[Windows-pwsh]` `npm test`
-- `[Windows-pwsh]` `npm run lint`
-- `[Windows-pwsh]` `npm run build:check`
 - 분리 리뷰 최대 3라운드
 - `[사용자]` 오류 보고서 ZIP 저장과 정보 탭 경로 복사 실동작 확인
 - 핫픽스 선행 merge 후 rebase·전체 gate·분리 리뷰 재실행
@@ -495,9 +516,9 @@ lint/test/build를 WSL에서 실행하지 않는다.
 credential류는 자동 치환하고, 사용자가 다운로드를 명시적으로 선택한 경우에만
 ZIP을 만든다.
 
-## Owner decision gate
+## Owner decision 승인 기록
 
-구현 전 사용자가 다음 권장안을 한 배치로 명시적으로 승인해야 한다.
+2026-07-24 사용자가 다음 권장안을 한 배치로 명시적으로 승인했다.
 
 1. 신규 typed IPC 2개
    - `launcher-log:get-export-availability`
@@ -512,8 +533,8 @@ ZIP을 만든다.
 5. credential류는 자동 치환하고, 그 외 진단 정보는 보존하며 공유 전 확인
    안내 표시
 
-1·2는 IPC 경계 변경이므로 프로젝트 `AGENTS.md`의 stop-and-ask 대상이다.
-사용자의 계획 승인은 위 경계와 기본값을 포함한다는 점이 명확해야 한다.
+1·2는 IPC 경계 변경이므로 프로젝트 `AGENTS.md`의 stop-and-ask 대상이며,
+위 승인으로 구현 장벽이 해소됐다.
 
 ## PR·마무리
 
