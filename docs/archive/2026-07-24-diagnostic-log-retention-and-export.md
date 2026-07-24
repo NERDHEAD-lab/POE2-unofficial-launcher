@@ -2,14 +2,14 @@
 
 ## 상태
 
-- 단계: 리뷰 라운드 2 통과, 사용자 검증·hotfix merge barrier 대기
-- 기준 브랜치: `master`
+- 단계: 완료 — PR #256 squash 병합 승인, 최종 GitHub gate 대기
+- 기준 브랜치: `master` `2eddb907`
 - 구현 브랜치: `feat/diagnostic-log-retention`
 - 전달 단위: 기존 핫픽스와 분리된 별도 PR
 - 구현 권한: 2026-07-24 사용자 승인
 - stop-and-ask: 신규 renderer→main IPC 2개 및 fatal IPC payload 변경 승인
-- 남은 장벽: 분리 리뷰, 사용자 실동작 확인, 핫픽스 선행 merge 후
-  rebase·재검증
+- 완료 장벽: Windows 실동작 확인, 핫픽스 선행 merge, 최신 master 통합,
+  전체 Windows 재검증, 분리 리뷰 라운드 5 통과
 
 구현은 별도 worktree 세 개에서 병렬로 진행해 integration branch에
 통합했다. 로그 기능 브랜치는 기존 핫픽스가 `master`에 먼저 반영되기 전에는
@@ -506,10 +506,48 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 - LOW 문서 지적 1건: Blast radius의 `로그 경로 표시·복사`를 현재 구현과
   일치하는 `표시·열기`로 정정했다. 재리뷰는 불필요하다.
 
+### 2026-07-25 — 선행 핫픽스 반영 후 최종 통합 검증
+
+- 사용자가 PR #255와 #256의 squash 병합을 승인했다.
+- PR #255를 먼저 squash 병합했고 최신 `origin/master`는 `2eddb907`이다.
+- 공개된 PR #256 브랜치에 force-push 승인이 없으므로 rebase 대신
+  `origin/master`를 merge했다. PR #256의 최종 병합은 squash이므로 이 중간
+  merge commit은 master 이력에 남지 않는다.
+- `src/main/main.ts`는 카카오 navigation 분류와 fatal/log IPC 변경을 자동
+  병합했다.
+- `src/renderer/main.tsx` 충돌은 `FatalErrorPayload`·`ErrorReportData`와
+  `occurredAt` 전달을 유지하면서 런처 버전은 `__APP_VERSION__`을 사용하도록
+  해결했다.
+- Windows 검증 동안 메인 저장소의 Windows용 `node_modules`를 명시적인
+  junction으로 연결했고 검증 후 junction만 제거했다.
+- WSL에서 시작한 `pwsh.exe`의 직접 `.cmd` 호출이 npm을 실행하지 않고
+  무출력 종료되어 통과로 계산하지 않았다. 같은 Windows 환경에서
+  `cmd.exe`로 원래 `npm.cmd` 명령을 직접 실행해 출력과 exit code를
+  확인했다.
+- `[Windows-cmd]` `CI=1 npm.cmd test`: 48파일 248테스트 통과, 3파일
+  9테스트 제외
+- `[Windows-cmd]` `npm.cmd run lint`: exit 0
+- `[Windows-cmd]` `npm.cmd run build:check`: exit 0
+  - Windows Git이 WSL worktree `.git` 포인터를 읽지 못한 기존 경고가
+    있었지만 TypeScript와 renderer/main/preload/worker 전체 Vite 빌드는
+    완료됐다.
+- `[WSL]` `git diff --check origin/master...HEAD`: 통과
+
+### 2026-07-25 — 리뷰 라운드 5
+
+- 판정: `통과 — 제품 코드 지적 없음`
+- 분리 리뷰어가 최신 `origin/master...HEAD`에서 카카오 navigation 분류,
+  fatal/log IPC, `__APP_VERSION__`, `occurredAt`, credential 치환, 초기
+  디렉터리 복구, snapshot·ZIP·안전 저장, 로그 다운로드 버튼 배치와 설정의
+  `폴더 열기`를 확인했다.
+- AppConfig·migration·dependency·lockfile 변경과 충돌 표식은 없다.
+- 리뷰어는 기록된 Windows gate를 대조했으며 직접 재실행하거나 파일을
+  변경하지 않았다.
+
 ### 남은 검증
 
-- `[사용자]` 최종 UI 배치 확인 및 OK
-- 핫픽스 선행 merge 후 rebase·전체 gate·분리 리뷰 재실행
+- 원격 브랜치 갱신 후 GitHub Actions 통과 확인
+- PR #256 squash 병합
 
 ## Dependency barrier
 
@@ -534,15 +572,15 @@ M2는 M1의 저장소 API에 의존한다. 소스 구현은 고정된 계약에 
 필요하다.
 
 1. 핫픽스 PR을 먼저 리뷰·사용자 검증한다.
-2. 사용자 승인 후 핫픽스가 master에 반영된 다음 로그 기능 브랜치를 최신
-   master에 rebase한다.
+2. 사용자 승인 후 핫픽스가 master에 반영된 다음 로그 기능 브랜치에 최신
+   master를 통합한다.
 3. `main.ts`에서는 카카오 navigation 분류와 fatal/log IPC 변경을 모두
    보존한다.
 4. `main.tsx`에서는 동기 버전 소스와 `occurredAt` 전달을 모두 보존한다.
-5. rebase 후 전체 Windows gate와 분리 리뷰를 다시 수행한다.
+5. 기준점 갱신 후 전체 Windows gate와 분리 리뷰를 다시 수행한다.
 
-로그 기능 PR은 별도로 만들며, rebase 전 검증 결과만으로 최종 통과를 선언하지
-않는다.
+로그 기능 PR은 별도로 만들며, 기준점 갱신 전 검증 결과만으로 최종 통과를
+선언하지 않는다.
 
 ## 검증 계획
 
