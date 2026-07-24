@@ -27,16 +27,7 @@ export const Root = () => {
       type: "bug" | "suggestion";
     }) | null
   >(null);
-  const [launcherVersion, setLauncherVersion] = useState<string>("Unknown");
-
-  useEffect(() => {
-    // Get launcher version on mount
-    if (window.electronAPI && window.electronAPI.getConfig) {
-      window.electronAPI.getConfig("launcherVersion").then((v) => {
-        if (v) setLauncherVersion(v as string);
-      });
-    }
-  }, []);
+  const launcherVersion = __APP_VERSION__;
 
   useEffect(() => {
     if (fatalError || reportData) {

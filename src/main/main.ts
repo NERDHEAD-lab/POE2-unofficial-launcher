@@ -77,6 +77,7 @@ import {
   startAutomationDumpSession,
   type AutomationDumpArchiveResult,
 } from "./kakao/automation-page-dump";
+import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
@@ -1408,6 +1409,23 @@ ipcMain.on(
   },
 );
 
+function handleManualLoginNavigationError(
+  source: "kept redirect URL" | "standard home URL",
+  error: unknown,
+) {
+  if (isExpectedNavigationAbort(error)) {
+    logger.log(
+      `[Account] ${source} navigation interrupted (expected during manual login).`,
+    );
+    return;
+  }
+
+  logger.error(
+    `[Account] Failed to load ${source} during manual login:`,
+    error,
+  );
+}
+
 ipcMain.on(
   "account:show-login-window",
   (_event, serviceId: AppConfig["serviceChannel"]) => {
@@ -1427,7 +1445,9 @@ ipcMain.on(
       const pendingUrl = pendingLoginUrls.get(serviceId);
       if (pendingUrl) {
         logger.log(`[Account] Loading kept redirect URL: ${pendingUrl}`);
-        gw.loadURL(pendingUrl).catch(logger.error);
+        gw.loadURL(pendingUrl).catch((error: unknown) => {
+          handleManualLoginNavigationError("kept redirect URL", error);
+        });
         // Clear immediately after use (One-time use)
         pendingLoginUrls.delete(serviceId);
       } else {
@@ -1436,7 +1456,9 @@ ipcMain.on(
         logger.log(
           `[Account] No pending URL, loading standard home: ${homeUrl}`,
         );
-        gw.loadURL(homeUrl).catch(logger.error);
+        gw.loadURL(homeUrl).catch((error: unknown) => {
+          handleManualLoginNavigationError("standard home URL", error);
+        });
       }
 
       gw.show();
