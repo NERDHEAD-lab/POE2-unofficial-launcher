@@ -7,10 +7,10 @@ const LOGS_PATH = "C:\\Users\\tester\\AppData\\Roaming\\launcher\\logs";
 
 const logDirectoryItem = SETTINGS_CONFIG.flatMap((category) =>
   category.sections.flatMap((section) => section.items),
-).find((item) => item.id === "btn_copy_logs");
+).find((item) => item.id === "btn_open_logs");
 
 if (!logDirectoryItem || logDirectoryItem.type !== "button") {
-  throw new Error("btn_copy_logs button setting is missing.");
+  throw new Error("btn_open_logs button setting is missing.");
 }
 
 const createContext = (): SettingChangeContext => ({
@@ -32,14 +32,12 @@ const createContext = (): SettingChangeContext => ({
 describe("로그 폴더 경로 설정", () => {
   const getPath = vi.fn<(name: string) => Promise<string>>();
   const openPath = vi.fn<(path: string) => Promise<void>>();
-  const writeText = vi.fn<(text: string) => Promise<void>>();
   const sendDebugLog = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     getPath.mockResolvedValue(LOGS_PATH);
     openPath.mockResolvedValue();
-    writeText.mockResolvedValue();
 
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
@@ -48,10 +46,6 @@ describe("로그 폴더 경로 설정", () => {
         openPath,
         sendDebugLog,
       } as unknown as Window["electronAPI"],
-    });
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
     });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
@@ -89,38 +83,12 @@ describe("로그 폴더 경로 설정", () => {
     expect(openPath).not.toHaveBeenCalled();
   });
 
-  it("경로 복사 시 canonical 로그 경로와 success 토스트를 사용한다", async () => {
+  it("폴더 열기 시 canonical 로그 경로를 사용한다", async () => {
     const context = createContext();
 
     await logDirectoryItem.onClickListener?.(context);
 
     expect(getPath).toHaveBeenCalledWith("logs");
-    expect(writeText).toHaveBeenCalledWith(LOGS_PATH);
-    expect(context.showToast).toHaveBeenCalledWith(
-      "로그 폴더 경로가 복사되었습니다.",
-      "success",
-    );
-    expect(openPath).not.toHaveBeenCalled();
-  });
-
-  it("클립보드 복사 실패 시 error 토스트와 오류 로그를 남긴다", async () => {
-    const context = createContext();
-    writeText.mockRejectedValueOnce(new Error("clipboard unavailable"));
-
-    await logDirectoryItem.onClickListener?.(context);
-
-    expect(context.showToast).toHaveBeenCalledWith(
-      "로그 폴더 경로 복사에 실패했습니다.",
-      "error",
-    );
-    expect(sendDebugLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining(
-          "[Settings] Failed to copy log directory path:",
-        ),
-        isError: true,
-      }),
-    );
-    expect(openPath).not.toHaveBeenCalled();
+    expect(openPath).toHaveBeenCalledWith(LOGS_PATH);
   });
 });

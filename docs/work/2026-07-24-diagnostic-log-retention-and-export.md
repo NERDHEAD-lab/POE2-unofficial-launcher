@@ -42,8 +42,8 @@ push하거나 PR을 만들지 않는다.
 3. 오류 보고서가 실제 오류 시각을 보존하고 해당 로컬 날짜의 로그가 존재할 때만
    다운로드 버튼을 활성화한다.
 4. 같은 날짜의 회전 파일을 사용자가 고른 위치에 ZIP 하나로 저장한다.
-5. `정보 → 경로 정보`에서 실제 로그 폴더 경로를 표시하고 복사할 수 있게 한다.
-   폴더 열기 동작은 추가하지 않는다.
+5. `정보 → 경로 정보`에서 실제 로그 폴더 경로를 표시하고 기존 경로 항목과
+   동일하게 폴더를 열 수 있게 한다.
 
 ## 비목표
 
@@ -51,7 +51,6 @@ push하거나 PR을 만들지 않는다.
 - 디버그 콘솔의 기존 `report:save` 동작 변경
 - 게임 클라이언트 `Client.txt` 또는 카카오 페이지 덤프의 보관 정책 변경
 - 로그 자동 업로드 또는 외부 전송
-- 로그 폴더 열기 버튼
 - 보관 정책을 사용자 설정으로 노출
 - `SettingText.copyable` 공통 UI 계약 복구
 - 기존 `app:get-path` IPC의 allowlist 보안 정리
@@ -269,6 +268,7 @@ IPC 등록부는 입력 검증과 service 위임만 담당하고, 날짜 계산�
 
 #### UI 상태
 
+- `로그 다운로드`는 하단 action group에서 `보고서 복사` 바로 왼쪽에 배치한다.
 - 조회 중: 비활성 `로그 확인 중…`
 - 해당 오류 날짜 파일 존재: 활성 `로그 다운로드`
 - `occurredAt` 없음: 비활성, 정확한 오류 시점 없음 안내
@@ -300,20 +300,19 @@ IPC 등록부는 입력 검증과 service 위임만 담당하고, 날짜 계산�
 - `[사용자]` 실제 Electron 오류 보고서에서 버튼 활성 상태, 원하는 저장 경로
   선택, 취소, ZIP 내부 파일과 오류 날짜를 확인한다.
 
-### M3 — 정보 탭 로그 폴더 경로 표시·복사
+### M3 — 정보 탭 로그 폴더 경로 표시·열기
 
 #### 범위
 
 `src/renderer/settings/settings-config.ts`의 `정보 → 경로 정보`에 기존
 button + description 패턴으로 UI-only 항목을 추가한다.
 
-- id: `btn_copy_logs`
+- id: `btn_open_logs`
 - label: `로그 폴더 경로`
-- buttonText: `경로 복사`
+- buttonText: `폴더 열기`
 - `defaultValue: false`
 - `onInit`: `getPath("logs")` 결과를 info description으로 표시
-- `onClickListener`: 같은 경로를 Clipboard API로 복사하고 toast 표시
-- `openPath()` 호출 없음
+- `onClickListener`: 같은 경로를 `openPath()`로 연다.
 
 AppConfig 또는 새 IPC는 추가하지 않는다. 기존 `app:get-path`의 광범위한
 string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이 되므로 범위에
@@ -323,13 +322,11 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 
 - `[Windows-pwsh]` 설정 callback 테스트에서 `getPath("logs")`를 요청하고
   실제 반환 경로를 description으로 표시한다.
-- `[Windows-pwsh]` `경로 복사`가 같은 문자열을 clipboard에 전달한다.
-- `[Windows-pwsh]` 성공·실패에 맞는 toast를 표시한다.
-- `[Windows-pwsh]` `openPath()`를 호출하지 않는다.
+- `[Windows-pwsh]` `폴더 열기`가 같은 canonical 문자열을 `openPath()`에
+  전달한다.
 - `[Windows-pwsh]` `config-integrity.test.ts`가 통과한다.
-- `[사용자]` 실제 Electron의 `정보 → 경로 정보`에서 표시된 경로와 복사한
-  경로가 실제 파일 sink 폴더와 일치한다.
-- `[사용자]` 버튼을 눌러도 탐색기나 다른 창이 열리지 않는다.
+- `[사용자]` 실제 Electron의 `정보 → 경로 정보`에서 표시된 경로가 실제
+  파일 sink 폴더와 일치하고, 버튼이 그 폴더를 탐색기로 연다.
 
 ## 구현·worktree 계획
 
@@ -440,16 +437,78 @@ string 계약을 이번 작업에서 축소하면 별도 IPC 호환성 변경이
 - 라운드 1의 startup recovery, credential 변형, single occurredAt,
   unavailable/failed 구분, destination alias 보호 5건 closure를 확인했다.
 - bootstrap→runtime exactly-once, 기존 `report:save`, FatalErrorModal typed
-  계약, M3 로그 경로 복사, AppConfig/migration/dependency/lockfile 무변경을
-  비회귀로 확인했다.
+  계약, 당시 M3 로그 경로 복사, AppConfig/migration/dependency/lockfile
+  무변경을 비회귀로 확인했다.
 - 리뷰어는 기록된 Windows gate와 제품 tree를 대조했으며 gate를 재실행하지
   않았다.
 - 실제 Electron `[사용자]` DoD와 hotfix merge 후 rebase·재검증은 별도
   pending이며 현재 통과 판정에 포함하지 않는다.
 
+### 2026-07-24 — 사용자 검증 중 M3 요구사항 정정
+
+- 구현자가 사용자의 “로그 폴더 경로 표시” 요청과 “굳이 로그 폴더를
+  열어줄 필요는 없다”는 오류 보고서 맥락을 잘못 결합해 `경로 복사`로
+  설계·구현했다.
+- 사용자 검증 피드백에 따라 정보 탭의 기존 경로 항목과 동일한 `폴더 열기`
+  동작으로 정정했다.
+- 이 변경으로 리뷰 라운드 2의 M3 판정은 더 이상 현재 코드 판정이 아니며,
+  Windows gate와 분리 리뷰를 다시 실행한다.
+
+### 2026-07-24 — 사용자 검증 중 다운로드 버튼 배치 정정
+
+- 오류 trace 헤더 오른쪽의 독립 버튼은 기존 action 흐름과 분리되어
+  시각적·기능적으로 일관되지 않았다.
+- 사용자 검증 피드백에 따라 하단 action group의 `보고서 복사` 바로 왼쪽으로
+  이동했다.
+- 이 변경도 Windows gate와 분리 리뷰 재실행 범위에 포함한다.
+
+### 2026-07-25 — 리뷰 라운드 3
+
+- 판정: `반려`
+- HIGH: 문장 중간 `Authorization`/`Cookie`/`Set-Cookie` 헤더는 일반
+  unquoted 규칙이 첫 토큰만 치환해 secret tail을 남길 수 있었다.
+- MEDIUM: 초기 `mkdirSync`/`lstatSync` 일시 실패 뒤 `directory = null`
+  상태가 유지되어 같은 세션의 후속 append가 복구를 시도하지 않았다.
+- 수정:
+  - prefixed inline credential header의 나머지 한 줄 값을 일반 규칙보다 먼저
+    전부 `[REDACTED]`로 치환하고 Bearer tail·다중 Cookie 회귀 테스트를
+    추가했다.
+  - `DiagnosticLogStore`가 configured directory와 pending bootstrap을
+    소유하고, 다음 runtime append에서 경로를 재검증한 뒤 bootstrap을 정확히
+    한 번 replay하고 현재 payload를 기록하도록 복구 순서를 명시했다.
+- 수정 후 Windows gate:
+  - `DiagnosticLogStore.test.ts`: 16/16
+  - 전체 테스트: 237 passed, 9 skipped
+  - ESLint: exit 0
+  - TypeScript + Vite build: exit 0
+
+### 2026-07-25 — 실제 Windows Electron 검증
+
+- `app.getPath("logs")`가
+  `C:\Users\nerdl\AppData\Roaming\POE2 Unofficial Launcher\logs`를 반환하고,
+  현재 날짜 regular segment가 runtime 중 계속 증가했다.
+- 정보 탭은 canonical 경로와 `폴더 열기`를 표시했고, 실제 Explorer 창의
+  LocalPath가 위 경로와 일치했다.
+- 오류 날짜 2026-07-24는 다운로드 활성, 파일이 없는 2026-07-23은
+  `missing` 및 비활성 상태였다.
+- 다운로드 버튼은 하단 action group에서 `보고서 복사` 바로 왼쪽에 있으며,
+  native save dialog 취소가 실패로 표시되지 않았다.
+- 임시 경로로 실제 저장한 ZIP은
+  `launcher-2026-07-24.000.log` 1개와 436개 유효 JSON line을 포함했고,
+  snapshot bytes가 현재 원본 파일 prefix와 일치했다. 검증 ZIP은 삭제했다.
+
+### 2026-07-25 — 리뷰 라운드 4
+
+- 판정: `조건부 통과 — 제품 코드 지적 없음`
+- 라운드 3의 credential header HIGH와 초기 디렉터리 복구 MEDIUM closure를
+  확인했고 새 제품 회귀는 없었다.
+- UI 정정 2건과 AppConfig/migration/dependency/lockfile 무변경도 확인했다.
+- LOW 문서 지적 1건: Blast radius의 `로그 경로 표시·복사`를 현재 구현과
+  일치하는 `표시·열기`로 정정했다. 재리뷰는 불필요하다.
+
 ### 남은 검증
 
-- `[사용자]` 오류 보고서 ZIP 저장과 정보 탭 경로 복사 실동작 확인
+- `[사용자]` 최종 UI 배치 확인 및 OK
 - 핫픽스 선행 merge 후 rebase·전체 gate·분리 리뷰 재실행
 
 ## Dependency barrier
@@ -515,8 +574,7 @@ lint/test/build를 WSL에서 실행하지 않는다.
 - 해당 날짜 로그가 있으면 다운로드 활성, 없으면 비활성 확인
 - 사용자가 고른 경로에 ZIP 저장 및 내부 segment·내용 확인
 - 저장 취소 시 파일 생성 및 성공 toast 없음
-- 설정 정보 탭의 경로 표시·복사 확인
-- 경로 복사 시 탐색기·외부 창이 열리지 않음
+- 설정 정보 탭의 경로 표시·로그 폴더 열기 확인
 - fatal 재시작, 기존 보고서 복사, 디버그 콘솔 저장 회귀 없음
 
 ## 리뷰 계획
@@ -549,7 +607,7 @@ lint/test/build를 WSL에서 실행하지 않는다.
 - 신규 로그 availability/save IPC 2개
 - fatal IPC payload
 - 오류 report 다운로드 UI
-- 정보 탭의 로그 경로 표시·복사
+- 정보 탭의 로그 경로 표시·열기
 
 ### 변경하지 않는 범위
 

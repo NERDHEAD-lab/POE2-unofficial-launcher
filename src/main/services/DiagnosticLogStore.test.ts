@@ -170,6 +170,9 @@ describe("DiagnosticLogStore", () => {
       "Authorization: Bearer auth-secret",
       "Cookie: sid=cookie-secret",
       "Set-Cookie: refresh=cookie-response-secret",
+      "Request Authorization: Bearer prefixed-auth-secret trailing-auth-secret",
+      "Proxy Cookie: sid=prefixed-cookie-secret; refresh=second-cookie-secret",
+      "Response Set-Cookie: session=prefixed-response-secret; Path=/; HttpOnly",
       '{"password":"pw-secret","access_token":"access-secret","auth_code":"auth-code-secret","authorization_code":"authorization-code-secret","token":"json-token-secret","session":"json-session-secret","code":"ERR_ABORTED"}',
       "refresh_token=refresh-secret id_token=id-secret client_secret=client-value-secret",
       '{"accessToken":"camel-access","refreshToken":"camel-refresh","idToken":"camel-id","clientSecret":"camel-client","authCode":"camel-auth","authorizationCode":"camel-authorization"}',
@@ -184,6 +187,11 @@ describe("DiagnosticLogStore", () => {
       "auth-secret",
       "cookie-secret",
       "cookie-response-secret",
+      "prefixed-auth-secret",
+      "trailing-auth-secret",
+      "prefixed-cookie-secret",
+      "second-cookie-secret",
+      "prefixed-response-secret",
       "pw-secret",
       "access-secret",
       "auth-code-secret",
@@ -211,6 +219,11 @@ describe("DiagnosticLogStore", () => {
       expect(redacted).not.toContain(secret);
     }
     expect(redacted).toContain('"code":"ERR_ABORTED"');
+    expect(redacted).toContain(
+      "Request Authorization: [REDACTED]",
+    );
+    expect(redacted).toContain("Proxy Cookie: [REDACTED]");
+    expect(redacted).toContain("Response Set-Cookie: [REDACTED]");
     expect(redacted.match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(14);
   });
 
@@ -331,6 +344,28 @@ describe("DiagnosticLogStore", () => {
       "Diagnostic log store is not initialized",
     );
     expect(consoleError).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers from a transient initial directory failure without duplicating bootstrap logs", () => {
+    const parentDirectory = createTemporaryDirectory();
+    const directory = path.join(parentDirectory, "logs");
+    writeFileSync(directory, "temporarily blocked");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // Expected initial failure before the path becomes a directory.
+    });
+    const store = new DiagnosticLogStore({
+      now: () => new Date(2026, 6, 24, 12).getTime(),
+    });
+
+    store.initialize(directory, [payload("bootstrap")]);
+    rmSync(directory);
+    mkdirSync(directory);
+    store.append(payload("runtime"));
+
+    const stored = readOnlyLogFile(directory);
+    expect(stored.match(/bootstrap/g)).toHaveLength(1);
+    expect(stored.match(/runtime/g)).toHaveLength(1);
+    expect(consoleError).toHaveBeenCalledOnce();
   });
 
   it("keeps the store active after a transient initial cleanup failure", () => {

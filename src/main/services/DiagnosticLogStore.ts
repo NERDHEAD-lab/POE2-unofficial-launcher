@@ -73,13 +73,13 @@ export function redactDiagnosticLogContent(content: string): string {
   const unquotedCredential =
     /((?:authorization|cookie|set-cookie|password|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth(?:orization)?[_-]?code|token|session)\s*[:=]\s*)(?!\[REDACTED\])([^\s,;&}\]]+)/gi;
   const credentialHeader =
-    /^(\s*(?:authorization|cookie|set-cookie)\s*:\s*).*$/gim;
+    /^((?:.*?\b)?(?:authorization|cookie|set-cookie)\s*:\s*).*$/gim;
 
   return content
+    .replace(credentialHeader, `$1${REDACTION_MARKER}`)
     .replace(queryCredential, `$1${REDACTION_MARKER}`)
     .replace(quotedCredential, `$1$2${REDACTION_MARKER}$2`)
-    .replace(unquotedCredential, `$1${REDACTION_MARKER}`)
-    .replace(credentialHeader, `$1${REDACTION_MARKER}`);
+    .replace(unquotedCredential, `$1${REDACTION_MARKER}`);
 }
 
 function isValidDateKey(dateKey: string): boolean {
@@ -164,6 +164,8 @@ function getOpenFlags(baseFlags: number): number {
 
 export class DiagnosticLogStore {
   private directory: string | null = null;
+  private configuredDirectory: string | null = null;
+  private pendingBootstrapLogs: DebugLogPayload[] = [];
   private failureReported = false;
   private knownTotalBytes = 0;
   private lastCleanupDateKey: string | null = null;
@@ -188,22 +190,36 @@ export class DiagnosticLogStore {
     bootstrapLogs: readonly DebugLogPayload[],
   ): void {
     this.directory = null;
+    this.configuredDirectory = directory;
+    this.pendingBootstrapLogs = [...bootstrapLogs];
     this.failureReported = false;
     this.knownTotalBytes = 0;
     this.lastCleanupDateKey = null;
 
+    this.activateDirectory();
+  }
+
+  append(payload: DebugLogPayload): void {
+    if (!this.directory && !this.activateDirectory()) return;
+
+    this.appendToActiveDirectory(payload);
+  }
+
+  private activateDirectory(): boolean {
+    if (!this.configuredDirectory) return false;
+
     try {
-      mkdirSync(directory, { recursive: true });
-      const directoryStat = lstatSync(directory);
+      mkdirSync(this.configuredDirectory, { recursive: true });
+      const directoryStat = lstatSync(this.configuredDirectory);
       if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
         throw new Error("Diagnostic log path is not a regular directory");
       }
 
-      this.directory = directory;
+      this.directory = this.configuredDirectory;
     } catch (error) {
       this.directory = null;
       this.reportFailure("initialize", error);
-      return;
+      return false;
     }
 
     try {
@@ -212,18 +228,20 @@ export class DiagnosticLogStore {
       this.reportFailure("initial cleanup", error);
     }
 
+    const bootstrapLogs = this.pendingBootstrapLogs;
+    this.pendingBootstrapLogs = [];
     try {
       for (const payload of bootstrapLogs) {
-        this.append(payload);
+        this.appendToActiveDirectory(payload);
       }
     } catch (error) {
       this.reportFailure("bootstrap replay", error);
     }
+
+    return true;
   }
 
-  append(payload: DebugLogPayload): void {
-    if (!this.directory) return;
-
+  private appendToActiveDirectory(payload: DebugLogPayload): void {
     try {
       const ingestionTimestamp = this.now();
       const effectiveTimestamp = Number.isFinite(payload.timestamp)

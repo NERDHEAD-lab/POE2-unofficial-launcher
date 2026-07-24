@@ -1084,12 +1084,12 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
             },
           },
           {
-            id: "btn_copy_logs",
+            id: "btn_open_logs",
             type: "button",
             label: "로그 폴더 경로",
-            buttonText: "경로 복사",
+            buttonText: "폴더 열기",
             defaultValue: false,
-            icon: "content_copy",
+            icon: "folder_shared",
             onInit: async ({ addDescription, resetDescription }) => {
               try {
                 const logsPath = await window.electronAPI.getPath("logs");
@@ -1107,18 +1107,9 @@ export const SETTINGS_CONFIG: SettingsCategory[] = [
                 );
               }
             },
-            onClickListener: async ({ showToast }) => {
-              try {
-                const logsPath = await window.electronAPI.getPath("logs");
-                await navigator.clipboard.writeText(logsPath);
-                showToast("로그 폴더 경로가 복사되었습니다.", "success");
-              } catch (error) {
-                logger.error(
-                  "[Settings] Failed to copy log directory path:",
-                  error,
-                );
-                showToast("로그 폴더 경로 복사에 실패했습니다.", "error");
-              }
+            onClickListener: async () => {
+              const logsPath = await window.electronAPI.getPath("logs");
+              await window.electronAPI.openPath(logsPath);
             },
           },
         ],

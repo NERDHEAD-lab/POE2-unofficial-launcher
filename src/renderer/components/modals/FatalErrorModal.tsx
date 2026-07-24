@@ -679,30 +679,6 @@ ${reportLogSection}
                 >
                   최근 오류 정보 (Recent Error Trace):
                 </div>
-                <button
-                  className="setting-btn default"
-                  onClick={handleDownloadLogs}
-                  disabled={!canDownloadLogs}
-                  title={logDownloadTitle}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    minWidth: "142px",
-                    height: "32px",
-                    opacity: canDownloadLogs ? 1 : 0.55,
-                    cursor: canDownloadLogs ? "pointer" : "not-allowed",
-                  }}
-                >
-                  <span
-                    className="material-symbols-outlined"
-                    style={{ fontSize: "17px" }}
-                  >
-                    {isSavingLogs ? "progress_activity" : "download"}
-                  </span>
-                  <span>{logDownloadLabel}</span>
-                </button>
               </div>
               <div
                 style={{
@@ -881,6 +857,32 @@ ${reportLogSection}
 
           {/* Action Group (Right) - Copy Moved Here */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {config.showLogs && (
+              <button
+                className="setting-btn default"
+                onClick={handleDownloadLogs}
+                disabled={!canDownloadLogs}
+                title={logDownloadTitle}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: canDownloadLogs ? 1 : 0.55,
+                  cursor: canDownloadLogs ? "pointer" : "not-allowed",
+                  minWidth: "160px",
+                  justifyContent: "center",
+                }}
+              >
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: "18px" }}
+                >
+                  {isSavingLogs ? "progress_activity" : "download"}
+                </span>
+                <span>{logDownloadLabel}</span>
+              </button>
+            )}
+
             <button
               className="setting-btn default"
               onClick={handleCopy}
