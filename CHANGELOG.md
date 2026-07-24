@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.5...1.5.0) (2026-07-24)
+
+
+### Features
+
+* 오류 진단 로그를 보관하고 다운로드할 수 있도록 개선 ([bfc20fb](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/bfc20fb65ab25c2ff80e6403fe1bf2002017520a))
+
+
+### Bug Fixes
+
+* 카카오 로그인 전환 오류 보고와 런처 버전 표시 문제 수정 ([2eddb90](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/2eddb90717cda6738cdab997958b3db4d99180ba))
+
 ## [1.4.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.4...1.4.5) (2026-07-19)
 
 
