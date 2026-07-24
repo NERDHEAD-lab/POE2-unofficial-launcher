@@ -41,6 +41,15 @@
         "background": "d43e91f5",
         "logo": "dfdfc1c5"
       }
+    },
+    {
+      "id": "3.29",
+      "name": "Curse of the Allflame",
+      "assets": {
+        "background": "assets/themes/poe1/3.29/bg.png",
+        "logo": "assets/themes/poe1/3.29/logo.png"
+      },
+      "startDate": "2026-07-24 20:00:00"
     }
   ],
   "poe2": [
