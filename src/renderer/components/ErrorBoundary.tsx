@@ -2,9 +2,11 @@ import { Component, ReactNode, ErrorInfo } from "react";
 
 import { logger } from "../utils/logger";
 
+import type { FatalErrorPayload } from "../../shared/types";
+
 interface Props {
   children: ReactNode;
-  onFatalError: (errorDetails: string) => void;
+  onFatalError: (payload: FatalErrorPayload) => void;
 }
 
 interface State {
@@ -23,8 +25,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const occurredAt = Date.now();
+
     // Log the error to our internal logger
-    logger.error(
+    logger.errorAt(
+      occurredAt,
       "[ErrorBoundary] React Rendering Error caught:",
       error,
       errorInfo,
@@ -35,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const componentStack = errorInfo.componentStack || "";
     const errorDetails = `[React Rendering Error] ${errorMessage}\n\nComponent Stack:\n${componentStack}`;
 
-    this.props.onFatalError(errorDetails);
+    this.props.onFatalError({ errorDetails, occurredAt });
   }
 
   render() {

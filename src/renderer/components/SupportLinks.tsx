@@ -298,6 +298,7 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
           const event = new CustomEvent("SHOW_REPORT_MODAL", {
             detail: {
               errorDetails: "",
+              errorSummary: "",
               type: "suggestion",
             },
           });

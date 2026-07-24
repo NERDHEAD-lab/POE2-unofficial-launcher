@@ -21,6 +21,7 @@ import JSZip from "jszip";
 import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
 import { registerCoreEventHandlers } from "./events/register-handlers";
+import { createFatalErrorRecord } from "./fatal-error";
 import {
   setConfigWithEvent,
   deleteConfigWithEvent,
@@ -32,6 +33,7 @@ import {
   AppConfig,
   NewsCategory,
   DebugLogPayload,
+  FatalErrorPayload,
   GameLaunchContext,
   SERVICE_CHANNELS,
 } from "../shared/types";
@@ -64,6 +66,7 @@ import {
   reconcileGameInstallStatus,
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
+import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
 import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import {
   archiveAutomationDumpSession,
@@ -80,6 +83,7 @@ import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
+import { diagnosticLogStore } from "./services/DiagnosticLogStore";
 import { GameVersionScanner } from "./services/GameVersionScanner";
 import { newsService } from "./services/NewsService";
 import { PatchManager } from "./services/PatchManager";
@@ -102,6 +106,8 @@ import {
   logger,
   getLogHistory,
   printBanner,
+  recordDebugLogPayload,
+  setupDiagnosticLogSink,
 } from "./utils/logger";
 import { LogParser } from "./utils/LogParser";
 import { openExternalSafely } from "./utils/open-external";
@@ -163,28 +169,27 @@ async function checkLauncherVersionUpdate() {
 }
 
 // --- Fatal Error Handling State ---
-let fatalErrorBuffer: string | null = null;
+let fatalErrorBuffer: FatalErrorPayload | null = null;
 let isRendererReadyForFatalError = false;
 
 function handleFatalError(error: Error | unknown, type: string) {
-  const errorMessage =
-    error instanceof Error ? error.stack || error.message : String(error);
-  const fullMessage = `[${type}] ${errorMessage}`;
-
-  logger.error(`[Fatal] ${fullMessage}`);
+  const { payload, errorMessage } = createFatalErrorRecord(error, type);
 
   if (
     isRendererReadyForFatalError &&
     context.mainWindow &&
     !context.mainWindow.isDestroyed()
   ) {
-    context.mainWindow.webContents.send("app:fatal-error", fullMessage);
+    context.mainWindow.webContents.send("app:fatal-error", payload);
   } else {
     // Buffer it if renderer isn't ready
     if (!fatalErrorBuffer) {
-      fatalErrorBuffer = fullMessage;
+      fatalErrorBuffer = payload;
     } else {
-      fatalErrorBuffer += `\n\n[${type}] ${errorMessage}`;
+      fatalErrorBuffer = {
+        ...fatalErrorBuffer,
+        errorDetails: `${fatalErrorBuffer.errorDetails}\n\n[${type}] ${errorMessage}`,
+      };
     }
   }
 }
@@ -599,6 +604,7 @@ ipcMain.handle("config:is-forced", (_event, key: string) => {
 });
 
 ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
+  recordDebugLogPayload(log);
   if (appContext) {
     eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, appContext, log);
   }
@@ -3184,6 +3190,10 @@ ipcMain.handle("theme:sync-force", async () => {
 });
 
 app.whenReady().then(async () => {
+  diagnosticLogStore.initialize(app.getPath("logs"), getLogHistory());
+  setupDiagnosticLogSink((payload) => diagnosticLogStore.append(payload));
+  registerDiagnosticLogIpc(diagnosticLogStore);
+
   // Register Font IPC Handlers early to avoid race conditions
   FontIpcHandler.register();
 

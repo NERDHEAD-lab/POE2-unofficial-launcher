@@ -9,6 +9,9 @@ import { GameStateProvider } from "./contexts/GameStateContext";
 import { DEBUG_APP_CONFIG } from "../shared/config";
 import { logger } from "./utils/logger";
 
+import type { ErrorReportData } from "../shared/debug-log-policy";
+import type { FatalErrorPayload } from "../shared/types";
+
 import "./App.css";
 
 const isDebug = window.location.hash === DEBUG_APP_CONFIG.HASH;
@@ -18,12 +21,12 @@ if (!isDebug) {
 }
 
 export const Root = () => {
-  const [fatalError, setFatalError] = useState<string | null>(null);
-  const [reportData, setReportData] = useState<{
-    errorDetails: string;
-    errorSummary?: string;
-    type: "bug" | "suggestion";
-  } | null>(null);
+  const [fatalError, setFatalError] = useState<FatalErrorPayload | null>(null);
+  const [reportData, setReportData] = useState<
+    (ErrorReportData & {
+      type: "bug" | "suggestion";
+    }) | null
+  >(null);
   const launcherVersion = __APP_VERSION__;
 
   useEffect(() => {
@@ -36,9 +39,12 @@ export const Root = () => {
 
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onFatalError) {
-      const cleanup = window.electronAPI.onFatalError((errorDetails) => {
-        logger.error("[Root] Fatal Error received from Main:", errorDetails);
-        setFatalError(errorDetails);
+      const cleanup = window.electronAPI.onFatalError((payload) => {
+        logger.error(
+          "[Root] Fatal Error received from Main:",
+          payload.errorDetails,
+        );
+        setFatalError(payload);
       });
 
       window.electronAPI.reportFatalReady();
@@ -49,11 +55,9 @@ export const Root = () => {
   useEffect(() => {
     // Listen for manual report modal trigger
     const handleShowReport = (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        errorDetails: string;
-        errorSummary?: string;
-        type: "bug" | "suggestion";
-      }>;
+      const customEvent = event as CustomEvent<
+        ErrorReportData & { type: "bug" | "suggestion" }
+      >;
       setReportData(customEvent.detail);
     };
 
@@ -67,15 +71,19 @@ export const Root = () => {
     <div id="app-container">
       {fatalError && (
         <FatalErrorModal
-          errorDetails={fatalError}
+          key={`fatal-${fatalError.occurredAt}`}
+          errorDetails={fatalError.errorDetails}
+          occurredAt={fatalError.occurredAt}
           launcherVersion={launcherVersion}
           type="fatal"
         />
       )}
       {reportData && !fatalError && (
         <FatalErrorModal
+          key={`report-${reportData.occurredAt ?? "none"}`}
           errorDetails={reportData.errorDetails}
           errorSummary={reportData.errorSummary}
+          occurredAt={reportData.occurredAt}
           type={reportData.type}
           launcherVersion={launcherVersion}
           onClose={() => setReportData(null)}

@@ -3,6 +3,7 @@ import type { DebugLogPayload } from "./types";
 export interface ErrorReportData {
   errorDetails: string;
   errorSummary: string;
+  occurredAt?: number;
 }
 
 const EXCEPTION_LOG_PATTERNS = [
@@ -57,6 +58,7 @@ export function buildErrorReportData(
   return {
     errorDetails: reportLogs.map(formatDebugLogLine).join("\n"),
     errorSummary: buildUserErrorSummary(reportLogs),
+    occurredAt: selectedLog?.timestamp ?? recentErrorLogs.at(-1)?.timestamp,
   };
 }
 

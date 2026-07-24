@@ -1,17 +1,52 @@
 import { LoggerBase, LoggerOptions } from "../../shared/logger-base";
 import { AppContext, DebugLogEvent, EventType } from "../events/types";
 
+import type { DebugLogPayload } from "../../shared/types";
+
 let globalContext: AppContext | null = null;
 let logEmitter: ((event: DebugLogEvent) => void) | null = null;
+let diagnosticLogSink: ((payload: DebugLogPayload) => void) | null = null;
+let diagnosticLogSinkErrorReported = false;
 
 // 초기 로그 소실 방지를 위한 버퍼
 const MAX_LOG_HISTORY = 200;
-const logHistory: DebugLogEvent["payload"][] = [];
+const logHistory: DebugLogPayload[] = [];
+
+/**
+ * 메인 프로세스가 소유하는 영구 로그 저장소를 연결합니다.
+ */
+export function setupDiagnosticLogSink(
+  sink: (payload: DebugLogPayload) => void,
+): void {
+  diagnosticLogSink = sink;
+  diagnosticLogSinkErrorReported = false;
+}
+
+/**
+ * 로그를 메모리 히스토리와 영구 로그 sink에 각각 한 번 기록합니다.
+ */
+export function recordDebugLogPayload(payload: DebugLogPayload): void {
+  logHistory.push(payload);
+  if (logHistory.length > MAX_LOG_HISTORY) {
+    logHistory.shift();
+  }
+
+  if (!diagnosticLogSink) return;
+
+  try {
+    diagnosticLogSink(payload);
+  } catch (error) {
+    if (!diagnosticLogSinkErrorReported) {
+      diagnosticLogSinkErrorReported = true;
+      console.error("[Logger] Diagnostic log sink failed:", error);
+    }
+  }
+}
 
 /**
  * 전역 로그 히스토리를 반환합니다.
  */
-export function getLogHistory() {
+export function getLogHistory(): DebugLogPayload[] {
   return [...logHistory];
 }
 
@@ -58,22 +93,23 @@ export class Logger extends LoggerBase {
     super(options);
   }
 
-  protected emit(content: string, isError: boolean, textColor?: string): void {
+  protected emit(
+    content: string,
+    isError: boolean,
+    textColor?: string,
+    timestamp?: number,
+  ): void {
     const payload: DebugLogEvent["payload"] = {
       type: this.type,
       content: content,
       isError: isError,
-      timestamp: Date.now(),
+      timestamp: timestamp ?? Date.now(),
       typeColor: this.typeColor,
       textColor: textColor || (isError ? "#FF5555" : this.textColor),
       priority: this.priority,
     };
 
-    // 히스토리 버퍼에 추가 (최신 N개 유지)
-    logHistory.push(payload);
-    if (logHistory.length > MAX_LOG_HISTORY) {
-      logHistory.shift();
-    }
+    recordDebugLogPayload(payload);
 
     if (!globalContext || !logEmitter) return;
 
