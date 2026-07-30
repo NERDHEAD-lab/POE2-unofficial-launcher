@@ -187,6 +187,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     category: "Patch",
     description: "게임 패치 자동 예약 목록을 저장합니다. (자동 관리)",
   },
+  RENEWED_PATCH_RESERVATIONS: {
+    key: "renewedPatchReservations",
+    name: "Renewed Patch Reservations",
+    category: "Patch",
+    description:
+      "게임 버전 감지 기반 리뉴얼 패치 예약 목록을 저장합니다. (자동 관리)",
+  },
   SILENT_PATCH_NOTIFICATION: {
     key: "silentPatchNotification",
     name: "Do Not Disturb Mode",
@@ -317,6 +324,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
   },
   patchReservations: [],
+  renewedPatchReservations: [],
   silentPatchNotification: false,
   terminateAfterPatch: true,
   appliedFonts: {},

@@ -66,6 +66,10 @@ const getElectronStartupArgs = () => {
 
   args.push(`--remote-debugging-port=${remoteDebuggingPort}`);
 
+  if (process.env.ELECTRON_START_HIDDEN === "true") {
+    args.push("--hidden");
+  }
+
   return args;
 };
 

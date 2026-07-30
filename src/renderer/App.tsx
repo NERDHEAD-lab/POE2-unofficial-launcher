@@ -21,6 +21,8 @@ import {
   KakaoMaintenanceInfo,
   KakaoGameStarterMigrationRequest,
   GameInstallPathDiagnostics,
+  RenewedPatchReservation,
+  RenewedPatchReservationInput,
 } from "../shared/types";
 import { DOWNLOAD_URLS, SUPPORT_URLS } from "../shared/urls";
 
@@ -176,10 +178,7 @@ const NEWS_OPEN_MODE_OPTIONS: Array<{
 // "NULL_REF"  : Crash due to null reference during render
 // "NONE"      : No crash
 const TEST_CRASH_MODE = (import.meta.env.VITE_TEST_CRASH_MODE || "NONE") as
-  | "DELAYED"
-  | "IMMEDIATE"
-  | "NULL_REF"
-  | "NONE";
+  "DELAYED" | "IMMEDIATE" | "NULL_REF" | "NONE";
 
 const TestCrashComponent = () => {
   const [shouldCrash, setShouldCrash] = useState(false);
@@ -1797,6 +1796,21 @@ function App() {
     window.electronAPI.deletePatchReservation(id);
   }, []);
 
+  const handleAddRenewedPatchReservation = useCallback(
+    (res: RenewedPatchReservationInput) =>
+      window.electronAPI.triggerRenewedPatchReservation({
+        ...res,
+        id: `renewed_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      } as RenewedPatchReservation),
+    [],
+  );
+
+  const handleRemoveRenewedPatchReservation = useCallback(
+    (id: string) => window.electronAPI.deleteRenewedPatchReservation(id),
+    [],
+  );
+
   const handleSilentPatchNotificationToggle = useCallback(
     (enabled: boolean) => {
       window.electronAPI.setConfig(
@@ -1973,6 +1987,7 @@ function App() {
       <PatchReservationModal
         isOpen={isPatchReservationOpen}
         reservations={config.patchReservations}
+        renewedReservations={config.renewedPatchReservations || []}
         activeGame={config.activeGame}
         activeService={config.serviceChannel}
         silentNotification={config.silentPatchNotification}
@@ -1981,6 +1996,8 @@ function App() {
         onTerminateAfterPatchToggle={handleTerminateAfterPatchToggle}
         onAdd={handleAddPatchReservation}
         onDelete={handleRemovePatchReservation}
+        onAddRenewed={handleAddRenewedPatchReservation}
+        onDeleteRenewed={handleRemoveRenewedPatchReservation}
         onClose={() => setIsPatchReservationOpen(false)}
         onNavigateToSetting={openSettingsWithFocus}
         launcherConfig={{

@@ -8,6 +8,8 @@ import {
   ChangelogItem,
   GameLaunchContext,
   KakaoMaintenanceInfo,
+  RenewedPatchReservation,
+  RenewedPatchReservationCommandResult,
 } from "../../shared/types";
 
 // Event Enums
@@ -47,6 +49,8 @@ export enum EventType {
   PATCH_RESERVATION_FAILED = "PATCH:RESERVATION_FAILED",
   PATCH_RESERVATION_SUCCESS = "PATCH:RESERVATION_SUCCESS",
   PATCH_UI_TITLE_TICK = "PATCH:UI_TITLE_TICK",
+  RENEWED_PATCH_RESERVATION_CREATE = "PATCH:RENEWED_RESERVATION_CREATE",
+  RENEWED_PATCH_RESERVATION_DELETE = "PATCH:RENEWED_RESERVATION_DELETE",
 
   // Remote version (master socket / gh-pages)
   REMOTE_VERSION_UPDATED = "REMOTE:VERSION_UPDATED",
@@ -312,6 +316,8 @@ export type AppEvent =
   | PatchReservationFailedEvent
   | PatchReservationSuccessEvent
   | PatchUiTitleTickEvent
+  | RenewedPatchReservationCreateEvent
+  | RenewedPatchReservationDeleteEvent
   | RemoteVersionUpdatedEvent
   | KakaoMaintenanceDetectedEvent;
 
@@ -352,6 +358,7 @@ export interface PatchRetryRequestedEvent {
     gameId: string;
     serviceId: string;
     retryCount: number;
+    runId?: string;
   };
   timestamp?: number;
 }
@@ -362,6 +369,7 @@ export interface PatchReservationFailedEvent {
     gameId: string;
     serviceId: string;
     reason: string;
+    runId?: string;
   };
   timestamp?: number;
 }
@@ -371,6 +379,29 @@ export interface PatchReservationSuccessEvent {
   payload: {
     gameId: string;
     serviceId: string;
+    runId?: string;
+  };
+  timestamp?: number;
+}
+
+export interface RenewedPatchReservationCommandRef {
+  value: RenewedPatchReservationCommandResult;
+}
+
+export interface RenewedPatchReservationCreateEvent {
+  type: EventType.RENEWED_PATCH_RESERVATION_CREATE;
+  payload: {
+    reservation: RenewedPatchReservation;
+    result: RenewedPatchReservationCommandRef;
+  };
+  timestamp?: number;
+}
+
+export interface RenewedPatchReservationDeleteEvent {
+  type: EventType.RENEWED_PATCH_RESERVATION_DELETE;
+  payload: {
+    id: string;
+    result: RenewedPatchReservationCommandRef;
   };
   timestamp?: number;
 }

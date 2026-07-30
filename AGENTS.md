@@ -171,6 +171,27 @@ in its area:
   never WSL/mock-browser verification).
 - `github-cli-token` — see above.
 
+### Windows Electron QA visibility
+
+- Agent-driven Electron QA defaults to hidden, non-focus-stealing execution.
+  Set `ELECTRON_START_HIDDEN=true` and an isolated
+  `ELECTRON_QA_USER_DATA_DIR=<temporary absolute Windows path>` before
+  `npm run dev`, then use CDP against the real launcher target for
+  interaction, DOM inspection, and screenshots.
+- Never point `ELECTRON_QA_USER_DATA_DIR` at the user's normal launcher data
+  directory. Remove the temporary QA profile after the hidden instance exits.
+- Agent-started Windows QA terminals and console hosts must also stay hidden.
+  Run synchronous PowerShell commands through WSL interop without opening a
+  terminal UI. For detached or long-running Vite/Electron processes, use
+  `Start-Process -WindowStyle Hidden` and redirect stdout/stderr to temporary
+  log files so no PowerShell, cmd, or console window is shown or focused.
+- Hidden execution does not weaken the real-Windows requirement: Electron,
+  preload, IPC, terminal logs, and the actual renderer target must still be
+  used.
+- Show or focus a QA window only when the behavior cannot be verified while
+  hidden. Explain why and obtain the user's confirmation before making it
+  visible.
+
 ## WSL execution rules (detect at session start)
 
 If `uname -r` contains `microsoft`/`WSL`, this is WSL — WSL is the

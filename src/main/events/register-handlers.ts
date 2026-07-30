@@ -2,6 +2,7 @@ import { eventBus } from "./EventBus";
 import { AutoLaunchHandler } from "./handlers/AutoLaunchHandler";
 import {
   AutoPatchProcessStopHandler,
+  AutoPatchProcessStartHandler,
   LogErrorHandler,
   LogSessionHandler,
   LogWebRootHandler,
@@ -25,6 +26,10 @@ import {
 import { GameStatusSyncHandler } from "./handlers/GameStatusSyncHandler";
 import { InactiveWindowVisibilityHandler } from "./handlers/InactiveWindowVisibilityHandler";
 import { KakaoMaintenanceUISyncHandler } from "./handlers/KakaoMaintenanceUISyncHandler";
+import {
+  RenewedPatchReservationCreateHandler,
+  RenewedPatchReservationDeleteHandler,
+} from "./handlers/RenewedPatchReservationHandler";
 import { StartPoe1KakaoHandler } from "./handlers/StartPoe1KakaoHandler";
 import { StartPoe2KakaoHandler } from "./handlers/StartPoe2KakaoHandler";
 import { StartPoeGggHandler } from "./handlers/StartPoeGggHandler";
@@ -54,6 +59,7 @@ export const CORE_EVENT_HANDLERS = [
   UpdateCheckHandler,
   UpdateDownloadHandler,
   UpdateInstallHandler,
+  AutoPatchProcessStartHandler,
   LogSessionHandler,
   LogWebRootHandler,
   LogErrorHandler,
@@ -67,6 +73,8 @@ export const CORE_EVENT_HANDLERS = [
   UacHandler,
   InactiveWindowVisibilityHandler,
   KakaoMaintenanceUISyncHandler,
+  RenewedPatchReservationCreateHandler,
+  RenewedPatchReservationDeleteHandler,
 ] as const;
 
 export function registerCoreEventHandlers() {

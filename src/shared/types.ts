@@ -99,6 +99,7 @@ export interface AppConfig {
     lastModified?: string; // For themes.json caching
   };
   patchReservations: PatchReservation[];
+  renewedPatchReservations: RenewedPatchReservation[];
   silentPatchNotification: boolean;
   terminateAfterPatch: boolean;
   /**
@@ -127,22 +128,13 @@ export interface GameLaunchContext {
 }
 
 export type GameInstallPathVerificationStatus =
-  | "valid"
-  | "missing"
-  | "unknown"
-  | "not-checked";
+  "valid" | "missing" | "unknown" | "not-checked";
 
 export type GameInstallPathRegistryState =
-  | "found"
-  | "key-missing"
-  | "value-missing"
-  | "value-empty"
-  | "read-failed";
+  "found" | "key-missing" | "value-missing" | "value-empty" | "read-failed";
 
 export type GameInstallPathConfigState =
-  | "found"
-  | "empty"
-  | "context-unavailable";
+  "found" | "empty" | "context-unavailable";
 
 export interface GameInstallPathConfigDiagnostic {
   source: "config";
@@ -176,8 +168,7 @@ export interface GameInstallPathDiagnostics {
 }
 
 export type GameInstallPathConflictAction =
-  | "launcher-config-only"
-  | "sync-registry";
+  "launcher-config-only" | "sync-registry";
 
 export type GameInstallPathClearSource = "config" | "registry";
 
@@ -233,6 +224,50 @@ export interface PatchReservation {
   createdAt: string; // 생성일시
   retryCount?: number; // [v45] 패치 시도 횟수 추적용
 }
+
+export interface RenewedPatchReservationBase {
+  id: string;
+  gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+  createdAt: string;
+  lastNotifiedVersion?: string;
+}
+
+export type RenewedPatchReservation =
+  | (RenewedPatchReservationBase & {
+      schedule:
+        | { kind: "once-at"; at: string }
+        | {
+            kind: "once-range";
+            startsAt: string;
+            endsAt: string;
+            intervalMinutes: number;
+          };
+      action:
+        | { kind: "notify" }
+        | { kind: "auto-update"; launchAfterUpdate: boolean };
+    })
+  | (RenewedPatchReservationBase & {
+      schedule:
+        | { kind: "daily"; localTime: string }
+        | { kind: "weekly"; weekday: number; localTime: string };
+      action:
+        { kind: "notify"; onlyNewVersion: boolean } | { kind: "auto-update" };
+    });
+
+type WithoutRenewedRuntimeFields<T> = T extends unknown
+  ? Omit<T, "id" | "createdAt" | "lastNotifiedVersion">
+  : never;
+
+export type RenewedPatchReservationInput =
+  WithoutRenewedRuntimeFields<RenewedPatchReservation>;
+
+export type RenewedPatchReservationCommandResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "invalid" | "duplicate" | "not-found" | "service-unavailable";
+    };
 
 export interface ThemeAssets {
   background: string;
@@ -518,6 +553,12 @@ export interface ElectronAPI {
   onShowPatchReservationModal?: (callback: () => void) => () => void; // New
   triggerPatchReservation: (reservation: PatchReservation) => void; // New
   deletePatchReservation: (id: string) => void; // New
+  triggerRenewedPatchReservation: (
+    reservation: RenewedPatchReservation,
+  ) => Promise<RenewedPatchReservationCommandResult>;
+  deleteRenewedPatchReservation: (
+    id: string,
+  ) => Promise<RenewedPatchReservationCommandResult>;
   triggerManualPatchFix: (
     serviceId?: AppConfig["serviceChannel"],
     gameId?: AppConfig["activeGame"],
