@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.5.0...1.6.0) (2026-07-30)
+
+
+### Features
+
+* 패치 예약 기능 개선 및 UI/UX 리뉴얼 ([#261](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/261)) ([ab115a2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ab115a2dd36ec4a8ade95c497fa3a68456796b9f))
+
 ## [1.5.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.4.5...1.5.0) (2026-07-24)
 
 
