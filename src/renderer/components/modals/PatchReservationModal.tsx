@@ -559,7 +559,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
   const [renewedWeekday, setRenewedWeekday] = useState(new Date().getDay());
   const [renewedInterval, setRenewedInterval] = useState("1");
   const [renewedAction, setRenewedAction] = useState<"notify" | "auto-update">(
-    "notify",
+    "auto-update",
   );
   const [onlyNewVersion, setOnlyNewVersion] = useState(true);
   const [launchAfterUpdate, setLaunchAfterUpdate] = useState(false);
@@ -812,7 +812,7 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
         setRenewedLocalTime(toLocalMinuteTimeInput(renewedStart));
         setRenewedWeekday(renewedStart.getDay());
         setRenewedInterval("1");
-        setRenewedAction("notify");
+        setRenewedAction("auto-update");
         setOnlyNewVersion(true);
         setLaunchAfterUpdate(false);
         setIsRangeWarningOpen(false);
@@ -1662,20 +1662,20 @@ export const PatchReservationModal: React.FC<PatchReservationModalProps> = ({
                         <button
                           type="button"
                           className={
-                            renewedAction === "notify" ? "selected" : ""
-                          }
-                          onClick={() => setRenewedAction("notify")}
-                        >
-                          알림만
-                        </button>
-                        <button
-                          type="button"
-                          className={
                             renewedAction === "auto-update" ? "selected" : ""
                           }
                           onClick={() => setRenewedAction("auto-update")}
                         >
                           자동 업데이트
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            renewedAction === "notify" ? "selected" : ""
+                          }
+                          onClick={() => setRenewedAction("notify")}
+                        >
+                          알림만
                         </button>
                       </div>
                     </div>

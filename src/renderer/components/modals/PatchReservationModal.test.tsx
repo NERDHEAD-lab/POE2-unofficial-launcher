@@ -266,6 +266,24 @@ describe("PatchReservationModal renewed controls", () => {
     expect(container.textContent).toContain("확인 주기");
     expect(container.querySelector(".patch-workspace")).not.toBeNull();
     expect(container.textContent).toContain("현재 예약 목록");
+    const actionGroup = [
+      ...container.querySelectorAll<HTMLElement>(".form-group"),
+    ].find(
+      (group) =>
+        group.querySelector("label")?.textContent === "업데이트 감지 후",
+    );
+    const actionButtons = [
+      ...(actionGroup?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+    ];
+    expect(actionButtons.map((button) => button.textContent?.trim())).toEqual([
+      "자동 업데이트",
+      "알림만",
+    ]);
+    expect(
+      actionButtons.find((button) => button.classList.contains("selected"))
+        ?.textContent,
+    ).toBe("자동 업데이트");
+    expect(container.textContent).toContain("업데이트 완료 후 게임 실행");
     expect(
       container.querySelector(".reservation-list-section .count")?.textContent,
     ).toBe("2개");
@@ -625,6 +643,7 @@ describe("PatchReservationModal renewed controls", () => {
   it("submits the recurring notification preference without exposing it for one-time checks", async () => {
     await renderModal();
     await act(async () => buttonByText(container, "리뉴얼").click());
+    await act(async () => buttonByText(container, "알림만").click());
     await act(async () => buttonByText(container, "매일").click());
 
     for (const [caption, value] of [
