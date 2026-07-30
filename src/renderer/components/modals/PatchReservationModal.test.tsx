@@ -172,7 +172,62 @@ describe("PatchReservationModal renewed controls", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it("centers the selected time option when opened and keeps arrow changes visible", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 30, 12, 30, 15, 100));
+    vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("time-select-item")
+          ? Number(this.textContent?.trim()) * 24
+          : 0;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(24);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("time-select-list") ? 168 : 0;
+      },
+    );
+    await renderModal();
+
+    const minuteTrigger = findTimeSelectTrigger(container, "확인 시각", "분");
+    expect(minuteTrigger?.textContent).toBe("30");
+    await act(async () => minuteTrigger?.click());
+
+    const listbox =
+      minuteTrigger?.parentElement?.querySelector<HTMLElement>(
+        ".time-select-list",
+      );
+    let selectedOption = listbox?.querySelector<HTMLElement>(
+      '[aria-selected="true"]',
+    );
+    expect(selectedOption?.textContent).toBe("30");
+    expect(listbox?.scrollTop).toBe(648);
+    expect(minuteTrigger?.getAttribute("aria-activedescendant")).toBe(
+      selectedOption?.id,
+    );
+
+    await act(async () => {
+      minuteTrigger?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+        }),
+      );
+    });
+
+    selectedOption = listbox?.querySelector<HTMLElement>(
+      '[aria-selected="true"]',
+    );
+    expect(selectedOption?.textContent).toBe("31");
+    expect(listbox?.scrollTop).toBe(672);
+    expect(minuteTrigger?.getAttribute("aria-activedescendant")).toBe(
+      selectedOption?.id,
+    );
   });
 
   it("defaults to the compact renewed switch and keeps both reservation types in the shared list", async () => {

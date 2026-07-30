@@ -958,3 +958,37 @@ npm run build:check
 계획 승인 후 `master`에서 `feat/patch-reservation-renewal` 브랜치를 만들고
 M1부터 순서대로 구현한다. 각 마일스톤 DoD 자체 확인 후 분리 리뷰를 거치며,
 실제 게임 패치·실행은 사용자 확인 전까지 완료로 주장하지 않는다.
+
+### 2026-07-30 TimeSelect 현재 선택값 표시 개선
+
+- 시간 선택 목록을 열면 현재 선택된 항목이 목록 중앙에 오도록 스크롤 위치를
+  맞춘다. 키보드 위·아래 이동으로 값이 바뀌어도 새 선택 항목을 계속 중앙에
+  유지한다.
+- 실제 DOM 포커스는 기존처럼 combobox trigger에 유지하고,
+  `aria-activedescendant`가 선택된 option을 가리키는 접근성 계약은 보존한다.
+- `[Windows-pwsh]` 전체 ESLint, TypeScript, Vite renderer/main/preload 빌드와
+  대상 모달 테스트 11개가 통과했다.
+- `[Windows-pwsh]` 전체 테스트는 58개 파일 중 57개, 316개 테스트 중 315개가
+  통과했다. 기존 외부 GGG POE1 공지 본문이 32자로 짧아진 라이브 통합 테스트
+  1건만 동일하게 실패했으며 이번 변경 대상과 무관하다.
+- `[Windows hidden Electron]` 실제 분 선택 목록을 열었을 때 선택값 31이
+  목록 중앙 오차 0px에 표시되고, `ArrowDown`으로 32로 바꾼 뒤에도 중앙 오차
+  0px과 일치하는 `aria-activedescendant`가 유지되는 것을 CDP DOM 측정으로
+  확인했다. fatal 화면과 runtime exception은 없었고 전용 프로세스 트리,
+  54121/9334 포트와 임시 user-data 프로필을 정리했다.
+
+### 리뷰 라운드 18
+
+판정: `통과 — blocker 없음`
+
+- 공용 `TimeSelect`에만 적용되어 레거시·리뉴얼이 같은 동작을 공유하고
+  저장 payload, scheduler, IPC에는 영향이 없다.
+- 열림 및 선택 index 변경 직후 실제 option/listbox 치수로 중앙 위치를
+  계산하며, option으로 DOM 포커스를 옮기지 않아 기존 combobox trigger와
+  `aria-activedescendant` 계약을 보존한다.
+- 신규 테스트와 숨김 Windows Electron 측정이 최초 열림, 키보드 이동 후
+  재정렬, ARIA 연결을 직접 검증한다.
+- 전체 테스트의 외부 GGG 공지 길이 assertion 1건은 이번 변경의 blocker가
+  아니다.
+- 리뷰어는 파일 수정·커밋·테스트 실행 없이 현재 전체 diff와 검증 기록만
+  읽기 전용으로 검토했다.

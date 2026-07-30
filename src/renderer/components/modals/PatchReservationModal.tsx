@@ -142,11 +142,26 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
   ariaLabel,
 }) => {
   const listboxId = React.useId();
+  const listboxRef = React.useRef<HTMLDivElement>(null);
+  const selectedOptionRef = React.useRef<HTMLDivElement>(null);
   const selectedIndex = options.findIndex(
     (option) => option.toString() === value,
   );
   const selectedOptionId =
     selectedIndex >= 0 ? `${listboxId}-option-${selectedIndex}` : undefined;
+
+  React.useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const listbox = listboxRef.current;
+    const selectedOption = selectedOptionRef.current;
+    if (!listbox || !selectedOption) return;
+
+    const centeredTop =
+      selectedOption.offsetTop -
+      (listbox.clientHeight - selectedOption.offsetHeight) / 2;
+    listbox.scrollTop = Math.max(0, centeredTop);
+  }, [isOpen, selectedIndex]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -206,11 +221,17 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
         {value}
       </div>
       {isOpen && (
-        <div className="time-select-list" role="listbox" id={listboxId}>
+        <div
+          className="time-select-list"
+          role="listbox"
+          id={listboxId}
+          ref={listboxRef}
+        >
           {options.map((opt, index) => (
             <div
               key={opt}
               id={`${listboxId}-option-${index}`}
+              ref={value === opt.toString() ? selectedOptionRef : null}
               className={`time-select-item ${value === opt.toString() ? "selected" : ""}`}
               role="option"
               aria-selected={value === opt.toString()}
