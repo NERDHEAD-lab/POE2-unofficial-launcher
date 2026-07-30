@@ -1,6 +1,17 @@
-import { UpdateStatus } from "../../shared/types";
+import {
+  UPDATE_DOWNLOAD_FAILURE_MESSAGE,
+  UpdateStatus,
+} from "../../shared/types";
 
 export const getUpdateModalCopy = (status: UpdateStatus) => {
+  if (status.state === "requesting") {
+    return {
+      title: "업데이트 다운로드 중...",
+      messageLines: ["다운로드 준비 중..."],
+      primaryActionText: "다운로드 준비 중...",
+    };
+  }
+
   if (status.state === "downloading") {
     return {
       title: "업데이트 다운로드 중...",
@@ -20,6 +31,14 @@ export const getUpdateModalCopy = (status: UpdateStatus) => {
         "런처를 재시작하여 설치를 완료할까요?",
       ],
       primaryActionText: "재시작하여 설치",
+    };
+  }
+
+  if (status.state === "error") {
+    return {
+      title: "업데이트 다운로드 실패",
+      messageLines: [status.message || UPDATE_DOWNLOAD_FAILURE_MESSAGE],
+      primaryActionText: "다시 시도",
     };
   }
 

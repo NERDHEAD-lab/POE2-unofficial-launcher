@@ -58,6 +58,10 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 import { useGameState } from "./contexts/GameStateContext";
 import { VersionService, RemoteVersions } from "./services/VersionService";
+import {
+  beginUpdateDownloadRequest,
+  syncUpdateDownloadRequestLock,
+} from "./utils/update-download-request";
 import { getGameStartButtonLabel } from "./utils/game-start-label";
 import { logger } from "./utils/logger";
 import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";
@@ -378,6 +382,7 @@ function App() {
   const [updateState, setUpdateState] = useState<UpdateStatus>({
     state: "idle",
   });
+  const updateDownloadRequestLockRef = useRef(false);
 
   // Changelog Listener
   useEffect(() => {
@@ -744,6 +749,11 @@ function App() {
       // Listen for update status
       const unsubscribe = window.electronAPI.onUpdateStatusChange((status) => {
         logger.log("[App] Update status:", status);
+        if (
+          !syncUpdateDownloadRequestLock(updateDownloadRequestLockRef, status)
+        ) {
+          return;
+        }
         setUpdateState(status);
 
         if (status.state === "available" && !status.isSilent) {
@@ -786,8 +796,12 @@ function App() {
   }, [refreshTheme]);
 
   const handleUpdateClick = () => {
-    window.electronAPI.downloadUpdate();
-    // Modal stays open to show progress
+    beginUpdateDownloadRequest(
+      updateState,
+      updateDownloadRequestLockRef,
+      setUpdateState,
+      () => window.electronAPI.downloadUpdate(),
+    );
   };
 
   const handleInstallClick = (isSilent = true) => {
@@ -1912,14 +1926,7 @@ function App() {
 
       <UpdateModal
         isOpen={isUpdateModalOpen}
-        version={
-          (updateState.state === "available" ||
-            updateState.state === "downloaded" ||
-            updateState.state === "downloading") &&
-          "version" in updateState
-            ? updateState.version || ""
-            : ""
-        }
+        version={"version" in updateState ? updateState.version || "" : ""}
         status={updateState}
         onUpdate={handleUpdateClick}
         onInstall={handleInstallClick}
@@ -2081,8 +2088,10 @@ function App() {
           title={appTitle}
           showUpdateIcon={
             updateState.state === "available" ||
+            updateState.state === "requesting" ||
             updateState.state === "downloading" ||
-            updateState.state === "downloaded"
+            updateState.state === "downloaded" ||
+            updateState.state === "error"
           }
           onUpdateClick={() => setIsUpdateModalOpen(true)}
           devMode={config.dev_mode}
