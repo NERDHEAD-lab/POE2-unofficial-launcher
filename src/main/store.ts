@@ -9,9 +9,14 @@ import { AppContext } from "./events/types";
 
 // [Fix] Force User Data path to match electron-builder 'productName' (with spaces)
 // This must be set BEFORE creating the Store instance to ensure config.json maps to correct folder.
+const qaUserDataPath =
+  !app.isPackaged && process.env.ELECTRON_QA_USER_DATA_DIR
+    ? process.env.ELECTRON_QA_USER_DATA_DIR
+    : null;
 app.setPath(
   "userData",
-  path.join(app.getPath("appData"), "POE2 Unofficial Launcher"),
+  qaUserDataPath ||
+    path.join(app.getPath("appData"), "POE2 Unofficial Launcher"),
 );
 
 const store = new Store<AppConfig>({

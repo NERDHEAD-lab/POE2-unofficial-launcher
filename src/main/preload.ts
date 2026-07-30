@@ -12,6 +12,7 @@ import {
   PatchProgress,
   AccountUpdateData,
   PatchReservation,
+  RenewedPatchReservation,
   RemoteFontItem,
   ImportSelection,
   GameLaunchContext,
@@ -256,6 +257,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("patch:reserve", reservation),
   deletePatchReservation: (id: string) =>
     ipcRenderer.send("patch:delete-reservation", id),
+  triggerRenewedPatchReservation: (reservation: RenewedPatchReservation) =>
+    ipcRenderer.invoke("patch:reserve-renewed", reservation),
+  deleteRenewedPatchReservation: (id: string) =>
+    ipcRenderer.invoke("patch:delete-renewed-reservation", id),
   onShowPatchReservationModal: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("UI:SHOW_PATCH_RESERVATION_MODAL", handler);

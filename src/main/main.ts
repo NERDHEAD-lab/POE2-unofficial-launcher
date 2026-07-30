@@ -69,6 +69,10 @@ import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
 import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import {
+  createRenewedPatchReservation,
+  deleteRenewedPatchReservation,
+} from "./ipc/renewed-patch-reservation-ipc";
+import {
   archiveAutomationDumpSession,
   discardAutomationDumpSession,
   dumpAutomationPage,
@@ -2860,6 +2864,15 @@ ipcMain.on("patch:delete-reservation", (_event, id: string) => {
     }
   }
 });
+
+ipcMain.handle("patch:reserve-renewed", async (_event, reservation: unknown) =>
+  createRenewedPatchReservation(appContext, reservation),
+);
+
+ipcMain.handle(
+  "patch:delete-renewed-reservation",
+  async (_event, id: unknown) => deleteRenewedPatchReservation(appContext, id),
+);
 
 // Utility for sync config access (Preload only)
 ipcMain.on("config:get-sync", (event, key: string) => {

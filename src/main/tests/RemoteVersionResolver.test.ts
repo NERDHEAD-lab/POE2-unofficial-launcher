@@ -110,6 +110,43 @@ describe("RemoteVersionResolver", () => {
     expect(master).toHaveBeenCalledTimes(2);
   });
 
+  it("bypasses the TTL cache for reservation monitoring", async () => {
+    const master = vi
+      .fn()
+      .mockResolvedValueOnce({ webRoot: POE2_KAKAO_OLD })
+      .mockResolvedValueOnce({ webRoot: POE2_KAKAO });
+    RemoteVersionResolver.__setAdapters({
+      master,
+      ghPages: vi.fn(),
+    });
+
+    const first = await RemoteVersionResolver.resolve("POE2");
+    const fresh = await RemoteVersionResolver.resolveFresh("POE2");
+
+    expect(first?.version).toBe("4.4.0.10");
+    expect(fresh?.version).toBe("4.4.0.13");
+    expect(master).toHaveBeenCalledTimes(2);
+  });
+
+  it("dedups concurrent fresh reservation checks for the same game", async () => {
+    let resolveMaster!: (value: { webRoot: string }) => void;
+    const master = vi.fn(
+      () =>
+        new Promise<{ webRoot: string }>((resolve) => {
+          resolveMaster = resolve;
+        }),
+    );
+    RemoteVersionResolver.__setAdapters({ master, ghPages: vi.fn() });
+
+    const first = RemoteVersionResolver.resolveFresh("POE2");
+    const second = RemoteVersionResolver.resolveFresh("POE2");
+    resolveMaster({ webRoot: POE2_KAKAO });
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(master).toHaveBeenCalledTimes(1);
+    expect(firstResult).toBe(secondResult);
+  });
+
   it("isFresh respects TTL", () => {
     const master = vi.fn().mockResolvedValue({ webRoot: POE2_KAKAO });
     RemoteVersionResolver.__setAdapters({ master, ghPages: vi.fn() });

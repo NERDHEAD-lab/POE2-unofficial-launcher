@@ -50,6 +50,7 @@ interface SessionState {
   isAutoPatch: boolean;
   intentionalStop: boolean;
   retryCount: number;
+  runId?: string;
 }
 
 class AutoPatchStateManager {
@@ -58,7 +59,18 @@ class AutoPatchStateManager {
   // Key: serviceId (Pending manual confirmation)
   private pendingManualPatches = new Map<string, SessionState>();
   // Key: gameId_serviceId (Next session expectation)
-  private autoPatchExpectations = new Map<string, { retryCount: number }>();
+  private autoPatchExpectations = new Map<
+    string,
+    { retryCount: number; runId?: string }
+  >();
+  private activeAutoPatchRuns = new Map<
+    string,
+    { retryCount: number; runId?: string }
+  >();
+  private claimedAutoPatchRuns = new Map<
+    number,
+    { retryCount: number; runId?: string }
+  >();
 
   private patchManager: PatchManager | null = null;
 
@@ -74,8 +86,7 @@ class AutoPatchStateManager {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
   ) {
-    const key = `${gameId}_${serviceId}`;
-    const expectation = this.autoPatchExpectations.get(key);
+    const run = this.claimedAutoPatchRuns.get(pid);
 
     this.sessions.set(pid, {
       serviceId,
@@ -83,14 +94,27 @@ class AutoPatchStateManager {
       errorCount: 0,
       startTime: Date.now(),
       alerted: false,
-      isAutoPatch: !!expectation,
+      isAutoPatch: !!run,
       intentionalStop: false,
-      retryCount: expectation?.retryCount || 0,
+      retryCount: run?.retryCount || 0,
+      runId: run?.runId,
     });
+  }
 
-    // Clear expectation once session starts
+  public claimProcess(
+    pid: number,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+  ) {
+    const key = `${gameId}_${serviceId}`;
+    const expectation = this.autoPatchExpectations.get(key);
+    const run = expectation ?? this.activeAutoPatchRuns.get(key);
+    if (!run) return;
+
+    this.claimedAutoPatchRuns.set(pid, run);
     if (expectation) {
       this.autoPatchExpectations.delete(key);
+      this.activeAutoPatchRuns.set(key, expectation);
     }
   }
 
@@ -105,8 +129,12 @@ class AutoPatchStateManager {
     gameId: string,
     serviceId: string,
     retryCount: number = 0,
+    runId?: string,
   ) {
-    this.autoPatchExpectations.set(`${gameId}_${serviceId}`, { retryCount });
+    this.autoPatchExpectations.set(`${gameId}_${serviceId}`, {
+      retryCount,
+      runId,
+    });
   }
 
   public setWebRoot(pid: number, webRoot: string) {
@@ -136,6 +164,28 @@ class AutoPatchStateManager {
 
   public clearSession(pid: number) {
     this.sessions.delete(pid);
+    this.claimedAutoPatchRuns.delete(pid);
+  }
+
+  public getRunIdForPid(pid: number) {
+    return (
+      this.sessions.get(pid)?.runId ?? this.claimedAutoPatchRuns.get(pid)?.runId
+    );
+  }
+
+  public clearAutoPatchRun(runId: string) {
+    for (const [key, run] of this.autoPatchExpectations) {
+      if (run.runId === runId) this.autoPatchExpectations.delete(key);
+    }
+    for (const [key, run] of this.activeAutoPatchRuns) {
+      if (run.runId === runId) this.activeAutoPatchRuns.delete(key);
+    }
+    for (const [pid, run] of this.claimedAutoPatchRuns) {
+      if (run.runId === runId) this.claimedAutoPatchRuns.delete(pid);
+    }
+    for (const [pid, session] of this.sessions) {
+      if (session.runId === runId) this.sessions.delete(pid);
+    }
   }
 
   // --- Pending Manual Patch Management ---
@@ -208,11 +258,30 @@ export function registerAutoPatchExpectation(
   gameId: string,
   serviceId: string,
   retryCount: number = 0,
+  runId?: string,
 ) {
-  stateManager.expectAutoPatch(gameId, serviceId, retryCount);
+  stateManager.expectAutoPatch(gameId, serviceId, retryCount, runId);
+}
+
+export function getAutoPatchRunIdForPid(pid: number) {
+  return stateManager.getRunIdForPid(pid);
+}
+
+export function clearAutoPatchRun(runId: string) {
+  stateManager.clearAutoPatchRun(runId);
 }
 
 // --- Handlers ---
+
+export const AutoPatchProcessStartHandler: EventHandler<ProcessEvent> = {
+  id: "AutoPatchProcessStartHandler",
+  targetEvent: EventType.PROCESS_START,
+  handle: async (event, _context) => {
+    const { pid, serviceId, gameId } = event.payload;
+    if (!serviceId || !gameId) return;
+    stateManager.claimProcess(pid, serviceId, gameId);
+  },
+};
 
 export const LogSessionHandler: EventHandler<LogSessionStartEvent> = {
   id: "LogSessionHandler",
@@ -269,6 +338,7 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
         eventBus.emit(EventType.PATCH_RESERVATION_SUCCESS, context, {
           gameId: session.gameId,
           serviceId: session.serviceId,
+          runId: session.runId,
         });
       }
     }
@@ -363,6 +433,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             gameId: session.gameId,
             serviceId: session.serviceId,
             retryCount: session.retryCount + 1,
+            runId: session.runId,
           } as PatchRetryRequestedEvent["payload"]);
           stateManager.clearSession(pid);
           return;
@@ -376,6 +447,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
             gameId: session.gameId,
             serviceId: session.serviceId,
             reason: "Max retries reached without log response.",
+            runId: session.runId,
           } as PatchReservationFailedEvent["payload"]);
         }
       }

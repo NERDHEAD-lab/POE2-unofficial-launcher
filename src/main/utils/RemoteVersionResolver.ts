@@ -93,6 +93,23 @@ export class RemoteVersionResolver {
     return task;
   }
 
+  /**
+   * Resolves a fresh remote webRoot for reservation monitoring.
+   * Bypasses the 10-minute UI cache while sharing the same in-flight request.
+   */
+  public static async resolveFresh(
+    gameId: AppConfig["activeGame"],
+  ): Promise<RemoteWebRoot | null> {
+    const existing = RemoteVersionResolver.inflight.get(gameId);
+    if (existing) return existing;
+
+    const task = RemoteVersionResolver.resolveUncached(gameId).finally(() => {
+      RemoteVersionResolver.inflight.delete(gameId);
+    });
+    RemoteVersionResolver.inflight.set(gameId, task);
+    return task;
+  }
+
   private static async resolveUncached(
     gameId: AppConfig["activeGame"],
   ): Promise<RemoteWebRoot | null> {

@@ -56,6 +56,7 @@ const CORE_HANDLER_IDS = [
   "UpdateCheckHandler",
   "UpdateDownloadHandler",
   "UpdateInstallHandler",
+  "AutoPatchProcessStartHandler",
   "LogSessionHandler",
   "LogWebRootHandler",
   "LogErrorHandler",
@@ -69,6 +70,8 @@ const CORE_HANDLER_IDS = [
   "UacHandler",
   "InactiveWindowVisibilityHandler",
   "KakaoMaintenanceUISyncHandler",
+  "RenewedPatchReservationCreateHandler",
+  "RenewedPatchReservationDeleteHandler",
 ] as const;
 
 describe("CORE_EVENT_HANDLERS", () => {
