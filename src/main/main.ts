@@ -34,6 +34,9 @@ import {
   NewsCategory,
   DebugLogPayload,
   FatalErrorPayload,
+  GameInstallPathConflictTarget,
+  GameInstallPathRegisterRequest,
+  GameInstallPathRegistryTarget,
   GameLaunchContext,
   SERVICE_CHANNELS,
 } from "../shared/types";
@@ -62,8 +65,9 @@ import {
   UIEvent,
 } from "./events/types";
 import {
-  GAME_INSTALL_STATUS_CONTEXTS,
-  reconcileGameInstallStatus,
+  reconcileAllGameInstallStatuses,
+  reconcileCurrentGameInstallStatusIfStale,
+  runManualGameInstallPathAction,
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
@@ -120,6 +124,7 @@ import {
   getGameInstallPath,
   getGameInstallPathDiagnostics,
   clearGameInstallPath,
+  registerGameInstallPath,
   resolveGameInstallPathConflict,
   setGameInstallPath,
   syncInstallLocation,
@@ -745,7 +750,13 @@ ipcMain.handle(
       );
     }
 
-    return setGameInstallPath(serviceId, gameId, installPath);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-config-path-set",
+      () => setGameInstallPath(serviceId, gameId, installPath),
+    );
   },
 );
 
@@ -780,7 +791,13 @@ ipcMain.handle(
       };
     }
 
-    return setGameInstallPath(serviceId, gameId, result.filePaths[0]);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-config-path-pick",
+      () => setGameInstallPath(serviceId, gameId, result.filePaths[0]),
+    );
   },
 );
 
@@ -791,6 +808,7 @@ ipcMain.handle(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: "launcher-config-only" | "sync-registry",
+    registryTarget: GameInstallPathConflictTarget,
   ) => {
     if (!isSupportedGameInstallContext(serviceId, gameId)) {
       throw new Error(
@@ -802,7 +820,19 @@ ipcMain.handle(
       throw new Error(`Unsupported game install conflict action: ${action}`);
     }
 
-    return resolveGameInstallPathConflict(serviceId, gameId, action);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      `manual-path-conflict-${action}`,
+      () =>
+        resolveGameInstallPathConflict(
+          serviceId,
+          gameId,
+          action,
+          registryTarget,
+        ),
+    );
   },
 );
 
@@ -813,6 +843,7 @@ ipcMain.handle(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     source: "config" | "registry",
+    registryTarget?: GameInstallPathRegistryTarget,
   ) => {
     if (!isSupportedGameInstallContext(serviceId, gameId)) {
       throw new Error(
@@ -824,15 +855,37 @@ ipcMain.handle(
       throw new Error(`Unsupported game install path clear source: ${source}`);
     }
 
-    const result = await clearGameInstallPath(serviceId, gameId, source);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      `manual-${source}-path-clear`,
+      () => clearGameInstallPath(serviceId, gameId, source, registryTarget),
+    );
+  },
+);
 
-    if (result.ok && source === "registry") {
-      await reconcileGameInstallStatus(appContext, serviceId, gameId, {
-        reason: "manual-registry-path-clear",
-      });
+ipcMain.handle(
+  "game-install-path:register",
+  async (
+    _event,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ) => {
+    if (!isSupportedGameInstallContext(serviceId, gameId)) {
+      throw new Error(
+        `Unsupported game install context: ${serviceId}/${gameId}`,
+      );
     }
 
-    return result;
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-registry-path-register",
+      () => registerGameInstallPath(serviceId, gameId, request),
+    );
   },
 );
 
@@ -2169,11 +2222,22 @@ async function createWindow() {
     };
   };
 
+  const refreshCurrentGameInstallStatusIfStale = (reason: string) => {
+    void reconcileCurrentGameInstallStatusIfStale(appContext, { reason }).catch(
+      (error) => {
+        logger.warn(
+          `[Main] Deferred game install status refresh failed; reason=${reason}; error=${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
+  };
+
   mainWindow.on("show", () => {
     newsService.setActive(true, getNewsRefreshContext("show"));
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
     syncDebugWindow("MainShow");
+    refreshCurrentGameInstallStatusIfStale("window-show");
   });
   mainWindow.on("hide", () => {
     newsService.setActive(false);
@@ -2281,12 +2345,9 @@ async function createWindow() {
   // Perform initial installation check for ALL contexts
   const checkAllGameStatuses = async () => {
     logger.log("[Main] Checking initial status for all game contexts...");
-
-    for (const { serviceId, gameId } of GAME_INSTALL_STATUS_CONTEXTS) {
-      await reconcileGameInstallStatus(appContext, serviceId, gameId, {
-        reason: "initial-status-check",
-      });
-    }
+    await reconcileAllGameInstallStatuses(appContext, {
+      reason: "initial-status-check",
+    });
   };
 
   // Sync Auto Launch Status
@@ -2311,6 +2372,7 @@ async function createWindow() {
     logger.log("[Main] Window focused.");
     newsService.setActive(true, getNewsRefreshContext("focus"));
     getProcessWatcher()?.cancelSuspension();
+    refreshCurrentGameInstallStatusIfStale("window-focus");
   });
 
   // --- Main Window Loading ---

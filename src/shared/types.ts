@@ -154,6 +154,22 @@ export interface GameInstallPathRegistryDiagnostic {
   error?: string;
   registryPath: string;
   registryValueName: string;
+  aggregateState: GameInstallPathRegistryAggregateState;
+  candidates: GameInstallPathRegistryCandidateDiagnostic[];
+}
+
+export type GameInstallPathRegistryAggregateState =
+  "valid" | "absent" | "invalid" | "unknown";
+
+export interface GameInstallPathRegistryCandidateDiagnostic {
+  path: string | null;
+  state: GameInstallPathRegistryState;
+  verification: GameInstallPathVerificationStatus;
+  executablePath?: string;
+  error?: string;
+  registryPath: string;
+  registryValueName: string;
+  isActive: boolean;
 }
 
 export interface GameInstallPathDiagnostics {
@@ -171,6 +187,20 @@ export type GameInstallPathConflictAction =
   "launcher-config-only" | "sync-registry";
 
 export type GameInstallPathClearSource = "config" | "registry";
+
+export interface GameInstallPathRegistryTarget {
+  registryPath: string;
+  registryValueName: string;
+  expectedPath: string;
+}
+
+export interface GameInstallPathConflictTarget extends GameInstallPathRegistryTarget {
+  expectedConfigPath: string;
+}
+
+export interface GameInstallPathRegisterRequest {
+  expectedConfigPath: string;
+}
 
 export type GameInstallPathSaveResult =
   | {
@@ -215,6 +245,34 @@ export type GameInstallPathConflictResolveResult =
       error?: string;
       diagnostics?: GameInstallPathDiagnostics;
     };
+
+export type GameInstallPathRegisterResult =
+  | {
+      ok: true;
+      path: string;
+      registryPath: string;
+      registryValueName: string;
+      diagnostics: GameInstallPathDiagnostics;
+    }
+  | {
+      ok: false;
+      path?: string;
+      verification: GameInstallPathVerificationStatus;
+      error?: string;
+      diagnostics?: GameInstallPathDiagnostics;
+    };
+
+export interface OperationalNotification {
+  id: string;
+  contextKey: string;
+  level: "warn";
+  tone: "amber";
+  title: string;
+  message: string;
+  serviceId: AppConfig["serviceChannel"];
+  gameId: AppConfig["activeGame"];
+  action: "open-game-path-diagnostic";
+}
 
 export interface PatchReservation {
   id: string; // 고유 ID (UUID 또는 timestamp)
@@ -308,6 +366,19 @@ export interface GameStatusState {
   status: RunStatus;
   errorCode?: string;
   timestamp?: number;
+  installPathHealth?: GameInstallPathHealth;
+}
+
+export type GameInstallationStatus = "installed" | "uninstalled" | "unknown";
+
+export interface GameInstallPathRegistryAdvisory {
+  state: Exclude<GameInstallPathRegistryAggregateState, "valid">;
+}
+
+export interface GameInstallPathHealth {
+  installationStatus: GameInstallationStatus;
+  checkedAt: number;
+  registryAdvisory?: GameInstallPathRegistryAdvisory;
 }
 
 export interface FileProgress {
@@ -515,12 +586,19 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: GameInstallPathConflictAction,
+    registryTarget: GameInstallPathConflictTarget,
   ) => Promise<GameInstallPathConflictResolveResult>;
   clearGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     source: GameInstallPathClearSource,
+    registryTarget?: GameInstallPathRegistryTarget,
   ) => Promise<GameInstallPathClearResult>;
+  registerGameInstallPath: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ) => Promise<GameInstallPathRegisterResult>;
   minimizeWindow: () => void;
   closeWindow: () => void;
   getConfig: (
@@ -535,7 +613,9 @@ export interface ElectronAPI {
     callback: (key: string, value: unknown) => void,
   ) => () => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
-  onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
+  onGameStatusUpdate?: (
+    callback: (status: GameStatusState) => void,
+  ) => () => void;
   onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
   onExceptionLog?: (callback: (log: DebugLogPayload) => void) => () => void;
   onPatchProgress?: (callback: (progress: PatchProgress) => void) => () => void; // New

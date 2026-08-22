@@ -3,12 +3,18 @@ import React from "react";
 import WindowControls from "./WindowControls";
 import icon from "../assets/icon.ico"; // Assuming copied icon.ico works, or fallback
 
+import type { OperationalNotification } from "../../shared/types";
+
 interface TitleBarProps {
   title?: string;
   showUpdateIcon?: boolean;
   onUpdateClick?: () => void;
   devMode?: boolean;
   debugConsole?: boolean;
+  operationalNotifications?: readonly OperationalNotification[];
+  onOperationalNotificationClick?: (
+    notification: OperationalNotification,
+  ) => void;
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({
@@ -17,6 +23,8 @@ const TitleBar: React.FC<TitleBarProps> = ({
   onUpdateClick,
   devMode = false,
   debugConsole = false,
+  operationalNotifications = [],
+  onOperationalNotificationClick,
 }) => {
   return (
     <div className="title-bar">
@@ -69,7 +77,12 @@ const TitleBar: React.FC<TitleBarProps> = ({
             UPDATE
           </button>
         )}
-        <WindowControls devMode={devMode} debugConsole={debugConsole} />
+        <WindowControls
+          devMode={devMode}
+          debugConsole={debugConsole}
+          operationalNotifications={operationalNotifications}
+          onOperationalNotificationClick={onOperationalNotificationClick}
+        />
       </div>
     </div>
   );

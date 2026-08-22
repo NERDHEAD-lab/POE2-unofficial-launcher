@@ -19,10 +19,14 @@ import {
   KakaoMaintenanceInfo,
   KakaoGameStarterMigrationRequest,
   GameInstallPathConflictAction,
+  GameInstallPathConflictTarget,
   GameInstallPathConflictResolveResult,
   GameInstallPathClearResult,
   GameInstallPathClearSource,
   GameInstallPathDiagnostics,
+  GameInstallPathRegistryTarget,
+  GameInstallPathRegisterRequest,
+  GameInstallPathRegisterResult,
   GameInstallPathSaveResult,
   FatalErrorPayload,
   LauncherLogAvailability,
@@ -59,19 +63,39 @@ contextBridge.exposeInMainWorld("electronAPI", {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: GameInstallPathConflictAction,
+    registryTarget: GameInstallPathConflictTarget,
   ): Promise<GameInstallPathConflictResolveResult> =>
     ipcRenderer.invoke(
       "game-install-path:resolve-conflict",
       serviceId,
       gameId,
       action,
+      registryTarget,
     ),
   clearGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     source: GameInstallPathClearSource,
+    registryTarget?: GameInstallPathRegistryTarget,
   ): Promise<GameInstallPathClearResult> =>
-    ipcRenderer.invoke("game-install-path:clear", serviceId, gameId, source),
+    ipcRenderer.invoke(
+      "game-install-path:clear",
+      serviceId,
+      gameId,
+      source,
+      registryTarget,
+    ),
+  registerGameInstallPath: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ): Promise<GameInstallPathRegisterResult> =>
+    ipcRenderer.invoke(
+      "game-install-path:register",
+      serviceId,
+      gameId,
+      request,
+    ),
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   closeWindow: () => ipcRenderer.send("window-close"),
   getConfig: (
@@ -93,7 +117,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("message-progress", (_event, text) => callback(text));
   },
   onGameStatusUpdate: (callback: (status: GameStatusState) => void) => {
-    ipcRenderer.on("game-status-update", (_event, status) => callback(status));
+    const handler = (_event: IpcRendererEvent, status: GameStatusState) =>
+      callback(status);
+    ipcRenderer.on("game-status-update", handler);
+    return () => ipcRenderer.off("game-status-update", handler);
   },
   getGameStatus: (gameId: string, serviceId: string) =>
     ipcRenderer.invoke("game:get-status", gameId, serviceId),

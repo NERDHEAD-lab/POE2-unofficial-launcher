@@ -10,6 +10,7 @@ import {
   ActiveGame,
   AppConfig,
   GameInstallPathConflictAction,
+  GameInstallPathConflictTarget,
   GameInstallPathConflictResolution,
   GameInstallPathConflictResolveResult,
   GameInstallPathConflictResolutions,
@@ -17,10 +18,17 @@ import {
   GameInstallPathClearSource,
   GameInstallPathConfigDiagnostic,
   GameInstallPathDiagnostics,
+  GameInstallPathHealth,
   GameInstallPaths,
+  GameInstallPathRegistryAggregateState,
+  GameInstallPathRegistryCandidateDiagnostic,
   GameInstallPathRegistryDiagnostic,
+  GameInstallPathRegistryTarget,
+  GameInstallPathRegisterRequest,
+  GameInstallPathRegisterResult,
   GameInstallPathSaveResult,
   GameInstallPathVerificationStatus,
+  GameInstallationStatus,
   ServiceChannel,
 } from "../../shared/types";
 import { ContextProvider } from "../context-provider";
@@ -35,7 +43,6 @@ type RegistryReadResult =
     }
   | { ok: false; error: string };
 
-export type GameInstallationStatus = "installed" | "uninstalled" | "unknown";
 type InstallPathVerificationStatus = Exclude<
   GameInstallPathVerificationStatus,
   "not-checked"
@@ -59,6 +66,51 @@ type ConfiguredInstallPathResult =
   | { state: "found"; path: string }
   | { state: "empty" | "context-unavailable"; path: null };
 
+type RegistryInstallPathInfo = {
+  path: string;
+  key: string;
+};
+
+type RegistryInstallPathInspection = {
+  activeCandidate: GameInstallPathRegistryCandidateDiagnostic | null;
+  aggregateState: GameInstallPathRegistryAggregateState;
+  candidates: GameInstallPathRegistryCandidateDiagnostic[];
+  displayedCandidate: GameInstallPathRegistryCandidateDiagnostic;
+};
+
+type RegistryTargetValidation =
+  | {
+      ok: true;
+      currentPath: string;
+      registryInfo: RegistryInstallPathInfo;
+    }
+  | { ok: false; error: string };
+
+type RegistryTargetResolution =
+  | {
+      ok: true;
+      expectedPath: string;
+      registryInfo: RegistryInstallPathInfo;
+    }
+  | { ok: false; error: string };
+
+type ConditionalRegistryMutationStatus =
+  "mutated" | "changed" | "missing" | "read-failed" | "mutation-failed";
+
+type ConditionalRegistryMutationResult =
+  | { status: "mutated" }
+  | {
+      status: Exclude<ConditionalRegistryMutationStatus, "mutated">;
+      error?: string;
+    };
+
+type AtomicRegistryRegistrationResult =
+  | { status: "registered" }
+  | {
+      status: "changed" | "read-failed" | "mutation-failed" | "readback-failed";
+      error?: string;
+    };
+
 const GAME_EXECUTABLE_NAMES = {
   "Kakao Games": "PathOfExile_KG.exe",
   GGG: "PathOfExile.exe",
@@ -72,28 +124,44 @@ const getGameExecutableName = (serviceId: AppConfig["serviceChannel"]) =>
  */
 export const GAME_INSTALL_REGISTRY_MAP = {
   "Kakao Games": {
-    POE1: {
-      path: "HKCU:\\Software\\DaumGames\\POE",
-      key: "InstallPath",
-    },
-    POE2: {
-      path: "HKCU:\\Software\\DaumGames\\POE2",
-      key: "InstallPath",
-    },
+    POE1: [
+      {
+        path: "HKCU:\\Software\\Kakaogames\\POE",
+        key: "InstallPath",
+      },
+      {
+        path: "HKCU:\\Software\\DaumGames\\POE",
+        key: "InstallPath",
+      },
+    ],
+    POE2: [
+      {
+        path: "HKCU:\\Software\\Kakaogames\\POE2",
+        key: "InstallPath",
+      },
+      {
+        path: "HKCU:\\Software\\DaumGames\\POE2",
+        key: "InstallPath",
+      },
+    ],
   },
   GGG: {
-    POE1: {
-      path: "HKCU:\\Software\\GrindingGearGames\\Path of Exile",
-      key: "InstallLocation",
-    },
-    POE2: {
-      path: "HKCU:\\Software\\GrindingGearGames\\Path of Exile 2",
-      key: "InstallLocation",
-    },
+    POE1: [
+      {
+        path: "HKCU:\\Software\\GrindingGearGames\\Path of Exile",
+        key: "InstallLocation",
+      },
+    ],
+    POE2: [
+      {
+        path: "HKCU:\\Software\\GrindingGearGames\\Path of Exile 2",
+        key: "InstallLocation",
+      },
+    ],
   },
 } as const satisfies Record<
   ServiceChannel,
-  Record<ActiveGame, { path: string; key: string }>
+  Record<ActiveGame, readonly RegistryInstallPathInfo[]>
 >;
 
 export const DAUM_STARTER_PROTOCOL_KEY =
@@ -643,63 +711,394 @@ const verifyGameInstallPath = async (
   }
 };
 
-const readRegistryInstallPath = async (
+const getRegistryInstallPathCandidates = (
   serviceId: AppConfig["serviceChannel"],
   gameId: AppConfig["activeGame"],
-): Promise<RegistryReadResult> => {
-  const registryInfo = GAME_INSTALL_REGISTRY_MAP[serviceId]?.[gameId];
-  if (!registryInfo) {
-    return {
-      ok: false,
-      error: `Unsupported game context: ${serviceId}/${gameId}`,
+): readonly RegistryInstallPathInfo[] =>
+  GAME_INSTALL_REGISTRY_MAP[serviceId][gameId];
+
+const getRegistryInstallPathCandidate = (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+  registryPath: string,
+  registryValueName: string,
+): RegistryInstallPathInfo | null =>
+  getRegistryInstallPathCandidates(serviceId, gameId).find(
+    (candidate) =>
+      candidate.path.toLowerCase() === registryPath.toLowerCase() &&
+      candidate.key.toLowerCase() === registryValueName.toLowerCase(),
+  ) ?? null;
+
+const inspectRegistryInstallPaths = async (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+): Promise<RegistryInstallPathInspection> => {
+  const candidates: GameInstallPathRegistryCandidateDiagnostic[] = [];
+
+  for (const registryInfo of getRegistryInstallPathCandidates(
+    serviceId,
+    gameId,
+  )) {
+    const registryResult = await readRegistryValueDetailed(
+      registryInfo.path,
+      registryInfo.key,
+    );
+
+    if (!registryResult.ok) {
+      candidates.push({
+        path: null,
+        state: "read-failed",
+        verification: "not-checked",
+        error: registryResult.error,
+        registryPath: registryInfo.path,
+        registryValueName: registryInfo.key,
+        isActive: false,
+      });
+      continue;
+    }
+
+    const installPath = registryResult.value
+      ? normalizePath(registryResult.value)
+      : null;
+    const candidate: GameInstallPathRegistryCandidateDiagnostic = {
+      path: installPath,
+      state: registryResult.state,
+      verification: "not-checked",
+      registryPath: registryInfo.path,
+      registryValueName: registryInfo.key,
+      isActive: false,
     };
+
+    if (installPath) {
+      const verification = await verifyGameInstallPath(serviceId, installPath);
+      candidate.verification = verification.status;
+      candidate.executablePath = verification.executablePath;
+      candidate.error = verification.error;
+    }
+
+    candidates.push(candidate);
   }
 
-  const registryResult = await readRegistryValueDetailed(
-    registryInfo.path,
-    registryInfo.key,
-  );
+  const activeCandidate =
+    candidates.find((candidate) => candidate.verification === "valid") ?? null;
+  if (activeCandidate) activeCandidate.isActive = true;
 
-  if (!registryResult.ok) return registryResult;
+  const displayedCandidate =
+    activeCandidate ??
+    candidates.find((candidate) => candidate.path !== null) ??
+    candidates.find((candidate) => candidate.state === "read-failed") ??
+    candidates[0];
+
+  let aggregateState: GameInstallPathRegistryAggregateState;
+  if (activeCandidate) {
+    aggregateState = "valid";
+  } else if (
+    candidates.some(
+      (candidate) =>
+        candidate.state === "read-failed" ||
+        candidate.verification === "unknown",
+    )
+  ) {
+    aggregateState = "unknown";
+  } else if (candidates.some((candidate) => candidate.path !== null)) {
+    aggregateState = "invalid";
+  } else {
+    aggregateState = "absent";
+  }
 
   return {
-    ok: true,
-    value: registryResult.value ? normalizePath(registryResult.value) : null,
-    state: registryResult.state,
+    activeCandidate,
+    aggregateState,
+    candidates,
+    displayedCandidate,
   };
 };
 
-const writeRegistryInstallPath = async (
-  serviceId: AppConfig["serviceChannel"],
-  gameId: AppConfig["activeGame"],
-  installPath: string,
-): Promise<boolean> => {
-  const registryInfo = GAME_INSTALL_REGISTRY_MAP[serviceId]?.[gameId];
-  if (!registryInfo) return false;
+const mutateRegistryInstallPathConditionally = async (
+  registryInfo: RegistryInstallPathInfo,
+  expectedPath: string,
+  mutation: { kind: "set"; installPath: string } | { kind: "delete" },
+): Promise<ConditionalRegistryMutationResult> => {
+  const finalPath = standardizeRegPath(registryInfo.path);
+  const safePath = escapePowerShellSingleQuotedString(finalPath);
+  const safeKey = escapePowerShellSingleQuotedString(registryInfo.key);
+  const safeExpectedPath = escapePowerShellSingleQuotedString(
+    normalizePath(expectedPath),
+  );
+  const mutationCommand =
+    mutation.kind === "set"
+      ? `Set-ItemProperty -LiteralPath $path -Name $name -Value '${escapePowerShellSingleQuotedString(normalizePath(mutation.installPath))}' -ErrorAction Stop`
+      : "Remove-ItemProperty -LiteralPath $path -Name $name -ErrorAction Stop";
 
-  return writeRegistryValue(registryInfo.path, registryInfo.key, installPath);
+  const psCommand = `
+    $path = '${safePath}'
+    $name = '${safeKey}'
+    $expectedPath = '${safeExpectedPath}'
+
+    function Normalize-InstallPath([string]$rawPath) {
+      if ([string]::IsNullOrWhiteSpace($rawPath)) {
+        return $null
+      }
+
+      $normalized = [System.IO.Path]::GetFullPath($rawPath.Trim())
+      while ($normalized.EndsWith('\\') -or $normalized.EndsWith('/')) {
+        $normalized = $normalized.Substring(0, $normalized.Length - 1)
+      }
+      return $normalized
+    }
+
+    try {
+      if (-not (Test-Path -LiteralPath $path)) {
+        Write-Output "__REG_CONDITIONAL_MISSING__"
+        return
+      }
+
+      $item = Get-Item -LiteralPath $path -ErrorAction Stop
+      if ($item.GetValueNames() -notcontains $name) {
+        Write-Output "__REG_CONDITIONAL_MISSING__"
+        return
+      }
+
+      $currentValue = $item.GetValue($name, $null)
+      if ($null -eq $currentValue -or [string]::IsNullOrWhiteSpace([string]$currentValue)) {
+        Write-Output "__REG_CONDITIONAL_MISSING__"
+        return
+      }
+
+      $currentNormalized = Normalize-InstallPath ([string]$currentValue)
+      $expectedNormalized = Normalize-InstallPath $expectedPath
+    } catch {
+      Write-Output "__REG_CONDITIONAL_READ_FAILED__"
+      Write-Output $_.Exception.Message
+      return
+    }
+
+    if ($currentNormalized -ine $expectedNormalized) {
+      Write-Output "__REG_CONDITIONAL_CHANGED__"
+      return
+    }
+
+    try {
+      ${mutationCommand}
+      Write-Output "__REG_CONDITIONAL_MUTATED__"
+    } catch {
+      Write-Output "__REG_CONDITIONAL_MUTATION_FAILED__"
+      Write-Output $_.Exception.Message
+    }
+  `.trim();
+
+  try {
+    const { stdout, stderr, code } = await runPowerShell(psCommand);
+    const lines = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const marker = lines[0];
+    const detail = lines.slice(1).join("; ");
+
+    if (marker === "__REG_CONDITIONAL_MUTATED__") {
+      return code === 0
+        ? { status: "mutated" }
+        : {
+            status: "mutation-failed",
+            error: `PowerShell exited with code ${code} after reporting mutation.`,
+          };
+    }
+    if (marker === "__REG_CONDITIONAL_CHANGED__") {
+      return { status: "changed" };
+    }
+    if (marker === "__REG_CONDITIONAL_MISSING__") {
+      return { status: "missing" };
+    }
+    if (marker === "__REG_CONDITIONAL_READ_FAILED__") {
+      return { status: "read-failed", error: detail || stderr };
+    }
+    if (marker === "__REG_CONDITIONAL_MUTATION_FAILED__") {
+      return { status: "mutation-failed", error: detail || stderr };
+    }
+
+    return {
+      status: "read-failed",
+      error: `Unexpected conditional registry result (code=${code}, output=${stdout || stderr || "empty"}).`,
+    };
+  } catch (error) {
+    return { status: "read-failed", error: formatError(error) };
+  }
 };
 
-const deleteRegistryInstallPath = async (
-  serviceId: AppConfig["serviceChannel"],
-  gameId: AppConfig["activeGame"],
-): Promise<boolean> => {
-  const registryInfo = GAME_INSTALL_REGISTRY_MAP[serviceId]?.[gameId];
-  if (!registryInfo) return false;
+const formatConditionalRegistryMutationError = (
+  result: Exclude<ConditionalRegistryMutationResult, { status: "mutated" }>,
+) => {
+  switch (result.status) {
+    case "changed":
+      return "Registry target changed since diagnostics. Run diagnostics again.";
+    case "missing":
+      return "Registry target is missing. Run diagnostics again.";
+    case "read-failed":
+      return `Registry target could not be read.${result.error ? ` ${result.error}` : ""}`;
+    case "mutation-failed":
+      return `Registry target mutation failed.${result.error ? ` ${result.error}` : ""}`;
+  }
+};
 
-  return deleteRegistryValue(registryInfo.path, registryInfo.key);
+const registerCanonicalRegistryInstallPathAtomically = async (
+  candidates: readonly RegistryInstallPathInfo[],
+  installPath: string,
+): Promise<AtomicRegistryRegistrationResult> => {
+  const [canonical, legacy] = candidates;
+  if (!canonical || !legacy) {
+    return {
+      status: "read-failed",
+      error: "Canonical and legacy registry candidates are required.",
+    };
+  }
+
+  const canonicalPath = escapePowerShellSingleQuotedString(
+    standardizeRegPath(canonical.path),
+  );
+  const canonicalName = escapePowerShellSingleQuotedString(canonical.key);
+  const legacyPath = escapePowerShellSingleQuotedString(
+    standardizeRegPath(legacy.path),
+  );
+  const legacyName = escapePowerShellSingleQuotedString(legacy.key);
+  const expectedPath = escapePowerShellSingleQuotedString(
+    normalizePath(installPath),
+  );
+
+  const psCommand = `
+    $canonicalPath = '${canonicalPath}'
+    $canonicalName = '${canonicalName}'
+    $legacyPath = '${legacyPath}'
+    $legacyName = '${legacyName}'
+    $expectedPath = '${expectedPath}'
+
+    function Normalize-InstallPath([string]$rawPath) {
+      if ([string]::IsNullOrWhiteSpace($rawPath)) {
+        return $null
+      }
+
+      $normalized = [System.IO.Path]::GetFullPath($rawPath.Trim())
+      while ($normalized.EndsWith('\\') -or $normalized.EndsWith('/')) {
+        $normalized = $normalized.Substring(0, $normalized.Length - 1)
+      }
+      return $normalized
+    }
+
+    function Assert-RegistryValueAbsent([string]$candidatePath, [string]$candidateName) {
+      if (-not (Test-Path -LiteralPath $candidatePath -ErrorAction Stop)) {
+        return $true
+      }
+
+      $item = Get-Item -LiteralPath $candidatePath -ErrorAction Stop
+      if ($item.GetValueNames() -notcontains $candidateName) {
+        return $true
+      }
+
+      $currentValue = $item.GetValue($candidateName, $null)
+      return $null -eq $currentValue -or [string]::IsNullOrWhiteSpace([string]$currentValue)
+    }
+
+    try {
+      $canonicalAbsent = Assert-RegistryValueAbsent $canonicalPath $canonicalName
+      $legacyAbsent = Assert-RegistryValueAbsent $legacyPath $legacyName
+    } catch {
+      Write-Output "__REG_REGISTER_READ_FAILED__"
+      Write-Output $_.Exception.Message
+      return
+    }
+
+    if (-not $canonicalAbsent -or -not $legacyAbsent) {
+      Write-Output "__REG_REGISTER_CHANGED__"
+      return
+    }
+
+    try {
+      if (-not (Test-Path -LiteralPath $canonicalPath -ErrorAction Stop)) {
+        New-Item -Path $canonicalPath -Force -ErrorAction Stop | Out-Null
+      }
+      New-ItemProperty -LiteralPath $canonicalPath -Name $canonicalName -Value $expectedPath -PropertyType String -Force -ErrorAction Stop | Out-Null
+    } catch {
+      Write-Output "__REG_REGISTER_MUTATION_FAILED__"
+      Write-Output $_.Exception.Message
+      return
+    }
+
+    try {
+      $createdItem = Get-Item -LiteralPath $canonicalPath -ErrorAction Stop
+      $createdValue = $createdItem.GetValue($canonicalName, $null)
+      if ((Normalize-InstallPath ([string]$createdValue)) -ine (Normalize-InstallPath $expectedPath)) {
+        Write-Output "__REG_REGISTER_READBACK_FAILED__"
+        return
+      }
+    } catch {
+      Write-Output "__REG_REGISTER_READBACK_FAILED__"
+      Write-Output $_.Exception.Message
+      return
+    }
+
+    Write-Output "__REG_REGISTERED__"
+  `.trim();
+
+  try {
+    const { stdout, stderr, code } = await runPowerShell(psCommand);
+    const lines = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const marker = lines[0];
+    const detail = lines.slice(1).join("; ");
+
+    if (marker === "__REG_REGISTERED__") {
+      return code === 0
+        ? { status: "registered" }
+        : {
+            status: "mutation-failed",
+            error: `PowerShell exited with code ${code} after reporting registration.`,
+          };
+    }
+    if (marker === "__REG_REGISTER_CHANGED__") {
+      return { status: "changed" };
+    }
+    if (marker === "__REG_REGISTER_READ_FAILED__") {
+      return { status: "read-failed", error: detail || stderr };
+    }
+    if (marker === "__REG_REGISTER_MUTATION_FAILED__") {
+      return { status: "mutation-failed", error: detail || stderr };
+    }
+    if (marker === "__REG_REGISTER_READBACK_FAILED__") {
+      return { status: "readback-failed", error: detail || stderr };
+    }
+
+    return {
+      status: "read-failed",
+      error: `Unexpected registry registration result (code=${code}, output=${stdout || stderr || "empty"}).`,
+    };
+  } catch (error) {
+    return { status: "read-failed", error: formatError(error) };
+  }
+};
+
+const formatRegistryRegistrationError = (
+  result: Exclude<AtomicRegistryRegistrationResult, { status: "registered" }>,
+) => {
+  switch (result.status) {
+    case "changed":
+      return "Registry candidates changed since diagnostics. Run diagnostics again.";
+    case "read-failed":
+      return `Registry candidates could not be read.${result.error ? ` ${result.error}` : ""}`;
+    case "mutation-failed":
+      return `Registry install path registration failed.${result.error ? ` ${result.error}` : ""}`;
+    case "readback-failed":
+      return `Registered registry install path could not be verified.${result.error ? ` ${result.error}` : ""}`;
+  }
 };
 
 const getRegistryInstallPathLabel = (
-  serviceId: AppConfig["serviceChannel"],
-  gameId: AppConfig["activeGame"],
-) => {
-  const registryInfo = GAME_INSTALL_REGISTRY_MAP[serviceId]?.[gameId];
-
-  return registryInfo
-    ? `${registryInfo.path} / ${registryInfo.key}`
-    : `${serviceId}/${gameId}`;
-};
+  candidate: Pick<
+    GameInstallPathRegistryCandidateDiagnostic,
+    "registryPath" | "registryValueName"
+  >,
+) => `${candidate.registryPath} / ${candidate.registryValueName}`;
 
 const formatDiagnostics = (diagnostics: string[]) => {
   return diagnostics.length > 0 ? diagnostics.join("; ") : "no details";
@@ -774,49 +1173,60 @@ const resolveGameInstallPath = async (
     diagnostics.push("config=empty");
   }
 
-  const registryResult = await readRegistryInstallPath(serviceId, gameId);
-  const registryLabel = getRegistryInstallPathLabel(serviceId, gameId);
-
-  if (!registryResult.ok) {
-    diagnostics.push(`registry=read-failed (${registryLabel})`);
-    return { path: null, error: registryResult.error, diagnostics };
-  }
-
-  if (!registryResult.value) {
-    diagnostics.push(`registry=${registryResult.state} (${registryLabel})`);
-    return { path: null, verifyError: configuredVerifyError, diagnostics };
-  }
-
-  const registryStatus = await verifyGameInstallPath(
+  const registryInspection = await inspectRegistryInstallPaths(
     serviceId,
-    registryResult.value,
+    gameId,
   );
 
-  if (registryStatus.status === "valid") {
-    if (configuredPath.state === "empty") {
-      await persistDiscoveredGameInstallPath(
-        serviceId,
-        gameId,
-        registryResult.value,
-      );
+  for (const candidate of registryInspection.candidates) {
+    const registryLabel = getRegistryInstallPathLabel(candidate);
+
+    if (candidate.state === "read-failed") {
+      diagnostics.push(`registry=read-failed (${registryLabel})`);
+      continue;
     }
 
-    return { path: registryResult.value, source: "registry", diagnostics };
+    if (!candidate.path) {
+      diagnostics.push(`registry=${candidate.state} (${registryLabel})`);
+      continue;
+    }
+
+    if (
+      candidate.verification === "missing" ||
+      candidate.verification === "unknown"
+    ) {
+      diagnostics.push(
+        `${formatPathCheckFailure(
+          serviceId,
+          "registry",
+          candidate.path,
+          candidate.verification,
+          candidate.error,
+        )} (${registryLabel})`,
+      );
+    }
   }
 
-  diagnostics.push(
-    formatPathCheckFailure(
-      serviceId,
-      "registry",
-      registryResult.value,
-      registryStatus.status,
-      registryStatus.error,
-    ),
-  );
+  if (registryInspection.activeCandidate?.path) {
+    const activePath = registryInspection.activeCandidate.path;
+    if (configuredPath.state === "empty") {
+      await persistDiscoveredGameInstallPath(serviceId, gameId, activePath);
+    }
+
+    return { path: activePath, source: "registry", diagnostics };
+  }
+
+  const registryReadError = registryInspection.candidates.find(
+    (candidate) => candidate.state === "read-failed",
+  )?.error;
+  const registryVerifyError = registryInspection.candidates.find(
+    (candidate) => candidate.verification === "unknown",
+  )?.error;
 
   return {
     path: null,
-    verifyError: registryStatus.error ?? configuredVerifyError,
+    error: registryReadError,
+    verifyError: registryVerifyError ?? configuredVerifyError,
     diagnostics,
   };
 };
@@ -826,6 +1236,82 @@ const areSameInstallPath = (left: string | null, right: string | null) => {
   return (
     normalizePath(left).toLowerCase() === normalizePath(right).toLowerCase()
   );
+};
+
+const resolveRegistryTarget = (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+  target: GameInstallPathRegistryTarget | undefined,
+): RegistryTargetResolution => {
+  if (
+    !target ||
+    typeof target.registryPath !== "string" ||
+    typeof target.registryValueName !== "string" ||
+    typeof target.expectedPath !== "string"
+  ) {
+    return { ok: false, error: "Registry target is missing or malformed." };
+  }
+
+  const registryInfo = getRegistryInstallPathCandidate(
+    serviceId,
+    gameId,
+    target.registryPath,
+    target.registryValueName,
+  );
+  if (!registryInfo) {
+    return {
+      ok: false,
+      error: "Registry target is not allowed for this game context.",
+    };
+  }
+
+  const expectedPath = normalizePath(target.expectedPath);
+  if (!expectedPath) {
+    return { ok: false, error: "Expected registry install path is empty." };
+  }
+
+  return { ok: true, expectedPath, registryInfo };
+};
+
+const validateRegistryTargetCurrent = async (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+  target: GameInstallPathRegistryTarget | undefined,
+): Promise<RegistryTargetValidation> => {
+  const targetResolution = resolveRegistryTarget(serviceId, gameId, target);
+  if (!targetResolution.ok) return targetResolution;
+
+  const registryResult = await readRegistryValueDetailed(
+    targetResolution.registryInfo.path,
+    targetResolution.registryInfo.key,
+  );
+  const { expectedPath, registryInfo } = targetResolution;
+  if (!registryResult.ok) {
+    return {
+      ok: false,
+      error: `Registry target could not be read: ${registryResult.error}`,
+    };
+  }
+
+  const currentPath = registryResult.value
+    ? normalizePath(registryResult.value)
+    : null;
+  if (!currentPath) {
+    return {
+      ok: false,
+      error: `Registry target changed (${registryResult.state}). Run diagnostics again.`,
+    };
+  }
+
+  if (!areSameInstallPath(currentPath, expectedPath)) {
+    return {
+      ok: false,
+      error:
+        "Registry target changed since diagnostics. Run diagnostics again.",
+    };
+  }
+
+  return { ok: true, currentPath, registryInfo };
 };
 
 const getRecommendedInstallPathSource = (
@@ -874,27 +1360,23 @@ export const getGameInstallPathDiagnostics = async (
     configDiagnostic.error = verification.error;
   }
 
-  const registryInfo = GAME_INSTALL_REGISTRY_MAP[serviceId][gameId];
-  const registryResult = await readRegistryInstallPath(serviceId, gameId);
+  const registryInspection = await inspectRegistryInstallPaths(
+    serviceId,
+    gameId,
+  );
+  const displayedRegistryCandidate = registryInspection.displayedCandidate;
   const registryDiagnostic: GameInstallPathRegistryDiagnostic = {
     source: "registry",
-    path: registryResult.ok ? registryResult.value : null,
-    state: registryResult.ok ? registryResult.state : "read-failed",
-    verification: "not-checked",
-    error: registryResult.ok ? undefined : registryResult.error,
-    registryPath: registryInfo.path,
-    registryValueName: registryInfo.key,
+    path: displayedRegistryCandidate.path,
+    state: displayedRegistryCandidate.state,
+    verification: displayedRegistryCandidate.verification,
+    executablePath: displayedRegistryCandidate.executablePath,
+    error: displayedRegistryCandidate.error,
+    registryPath: displayedRegistryCandidate.registryPath,
+    registryValueName: displayedRegistryCandidate.registryValueName,
+    aggregateState: registryInspection.aggregateState,
+    candidates: registryInspection.candidates,
   };
-
-  if (registryResult.ok && registryResult.value) {
-    const verification = await verifyGameInstallPath(
-      serviceId,
-      registryResult.value,
-    );
-    registryDiagnostic.verification = verification.status;
-    registryDiagnostic.executablePath = verification.executablePath;
-    registryDiagnostic.error = verification.error;
-  }
 
   const hasPathConflict =
     Boolean(configDiagnostic.path && registryDiagnostic.path) &&
@@ -976,10 +1458,105 @@ export const setGameInstallPath = async (
   };
 };
 
+export const registerGameInstallPath = async (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+  request: GameInstallPathRegisterRequest,
+): Promise<GameInstallPathRegisterResult> => {
+  if (serviceId !== "Kakao Games") {
+    return {
+      ok: false,
+      verification: "not-checked",
+      error:
+        "Registry install path registration is only supported for Kakao Games.",
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const configuredPath = getConfiguredGameInstallPath(serviceId, gameId);
+  const configPath = configuredPath.path;
+  if (!configPath) {
+    return {
+      ok: false,
+      verification: "not-checked",
+      error: "Launcher config path is empty.",
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const verification = await verifyGameInstallPath(serviceId, configPath);
+  if (verification.status !== "valid") {
+    return {
+      ok: false,
+      path: configPath,
+      verification: verification.status,
+      error:
+        verification.error ||
+        `런처 설정 경로에서 ${getGameExecutableName(serviceId)}를 찾을 수 없습니다.`,
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  if (
+    !request ||
+    typeof request.expectedConfigPath !== "string" ||
+    !areSameInstallPath(configPath, request.expectedConfigPath)
+  ) {
+    return {
+      ok: false,
+      path: configPath,
+      verification: verification.status,
+      error:
+        "Launcher config path changed since confirmation. Run diagnostics again.",
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const candidates = getRegistryInstallPathCandidates(serviceId, gameId);
+  const canonical = candidates[0];
+  if (!canonical || !canonical.path.includes("\\Kakaogames\\")) {
+    return {
+      ok: false,
+      path: configPath,
+      verification: verification.status,
+      error: "Canonical Kakaogames registry candidate is unavailable.",
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const registrationResult =
+    await registerCanonicalRegistryInstallPathAtomically(
+      candidates,
+      configPath,
+    );
+  if (registrationResult.status !== "registered") {
+    return {
+      ok: false,
+      path: configPath,
+      verification: verification.status,
+      error: formatRegistryRegistrationError(registrationResult),
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  logger.log(
+    `[Registry] Registered canonical install path for ${gameId} (${serviceId}); legacy registry candidate remains unchanged.`,
+  );
+
+  return {
+    ok: true,
+    path: configPath,
+    registryPath: canonical.path,
+    registryValueName: canonical.key,
+    diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+  };
+};
+
 export const clearGameInstallPath = async (
   serviceId: AppConfig["serviceChannel"],
   gameId: AppConfig["activeGame"],
   source: GameInstallPathClearSource,
+  registryTarget?: GameInstallPathRegistryTarget,
 ): Promise<GameInstallPathClearResult> => {
   if (source === "config") {
     const context = ContextProvider.get();
@@ -1011,12 +1588,30 @@ export const clearGameInstallPath = async (
     };
   }
 
-  const deleted = await deleteRegistryInstallPath(serviceId, gameId);
-  if (!deleted) {
+  const targetResolution = resolveRegistryTarget(
+    serviceId,
+    gameId,
+    registryTarget,
+  );
+  if (!targetResolution.ok) {
     return {
       ok: false,
       source,
-      error: "Failed to delete registry install path.",
+      error: targetResolution.error,
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const mutationResult = await mutateRegistryInstallPathConditionally(
+    targetResolution.registryInfo,
+    targetResolution.expectedPath,
+    { kind: "delete" },
+  );
+  if (mutationResult.status !== "mutated") {
+    return {
+      ok: false,
+      source,
+      error: formatConditionalRegistryMutationError(mutationResult),
       diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
     };
   }
@@ -1032,10 +1627,10 @@ export const resolveGameInstallPathConflict = async (
   serviceId: AppConfig["serviceChannel"],
   gameId: AppConfig["activeGame"],
   action: GameInstallPathConflictAction,
+  registryTarget: GameInstallPathConflictTarget,
 ): Promise<GameInstallPathConflictResolveResult> => {
   const diagnostics = await getGameInstallPathDiagnostics(serviceId, gameId);
   const configPath = diagnostics.config.path;
-  const registryPath = diagnostics.registry.path;
 
   if (!configPath) {
     return {
@@ -1061,15 +1656,35 @@ export const resolveGameInstallPathConflict = async (
     };
   }
 
+  if (
+    typeof registryTarget?.expectedConfigPath !== "string" ||
+    !areSameInstallPath(configPath, registryTarget.expectedConfigPath)
+  ) {
+    return {
+      ok: false,
+      action,
+      path: configPath,
+      verification: verification.status,
+      error:
+        "Launcher config path changed since confirmation. Run diagnostics again.",
+      diagnostics,
+    };
+  }
+
   if (action === "launcher-config-only") {
-    if (!registryPath) {
+    const targetValidation = await validateRegistryTargetCurrent(
+      serviceId,
+      gameId,
+      registryTarget,
+    );
+    if (!targetValidation.ok) {
       return {
         ok: false,
         action,
         path: configPath,
         verification: verification.status,
-        error: "Registry path is empty.",
-        diagnostics,
+        error: targetValidation.error,
+        diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
       };
     }
 
@@ -1078,7 +1693,7 @@ export const resolveGameInstallPathConflict = async (
       gameId,
       {
         configPath,
-        registryPath,
+        registryPath: targetValidation.currentPath,
         resolvedAt: Date.now(),
       },
     );
@@ -1106,15 +1721,35 @@ export const resolveGameInstallPathConflict = async (
     };
   }
 
-  const written = await writeRegistryInstallPath(serviceId, gameId, configPath);
-  if (!written) {
+  const targetResolution = resolveRegistryTarget(
+    serviceId,
+    gameId,
+    registryTarget,
+  );
+  if (!targetResolution.ok) {
     return {
       ok: false,
       action,
       path: configPath,
       verification: verification.status,
-      error: "Failed to update registry install path.",
-      diagnostics,
+      error: targetResolution.error,
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
+    };
+  }
+
+  const mutationResult = await mutateRegistryInstallPathConditionally(
+    targetResolution.registryInfo,
+    targetResolution.expectedPath,
+    { kind: "set", installPath: configPath },
+  );
+  if (mutationResult.status !== "mutated") {
+    return {
+      ok: false,
+      action,
+      path: configPath,
+      verification: verification.status,
+      error: formatConditionalRegistryMutationError(mutationResult),
+      diagnostics: await getGameInstallPathDiagnostics(serviceId, gameId),
     };
   }
 
@@ -1226,6 +1861,125 @@ export const getGameInstallationStatus = async (
 
   logInstallPathResolutionFailure(serviceId, gameId, resolution);
   return "uninstalled";
+};
+
+/**
+ * Produces the install availability and Kakao registry advisory from one path
+ * inspection. A valid configured path remains authoritative for launching, but
+ * Kakao registry candidates are still inspected so recovery guidance can be
+ * carried with the same status reconciliation result.
+ */
+export const getGameInstallPathHealth = async (
+  serviceId: AppConfig["serviceChannel"],
+  gameId: AppConfig["activeGame"],
+  checkedAt = Date.now(),
+): Promise<GameInstallPathHealth> => {
+  const diagnostics: string[] = [];
+  const configuredPath = getConfiguredGameInstallPath(serviceId, gameId);
+  let configuredVerification: InstallPathVerificationStatus | null = null;
+  let configuredVerifyError: string | undefined;
+
+  if (configuredPath.path) {
+    const verification = await verifyGameInstallPath(
+      serviceId,
+      configuredPath.path,
+    );
+    configuredVerification = verification.status;
+    configuredVerifyError = verification.error;
+
+    if (verification.status !== "valid") {
+      diagnostics.push(
+        formatPathCheckFailure(
+          serviceId,
+          "config",
+          configuredPath.path,
+          verification.status,
+          verification.error,
+        ),
+      );
+    }
+  } else {
+    diagnostics.push(`config=${configuredPath.state}`);
+  }
+
+  if (configuredVerification === "valid" && serviceId === "GGG") {
+    return { installationStatus: "installed", checkedAt };
+  }
+
+  const registryInspection = await inspectRegistryInstallPaths(
+    serviceId,
+    gameId,
+  );
+
+  if (configuredVerification === "valid") {
+    return {
+      installationStatus: "installed",
+      checkedAt,
+      ...(registryInspection.aggregateState === "valid"
+        ? {}
+        : {
+            registryAdvisory: {
+              state: registryInspection.aggregateState,
+            },
+          }),
+    };
+  }
+
+  if (registryInspection.activeCandidate?.path) {
+    if (configuredPath.state === "empty") {
+      await persistDiscoveredGameInstallPath(
+        serviceId,
+        gameId,
+        registryInspection.activeCandidate.path,
+      );
+    }
+
+    return { installationStatus: "installed", checkedAt };
+  }
+
+  for (const candidate of registryInspection.candidates) {
+    const registryLabel = getRegistryInstallPathLabel(candidate);
+    if (candidate.state === "read-failed") {
+      diagnostics.push(`registry=read-failed (${registryLabel})`);
+    } else if (!candidate.path) {
+      diagnostics.push(`registry=${candidate.state} (${registryLabel})`);
+    } else if (
+      candidate.verification === "missing" ||
+      candidate.verification === "unknown"
+    ) {
+      diagnostics.push(
+        `${formatPathCheckFailure(
+          serviceId,
+          "registry",
+          candidate.path,
+          candidate.verification,
+          candidate.error,
+        )} (${registryLabel})`,
+      );
+    }
+  }
+
+  const hasUnknownResult =
+    configuredVerification === "unknown" ||
+    Boolean(configuredVerifyError) ||
+    registryInspection.aggregateState === "unknown";
+  const resolution: InstallPathResolution = {
+    path: null,
+    error: registryInspection.candidates.find(
+      (candidate) => candidate.state === "read-failed",
+    )?.error,
+    verifyError:
+      registryInspection.candidates.find(
+        (candidate) => candidate.verification === "unknown",
+      )?.error ?? configuredVerifyError,
+    diagnostics,
+  };
+  logInstallPathResolutionFailure(serviceId, gameId, resolution);
+
+  return {
+    installationStatus: hasUnknownResult ? "unknown" : "uninstalled",
+    checkedAt,
+  };
 };
 
 export const isGameInstalled = async (

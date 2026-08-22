@@ -20,7 +20,10 @@ import {
   ThemeDefinition,
   KakaoMaintenanceInfo,
   KakaoGameStarterMigrationRequest,
+  GameInstallPathConflictTarget,
   GameInstallPathDiagnostics,
+  GameInstallPathRegistryTarget,
+  OperationalNotification,
   RenewedPatchReservation,
   RenewedPatchReservationInput,
 } from "../shared/types";
@@ -58,7 +61,12 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 import { useGameState } from "./contexts/GameStateContext";
 import { VersionService, RemoteVersions } from "./services/VersionService";
-import { getGameStartButtonLabel } from "./utils/game-start-label";
+import {
+  getGameStartButtonLabel,
+  shouldOpenGamePathDiagnostic,
+} from "./utils/game-start-label";
+import { updateGamePathModalForContext } from "./utils/game-path-modal-state";
+import { createGamePathRegistryWarning } from "./utils/game-path-registry-warning";
 import { logger } from "./utils/logger";
 import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";
 
@@ -85,10 +93,36 @@ type GamePathModalState = {
   highlightManual?: boolean;
   showRegistrySyncConfirm?: boolean;
   showRegistryClearConfirm?: boolean;
+  showRegistryRegisterConfirm?: boolean;
   manualSaveToastId?: number;
+  registrySaveToastId?: number;
 };
 
 type GamePathSource = "config" | "registry";
+
+const getRegistryMutationTarget = (
+  diagnostics: GameInstallPathDiagnostics,
+): GameInstallPathRegistryTarget | null => {
+  if (!diagnostics.registry.path) return null;
+
+  return {
+    registryPath: diagnostics.registry.registryPath,
+    registryValueName: diagnostics.registry.registryValueName,
+    expectedPath: diagnostics.registry.path,
+  };
+};
+
+const getRegistryConflictTarget = (
+  diagnostics: GameInstallPathDiagnostics,
+): GameInstallPathConflictTarget | null => {
+  const registryTarget = getRegistryMutationTarget(diagnostics);
+  if (!registryTarget || !diagnostics.config.path) return null;
+
+  return {
+    ...registryTarget,
+    expectedConfigPath: diagnostics.config.path,
+  };
+};
 
 // Status Message Mapping (Configuration)
 const STATUS_MESSAGES: Record<RunStatus, StatusMessageConfig> = {
@@ -274,6 +308,19 @@ function App() {
   const activeGameStatus = useMemo(() => {
     return getActiveGameState(config.activeGame, config.serviceChannel);
   }, [config.activeGame, config.serviceChannel, getActiveGameState]);
+  const operationalNotifications = useMemo(() => {
+    if (!isConfigLoaded) return [];
+    const warning = createGamePathRegistryWarning(activeGameStatus, {
+      serviceId: config.serviceChannel,
+      gameId: config.activeGame,
+    });
+    return warning ? [warning] : [];
+  }, [
+    activeGameStatus,
+    config.activeGame,
+    config.serviceChannel,
+    isConfigLoaded,
+  ]);
   const isFontMigrationBlockedByRunningGame = useMemo(() => {
     return (
       getActiveGameState(config.activeGame, "Kakao Games").status ===
@@ -1176,6 +1223,7 @@ function App() {
         highlightManual: options?.highlightManual ?? false,
         showRegistrySyncConfirm: false,
         showRegistryClearConfirm: false,
+        showRegistryRegisterConfirm: false,
       });
 
       try {
@@ -1217,6 +1265,18 @@ function App() {
     [],
   );
 
+  const handleOperationalNotificationClick = useCallback(
+    (notification: OperationalNotification) => {
+      if (notification.action !== "open-game-path-diagnostic") return;
+      void openGamePathModal(
+        "diagnostic",
+        notification.serviceId,
+        notification.gameId,
+      );
+    },
+    [openGamePathModal],
+  );
+
   const handleGamePathContextChange = useCallback(
     async (
       serviceId: AppConfig["serviceChannel"],
@@ -1246,6 +1306,7 @@ function App() {
               highlightManual: false,
               showRegistrySyncConfirm: false,
               showRegistryClearConfirm: false,
+              showRegistryRegisterConfirm: false,
             }
           : current,
       );
@@ -1326,6 +1387,7 @@ function App() {
                 ...current,
                 showRegistrySyncConfirm: true,
                 showRegistryClearConfirm: false,
+                showRegistryRegisterConfirm: false,
                 errorMessage: undefined,
               }
             : current,
@@ -1404,6 +1466,7 @@ function App() {
                 highlightManual: false,
                 showRegistrySyncConfirm: false,
                 showRegistryClearConfirm: false,
+                showRegistryRegisterConfirm: false,
                 manualSaveToastId: Date.now(),
               }
             : current,
@@ -1453,6 +1516,115 @@ function App() {
     );
   }, []);
 
+  const handleGamePathRegistryRegisterRequest = useCallback(() => {
+    setGamePathModalState((current) =>
+      current
+        ? {
+            ...current,
+            showRegistryRegisterConfirm: true,
+            showRegistrySyncConfirm: false,
+            showRegistryClearConfirm: false,
+            errorMessage: undefined,
+          }
+        : current,
+    );
+  }, []);
+
+  const handleGamePathRegistryRegisterConfirmClose = useCallback(() => {
+    setGamePathModalState((current) =>
+      current ? { ...current, showRegistryRegisterConfirm: false } : current,
+    );
+  }, []);
+
+  const handleRegisterGamePath = useCallback(async () => {
+    if (!window.electronAPI || !gamePathModalState?.diagnostics) return;
+
+    const { serviceId, gameId, diagnostics } = gamePathModalState;
+    const expectedConfigPath = diagnostics.config.path;
+    if (!expectedConfigPath) {
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            showRegistryRegisterConfirm: false,
+            errorMessage:
+              "등록할 런처 설정 경로가 없습니다. 다시 진단해 주세요.",
+          }),
+        ),
+      );
+      return;
+    }
+
+    setGamePathModalState((current) =>
+      updateGamePathModalForContext(current, serviceId, gameId, (matched) => ({
+        ...matched,
+        busy: true,
+        showRegistryRegisterConfirm: false,
+        errorMessage: undefined,
+      })),
+    );
+
+    try {
+      const result = await window.electronAPI.registerGameInstallPath(
+        serviceId,
+        gameId,
+        { expectedConfigPath },
+      );
+
+      if (result.ok) {
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              mode: "diagnostic",
+              diagnostics: result.diagnostics,
+              busy: false,
+              errorMessage: undefined,
+              showRegistryRegisterConfirm: false,
+              registrySaveToastId: Date.now(),
+            }),
+          ),
+        );
+        void syncGameState(gameId, serviceId);
+        return;
+      }
+
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            diagnostics: result.diagnostics || matched.diagnostics,
+            busy: false,
+            errorMessage:
+              result.error || getGamePathSaveErrorMessage(result.verification),
+          }),
+        ),
+      );
+    } catch (error) {
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: false,
+            errorMessage: `레지스트리 게임 경로를 등록하지 못했습니다. ${formatUnknownError(error)}`,
+          }),
+        ),
+      );
+    }
+  }, [gamePathModalState, syncGameState]);
+
   const handleClearGamePath = useCallback(
     async (source: GamePathSource, confirmed = false) => {
       if (!window.electronAPI || !gamePathModalState) return;
@@ -1464,7 +1636,25 @@ function App() {
                 ...current,
                 showRegistryClearConfirm: true,
                 showRegistrySyncConfirm: false,
+                showRegistryRegisterConfirm: false,
                 errorMessage: undefined,
+              }
+            : current,
+        );
+        return;
+      }
+
+      const registryTarget =
+        source === "registry" && gamePathModalState.diagnostics
+          ? getRegistryMutationTarget(gamePathModalState.diagnostics)
+          : undefined;
+      if (source === "registry" && !registryTarget) {
+        setGamePathModalState((current) =>
+          current
+            ? {
+                ...current,
+                errorMessage:
+                  "삭제할 레지스트리 대상을 확인할 수 없습니다. 다시 진단해 주세요.",
               }
             : current,
         );
@@ -1479,6 +1669,7 @@ function App() {
               busy: true,
               errorMessage: undefined,
               showRegistryClearConfirm: false,
+              showRegistryRegisterConfirm: false,
             }
           : current,
       );
@@ -1488,6 +1679,7 @@ function App() {
           serviceId,
           gameId,
           source,
+          registryTarget || undefined,
         );
 
         if (result.ok) {
@@ -1501,6 +1693,7 @@ function App() {
                   errorMessage: undefined,
                   showRegistrySyncConfirm: false,
                   showRegistryClearConfirm: false,
+                  showRegistryRegisterConfirm: false,
                 }
               : current,
           );
@@ -1541,7 +1734,23 @@ function App() {
     async (action: "launcher-config-only" | "sync-registry") => {
       if (!window.electronAPI || !gamePathModalState) return;
 
-      const { serviceId, gameId } = gamePathModalState;
+      const { serviceId, gameId, diagnostics } = gamePathModalState;
+      const registryTarget = diagnostics
+        ? getRegistryConflictTarget(diagnostics)
+        : null;
+      if (!registryTarget) {
+        setGamePathModalState((current) =>
+          current
+            ? {
+                ...current,
+                errorMessage:
+                  "동기화할 레지스트리 대상을 확인할 수 없습니다. 다시 진단해 주세요.",
+              }
+            : current,
+        );
+        return;
+      }
+
       setGamePathModalState((current) =>
         current
           ? {
@@ -1550,6 +1759,7 @@ function App() {
               errorMessage: undefined,
               showRegistrySyncConfirm: false,
               showRegistryClearConfirm: false,
+              showRegistryRegisterConfirm: false,
             }
           : current,
       );
@@ -1559,6 +1769,7 @@ function App() {
           serviceId,
           gameId,
           action,
+          registryTarget,
         );
 
         if (result.ok) {
@@ -1637,16 +1848,7 @@ function App() {
       return;
     }
 
-    if (activeGameStatus.status === "uninstalled") {
-      void openGamePathModal(
-        "missing",
-        config.serviceChannel,
-        config.activeGame,
-      );
-      return;
-    }
-
-    if (activeGameStatus.status === "install_check_blocked") {
+    if (shouldOpenGamePathDiagnostic(activeGameStatus.status)) {
       void openGamePathModal(
         "missing",
         config.serviceChannel,
@@ -1941,7 +2143,11 @@ function App() {
         showRegistryClearConfirm={
           gamePathModalState?.showRegistryClearConfirm ?? false
         }
+        showRegistryRegisterConfirm={
+          gamePathModalState?.showRegistryRegisterConfirm ?? false
+        }
         manualSaveToastId={gamePathModalState?.manualSaveToastId}
+        registrySaveToastId={gamePathModalState?.registrySaveToastId}
         onClose={handleGamePathModalClose}
         onContextChange={handleGamePathContextChange}
         onUsePath={handleUseGamePath}
@@ -1949,6 +2155,10 @@ function App() {
         onManualSelect={handleManualGamePathSelect}
         onRegistrySyncConfirmClose={handleGamePathConflictConfirmClose}
         onRegistryClearConfirmClose={handleGamePathRegistryClearConfirmClose}
+        onRegistryRegisterRequest={handleGamePathRegistryRegisterRequest}
+        onRegistryRegisterConfirmClose={
+          handleGamePathRegistryRegisterConfirmClose
+        }
         onKeepLauncherConfig={() =>
           void handleResolveGamePathConflict("launcher-config-only")
         }
@@ -1958,6 +2168,7 @@ function App() {
         onConfirmClearRegistry={() =>
           void handleClearGamePath("registry", true)
         }
+        onConfirmRegisterRegistry={() => void handleRegisterGamePath()}
         onInstall={
           gamePathModalState?.mode === "missing"
             ? handleGamePathInstall
@@ -2087,6 +2298,8 @@ function App() {
           onUpdateClick={() => setIsUpdateModalOpen(true)}
           devMode={config.dev_mode}
           debugConsole={config.debug_console}
+          operationalNotifications={operationalNotifications}
+          onOperationalNotificationClick={handleOperationalNotificationClick}
         />
 
         {/* 2. Main Content Frame */}

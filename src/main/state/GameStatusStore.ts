@@ -8,13 +8,22 @@ export const getGameStatusKey = (gameId: string, serviceId: string) =>
 export const updateGameStatusCache = (
   statusState: GameStatusState,
 ): GameStatusState => {
+  const key = getGameStatusKey(statusState.gameId, statusState.serviceId);
+  const previous = gameStatusCache[key];
+  const incomingHealth = statusState.installPathHealth;
+  const installPathHealth =
+    incomingHealth &&
+    (!previous?.installPathHealth ||
+      incomingHealth.checkedAt >= previous.installPathHealth.checkedAt)
+      ? incomingHealth
+      : previous?.installPathHealth;
   const payload: GameStatusState = {
     ...statusState,
+    ...(installPathHealth ? { installPathHealth } : {}),
     timestamp: statusState.timestamp ?? Date.now(),
   };
 
-  gameStatusCache[getGameStatusKey(payload.gameId, payload.serviceId)] =
-    payload;
+  gameStatusCache[key] = payload;
 
   return payload;
 };

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   getGameStartButtonLabel,
+  shouldOpenGamePathDiagnostic,
   shouldShowUpdateLabel,
 } from "./game-start-label";
 import { RunStatus } from "../../shared/types";
 
 const launchActiveStatuses: RunStatus[] = [
-  "install_check_blocked",
   "preparing",
   "processing",
   "authenticating",
@@ -25,6 +25,15 @@ describe("game start button label", () => {
     expect(getGameStartButtonLabel("idle", true)).toBe("업데이트");
     expect(getGameStartButtonLabel("error", true)).toBe("업데이트");
     expect(getGameStartButtonLabel("stopping", true)).toBe("업데이트");
+  });
+
+  it("shows an honest path-check label when installation verification is blocked", () => {
+    expect(getGameStartButtonLabel("install_check_blocked", true)).toBe(
+      "경로 확인",
+    );
+    expect(shouldShowUpdateLabel("install_check_blocked", true)).toBe(false);
+    expect(shouldOpenGamePathDiagnostic("install_check_blocked")).toBe(true);
+    expect(shouldOpenGamePathDiagnostic("idle")).toBe(false);
   });
 
   it("does not show update label while game launch or play is already active", () => {

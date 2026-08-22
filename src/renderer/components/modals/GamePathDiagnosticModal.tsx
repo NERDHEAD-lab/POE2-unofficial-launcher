@@ -7,17 +7,19 @@ import {
   type ActiveGame,
   type GameInstallPathConfigDiagnostic,
   type GameInstallPathDiagnostics,
+  type GameInstallPathRegistryCandidateDiagnostic,
   type GameInstallPathRegistryDiagnostic,
   type ServiceChannel,
 } from "../../../shared/types";
+import { getRegistryRegistrationEligibility } from "../../utils/game-path-registry-registration";
 import { SERVICE_CHANNEL_ASSETS } from "../../utils/service-channel-assets";
 import { Toast } from "../ui/Toast";
 
 type GamePathSource = "config" | "registry";
 type GamePathModalMode = "conflict" | "missing" | "diagnostic";
 type PathDiagnostic =
-  | GameInstallPathConfigDiagnostic
-  | GameInstallPathRegistryDiagnostic;
+  GameInstallPathConfigDiagnostic | GameInstallPathRegistryDiagnostic;
+type PathStatusDiagnostic = Pick<PathDiagnostic, "state" | "verification">;
 
 interface GamePathDiagnosticModalProps {
   isOpen: boolean;
@@ -30,7 +32,9 @@ interface GamePathDiagnosticModalProps {
   highlightManual?: boolean;
   showRegistrySyncConfirm?: boolean;
   showRegistryClearConfirm?: boolean;
+  showRegistryRegisterConfirm?: boolean;
   manualSaveToastId?: number;
+  registrySaveToastId?: number;
   onClose: () => void;
   onContextChange: (serviceId: ServiceChannel, gameId: ActiveGame) => void;
   onUsePath: (source: GamePathSource) => void;
@@ -38,13 +42,16 @@ interface GamePathDiagnosticModalProps {
   onManualSelect: () => void;
   onRegistrySyncConfirmClose: () => void;
   onRegistryClearConfirmClose: () => void;
+  onRegistryRegisterRequest: () => void;
+  onRegistryRegisterConfirmClose: () => void;
   onKeepLauncherConfig: () => void;
   onSyncRegistry: () => void;
   onConfirmClearRegistry: () => void;
+  onConfirmRegisterRegistry: () => void;
   onInstall?: () => void;
 }
 
-const getStatusIcon = (diagnostic: PathDiagnostic) => {
+const getStatusIcon = (diagnostic: PathStatusDiagnostic) => {
   if (diagnostic.verification === "valid") return "check_circle";
   if (diagnostic.verification === "missing") return "cancel";
   if (
@@ -57,7 +64,7 @@ const getStatusIcon = (diagnostic: PathDiagnostic) => {
   return "help";
 };
 
-const getStatusClass = (diagnostic: PathDiagnostic) => {
+const getStatusClass = (diagnostic: PathStatusDiagnostic) => {
   if (diagnostic.verification === "valid") return "is-valid";
   if (diagnostic.verification === "missing") return "is-invalid";
   if (
@@ -70,7 +77,7 @@ const getStatusClass = (diagnostic: PathDiagnostic) => {
   return "is-empty";
 };
 
-const getStatusText = (diagnostic: PathDiagnostic) => {
+const getStatusText = (diagnostic: PathStatusDiagnostic) => {
   if (diagnostic.verification === "valid") return "확인됨";
   if (diagnostic.verification === "missing") return "실행 파일 없음";
   if (diagnostic.verification === "unknown") return "확인 불가";
@@ -109,6 +116,62 @@ const GAME_LABELS: Record<ActiveGame, string> = {
   POE1: "POE1",
   POE2: "POE2",
 };
+
+const getRegistryCandidateLabel = (
+  serviceId: ServiceChannel,
+  index: number,
+) => {
+  if (serviceId !== "Kakao Games") return `후보 ${index + 1}`;
+  return index === 0 ? "Kakaogames (기본)" : "DaumGames (호환)";
+};
+
+const getRegistryCandidateStatusText = (
+  candidate: GameInstallPathRegistryCandidateDiagnostic,
+  index: number,
+) => {
+  if (candidate.isActive) {
+    return index === 0 ? "기본 경로 사용 중" : "호환 경로 사용 중 (fallback)";
+  }
+  if (candidate.verification === "valid") return "사용 가능";
+  return getStatusText(candidate);
+};
+
+const RegistryCandidateList: React.FC<{
+  serviceId: ServiceChannel;
+  candidates: GameInstallPathRegistryCandidateDiagnostic[];
+}> = ({ serviceId, candidates }) => (
+  <div className="game-path-registry-candidates">
+    {candidates.map((candidate, index) => {
+      const statusClass = getStatusClass(candidate);
+      return (
+        <div
+          key={`${candidate.registryPath}:${candidate.registryValueName}`}
+          className={`game-path-registry-candidate ${statusClass} ${
+            candidate.isActive ? "is-active" : ""
+          }`}
+        >
+          <div className="game-path-registry-candidate-head">
+            <strong>{getRegistryCandidateLabel(serviceId, index)}</strong>
+            <span className={statusClass}>
+              {getRegistryCandidateStatusText(candidate, index)}
+            </span>
+          </div>
+          <div className="game-path-option-meta">
+            <div>키: {candidate.registryPath}</div>
+            <div>값 이름: {candidate.registryValueName}</div>
+          </div>
+          <div
+            className={`game-path-registry-candidate-path ${
+              candidate.path ? "" : "is-empty"
+            }`}
+          >
+            {candidate.path || "등록된 경로 없음"}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
 
 const GamePathServiceSelect: React.FC<{
   value: ServiceChannel;
@@ -249,6 +312,7 @@ const PathOptionCard: React.FC<{
   title: string;
   source: GamePathSource;
   diagnostic: PathDiagnostic;
+  serviceId?: ServiceChannel;
   recommended: boolean;
   busy: boolean;
   onUsePath: (source: GamePathSource) => void;
@@ -258,6 +322,7 @@ const PathOptionCard: React.FC<{
   title,
   source,
   diagnostic,
+  serviceId,
   recommended,
   busy,
   onUsePath,
@@ -275,10 +340,6 @@ const PathOptionCard: React.FC<{
   );
   const statusClass = getStatusClass(diagnostic);
   const actionDisabled = (!canUsePath && !canReselectConfigPath) || busy;
-  const registryDetail =
-    diagnostic.source === "registry"
-      ? `${diagnostic.registryPath} / ${diagnostic.registryValueName}`
-      : null;
 
   return (
     <section
@@ -289,8 +350,11 @@ const PathOptionCard: React.FC<{
       <div className="game-path-option-head">
         <div>
           <div className="game-path-option-title">{title}</div>
-          {registryDetail && (
-            <div className="game-path-option-meta">{registryDetail}</div>
+          {diagnostic.source === "registry" && (
+            <div className="game-path-option-meta">
+              <div>키: {diagnostic.registryPath}</div>
+              <div>값 이름: {diagnostic.registryValueName}</div>
+            </div>
           )}
         </div>
         <div className={`game-path-state ${statusClass}`}>
@@ -310,6 +374,13 @@ const PathOptionCard: React.FC<{
 
       {diagnostic.error && (
         <div className="game-path-option-error">{diagnostic.error}</div>
+      )}
+
+      {diagnostic.source === "registry" && serviceId && (
+        <RegistryCandidateList
+          serviceId={serviceId}
+          candidates={diagnostic.candidates}
+        />
       )}
 
       <div className="game-path-option-actions">
@@ -362,7 +433,9 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
   highlightManual = false,
   showRegistrySyncConfirm = false,
   showRegistryClearConfirm = false,
+  showRegistryRegisterConfirm = false,
   manualSaveToastId,
+  registrySaveToastId,
   onClose,
   onContextChange,
   onUsePath,
@@ -370,9 +443,12 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
   onManualSelect,
   onRegistrySyncConfirmClose,
   onRegistryClearConfirmClose,
+  onRegistryRegisterRequest,
+  onRegistryRegisterConfirmClose,
   onKeepLauncherConfig,
   onSyncRegistry,
   onConfirmClearRegistry,
+  onConfirmRegisterRegistry,
   onInstall,
 }) => {
   const manualRowRef = React.useRef<HTMLDivElement>(null);
@@ -396,11 +472,19 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
       : mode === "conflict"
         ? "설정 경로와 레지스트리 경로가 다릅니다."
         : "서비스와 게임별 설치 경로를 확인합니다.";
+  const registrationEligibility = diagnostics
+    ? getRegistryRegistrationEligibility(diagnostics)
+    : "not-applicable";
+  const canonicalCandidate = diagnostics?.registry.candidates[0];
 
   if (!isOpen) return null;
 
   return (
-    <div className="game-path-modal-overlay" onClick={onClose}>
+    <div
+      className="game-path-modal-overlay"
+      aria-busy={busy}
+      onClick={busy ? undefined : onClose}
+    >
       <div
         className="game-path-modal"
         onClick={(event) => event.stopPropagation()}
@@ -439,6 +523,7 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
                   title="레지스트리"
                   source="registry"
                   diagnostic={diagnostics.registry}
+                  serviceId={serviceId}
                   recommended={diagnostics.recommendedSource === "registry"}
                   busy={busy}
                   onUsePath={onUsePath}
@@ -456,6 +541,32 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
                   onManualSelect={onManualSelect}
                 />
               </div>
+
+              {(registrationEligibility === "eligible" ||
+                registrationEligibility === "unknown" ||
+                registrationEligibility === "blocked") && (
+                <div className="game-path-registry-register-row">
+                  <div>
+                    <strong>카카오게임즈 레지스트리 복구</strong>
+                    <span>
+                      {registrationEligibility === "eligible"
+                        ? "런처 내 설정 경로를 Kakaogames 기본 키에 등록할 수 있습니다."
+                        : registrationEligibility === "unknown"
+                          ? "레지스트리 상태를 확인할 수 없어 안전하게 등록할 수 없습니다. 다시 진단해 주세요."
+                          : "기존 레지스트리 경로값이 있어 새 경로를 등록할 수 없습니다."}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="game-path-action secondary"
+                    disabled={busy || registrationEligibility !== "eligible"}
+                    onClick={onRegistryRegisterRequest}
+                  >
+                    <span className="material-symbols-outlined">add_link</span>
+                    레지스트리에 경로 등록
+                  </button>
+                </div>
+              )}
 
               <div
                 ref={manualRowRef}
@@ -578,6 +689,64 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
             </div>
           )}
 
+        {showRegistryRegisterConfirm &&
+          registrationEligibility === "eligible" &&
+          diagnostics?.config.path &&
+          canonicalCandidate && (
+            <div className="game-path-confirm-overlay">
+              <div
+                className="game-path-confirm-dialog"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="game-path-confirm-icon">
+                  <span className="material-symbols-outlined">add_link</span>
+                </div>
+                <div className="game-path-confirm-content">
+                  <h3>레지스트리에 게임 경로를 등록할까요?</h3>
+                  <p>
+                    런처 내 설정 경로를 카카오게임즈 기본 레지스트리 값으로
+                    등록합니다. 확인하는 동안 기존 값이 생기거나 상태를 읽을 수
+                    없으면 변경하지 않습니다.
+                  </p>
+                  <p>DaumGames (호환) 키와 값은 변경하지 않습니다.</p>
+                  <div className="game-path-confirm-paths">
+                    <div>
+                      <span>키</span>
+                      <strong>{canonicalCandidate.registryPath}</strong>
+                    </div>
+                    <div>
+                      <span>값 이름</span>
+                      <strong>{canonicalCandidate.registryValueName}</strong>
+                    </div>
+                    <div>
+                      <span>등록 경로</span>
+                      <strong>{diagnostics.config.path}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="game-path-confirm-actions">
+                  <button
+                    type="button"
+                    className="game-path-action ghost"
+                    disabled={busy}
+                    onClick={onRegistryRegisterConfirmClose}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="game-path-action primary"
+                    disabled={busy}
+                    onClick={onConfirmRegisterRegistry}
+                  >
+                    <span className="material-symbols-outlined">add_link</span>
+                    경로 등록
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         {showRegistryClearConfirm && diagnostics?.registry.path && (
           <div className="game-path-confirm-overlay">
             <div
@@ -632,6 +801,14 @@ const GamePathDiagnosticModal: React.FC<GamePathDiagnosticModalProps> = ({
           <Toast
             key={manualSaveToastId}
             message="게임 경로가 저장되었습니다."
+            visible
+            variant="success"
+          />
+        )}
+        {registrySaveToastId && (
+          <Toast
+            key={registrySaveToastId}
+            message="레지스트리 게임 경로가 등록되었습니다."
             visible
             variant="success"
           />

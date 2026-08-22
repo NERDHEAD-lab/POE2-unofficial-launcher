@@ -361,6 +361,73 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   overflow-wrap: anywhere;
 }
 
+.game-path-registry-candidates {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+
+.game-path-registry-candidate {
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.game-path-registry-candidate.is-active {
+  border-color: rgba(64, 192, 87, 0.42);
+  background: rgba(64, 192, 87, 0.055);
+}
+
+.game-path-registry-candidate.is-unknown {
+  border-color: rgba(255, 171, 0, 0.32);
+}
+
+.game-path-registry-candidate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-path-registry-candidate-head strong {
+  color: #ddd;
+  font-size: 11px;
+}
+
+.game-path-registry-candidate-head span {
+  color: #999;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.game-path-registry-candidate-head span.is-valid {
+  color: #40c057;
+}
+
+.game-path-registry-candidate-head span.is-invalid {
+  color: #fa7070;
+}
+
+.game-path-registry-candidate-head span.is-empty,
+.game-path-registry-candidate-head span.is-unknown {
+  color: #ffb83d;
+}
+
+.game-path-registry-candidate-path {
+  margin-top: 5px;
+  color: #bbb;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.game-path-registry-candidate-path.is-empty {
+  color: #777;
+  font-family: var(--launcher-font-family);
+}
+
 .game-path-option-actions {
   display: flex;
   gap: 8px;
@@ -389,6 +456,32 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   border: 1px solid rgba(223, 207, 153, 0.14);
   border-radius: 8px;
   background: rgba(223, 207, 153, 0.045);
+}
+
+.game-path-registry-register-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 171, 0, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 171, 0, 0.055);
+}
+
+.game-path-registry-register-row strong {
+  display: block;
+  color: #ffd27a;
+  font-size: 13px;
+}
+
+.game-path-registry-register-row span {
+  display: block;
+  margin-top: 3px;
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .game-path-manual-row.is-highlighted {
@@ -667,7 +760,8 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   }
 
   .game-path-modal-header,
-  .game-path-manual-row {
+  .game-path-manual-row,
+  .game-path-registry-register-row {
     align-items: flex-start;
     flex-direction: column;
   }
