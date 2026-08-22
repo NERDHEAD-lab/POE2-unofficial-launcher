@@ -2377,7 +2377,14 @@ async function createWindow() {
 
   // --- Main Window Loading ---
   if (VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(VITE_DEV_SERVER_URL);
+    let rendererUrl = VITE_DEV_SERVER_URL;
+    const qaRunId = process.env.ELECTRON_QA_RUN_ID;
+    if (process.env.ELECTRON_START_HIDDEN === "true" && qaRunId) {
+      const qaRendererUrl = new URL(rendererUrl);
+      qaRendererUrl.searchParams.set("codexQaRun", qaRunId);
+      rendererUrl = qaRendererUrl.toString();
+    }
+    mainWindow.loadURL(rendererUrl);
   } else {
     mainWindow.loadFile(path.join(process.env.DIST as string, "index.html"));
   }
