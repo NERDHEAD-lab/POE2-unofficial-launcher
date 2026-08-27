@@ -92,6 +92,12 @@ import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
+import {
+  buildGamePathDiagnosticQaRendererUrl,
+  isAllowedGamePathDiagnosticQaRendererUrl,
+  resolveGamePathDiagnosticQaLaunch,
+  type GamePathDiagnosticQaLaunchRequest,
+} from "./qa/GamePathDiagnosticQa";
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
 import { diagnosticLogStore } from "./services/DiagnosticLogStore";
@@ -2114,6 +2120,46 @@ function broadcastTitleUpdate() {
   }
 }
 
+async function createGamePathDiagnosticQaWindow(
+  request: GamePathDiagnosticQaLaunchRequest,
+) {
+  mainWindow = new BrowserWindow({
+    width: 1024,
+    height: 683,
+    minWidth: 1024,
+    minHeight: 683,
+    resizable: false,
+    maximizable: false,
+    frame: false,
+    titleBarStyle: "hidden",
+    icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
+    show: false,
+    backgroundColor: "#000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (
+      !isAllowedGamePathDiagnosticQaRendererUrl(
+        url,
+        request.devServerUrl,
+        request.runId,
+      )
+    ) {
+      event.preventDefault();
+    }
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    app.quit();
+  });
+
+  await mainWindow.loadURL(buildGamePathDiagnosticQaRendererUrl(request));
+}
+
 async function createWindow() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
@@ -3297,6 +3343,19 @@ ipcMain.handle("theme:sync-force", async () => {
 });
 
 app.whenReady().then(async () => {
+  const gamePathDiagnosticQaLaunch = resolveGamePathDiagnosticQaLaunch({
+    isPackaged: app.isPackaged,
+    devServerUrl: VITE_DEV_SERVER_URL,
+    startHidden: process.env.ELECTRON_START_HIDDEN,
+    runId: process.env.ELECTRON_QA_RUN_ID,
+    userDataPath: process.env.ELECTRON_QA_USER_DATA_DIR,
+    fixtureMode: process.env.ELECTRON_QA_GAME_PATH_FIXTURE,
+  });
+  if (gamePathDiagnosticQaLaunch.kind === "active") {
+    await createGamePathDiagnosticQaWindow(gamePathDiagnosticQaLaunch.request);
+    return;
+  }
+
   diagnosticLogStore.initialize(app.getPath("logs"), getLogHistory());
   setupDiagnosticLogSink((payload) => diagnosticLogStore.append(payload));
   registerDiagnosticLogIpc(diagnosticLogStore);

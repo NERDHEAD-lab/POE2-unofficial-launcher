@@ -7,7 +7,10 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import FatalErrorModal from "./components/modals/FatalErrorModal";
 import { GameStateProvider } from "./contexts/GameStateContext";
 import { DEBUG_APP_CONFIG } from "../shared/config";
+import { removeLauncherSplashForGamePathDiagnosticQaFixture } from "./qa/game-path-diagnostic-qa-dom";
+import { GamePathDiagnosticQaFixture } from "./qa/GamePathDiagnosticQaFixture";
 import { logger } from "./utils/logger";
+import { parseGamePathDiagnosticQaSearch } from "../shared/qa/game-path-diagnostic";
 
 import type { ErrorReportData } from "../shared/debug-log-policy";
 import type { FatalErrorPayload } from "../shared/types";
@@ -15,17 +18,22 @@ import type { FatalErrorPayload } from "../shared/types";
 import "./App.css";
 
 const isDebug = window.location.hash === DEBUG_APP_CONFIG.HASH;
+const gamePathDiagnosticQaFixture = parseGamePathDiagnosticQaSearch(
+  window.location.search,
+);
+removeLauncherSplashForGamePathDiagnosticQaFixture(gamePathDiagnosticQaFixture);
 
-if (!isDebug) {
+if (!isDebug && !gamePathDiagnosticQaFixture) {
   logger.log("[Renderer] Renderer Logger initialized.");
 }
 
 export const Root = () => {
   const [fatalError, setFatalError] = useState<FatalErrorPayload | null>(null);
   const [reportData, setReportData] = useState<
-    (ErrorReportData & {
-      type: "bug" | "suggestion";
-    }) | null
+    | (ErrorReportData & {
+        type: "bug" | "suggestion";
+      })
+    | null
   >(null);
   const launcherVersion = __APP_VERSION__;
 
@@ -100,6 +108,13 @@ export const Root = () => {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Root />
+    {gamePathDiagnosticQaFixture ? (
+      <GamePathDiagnosticQaFixture
+        mode={gamePathDiagnosticQaFixture.fixtureMode}
+        runId={gamePathDiagnosticQaFixture.runId}
+      />
+    ) : (
+      <Root />
+    )}
   </React.StrictMode>,
 );
