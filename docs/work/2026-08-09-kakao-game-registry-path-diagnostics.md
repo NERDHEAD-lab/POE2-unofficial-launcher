@@ -1,6 +1,6 @@
 # 카카오게임즈 게임 경로 진단 및 레지스트리 복구
 
-> 작성일: 2026-08-09 · 갱신: 2026-08-22 · 상태: PR candidate(자동 게이트·분리 리뷰 통과, 사용자 DoD 대기) · 브랜치: `fix/kakao-game-registry-path-diagnostics`
+> 작성일: 2026-08-09 · 갱신: 2026-08-27 · 상태: 진행 · 브랜치: `fix/kakao-game-registry-path-diagnostics`
 
 ## 배경과 목표
 
@@ -1319,3 +1319,540 @@ Candidate DoD 결론:
      생략하는지 확인한다.
 - 위 두 항목 전에는 사용자 DoD 또는 전체 기능 완료를 주장하지 않는다. 따라서 이 문서는
   `docs/work/`에 유지하고 미완료 사용자 검증을 PR 검증 경계로 추적한다.
+
+## MS6 — 수동 경로 다중 적용과 후보별 관리
+
+### 범위, 이전 결정과 변경 금지 경계
+
+- 진단 본문은 기존의 좌측 registry / 우측 launcher config 2열을 유지한다. MS6는
+  선택한 한 경로를 어느 저장 대상으로 적용할지 명시하게 할 뿐, 두 진단 열을 합치거나
+  launcher config를 registry의 하위 정보로 바꾸지 않는다.
+- 이전의 `DaumGames` 키 생성 금지 결정은 2026-08-27 사용자 요구로 **MS6 범위에서만
+  명시적으로 supersede**한다. 사용자가 `registry-compatibility`를 선택했을 때
+  `InstallPath` 생성 및 조건부 overwrite를 허용한다. 선택하지 않은 호환 키에는 쓰지
+  않으며, 이 변경은 다른 마일스톤의 자동 등록 정책을 소급 변경하지 않는다.
+- persistent `AppConfig` schema, EventBus, 의존성, updater/release flow, Kakao DOM
+  selector는 변경하지 않는다. `gameInstallPaths`의 이미 존재하는 nested 값만 immutable
+  update로 쓴다. `GameInstallStatusReconciler`의 소스도 수정하지 않는다.
+- `origin/master` 재배치는 완료되었다. old `a8fece1`은 new `975262b`로, old `990a668`은
+  new `e83258d`로 각각 patch-id가 동일하게 재배치되었고 remote는 아직 갱신하지 않았다.
+- 열린 owner 결정: 없음.
+
+### 대안 비교와 채택안
+
+| 접근                                   | 내용                                                                                             | 판정                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| A. renderer chain                      | renderer가 picker 결과 뒤 registry/config IPC를 순서대로 호출                                    | renderer lifecycle·재로딩·중복 클릭이 mutation 순서와 retry 상태를 소유하므로 배제                     |
+| B. stateless batch                     | 매 batch IPC가 diagnostics를 다시 읽고 전달된 대상 목록을 즉시 처리                              | 이전 성공 대상과 확인 당시 snapshot을 안정적으로 묶지 못해 partial retry와 TOCTOU 설명이 약하므로 배제 |
+| C. main-owned opaque selection session | Main이 picker 이후 선택 세션·allowlist·snapshot·완료 대상을 소유하고 renderer는 opaque ID만 제출 | 채택. 권한, lifecycle, 순서, retry 경계를 Main 한 곳에 둔다                                            |
+
+### Main 소유권, opaque 선택 세션과 IPC 계약
+
+- 새 focused main runtime owner로 `GameInstallPathSelectionService`를 둔다. 세션은
+  `selectionId`, owner `webContents`, `serviceId`/`gameId`, 검증된 path, 예상 target
+  snapshot, completed target ID 집합, lazy TTL을 가진다. 새 selection 생성, renderer
+  destroy, TTL 만료 시 즉시 폐기한다. 세션은 persistent state가 아니며 AppConfig에
+  저장하지 않는다.
+- renderer가 Main에 보내는 mutation 식별자는 `selectionId`와 allowlisted target ID뿐이다.
+  raw registry path·value는 diagnostics 화면 표시용이며 mutation authority가 아니다.
+  Main은 세션의 owner `webContents` 및 `serviceId`/`gameId`를 검사한 뒤 target ID를
+  현재 세션 snapshot으로 다시 해석한다.
+- target ID는 `registry-primary`, 후보가 있을 때만 `registry-compatibility`, `config`다.
+  candidate diagnostics에는 readonly `targetId`를 추가한다. GGG는
+  `registry-primary`와 `config`만 노출하며 compatibility target을 만들지 않는다.
+- native folder picker의 `defaultPath`는 registry candidate 순서로 실존 directory를
+  먼저 찾고, 없으면 config path를 사용한다. 어느 후보도 실존 directory가 아니면
+  `defaultPath`를 생략한다. picker는 path 검증과 selection session 생성만 수행하며
+  picker 성공만으로 config를 즉시 저장하지 않는다.
+- selection batch 결과는 target별 `applied` / `unchanged` / `failed`와 fresh
+  diagnostics를 반환한다. completed target은 retry allowlist에서 제외하고, failed target만
+  fresh diagnostics를 보여준 뒤 다시 선택할 수 있다.
+
+### 다중 적용 UI와 접근성
+
+- picker 성공 뒤 nested selection dialog를 열고 primary registry와 config checkbox는
+  기본 checked, compatibility checkbox는 기본 unchecked로 둔다. CTA는 `선택 (n개)`이며
+  0개이면 disabled다. service, game, path는 readonly로 표시한다.
+- 각 registry candidate의 삭제 버튼은 해당 candidate `path`가 `null`이면 disabled다.
+  삭제 요청은 `targetId`와 `expectedPath`만 받아 allowlist에서 재해석하고,
+  `Remove-ItemProperty`만 실행해 값만 제거한다. key container는 유지한다.
+- outer 진단 dialog에는 최소 `role="dialog"`/`aria-modal="true"`/접근 가능한 이름을
+  보강한다. nested dialog는 native `fieldset`/`checkbox`/`button`, `role="dialog"`,
+  `aria-modal`, title 연결, initial focus, focus trap, Escape close, opener focus restore,
+  `aria-live` 결과 알림을 갖춘다.
+- 1024x683, 1440x960, 1920x1080과 Windows 100/125/150%에서 body scroll, header/footer,
+  긴 path wrapping, hit target, outer/nested overlay를 확인한다.
+
+### batch mutation, ordering과 실패 처리
+
+- batch 시작 시 선택 path를 fresh verify한 뒤, 모든 미완료 target의 현재 상태와
+  expected snapshot을 preflight한다. mutation 순서는 `registry-primary` →
+  `registry-compatibility` → `config`의 직렬 순서다.
+- 각 registry write는 expected state/path atomic recheck 후 조건부 write하고 read-back한다.
+  config는 immutable nested update와 expected snapshot compare를 통과했을 때만 쓴다.
+  preflight 또는 target mutation 실패는 다른 미완료 target의 결과를 숨기지 않고 target별로
+  기록한다.
+- rollback은 하지 않는다. 부분 성공은 보존하고 failed target만 재시도한다. 하나 이상의
+  target이 success이면 기존 `runManualGameInstallPathAction`의 `ok=true` 경로로
+  reconciliation을 정확히 1회 실행한다. `GameInstallStatusReconciler`는 호출 대상일
+  뿐 소스 변경 대상이 아니다.
+
+### MS6.1 — target identity + registry atomic mutation
+
+**TDD RED → GREEN 구현 파일**
+
+- RED: `src/main/tests/registry-install-status.test.ts`에 Kakao primary/compatibility 및
+  GGG allowlist, `targetId` readonly diagnostics, selected compatibility 생성·조건부
+  overwrite, stale expected state/path 거부, read-back, candidate별 값 삭제와 key container
+  유지, partial target 결과를 먼저 고정한다.
+- GREEN: `src/shared/types.ts`에 target ID·readonly diagnostic·batch target/result 계약을
+  추가하고, `src/main/utils/registry.ts`에 allowlist 해석, atomic recheck/write/read-back,
+  immutable config snapshot compare에 필요한 mutation primitive를 구현한다. AppConfig
+  type/metadata/default는 수정하지 않는다.
+
+**DoD**
+
+- [Windows-pwsh] `src/main/tests/registry-install-status.test.ts`의 RED case가 primary,
+  선택 compatibility, GGG 단일 primary, stale snapshot, read-back, `Remove-ItemProperty`
+  value-only 삭제를 fixture/격리된 registry profile에서 모두 GREEN으로 판정한다.
+- [Windows-pwsh] 테스트 fixture 외 실제 사용자 HKCU를 읽거나 쓰지 않았음을 실행
+  환경과 mock/isolated profile 경로로 확인한다.
+
+#### MS6.1 구현 및 분리 리뷰 기록
+
+- TDD/검증 경과: 최초 RED 18건을 추가한 뒤 targeted 77/77, candidate target-ID
+  delete correction RED 11건을 거쳐 88/88, quality correction에서 drive-root RED 2건과
+  partial config RED 4건을 거쳐 최종 targeted 92/92를 통과했다.
+- 최종 회귀 검증은 65 files / 435 tests가 모두 통과했고, `tsc`, `lint`, `prettier`,
+  `git diff --check`도 통과했다. PowerShell은 mock으로만 실행했으며 실제 사용자 HKCU
+  접근·변경은 0건이다.
+- 변경 API/파일 요약:
+  - `src/shared/types.ts`: `GameInstallPathTargetId`, registry target ID, target snapshot,
+    apply status/failure/result, registry delete request/failure/result 계약과 candidate
+    diagnostic의 readonly `targetId`를 추가했다.
+  - `src/main/utils/registry.ts`: `resolveGameInstallPathTarget`,
+    `collectGameInstallPathTargetSnapshots`, `applyGameInstallPathTarget`,
+    `deleteGameInstallPathRegistryTarget`를 추가하고 target allowlist, GGG compatibility
+    거부, atomic expected-state/path recheck와 read-back, value-only delete, immutable config
+    snapshot compare/write를 구현했다.
+  - `src/main/tests/registry-install-status.test.ts`: 위 target/API와 PowerShell
+    quoting·marker·exit/read-back, drive-root, partial config 회귀 계약을 고정했다.
+  - `src/renderer/components/modals/GamePathDiagnosticModal.test.tsx`: 기존 candidate
+    fixture에 readonly `targetId` 1줄을 보강해 shared contract 변경을 반영했다.
+- Review Round 1:
+  - 명세 리뷰는 candidate target-ID delete 누락으로 `반려`되었고, correction 후
+    재검토에서 `통과`했다.
+  - 품질·안전성 리뷰는 drive root 훼손과 partial persisted config shape 처리 문제로
+    `반려`되었고, 각각 root-aware normalization과 complete-shape immutable 처리로
+    correction한 뒤 재검토에서 `통과`했다.
+- 비차단 관찰: PowerShell command 중복과 사용자 경로가 로그에 포함될 수 있는 privacy
+  문제는 MS6.1 blocking이 아니며, 이번 범위 밖의 향후 개선 사항으로만 남긴다.
+
+### MS6.2 — picker + selection service + batch IPC
+
+**TDD RED → GREEN 구현 파일**
+
+- RED: 새 `src/main/tests/GameInstallPathSelectionService.test.ts`에 owner webContents
+  격리, 새 selection 교체 폐기, renderer destroy 폐기, lazy TTL 만료, target allowlist,
+  completed target retry 제외, registry 우선의 existing-directory `defaultPath`/생략을
+  고정한다. `src/main/tests/game-install-path-register-ipc-contract.test.ts`에는 opaque
+  selection batch IPC가 raw registry path/value를 받지 않고 한 success batch마다
+  reconciliation을 정확히 한 번 요청하는 계약을 고정한다.
+- GREEN: 새 `src/main/game/GameInstallPathSelectionService.ts`가 session lifecycle과 batch
+  orchestration을 소유한다. `src/main/main.ts`, `src/main/preload.ts`,
+  `src/shared/types.ts`에 picker/session/batch IPC를 연결하고, 기존 picker의 즉시
+  `setGameInstallPath` 경로를 selection 생성으로 교체한다. 기존
+  `runManualGameInstallPathAction`은 batch 결과 중 하나 이상 success일 때만 정확히 한 번
+  감싼다.
+
+**DoD**
+
+- [Windows-pwsh] 새 service test가 session owner mismatch, destroy, TTL, 새 selection,
+  completed target 재제출과 GGG compatibility 미생성을 모두 거부하고, valid path만
+  session으로 만들며 config를 picker 단계에서 쓰지 않음을 GREEN으로 판정한다.
+- [Windows-pwsh] IPC contract test가 `selectionId`와 target ID 이외의 registry mutation
+  authority를 허용하지 않고, successful target이 하나 이상인 batch의 reconciliation
+  호출 수를 1로 판정한다.
+
+#### MS6.2 구현 및 분리 리뷰 기록
+
+- TDD/검증 경과: initial RED를 확인한 뒤 service focused 21건, IPC focused 26건,
+  related 118건, full 460건과 build gate를 통과했다.
+- 명세 Review Round 1은 selection ID collision, async invalidation, coherent preflight,
+  TTL, source-string IPC contract 5건으로 `반려`되었다. correction 후 focused 136건과
+  full 478건을 통과했다.
+- 명세 재리뷰는 retired selection ID reuse 1건으로 다시 `반려`되었다. issued ID
+  tombstone correction 후 service 32건과 full 480건을 통과했고, 명세 재검토에서
+  `통과`했다.
+- 품질·안전성 리뷰는 same-selection concurrent apply와 retryable/disabled final snapshot
+  모순 2건으로 `반려`되었다. session in-flight lock과 단일 final eligibility correction 후
+  focused 44건, related 143건, full 485건과 최종 build gate를 통과했고, 분리 품질
+  재검토에서 `통과`했다.
+- 최종 runtime 계약:
+  - `GameInstallPathSelectionService`가 owner generation, owner별 issued selection ID,
+    lazy TTL, completed target과 coherent preflight/final snapshot을 소유한다.
+  - apply는 첫 await 전에 session 단위 in-flight lock을 획득하고 final diagnostics refresh까지
+    유지하며, identity-checked `finally`로 해제한다. 동시 replay는 typed
+    `selection-busy`로 거부한다.
+  - `GameInstallPathIpcHandlers`는 production DI와 동일한 service/context/manual-action
+    경계를 사용한다. renderer mutation request는 opaque `selectionId`와 allowlisted target
+    ID만 받으며 raw registry path/value/context를 authority로 사용하지 않는다.
+  - 새 `pickGameInstallPathTargets`/`applyGameInstallPathTargets` batch API를 연결하면서 기존
+    `pickGameInstallPath` legacy picker barrier API는 호환 경계로 유지한다.
+- 변경 파일:
+  - `src/main/game/GameInstallPathSelectionService.ts`,
+    `src/main/game/GameInstallPathIpcHandlers.ts`
+  - `src/main/tests/GameInstallPathSelectionService.test.ts`,
+    `src/main/tests/GameInstallPathIpcHandlers.test.ts`
+  - `src/shared/types.ts`, `src/main/main.ts`, `src/main/preload.ts`
+  - `src/main/utils/registry.ts`, `src/main/tests/registry-install-status.test.ts`,
+    `src/main/tests/game-install-path-register-ipc-contract.test.ts`
+- 검증 중 실제 사용자 HKCU 접근·변경과 Electron 실행은 각각 0건이다.
+- 비차단 관찰: live owner의 issued selection ID tombstone은 selection 생성 횟수에 따라
+  선형 증가한다. 또한 기존 Vite 500 kB chunk warning은 유지되며 둘 다 MS6.2
+  correctness blocking은 아니다.
+
+### MS6.3 — renderer modal + candidate delete + partial retry/accessibility
+
+**TDD RED → GREEN 구현 파일**
+
+- RED: `src/renderer/components/modals/GamePathDiagnosticModal.test.tsx`에 기본 checked
+  primary/config, 기본 unchecked compatibility, `선택 (n개)`와 0 disabled, GGG의
+  compatibility 부재, null path 삭제 disabled, failed-only retry, target별 결과와
+  fresh diagnostics, nested dialog focus/Escape/restore/aria-live를 고정한다.
+  `src/renderer/utils/game-path-modal-state.test.ts`에는 selection 결과가 기존 좌/우
+  diagnostic state를 유지하는 reducer/state 전이를 고정한다.
+- GREEN: `src/renderer/App.tsx`가 picker selection과 batch/partial retry 결과를 state로
+  연결하고, `src/renderer/components/modals/GamePathDiagnosticModal.tsx`와
+  `src/renderer/components/modals/GamePathDiagnosticModal.css`가 nested selection UI,
+  candidate별 delete, accessibility, 긴 path wrapping과 overlay layering을 구현한다.
+  `src/shared/types.ts`의 readonly result만 표시하고 raw registry identity를 다시 전송하지
+  않는다.
+
+**DoD**
+
+- [Windows-pwsh] renderer tests가 checkbox default/disabled CTA, GGG 제한, candidate null
+  delete guard, partial success 후 failed-only retry, aria role/name/live/focus 계약을
+  모두 GREEN으로 판정한다.
+- [Windows-pwsh] fixture/isolated profile에서 primary 성공·compatibility 실패처럼 부분
+  성공을 재현했을 때 성공 target이 retry UI에 다시 나타나지 않고 registry/config 두 열이
+  모두 fresh diagnostics를 표시함을 확인한다.
+
+#### MS6.3 구현 기록 (분리 리뷰 전)
+
+- TDD RED는 renderer modal/state와 IPC 계약 4개 파일에서 새 동작 부재 13건을 확인했다.
+  초기 GREEN 35/35 이후 failed-only retry가 이전 성공 결과를 보존하는 상태 전이와 후보
+  삭제 확인 dialog의 focus/Escape/restore를 별도 RED로 추가해 최종 GREEN으로 고정했다.
+- renderer는 legacy 즉시 저장 picker 대신 `pickGameInstallPathTargets`를 사용한다. Main이
+  반환한 기본값으로 primary/config를 checked, compatibility를 unchecked로 표시하고,
+  `선택 (n개)`의 0개 disabled, readonly service/game/path, target별 결과와 Main이 반환한
+  `retryableTargetIds`만 제출하는 재시도를 구현했다. 재시도 결과는 같은 selection의 이전
+  성공 결과와 target ID별로 병합해 부분 성공 표시를 보존한다.
+- registry 후보 행마다 target별 삭제 버튼과 exact candidate/path 확인 dialog를 추가했다.
+  renderer→preload 삭제 authority는 `targetId + expectedPath`로 제한했고, Main의
+  `deleteGameInstallPathRegistryTarget` primitive를 `runManualGameInstallPathAction`으로 한 번
+  감싸 fresh diagnostics를 반환한다. 기존 raw registry clear bridge는 제거했고 config clear는
+  전용 channel로 좁혔다.
+- outer 2열 진단 layout은 유지했다. outer/apply/delete 및 기존 nested confirm dialog에
+  dialog semantics를 보강하고, nested initial focus, focus trap, busy 중 Escape/backdrop 차단,
+  opener focus restore, native checkbox fieldset/legend/label, aria-live 결과를 연결했다. modal
+  body scroll, scale-aware max size, long path wrapping, reduced-motion CSS를 추가했다.
+- 최종 검증은 focused 4 files / 36 tests, full 67 files / 498 tests, `tsc`,
+  `npm run build:check`, `npm run lint`, touched-file Prettier check, `git diff --check`가 모두
+  통과했다. 기존 Vite 500 kB chunk warning 외 새 warning/error는 없다.
+- 검증 중 Electron 실행, 실제 사용자 HKCU 접근·변경, branch/commit/push/PR 변경은 각각
+  0건이다. Windows hidden visual QA와 실제 HKCU/native picker 확인은 MS6.4 및 `[사용자]`
+  DoD로 남긴다.
+
+#### MS6.3 분리 리뷰 Round 1 교정 기록
+
+- 명세·품질 리뷰는 같은 context close/reopen과 selection 교체를 구분하지 못하는 async
+  identity, Main candidate delete 중복 실행, session-level retry 실패 시 누적 성공 표시 소실,
+  result/delete 전환 focus, nested modality/오류 알림, raw conflict mutation bridge를 blocking으로
+  판정해 `반려`했다.
+- 교정 RED는 focused 5 files / 146 tests에서 18 failed, 128 passed로 고정했다. canary는 modal
+  generation과 selection ID, synchronous duplicate re-entry, 네 session failure variant의 누적
+  결과, delete coalescing invocation count, targetId 기반 conflict 대상 파생, nested inert/alert와
+  focus 전환·복원을 각각 재현했다.
+- renderer는 modal generation과 exclusive per-operation token을 사용한다. picker/apply/delete,
+  config clear, conflict, register 및 modal diagnostics 완료는 current generation과 request token을
+  통과해야 state를 갱신하고, apply는 요청 당시 selection ID까지 일치해야 결과를 병합한다.
+  transport에 diagnostics/selection이 없는 failure는 이전 target 결과만 표시 상태에 보존하며
+  fresh diagnostics나 retry ID를 만들지 않는다.
+- Main candidate delete는 owner webContents/context/target 단위 in-flight Promise를 공유하고
+  `finally`에서 제거한다. 동시 동일 요청은 mutation, manual-action reconciliation, final diagnostics를
+  각각 한 번만 실행하며 완료 뒤 새 요청은 정상 실행된다.
+- conflict mutation 요청은 `targetId + expectedPath + expectedConfigPath`로 축소했다. Main은
+  service/game allowlist에서 registry path/value name을 다시 파생하고 expected path를 조건부 mutation
+  안에서 재검증한다. renderer/preload conflict 요청에는 raw registry path/value name이 없다.
+- nested dialog가 열리면 outer background만 `inert`/`aria-hidden`으로 차단하고 outer의
+  `aria-modal`을 제거한다. apply/delete IPC 예외는 활성 nested dialog의 `role=alert`로 표시하고,
+  result 전환은 retry 또는 닫기로 focus를 옮긴다. 삭제로 opener가 disabled되면 candidate heading,
+  다음 action, outer dialog 순으로 복원한다. decorative glyph, overscroll containment, 40 px candidate
+  delete target도 함께 고정했다.
+- 최종 GREEN은 focused 5 files / 146 tests, full 67 files / 515 tests이며 `npx tsc --noEmit`,
+  `npm run build:check`, `npm run lint`, touched-source Prettier check, `git diff --check`가 모두 exit 0이다.
+  기존 Vite 500 kB chunk warning 외 새 warning/error는 없다.
+- 이 교정에서 Electron 실행, 실제 HKCU 접근·변경, command approval 요청, branch/commit/push/PR 및
+  기타 외부 상태 변경은 각각 0건이다. full-viewport outer overlay/titlebar 문제는 별도 fix로 유지했고
+  Windows DPI/scale 실동작 증거는 생성하거나 주장하지 않았다.
+
+#### MS6.3 독립 재검토 판정
+
+- 현 오케스트레이터의 mock 기반 표적 재검토는 6 files / 182 tests GREEN으로 `통과`했다.
+- 비차단 잔여 위험: 동일 owner/context/target에 서로 다른 `expectedPath` 요청을 동시에 보내면
+  delete coalescing이 첫 Promise 결과를 공유할 수 있다. 정상 renderer의 단일 작업 잠금 경로에서는
+  이 조합이 발생하지 않으며, Main의 atomic `expectedPath` 검증을 우회하지도 않는다.
+
+### MS6.4 — Windows regression / hidden Electron QA + 사용자 DoD
+
+**검증 파일과 변경 분리**
+
+- 제품 regression의 정확한 대상은 `src/main/tests/registry-install-status.test.ts`,
+  `src/main/tests/GameInstallPathSelectionService.test.ts`,
+  `src/main/tests/game-install-path-register-ipc-contract.test.ts`,
+  `src/renderer/components/modals/GamePathDiagnosticModal.test.tsx`,
+  `src/renderer/utils/game-path-modal-state.test.ts`다.
+- hidden Electron QA는 기존 `scripts/qa/hidden-electron-launch.cjs`와
+  `scripts/qa/cdp-capture.cjs`를 사용하고 isolated temporary profile만 사용한다. 이
+  harness를 고쳐야 하는 경우 그 변경은 제품 변경과 분리한 별도 `internal` 커밋으로
+  기록한다.
+
+#### MS6.4-A — HKCU 비접근 hidden fixture 진입점
+
+- activation owner는 Main bootstrap이다. `app.isPackaged=false`, Vite dev server,
+  `ELECTRON_START_HIDDEN=true`, safe run ID, run ID와 일치하는 `*-codex-qa/<runId>` 절대
+  `ELECTRON_QA_USER_DATA_DIR`, allowlisted `ELECTRON_QA_GAME_PATH_FIXTURE`가 모두 맞을 때만
+  전용 fixture window를 만든다. 하나라도 다르면 기존 normal startup을 그대로 수행한다.
+- active fixture branch는 `app.whenReady` 첫머리에서 1024x683 hidden frameless window를
+  만들고 즉시 return한다. 따라서 UAC registry check, `syncInstallLocation`,
+  `syncAutoLaunch`, normal `createWindow`, install-status reconciliation과 core service init에
+  진입하지 않는다. 창은 기존 preload/background/title-bar chrome과 run-owned
+  `codexQaRun` marker를 사용하고, same Vite origin의 allowlisted fixture URL 외 navigation과
+  새 창을 거부한다.
+- renderer query allowlist는 `diagnostic`, `selection`, `partial`, `delete` 네 mode와 valid
+  `codexQaRun`만 허용한다. fixture는 typed static diagnostics/selection/result를 실제
+  `GamePathDiagnosticModal`에 전달하며 Electron product API를 호출하지 않는다.
+- 기존 hidden launcher는 수정하지 않는다. 후속 실행은 renderer target에 allowlisted
+  `codexQaFixture`를 먼저 넣고 launcher가 동일 run의 `codexQaRun` ownership marker를 붙이는
+  기존 exact-target 계약을 유지한다.
+- 이번 A 단계는 source/jsdom targeted test만 수행하며 Electron, 실제 사용자 HKCU,
+  capture와 full suite는 실행하지 않는다.
+- TDD RED는 fixture 진입점/renderer module 부재로 2 suites가 실패했고, 기존 hidden
+  launcher exact-target 호환 URL 순서 canary는 13 tests 중 1건이 의도대로 실패했다. 최종
+  targeted GREEN은 2 files / 26 tests이며 `npx tsc --noEmit`, `npm run lint`, touched-file
+  Prettier check와 `git diff --check`가 모두 통과했다.
+- 검증 중 Electron, 실제 HKCU read/write, capture, full suite, branch/commit/stage/push/PR 및
+  외부 상태 변경은 각각 0건이다.
+
+#### MS6.4-B — internal CDP capture harness
+
+##### Review correction evidence (2026-08-27)
+
+- 고정 `--app-scale: 0.711` fixture 값은 제거했다. QA fixture는 mount 및 `resize`마다
+  App과 동일한 `min(innerWidth / 1440, innerHeight / 960)` 값을
+  `documentElement`에 설정하고, unmount 시 기존 값과 priority를 복구한다. renderer
+  canary는 수정 전 14건 중 1건 실패로 1024x683 scale 불일치를 확인했고, 수정 후
+  1024x683 약 `0.711111`, 1440x960 `1`, 1920x1080 `1.125`와 cleanup 복구를 포함해
+  14/14 통과했다.
+- capture state/manifest assertion은 fixture가 계산한 `appScale`을 scenario 기대값과
+  `0.0001` tolerance로 비교한다. document/body 및 modal body scroll containment,
+  대표 long Windows path wrap/containment, checkbox option/delete/active CTA hit target,
+  nested initial focus, nested overlay의 outer modal containment/coverage도 구조화된
+  boolean evidence로 기록한다. Node canary는 수정 전 18건 중 2건 실패했고, 잘못된
+  scale, overflow, nowrap, 작은 hit target, dialog 밖 focus, overlay overflow를 거부하는
+  adversarial 검증을 포함해 수정 후 18/18 통과했다.
+- `npm run lint`, capture CJS 두 파일의 직접 ESLint, touched Prettier 및
+  `git diff --check`를 통과했다. 이 matrix는 CDP viewport/deviceScaleFactor simulation
+  전용이며 실제 Windows OS DPI 통과 근거가 아니다. 이 correction에서 Electron,
+  실제 HKCU, branch/commit/stage/push/PR은 실행하거나 변경하지 않았다.
+
+##### Live QA layout-readiness correction (2026-08-27)
+
+- hidden Electron live capture에서 첫 scenario가 `Page.loadEventFired` 직후 두 차례
+  `Interactive hit target contract failed`로 종료됐지만, 같은
+  `LAYOUT_STATE_EXPRESSION`을 즉시 다시 평가하면 통과했다. 관찰된 scale과 unscaled
+  button/delete 크기는 각각 약 `0.711111`, `36px`, `40px`였으므로 assertion 기준이
+  아니라 React/layout/font 안정화 이전 state read race로 판정했다.
+- capture 순서는 `setViewport -> navigate -> waitForLayoutReady -> readState ->
+screenshot`으로 고정했다. CDP readiness는 5초 내부 deadline과 기존 10초 command
+  timeout 아래에서 `document.fonts.ready`, allowlisted fixture marker, App scale,
+  viewport/DPR을 확인하고 두 번의 `requestAnimationFrame` 뒤 같은 조건을 다시
+  확인한다. mismatch/timeout은 state read, screenshot, artifact write 전에 fail closed
+  한다.
+- TDD RED는 Node 22건 중 5건 실패(helper/validator 2, 순서 1, timeout/mismatch 2)였고,
+  구현 후 22/22 통과했다. writer는 실행 중인 Electron/CDP target에 접근하거나
+  종료하지 않았고 실제 HKCU 및 Git 외부 상태도 변경하지 않았다.
+
+##### Live QA entry-animation correction (2026-08-27)
+
+- readiness 적용 후 1920x1080/DPR 1.5 live capture에서 viewport/DPR과 App scale
+  `1.125`는 정확했지만 delete와 primary rect가 각각 `43.2px`, `38.88px`로 측정됐다.
+  unscaled 값 `38.4px`, `34.56px`는 목표 크기의 정확히 0.96배이며, modal의
+  0.16/0.18초 entry CSS animation initial transform과 일치하므로 2 RAF만으로 animation
+  완료를 보장하지 못한 race로 판정했다.
+- readiness는 game-path modal overlay/modal/confirm overlay 및 그 내부 dialog subtree의
+  실행 중인 Web Animation 중 `endTime <= 1000ms`이고 endTime/iterations가 유한한
+  항목만 기다린다. 문서 전체 animation, Toast lifecycle, 장기 및 무한 animation은
+  수집하지 않는다. allowlisted animation 완료 후 2 RAF와 marker/scale/viewport를 다시
+  확인하며, animation cancellation/rejection은 `owned animation rejected`로 fail closed
+  한다.
+- animation await 순서 canary와 전역 dialog selector 배제 canary는 각각 수정 전 Node
+  22건 중 1건 실패를 확인했고, 최종 22/22 통과했다. writer는 실행 중인
+  Electron/CDP target에 접근하거나 종료하지 않았다.
+
+##### Live QA scale-aware nested geometry correction (2026-08-27)
+
+- live capture에서 diagnostic 3개 scenario와 selection 1024x683/1440x960은 통과했고,
+  selection 1920x1080/DPR 1.5만 nested overlay edge의 고정 1px tolerance에서 실패했다.
+  해당 scenario의 App scale `1.125`가 정확하고 overlay inset이 modal의 1 CSS px border
+  안쪽이므로 물리 edge delta 약 `1.125px`는 제품 clipping이 아니라 scale된 border다.
+- nested overlay containment와 edge coverage에만 `1 CSS px border + 0.25 CSS px bounded
+subpixel tolerance`를 적용한다. 물리 containment allowance는 `appScale * 1.25`, edge
+  delta는 `appScale`로 나눈 CSS px 값으로 판정한다. outer modal의 viewport clipping
+  tolerance와 다른 geometry assertion은 변경하지 않았다.
+- TDD RED는 23건 중 1건 실패로 1920x1080의 정상 1 CSS px inset을 재현했다. 수정 후
+  정상 inset 통과, 1.35 CSS px gap 및 allowance 밖 clipping 거부를 포함해 Node 23/23
+  통과했다. writer는 실행 중인 Electron/CDP target에 접근하거나 종료하지 않았다.
+
+##### Live QA launcher-splash visual blocker correction (2026-08-27)
+
+- 이전 hidden run은 DOM/manifest assertion 12개 scenario를 통과했지만, PNG 직접 검토에서
+  모든 화면이 `#launcher-splash`의 `POE UNOFFICIAL LAUNCHER / PREPARING ASSETS`로
+  덮여 있었다. 따라서 해당 run의 visual artifact는 무효이며 이후 증거로 supersede한다.
+  오케스트레이터가 exact run-owned profile/tmp/visual copy를 Recycle Bin으로 정리하고
+  Electron을 종료했다. writer가 이 cleanup이나 Electron 종료를 수행한 것은 아니다.
+- allowlisted game-path fixture parse 결과가 있을 때 renderer는 `createRoot` 전에 정적
+  `#launcher-splash`를 one-shot 제거한다. fixture 요청이 없으면 helper가 DOM을 변경하지
+  않으므로 기존 normal `Root`/`App` splash lifecycle은 그대로 유지된다.
+- capture state/manifest에는 `splashPresent`와 `splashVisible`을 포함하며 둘 다 반드시
+  `false`여야 한다. renderer TDD RED는 15건 중 1건, Node TDD RED는 23건 중 3건
+  실패였고 수정 후 각각 15/15, 23/23 통과했다. 최종 hidden Electron visual PASS는 아직
+  실행하거나 주장하지 않는다.
+
+##### Live QA compositor-activation correction (2026-08-27)
+
+- hidden fixture BrowserWindow가 layout-ready에 도달한 뒤에도 scenario별 `Page.navigate`
+  직후 compositor activation을 잃어 모든 `Page.captureScreenshot`이 timeout됐다. 같은
+  CDP target에 수동 `Page.bringToFront`를 호출하면 screenshot capture가 즉시 복구됐다.
+  그러나 첫 correction의 `navigate -> bringToFront -> waitForLayoutReady` placement는 live
+  rerun에서도 screenshot timeout이 지속되어 충분하지 않았다. 앞선 수동 진단은
+  `Page.captureScreenshot` 직전에 activation했을 때만 성공한 것으로 재확인됐다.
+- 세 번째 live rerun은 같은 장기 CDP WebSocket에서 pre-screenshot
+  `Page.bringToFront`를 호출한 두 번째 correction도 항상 timeout됨을 확인했다. 같은
+  run에서 exact 동일 target에 새 WebSocket을 열고 `Page.bringToFront`와
+  `Page.captureScreenshot`만 전송하면 즉시 61,546-byte PNG가 반환됐다. 따라서 문제는
+  placement가 아니라 navigation을 수행한 장기 session의 capture 경로에 국한된다.
+- 네 번째 live rerun에서는 fresh one-shot capture도 장기 observer WebSocket이 연결된 동안은
+  timeout됐고, 실패한 harness가 종료되어 observer가 닫힌 뒤에만 수동 fresh capture가
+  성공했다. 따라서 session 역할 분리만으로는 부족하며, 동일 target에 observer와 capture
+  connection이 동시에 존재하는 것이 실제 차단 조건임을 관찰했다.
+- 다섯 번째 live 진단은 동일 Node 프로세스에서 observer open/enable/close event를 완료하고
+  추가 500ms를 기다린 뒤 새 WebSocket을 열어도 `Page.captureScreenshot`이 timeout됨을
+  확인했다. 반면 별도 Node 프로세스는 같은 exact target에 연결해 `Runtime.evaluate` 없이도
+  즉시 61,546-byte PNG를 반환했다. 따라서 connection 동시성뿐 아니라 observer를 소유했던
+  Node 프로세스 자체가 남기는 상태가 capture 차단 조건이라는 process-level 증거가 됐다.
+- 여섯 번째 live run은 capture child를 분리해도 CDP observer를 먼저 소유했던 부모 process가
+  살아 있는 동안에는 child의 `Page.captureScreenshot`이 계속 timeout됨을 확인했다. 같은
+  exact target의 수동 capture는 그 부모 process가 종료된 뒤에만 성공했다. 따라서 capture만
+  child로 옮기는 구조도 충분하지 않으며, top-level orchestrator가 전체 수명 동안 CDP-free여야
+  한다는 최종 process isolation 경계가 확정됐다.
+- 일곱 번째 live run은 분리된 capture/validation worker 자체가 Runtime/Page/Log/Inspector를
+  enable하고 readiness/state evaluate를 수행한 뒤 screenshot을 요청하면 timeout됨을 확인했다.
+  같은 live target에서 별도 pure process가 1024x683 DPR1 metrics 적용,
+  `Page.bringToFront`, `Page.captureScreenshot` 세 명령만 보내면 즉시 61,546-byte PNG가
+  반환됐다. 따라서 process 분리뿐 아니라 screenshot process의 CDP command surface도 순수
+  캡처 세 명령으로 제한해야 한다는 최종 causal proof가 됐다.
+- 여덟 번째 live run은 screenshot timeout에는 진입하지 않았지만 navigation worker가 성공적인
+  metrics/navigation/load 뒤 WebSocket close handshake의 `Observer WebSocket close failed`로
+  즉시 실패했다. dedicated child-process 경계에서는 성공 payload 뒤 process exit가 CDP session을
+  결정적으로 해제하므로 이 close 오류만 worker 실패로 승격하지 않는다. operation 실패는 그대로
+  실패하며, operation과 close가 모두 실패하면 두 원인을 `AggregateError`로 보존한다. 이 정책은
+  navigation/validation client helper에만 적용하며 pure screenshot의 세-command 및 close 계약은
+  변경하지 않았다.
+- 아홉 번째 live run에서 pure screenshot worker 단독 실행은 exit 0이었지만 validation worker 종료
+  후 250ms만 기다린 실행은 다시 screenshot timeout이 발생했고, 동일 조건에서 1000ms를 기다린
+  실행은 exit 0이었다. 부모는 validation payload와 assertion이 모두 성공한 뒤 scenario당 정확히
+  한 번의 bounded 1000ms CDP worker-detach settle을 기다린 다음 pure screenshot worker를 시작한다.
+  navigation 또는 validation 실패 시 settle과 screenshot은 모두 시작하지 않으며, pure worker의
+  metrics/bring-to-front/capture 세-command 계약은 변경하지 않았다.
+- 열 번째 live run에서는 1000ms detach settle 뒤에도 첫 pure screenshot worker가 간헐적으로
+  `Timed out waiting for pure CDP command Page.captureScreenshot`으로 실패했다. 첫 worker가 10초
+  command timeout 뒤 종료되면 그 시간이 추가 detach interval이 되고, harness 종료 뒤 수동 pure
+  worker는 일관되게 성공했다. 부모는 첫 child가 정확히 이 내부 timeout 서명으로 nonzero 종료한
+  경우에만 brand-new pure worker process를 한 번 재실행한다. 다른 nonzero, malformed PNG,
+  ownership 또는 protocol 오류는 재시도하지 않는다. 두 번째 실패는 두 attempt 오류와
+  scenario/target context를 `AggregateError`로 보존하며, retry가 성공하기 전에는 artifact를 쓰지
+  않는다. 첫 시도 전 1000ms settle과 pure worker의 세-command 계약은 그대로 유지한다.
+- 최종 harness의 부모는 WebSocket, `/json/list`, CDP command를 직접 사용하지 않는다. 각
+  scenario마다 첫 navigation worker가 직전 exact run-owned target에 연결해 device metrics를
+  적용하고 `Page.navigate`와 load 완료까지 기다린 뒤 완전히 종료한다. 두 번째 validation
+  worker는 결과 target에 metrics를 재적용하고 기존 font/finite-animation readiness,
+  state 및 Runtime/Page/Log error를 수집·검증한 bounded JSON payload만 반환한 뒤 종료한다.
+  부모가 이 payload를 재검증한 후에만 세 번째 pure screenshot worker를 실행한다. pure worker는
+  `/json/list` exact match와 WebSocket open 후 metrics, `Page.bringToFront`,
+  `Page.captureScreenshot`만 수행하며 Runtime/Page/Log/Inspector enable과 evaluate를 절대
+  호출하지 않는다. 부모는 bounded raw PNG를 검증한 뒤에만 screenshot과 manifest를 쓴다.
+- Node canary는 수정 전 27건 중 7건 실패로 세 worker parser/runner, pure command surface와
+  CDP-free matrix 경계를 확인했다. 최종 28/28은 12개 scenario의 worker 36회 생성과 무중첩
+  nav→validation→screenshot 순서, 세 worker metrics 전달, pure 세-command exact contract,
+  exact argv/env/ownership, nonzero/timeout/oversized/malformed/foreign cleanup 및
+  navigation/validation/screenshot 실패 artifact 0건을 포함한다.
+- 이 correction은 정적 harness 검증만 수행했다. 최종 hidden Electron capture와 visual
+  PASS는 아직 재실행하거나 주장하지 않는다.
+
+- 기존 `cdp-capture.cjs`와 `hidden-electron-launch.cjs`는 변경하지 않고,
+  `scripts/qa/game-path-diagnostic-capture.cjs`와 전용 Node test만 추가한다. 입력은
+  `CDP_PORT`, exact `CDP_TARGET_URL`, explicit absolute `GAME_PATH_QA_OUTPUT_DIR`만 읽는다.
+- target URL은 `http://localhost:54321/`의 valid `codexQaRun` + allowlisted
+  `codexQaFixture`만 허용한다. output은 `<runId>/game-path-diagnostic-capture` 소유 구조를
+  강제하고, repository 내부라면 `.tmp/electron/<runId>/game-path-diagnostic-capture`만
+  허용한다. 스크립트 안에는 cleanup/delete 동작을 두지 않는다.
+- `diagnostic`, `selection`, `partial`, `delete`를 각각 1024x683@DPR1,
+  1440x960@DPR1.25, 1920x1080@DPR1.5와 paired해 총 12 scenario를 exact owned URL로
+  순회한다. 이 값은 `Emulation.setDeviceMetricsOverride`의 simulated viewport/DPR이며
+  실제 Windows OS DPI 검증이 아니다.
+- scenario마다 Runtime/Page/Log error 부재, fixture marker/dialog count, modal containment,
+  header/footer visibility, 좌측 registry/우측 config 2열, selection CTA/defaults, partial
+  failed-only retry, exact delete confirmation, nested inert/ARIA modality를 구조화 assertion으로
+  판정한 뒤 PNG를 쓰고, 마지막에 simulation disclaimer와 scenario evidence를 포함한
+  `manifest.json`을 기록한다.
+- TDD RED는 capture module 부재로 Node suite가 실패했고, screenshot 단계 protocol error가
+  다음 scenario로 늦게 귀속되는 canary는 18 tests 중 1건이 의도대로 실패했다. 최종 Node
+  GREEN은 18/18이다. 실제 Electron/CDP capture는 이 writer 단계에서 실행하지 않았다.
+- 최종 정적 회귀는 MS6.4-A targeted Vitest 2 files / 26 tests, `npm run lint`, 새 CJS 두
+  파일의 direct ESLint, touched-file Prettier와 `git diff --check`가 모두 통과했다. actual
+  HKCU, Electron, branch/commit/stage/push/PR 및 외부 상태 변경은 각각 0건이다.
+
+##### Final hidden Electron run evidence (2026-08-27)
+
+- 최종 hidden Electron run ID는 `ms64-20260827-234500-a6c8e2d4`이고 isolated profile은
+  `C:\Users\nerdl\AppData\Local\Temp\poe2-unofficial-launcher-codex-qa\ms64-20260827-234500-a6c8e2d4`였다.
+  capture는 exit 0으로 완료됐으며 `diagnostic`, `selection`, `partial`, `delete` 네 mode의
+  12개 scenario에서 PNG 12개와 manifest 1개를 생성했다.
+- manifest의 protocol error는 0건이고 모든 scenario assertion이 `true`였다. 확인 범위는
+  splash absence, App scale, viewport/modal containment, wide viewport two-column layout,
+  document/body/modal scroll containment, long path wrapping, 주요 hit target, nested
+  modality/focus/overlay 및 mode-specific selection/partial/delete 계약을 포함한다.
+- 1024 viewport의 네 mode와 1920 viewport의 `selection`/`partial` PNG를 직접 시각 검토했다.
+  여섯 화면은 mode별 내용이 구분됐고 launcher splash, clipping 또는 잘린 주요 control이 없었다.
+- 이 결과의 100/125/150 값은 CDP viewport/deviceScaleFactor simulation이다. 실제 Windows OS
+  DPI 설정은 변경하거나 검증하지 않았으므로 actual OS DPI 통과 근거로 사용하지 않는다.
+- 검증 종료 후 Electron launcher, child process와 CDP endpoint가 모두 종료됐음을 확인했다.
+  exact run-owned profile, repository temp 및 ready marker만 Recycle Bin으로 이동했고, 기존의 더
+  오래된 QA folder는 건드리지 않았다.
+- 보존 증거는
+  `C:\Users\nerdl\.codex\visualizations\2026\08\22\01a02845-0014-7ac0-90d0-aee29881b09b\ms6.4-game-path-diagnostic-ms64-20260827-234500-a6c8e2d4`에 있다.
+  PNG 12개와 manifest 1개, 총 13개 파일의 이름과 크기가 원본 evidence와 일치했다.
+
+**DoD**
+
+- [Windows-pwsh] hidden Electron + isolated profile에서 1024x683, 1440x960, 1920x1080 및
+  CDP simulated DPR 1/1.25/1.5의 outer/nested dialog를 12개 screenshot과 manifest로 판정했다.
+  실제 사용자 HKCU 자동 QA는 수행하지 않았다.
+- [사용자] native folder dialog가 registry candidate 우선의 실존 directory를
+  `defaultPath`로 열고, 후보가 없으면 `defaultPath`를 생략하는지 확인한다.
+- [사용자] 실제 사용자 HKCU에서 선택한 primary/compatibility/config 적용, target별
+  read-back, 부분 실패 보존과 failed-only retry를 확인한다.
+- [사용자] 실제 Windows OS DPI 100/125/150%에서 clipping, scroll, path wrapping, hit target,
+  nested modality/focus/overlay를 확인한다.

@@ -22,7 +22,11 @@ import {
   KakaoGameStarterMigrationRequest,
   GameInstallPathConflictTarget,
   GameInstallPathDiagnostics,
-  GameInstallPathRegistryTarget,
+  GameInstallPathRegistryTargetDeleteRequest,
+  GameInstallPathSelectionBatchResult,
+  GameInstallPathSelectionDescriptor,
+  GameInstallPathSelectionResult,
+  GameInstallPathTargetId,
   OperationalNotification,
   RenewedPatchReservation,
   RenewedPatchReservationInput,
@@ -65,7 +69,13 @@ import {
   getGameStartButtonLabel,
   shouldOpenGamePathDiagnostic,
 } from "./utils/game-start-label";
-import { updateGamePathModalForContext } from "./utils/game-path-modal-state";
+import {
+  applyGamePathSelectionBatchForContext,
+  createGamePathModalOperationTracker,
+  type GamePathModalOperation,
+  type GamePathSelectionPresentationResult,
+  updateGamePathModalForContext,
+} from "./utils/game-path-modal-state";
 import { createGamePathRegistryWarning } from "./utils/game-path-registry-warning";
 import { logger } from "./utils/logger";
 import { applyThemeColors, DEFAULT_THEME_COLORS } from "./utils/theme";
@@ -84,6 +94,7 @@ type KakaoMaintenanceModalInfo = KakaoMaintenanceInfo & {
 type GamePathModalMode = "conflict" | "missing" | "diagnostic";
 
 type GamePathModalState = {
+  generation: number;
   mode: GamePathModalMode;
   gameId: AppConfig["activeGame"];
   serviceId: AppConfig["serviceChannel"];
@@ -92,34 +103,27 @@ type GamePathModalState = {
   errorMessage?: string;
   highlightManual?: boolean;
   showRegistrySyncConfirm?: boolean;
-  showRegistryClearConfirm?: boolean;
   showRegistryRegisterConfirm?: boolean;
+  selection?: GameInstallPathSelectionDescriptor;
+  selectionApplyResult?: GamePathSelectionPresentationResult;
+  registryDeleteTarget?: GameInstallPathRegistryTargetDeleteRequest;
   manualSaveToastId?: number;
   registrySaveToastId?: number;
 };
 
 type GamePathSource = "config" | "registry";
 
-const getRegistryMutationTarget = (
-  diagnostics: GameInstallPathDiagnostics,
-): GameInstallPathRegistryTarget | null => {
-  if (!diagnostics.registry.path) return null;
-
-  return {
-    registryPath: diagnostics.registry.registryPath,
-    registryValueName: diagnostics.registry.registryValueName,
-    expectedPath: diagnostics.registry.path,
-  };
-};
-
 const getRegistryConflictTarget = (
   diagnostics: GameInstallPathDiagnostics,
 ): GameInstallPathConflictTarget | null => {
-  const registryTarget = getRegistryMutationTarget(diagnostics);
-  if (!registryTarget || !diagnostics.config.path) return null;
+  const registryTarget = diagnostics.registry.candidates.find(
+    (candidate) => candidate.isActive && candidate.path,
+  );
+  if (!registryTarget?.path || !diagnostics.config.path) return null;
 
   return {
-    ...registryTarget,
+    targetId: registryTarget.targetId,
+    expectedPath: registryTarget.path,
     expectedConfigPath: diagnostics.config.path,
   };
 };
@@ -193,6 +197,34 @@ const getGamePathSaveErrorMessage = (
   }
 
   return fallback || "게임 경로를 저장하지 못했습니다.";
+};
+
+const getGamePathSelectionErrorMessage = (
+  result: Exclude<GameInstallPathSelectionResult, { ok: true }>,
+) => {
+  if (result.status === "canceled") return undefined;
+  if (result.status === "unavailable") {
+    return "경로 선택 세션을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  return getGamePathSaveErrorMessage(result.verification);
+};
+
+const getGamePathBatchErrorMessage = (
+  result: GameInstallPathSelectionBatchResult,
+) => {
+  if (result.results.length > 0) return undefined;
+  if (!("failureCode" in result)) return undefined;
+  if (result.failureCode === "selection-busy") {
+    return "선택한 경로를 이미 적용 중입니다.";
+  }
+  if (
+    result.failureCode === "selection-not-found" ||
+    result.failureCode === "selection-expired" ||
+    result.failureCode === "selection-invalidated"
+  ) {
+    return "경로 선택이 만료되었습니다. 폴더를 다시 선택해 주세요.";
+  }
+  return "선택한 저장 위치에 경로를 적용하지 못했습니다.";
 };
 
 const NEWS_OPEN_MODE_OPTIONS: Array<{
@@ -283,6 +315,10 @@ function App() {
   );
   const [gamePathModalState, setGamePathModalState] =
     useState<GamePathModalState | null>(null);
+  const gamePathModalGenerationRef = useRef(0);
+  const gamePathModalOperationTrackerRef = useRef(
+    createGamePathModalOperationTracker(),
+  );
   const shownGamePathConflictKeysRef = useRef<Set<string>>(new Set());
 
   const [bgImage, setBgImage] = useState(bgPoe);
@@ -366,7 +402,10 @@ function App() {
         }
 
         shownGamePathConflictKeysRef.current.add(contextKey);
+        const generation = ++gamePathModalGenerationRef.current;
+        gamePathModalOperationTrackerRef.current.activateGeneration(generation);
         setGamePathModalState({
+          generation,
           mode: "conflict",
           serviceId,
           gameId,
@@ -1202,6 +1241,21 @@ function App() {
     [],
   );
 
+  const beginGamePathModalOperation = useCallback(
+    (
+      operation: GamePathModalOperation,
+      state: GamePathModalState,
+      selectionId?: string,
+    ) =>
+      gamePathModalOperationTrackerRef.current.begin(operation, {
+        generation: state.generation,
+        serviceId: state.serviceId,
+        gameId: state.gameId,
+        ...(selectionId ? { selectionId } : {}),
+      }),
+    [],
+  );
+
   const openGamePathModal = useCallback(
     async (
       mode: GamePathModalMode,
@@ -1214,7 +1268,9 @@ function App() {
         return;
       }
 
-      setGamePathModalState({
+      const generation = ++gamePathModalGenerationRef.current;
+      const initialState: GamePathModalState = {
+        generation,
         mode,
         serviceId,
         gameId,
@@ -1222,9 +1278,15 @@ function App() {
         busy: true,
         highlightManual: options?.highlightManual ?? false,
         showRegistrySyncConfirm: false,
-        showRegistryClearConfirm: false,
         showRegistryRegisterConfirm: false,
-      });
+      };
+      gamePathModalOperationTrackerRef.current.activateGeneration(generation);
+      const request = gamePathModalOperationTrackerRef.current.begin(
+        "diagnostics",
+        initialState,
+      );
+      if (!request) return;
+      setGamePathModalState(initialState);
 
       try {
         const diagnostics =
@@ -1233,33 +1295,36 @@ function App() {
             gameId,
           );
 
-        setGamePathModalState((current) => {
-          if (
-            !current ||
-            current.mode !== mode ||
-            current.serviceId !== serviceId ||
-            current.gameId !== gameId
-          ) {
-            return current;
-          }
-
-          return {
-            ...current,
-            diagnostics,
-            busy: false,
-            errorMessage: undefined,
-          };
-        });
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              diagnostics,
+              busy: false,
+              errorMessage: undefined,
+            }),
+            request,
+          ),
+        );
       } catch (error) {
-        setGamePathModalState((current) => {
-          if (!current) return current;
-
-          return {
-            ...current,
-            busy: false,
-            errorMessage: `게임 경로를 확인하지 못했습니다. ${formatUnknownError(error)}`,
-          };
-        });
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              busy: false,
+              errorMessage: `게임 경로를 확인하지 못했습니다. ${formatUnknownError(error)}`,
+            }),
+            request,
+          ),
+        );
       }
     },
     [],
@@ -1293,10 +1358,19 @@ function App() {
         return;
       }
 
+      const generation = ++gamePathModalGenerationRef.current;
+      gamePathModalOperationTrackerRef.current.activateGeneration(generation);
+      const request = gamePathModalOperationTrackerRef.current.begin(
+        "diagnostics",
+        { generation, serviceId, gameId },
+      );
+      if (!request) return;
+
       setGamePathModalState((current) =>
         current
           ? {
               ...current,
+              generation,
               mode: "diagnostic",
               serviceId,
               gameId,
@@ -1305,8 +1379,10 @@ function App() {
               errorMessage: undefined,
               highlightManual: false,
               showRegistrySyncConfirm: false,
-              showRegistryClearConfirm: false,
               showRegistryRegisterConfirm: false,
+              selection: undefined,
+              selectionApplyResult: undefined,
+              registryDeleteTarget: undefined,
             }
           : current,
       );
@@ -1318,43 +1394,38 @@ function App() {
             gameId,
           );
 
-        setGamePathModalState((current) => {
-          if (
-            !current ||
-            current.serviceId !== serviceId ||
-            current.gameId !== gameId
-          ) {
-            return current;
-          }
-
-          return {
-            ...current,
-            diagnostics,
-            busy: false,
-          };
-        });
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({ ...matched, diagnostics, busy: false }),
+            request,
+          ),
+        );
       } catch (error) {
-        setGamePathModalState((current) => {
-          if (
-            !current ||
-            current.serviceId !== serviceId ||
-            current.gameId !== gameId
-          ) {
-            return current;
-          }
-
-          return {
-            ...current,
-            busy: false,
-            errorMessage: `게임 경로를 확인하지 못했습니다. ${formatUnknownError(error)}`,
-          };
-        });
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              busy: false,
+              errorMessage: `게임 경로를 확인하지 못했습니다. ${formatUnknownError(error)}`,
+            }),
+            request,
+          ),
+        );
       }
     },
     [gamePathModalState],
   );
 
   const handleGamePathModalClose = useCallback(() => {
+    gamePathModalOperationTrackerRef.current.invalidate();
     setGamePathModalState(null);
   }, []);
 
@@ -1386,8 +1457,8 @@ function App() {
             ? {
                 ...current,
                 showRegistrySyncConfirm: true,
-                showRegistryClearConfirm: false,
                 showRegistryRegisterConfirm: false,
+                registryDeleteTarget: undefined,
                 errorMessage: undefined,
               }
             : current,
@@ -1407,6 +1478,7 @@ function App() {
         );
 
         if (result.ok) {
+          gamePathModalOperationTrackerRef.current.invalidate();
           setGamePathModalState(null);
           void syncGameState(gameId, serviceId);
           return;
@@ -1444,75 +1516,175 @@ function App() {
     if (!window.electronAPI || !gamePathModalState) return;
 
     const { serviceId, gameId } = gamePathModalState;
+    const request = beginGamePathModalOperation("picker", gamePathModalState);
+    if (!request) return;
     setGamePathModalState((current) =>
-      current ? { ...current, busy: true, errorMessage: undefined } : current,
+      updateGamePathModalForContext(
+        current,
+        serviceId,
+        gameId,
+        (matched) => ({
+          ...matched,
+          busy: true,
+          errorMessage: undefined,
+          selection: undefined,
+          selectionApplyResult: undefined,
+          registryDeleteTarget: undefined,
+        }),
+        request,
+      ),
     );
 
     try {
-      const result = await window.electronAPI.pickGameInstallPath(
+      const result = await window.electronAPI.pickGameInstallPathTargets(
         serviceId,
         gameId,
       );
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
 
       if (result.ok) {
         setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                mode: "diagnostic",
-                diagnostics: result.diagnostics,
-                busy: false,
-                errorMessage: undefined,
-                highlightManual: false,
-                showRegistrySyncConfirm: false,
-                showRegistryClearConfirm: false,
-                showRegistryRegisterConfirm: false,
-                manualSaveToastId: Date.now(),
-              }
-            : current,
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              mode: "diagnostic",
+              busy: false,
+              errorMessage: undefined,
+              highlightManual: false,
+              showRegistrySyncConfirm: false,
+              showRegistryRegisterConfirm: false,
+              selection: result.selection,
+              selectionApplyResult: undefined,
+            }),
+            request,
+          ),
         );
-
-        void syncGameState(gameId, serviceId);
         return;
       }
 
       setGamePathModalState((current) =>
-        current
-          ? {
-              ...current,
-              diagnostics: result.diagnostics || current.diagnostics,
-              busy: false,
-              errorMessage: result.canceled
-                ? undefined
-                : getGamePathSaveErrorMessage(
-                    result.verification,
-                    result.error,
-                  ),
-            }
-          : current,
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: false,
+            errorMessage: getGamePathSelectionErrorMessage(result),
+          }),
+          request,
+        ),
       );
     } catch (error) {
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
       setGamePathModalState((current) =>
-        current
-          ? {
-              ...current,
-              busy: false,
-              errorMessage: `수동 경로를 저장하지 못했습니다. ${formatUnknownError(error)}`,
-            }
-          : current,
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: false,
+            errorMessage: `수동 경로를 선택하지 못했습니다. ${formatUnknownError(error)}`,
+          }),
+          request,
+        ),
       );
     }
-  }, [gamePathModalState, syncGameState]);
+  }, [beginGamePathModalOperation, gamePathModalState]);
+
+  const handleApplyGamePathTargets = useCallback(
+    async (targetIds: readonly GameInstallPathTargetId[]) => {
+      if (!window.electronAPI || !gamePathModalState?.selection) return;
+
+      const { serviceId, gameId, selection } = gamePathModalState;
+      const request = beginGamePathModalOperation(
+        "apply",
+        gamePathModalState,
+        selection.selectionId,
+      );
+      if (!request) return;
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: true,
+            errorMessage: undefined,
+          }),
+          request,
+        ),
+      );
+
+      try {
+        const result = await window.electronAPI.applyGameInstallPathTargets(
+          selection.selectionId,
+          targetIds,
+        );
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) => {
+          const updated = applyGamePathSelectionBatchForContext(
+            current,
+            serviceId,
+            gameId,
+            result,
+            request,
+          );
+          return updateGamePathModalForContext(
+            updated,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              errorMessage: getGamePathBatchErrorMessage(result),
+              manualSaveToastId: result.ok
+                ? Date.now()
+                : matched.manualSaveToastId,
+            }),
+            request,
+          );
+        });
+        if (result.ok) void syncGameState(gameId, serviceId);
+      } catch (error) {
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+        setGamePathModalState((current) =>
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              busy: false,
+              errorMessage: `게임 경로를 적용하지 못했습니다. ${formatUnknownError(error)}`,
+            }),
+            request,
+          ),
+        );
+      }
+    },
+    [beginGamePathModalOperation, gamePathModalState, syncGameState],
+  );
+
+  const handleGamePathSelectionClose = useCallback(() => {
+    setGamePathModalState((current) =>
+      current
+        ? {
+            ...current,
+            selection: undefined,
+            selectionApplyResult: undefined,
+          }
+        : current,
+    );
+  }, []);
 
   const handleGamePathConflictConfirmClose = useCallback(() => {
     setGamePathModalState((current) =>
       current ? { ...current, showRegistrySyncConfirm: false } : current,
-    );
-  }, []);
-
-  const handleGamePathRegistryClearConfirmClose = useCallback(() => {
-    setGamePathModalState((current) =>
-      current ? { ...current, showRegistryClearConfirm: false } : current,
     );
   }, []);
 
@@ -1523,7 +1695,7 @@ function App() {
             ...current,
             showRegistryRegisterConfirm: true,
             showRegistrySyncConfirm: false,
-            showRegistryClearConfirm: false,
+            registryDeleteTarget: undefined,
             errorMessage: undefined,
           }
         : current,
@@ -1558,13 +1730,22 @@ function App() {
       return;
     }
 
+    const request = beginGamePathModalOperation("register", gamePathModalState);
+    if (!request) return;
+
     setGamePathModalState((current) =>
-      updateGamePathModalForContext(current, serviceId, gameId, (matched) => ({
-        ...matched,
-        busy: true,
-        showRegistryRegisterConfirm: false,
-        errorMessage: undefined,
-      })),
+      updateGamePathModalForContext(
+        current,
+        serviceId,
+        gameId,
+        (matched) => ({
+          ...matched,
+          busy: true,
+          showRegistryRegisterConfirm: false,
+          errorMessage: undefined,
+        }),
+        request,
+      ),
     );
 
     try {
@@ -1573,6 +1754,7 @@ function App() {
         gameId,
         { expectedConfigPath },
       );
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
 
       if (result.ok) {
         setGamePathModalState((current) =>
@@ -1589,6 +1771,7 @@ function App() {
               showRegistryRegisterConfirm: false,
               registrySaveToastId: Date.now(),
             }),
+            request,
           ),
         );
         void syncGameState(gameId, serviceId);
@@ -1607,9 +1790,11 @@ function App() {
             errorMessage:
               result.error || getGamePathSaveErrorMessage(result.verification),
           }),
+          request,
         ),
       );
     } catch (error) {
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
       setGamePathModalState((current) =>
         updateGamePathModalForContext(
           current,
@@ -1620,115 +1805,186 @@ function App() {
             busy: false,
             errorMessage: `레지스트리 게임 경로를 등록하지 못했습니다. ${formatUnknownError(error)}`,
           }),
+          request,
         ),
       );
     }
-  }, [gamePathModalState, syncGameState]);
+  }, [beginGamePathModalOperation, gamePathModalState, syncGameState]);
 
-  const handleClearGamePath = useCallback(
-    async (source: GamePathSource, confirmed = false) => {
-      if (!window.electronAPI || !gamePathModalState) return;
+  const handleClearGamePath = useCallback(async () => {
+    if (!window.electronAPI || !gamePathModalState) return;
 
-      if (source === "registry" && !confirmed) {
+    const { serviceId, gameId } = gamePathModalState;
+    const request = beginGamePathModalOperation(
+      "config-clear",
+      gamePathModalState,
+    );
+    if (!request) return;
+    setGamePathModalState((current) =>
+      updateGamePathModalForContext(
+        current,
+        serviceId,
+        gameId,
+        (matched) => ({
+          ...matched,
+          busy: true,
+          errorMessage: undefined,
+          showRegistryRegisterConfirm: false,
+        }),
+        request,
+      ),
+    );
+
+    try {
+      const result = await window.electronAPI.clearGameInstallPath(
+        serviceId,
+        gameId,
+      );
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+
+      if (result.ok) {
         setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                showRegistryClearConfirm: true,
-                showRegistrySyncConfirm: false,
-                showRegistryRegisterConfirm: false,
-                errorMessage: undefined,
-              }
-            : current,
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              mode: "diagnostic",
+              diagnostics: result.diagnostics,
+              busy: false,
+              errorMessage: undefined,
+              showRegistrySyncConfirm: false,
+              showRegistryRegisterConfirm: false,
+            }),
+            request,
+          ),
         );
+        void syncGameState(gameId, serviceId);
         return;
       }
 
-      const registryTarget =
-        source === "registry" && gamePathModalState.diagnostics
-          ? getRegistryMutationTarget(gamePathModalState.diagnostics)
-          : undefined;
-      if (source === "registry" && !registryTarget) {
-        setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                errorMessage:
-                  "삭제할 레지스트리 대상을 확인할 수 없습니다. 다시 진단해 주세요.",
-              }
-            : current,
-        );
-        return;
-      }
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            diagnostics: result.diagnostics || matched.diagnostics,
+            busy: false,
+            errorMessage:
+              result.error || "저장된 게임 경로를 삭제하지 못했습니다.",
+          }),
+          request,
+        ),
+      );
+    } catch (error) {
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: false,
+            errorMessage: `게임 경로를 삭제하지 못했습니다. ${formatUnknownError(error)}`,
+          }),
+          request,
+        ),
+      );
+    }
+  }, [beginGamePathModalOperation, gamePathModalState, syncGameState]);
 
-      const { serviceId, gameId } = gamePathModalState;
+  const handleGamePathRegistryDeleteRequest = useCallback(
+    (request: GameInstallPathRegistryTargetDeleteRequest) => {
       setGamePathModalState((current) =>
         current
           ? {
               ...current,
-              busy: true,
-              errorMessage: undefined,
-              showRegistryClearConfirm: false,
+              registryDeleteTarget: request,
+              showRegistrySyncConfirm: false,
               showRegistryRegisterConfirm: false,
+              errorMessage: undefined,
             }
           : current,
       );
+    },
+    [],
+  );
 
-      try {
-        const result = await window.electronAPI.clearGameInstallPath(
+  const handleGamePathRegistryDeleteConfirmClose = useCallback(() => {
+    setGamePathModalState((current) =>
+      current ? { ...current, registryDeleteTarget: undefined } : current,
+    );
+  }, []);
+
+  const handleDeleteGamePathRegistryTarget = useCallback(async () => {
+    if (!window.electronAPI || !gamePathModalState?.registryDeleteTarget) {
+      return;
+    }
+
+    const { serviceId, gameId, registryDeleteTarget } = gamePathModalState;
+    const request = beginGamePathModalOperation("delete", gamePathModalState);
+    if (!request) return;
+    setGamePathModalState((current) =>
+      updateGamePathModalForContext(
+        current,
+        serviceId,
+        gameId,
+        (matched) => ({
+          ...matched,
+          busy: true,
+          errorMessage: undefined,
+        }),
+        request,
+      ),
+    );
+
+    try {
+      const result =
+        await window.electronAPI.deleteGameInstallPathRegistryTarget(
           serviceId,
           gameId,
-          source,
-          registryTarget || undefined,
+          registryDeleteTarget,
         );
-
-        if (result.ok) {
-          setGamePathModalState((current) =>
-            current
-              ? {
-                  ...current,
-                  mode: "diagnostic",
-                  diagnostics: result.diagnostics,
-                  busy: false,
-                  errorMessage: undefined,
-                  showRegistrySyncConfirm: false,
-                  showRegistryClearConfirm: false,
-                  showRegistryRegisterConfirm: false,
-                }
-              : current,
-          );
-          void syncGameState(gameId, serviceId);
-          return;
-        }
-
-        setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                diagnostics: result.diagnostics || current.diagnostics,
-                busy: false,
-                errorMessage:
-                  result.error ||
-                  (source === "registry"
-                    ? "레지스트리 설치 경로를 삭제하지 못했습니다."
-                    : "저장된 게임 경로를 삭제하지 못했습니다."),
-              }
-            : current,
-        );
-      } catch (error) {
-        setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                busy: false,
-                errorMessage: `게임 경로를 삭제하지 못했습니다. ${formatUnknownError(error)}`,
-              }
-            : current,
-        );
-      }
-    },
-    [gamePathModalState, syncGameState],
-  );
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            diagnostics: result.diagnostics,
+            busy: false,
+            registryDeleteTarget: undefined,
+            errorMessage: result.ok
+              ? undefined
+              : "레지스트리 경로값을 삭제하지 못했습니다. 최신 상태를 확인해 주세요.",
+          }),
+          request,
+        ),
+      );
+      if (result.ok) void syncGameState(gameId, serviceId);
+    } catch (error) {
+      if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
+      setGamePathModalState((current) =>
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: false,
+            errorMessage: `레지스트리 경로값을 삭제하지 못했습니다. ${formatUnknownError(error)}`,
+          }),
+          request,
+        ),
+      );
+    }
+  }, [beginGamePathModalOperation, gamePathModalState, syncGameState]);
 
   const handleResolveGamePathConflict = useCallback(
     async (action: "launcher-config-only" | "sync-registry") => {
@@ -1751,17 +2007,27 @@ function App() {
         return;
       }
 
+      const request = beginGamePathModalOperation(
+        "conflict",
+        gamePathModalState,
+      );
+      if (!request) return;
+
       setGamePathModalState((current) =>
-        current
-          ? {
-              ...current,
-              busy: true,
-              errorMessage: undefined,
-              showRegistrySyncConfirm: false,
-              showRegistryClearConfirm: false,
-              showRegistryRegisterConfirm: false,
-            }
-          : current,
+        updateGamePathModalForContext(
+          current,
+          serviceId,
+          gameId,
+          (matched) => ({
+            ...matched,
+            busy: true,
+            errorMessage: undefined,
+            showRegistrySyncConfirm: false,
+            showRegistryRegisterConfirm: false,
+            registryDeleteTarget: undefined,
+          }),
+          request,
+        ),
       );
 
       try {
@@ -1771,52 +2037,64 @@ function App() {
           action,
           registryTarget,
         );
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
 
         if (result.ok) {
+          gamePathModalOperationTrackerRef.current.invalidate();
           setGamePathModalState(null);
           void syncGameState(gameId, serviceId);
           return;
         }
 
         setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                diagnostics: result.diagnostics || current.diagnostics,
-                busy: false,
-                errorMessage:
-                  result.verification === "valid" &&
-                  result.action === "sync-registry"
-                    ? "레지스트리 설치 경로를 업데이트하지 못했습니다."
-                    : result.verification === "valid" &&
-                        result.action === "launcher-config-only"
-                      ? "경로 충돌 확인 상태를 저장하지 못했습니다."
-                      : getGamePathSaveErrorMessage(
-                          result.verification,
-                          result.error,
-                        ),
-              }
-            : current,
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              diagnostics: result.diagnostics || matched.diagnostics,
+              busy: false,
+              errorMessage:
+                result.verification === "valid" &&
+                result.action === "sync-registry"
+                  ? "레지스트리 설치 경로를 업데이트하지 못했습니다."
+                  : result.verification === "valid" &&
+                      result.action === "launcher-config-only"
+                    ? "경로 충돌 확인 상태를 저장하지 못했습니다."
+                    : getGamePathSaveErrorMessage(
+                        result.verification,
+                        result.error,
+                      ),
+            }),
+            request,
+          ),
         );
       } catch (error) {
+        if (!gamePathModalOperationTrackerRef.current.finish(request)) return;
         setGamePathModalState((current) =>
-          current
-            ? {
-                ...current,
-                busy: false,
-                errorMessage: `게임 경로 충돌을 처리하지 못했습니다. ${formatUnknownError(error)}`,
-              }
-            : current,
+          updateGamePathModalForContext(
+            current,
+            serviceId,
+            gameId,
+            (matched) => ({
+              ...matched,
+              busy: false,
+              errorMessage: `게임 경로 충돌을 처리하지 못했습니다. ${formatUnknownError(error)}`,
+            }),
+            request,
+          ),
         );
       }
     },
-    [gamePathModalState, syncGameState],
+    [beginGamePathModalOperation, gamePathModalState, syncGameState],
   );
 
   const handleGamePathInstall = useCallback(() => {
     if (!gamePathModalState) return;
 
     openDownloadPage(gamePathModalState.serviceId, gamePathModalState.gameId);
+    gamePathModalOperationTrackerRef.current.invalidate();
     setGamePathModalState(null);
   }, [gamePathModalState, openDownloadPage]);
 
@@ -2140,21 +2418,29 @@ function App() {
         showRegistrySyncConfirm={
           gamePathModalState?.showRegistrySyncConfirm ?? false
         }
-        showRegistryClearConfirm={
-          gamePathModalState?.showRegistryClearConfirm ?? false
-        }
         showRegistryRegisterConfirm={
           gamePathModalState?.showRegistryRegisterConfirm ?? false
         }
+        selection={gamePathModalState?.selection}
+        selectionApplyResult={gamePathModalState?.selectionApplyResult}
+        registryDeleteTarget={gamePathModalState?.registryDeleteTarget}
         manualSaveToastId={gamePathModalState?.manualSaveToastId}
         registrySaveToastId={gamePathModalState?.registrySaveToastId}
         onClose={handleGamePathModalClose}
         onContextChange={handleGamePathContextChange}
         onUsePath={handleUseGamePath}
-        onClearPath={(source) => void handleClearGamePath(source)}
+        onClearPath={() => void handleClearGamePath()}
         onManualSelect={handleManualGamePathSelect}
+        onApplyTargets={(targetIds) =>
+          void handleApplyGamePathTargets(targetIds)
+        }
+        onCloseSelection={handleGamePathSelectionClose}
+        onRegistryDeleteRequest={handleGamePathRegistryDeleteRequest}
+        onRegistryDeleteConfirmClose={handleGamePathRegistryDeleteConfirmClose}
+        onConfirmDeleteRegistryTarget={() =>
+          void handleDeleteGamePathRegistryTarget()
+        }
         onRegistrySyncConfirmClose={handleGamePathConflictConfirmClose}
-        onRegistryClearConfirmClose={handleGamePathRegistryClearConfirmClose}
         onRegistryRegisterRequest={handleGamePathRegistryRegisterRequest}
         onRegistryRegisterConfirmClose={
           handleGamePathRegistryRegisterConfirmClose
@@ -2164,9 +2450,6 @@ function App() {
         }
         onSyncRegistry={() =>
           void handleResolveGamePathConflict("sync-registry")
-        }
-        onConfirmClearRegistry={() =>
-          void handleClearGamePath("registry", true)
         }
         onConfirmRegisterRegistry={() => void handleRegisterGamePath()}
         onInstall={

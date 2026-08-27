@@ -14,7 +14,6 @@ import {
   protocol,
   net,
   webContents,
-  type OpenDialogOptions,
 } from "electron";
 import JSZip from "jszip";
 
@@ -36,7 +35,6 @@ import {
   FatalErrorPayload,
   GameInstallPathConflictTarget,
   GameInstallPathRegisterRequest,
-  GameInstallPathRegistryTarget,
   GameLaunchContext,
   SERVICE_CHANNELS,
 } from "../shared/types";
@@ -64,6 +62,11 @@ import {
   IServiceManager,
   UIEvent,
 } from "./events/types";
+import {
+  createGameInstallPathIpcHandlers,
+  createGameInstallPathRegistryDeleteHandler,
+} from "./game/GameInstallPathIpcHandlers";
+import { GameInstallPathSelectionService } from "./game/GameInstallPathSelectionService";
 import {
   reconcileAllGameInstallStatuses,
   reconcileCurrentGameInstallStatusIfStale,
@@ -123,7 +126,10 @@ import { PowerShellManager } from "./utils/powershell";
 import {
   getGameInstallPath,
   getGameInstallPathDiagnostics,
+  applyGameInstallPathTarget,
   clearGameInstallPath,
+  deleteGameInstallPathRegistryTarget,
+  deriveGameInstallPathTargetSnapshots,
   registerGameInstallPath,
   resolveGameInstallPathConflict,
   setGameInstallPath,
@@ -223,6 +229,15 @@ let gameWindow: BrowserWindow | null;
 let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 let debugDestructionTimeout: NodeJS.Timeout | null = null; // [New] Delayed destruction timer
 let debugRecoveryTimeout: NodeJS.Timeout | null = null;
+
+const gameInstallPathSelectionService = new GameInstallPathSelectionService({
+  now: () => Date.now(),
+  randomUUID: () => crypto.randomUUID(),
+  fsStat: (targetPath) => fs.stat(targetPath),
+  getDiagnostics: getGameInstallPathDiagnostics,
+  collectSnapshots: deriveGameInstallPathTargetSnapshots,
+  applyTarget: applyGameInstallPathTarget,
+});
 
 // --- Account Validation State ---
 let validationModeActive = false;
@@ -692,6 +707,43 @@ const isSupportedGameInstallContext = (
   );
 };
 
+const gameInstallPathIpcHandlers = createGameInstallPathIpcHandlers({
+  isSupportedContext: isSupportedGameInstallContext,
+  selectionService: gameInstallPathSelectionService,
+  showOpenDialog: async (sender, options) => {
+    const ownerWebContents = webContents.fromId(sender.id);
+    const targetWindow = ownerWebContents
+      ? BrowserWindow.fromWebContents(ownerWebContents)
+      : null;
+    return targetWindow
+      ? dialog.showOpenDialog(targetWindow, options)
+      : dialog.showOpenDialog(options);
+  },
+  runManualAction: (context, action) =>
+    runManualGameInstallPathAction(
+      appContext,
+      context.serviceId,
+      context.gameId,
+      "manual-path-targets-apply",
+      action,
+    ),
+});
+
+const gameInstallPathRegistryDeleteHandler =
+  createGameInstallPathRegistryDeleteHandler({
+    isSupportedContext: isSupportedGameInstallContext,
+    deleteRegistryTarget: deleteGameInstallPathRegistryTarget,
+    getDiagnostics: getGameInstallPathDiagnostics,
+    runManualAction: (context, action) =>
+      runManualGameInstallPathAction(
+        appContext,
+        context.serviceId,
+        context.gameId,
+        "manual-registry-target-delete",
+        action,
+      ),
+  });
+
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
   // [Safety] Do not persist if the key is forced in dev:test mode
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
@@ -761,44 +813,13 @@ ipcMain.handle(
 );
 
 ipcMain.handle(
-  "game-install-path:pick",
-  async (
-    event,
-    serviceId: AppConfig["serviceChannel"],
-    gameId: AppConfig["activeGame"],
-  ) => {
-    if (!isSupportedGameInstallContext(serviceId, gameId)) {
-      throw new Error(
-        `Unsupported game install context: ${serviceId}/${gameId}`,
-      );
-    }
+  "game-install-path:pick-targets",
+  gameInstallPathIpcHandlers.pickGameInstallPathTargets,
+);
 
-    const targetWindow = BrowserWindow.fromWebContents(event.sender);
-    const openDialogOptions: OpenDialogOptions = {
-      title: "게임 설치 폴더 선택",
-      buttonLabel: "이 폴더 사용",
-      properties: ["openDirectory"],
-    };
-    const result = targetWindow
-      ? await dialog.showOpenDialog(targetWindow, openDialogOptions)
-      : await dialog.showOpenDialog(openDialogOptions);
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return {
-        ok: false,
-        canceled: true,
-        verification: "not-checked",
-      };
-    }
-
-    return runManualGameInstallPathAction(
-      appContext,
-      serviceId,
-      gameId,
-      "manual-config-path-pick",
-      () => setGameInstallPath(serviceId, gameId, result.filePaths[0]),
-    );
-  },
+ipcMain.handle(
+  "game-install-path:apply-targets",
+  gameInstallPathIpcHandlers.applyGameInstallPathTargets,
 );
 
 ipcMain.handle(
@@ -819,6 +840,11 @@ ipcMain.handle(
     if (action !== "launcher-config-only" && action !== "sync-registry") {
       throw new Error(`Unsupported game install conflict action: ${action}`);
     }
+    const canonicalRegistryTarget: GameInstallPathConflictTarget = {
+      targetId: registryTarget?.targetId,
+      expectedPath: registryTarget?.expectedPath,
+      expectedConfigPath: registryTarget?.expectedConfigPath,
+    };
 
     return runManualGameInstallPathAction(
       appContext,
@@ -830,20 +856,18 @@ ipcMain.handle(
           serviceId,
           gameId,
           action,
-          registryTarget,
+          canonicalRegistryTarget,
         ),
     );
   },
 );
 
 ipcMain.handle(
-  "game-install-path:clear",
+  "game-install-path:clear-config",
   async (
     _event,
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    source: "config" | "registry",
-    registryTarget?: GameInstallPathRegistryTarget,
   ) => {
     if (!isSupportedGameInstallContext(serviceId, gameId)) {
       throw new Error(
@@ -851,18 +875,19 @@ ipcMain.handle(
       );
     }
 
-    if (source !== "config" && source !== "registry") {
-      throw new Error(`Unsupported game install path clear source: ${source}`);
-    }
-
     return runManualGameInstallPathAction(
       appContext,
       serviceId,
       gameId,
-      `manual-${source}-path-clear`,
-      () => clearGameInstallPath(serviceId, gameId, source, registryTarget),
+      "manual-config-path-clear",
+      () => clearGameInstallPath(serviceId, gameId, "config"),
     );
   },
+);
+
+ipcMain.handle(
+  "game-install-path:delete-registry-target",
+  gameInstallPathRegistryDeleteHandler,
 );
 
 ipcMain.handle(

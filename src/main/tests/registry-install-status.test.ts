@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CONFIG } from "../../shared/config";
-import { ACTIVE_GAMES, SERVICE_CHANNELS } from "../../shared/types";
+import {
+  ACTIVE_GAMES,
+  SERVICE_CHANNELS,
+  type ActiveGame,
+  type GameInstallPathDiagnostics,
+  type GameInstallPathRegistryTargetDeleteRequest,
+  type GameInstallPathRegistryTargetDeleteResult,
+  type GameInstallPathTargetApplyResult,
+  type GameInstallPathTargetSnapshot,
+  type ServiceChannel,
+} from "../../shared/types";
+import * as registryModule from "../utils/registry";
 import {
   clearGameInstallPath,
   GAME_INSTALL_REGISTRY_MAP,
@@ -92,6 +103,52 @@ const mockRegQuery = (implementation: RegQueryImplementation) => {
 
 const registryRead = (stdout: string) => ({ stdout, stderr: "", code: 0 });
 
+type GameInstallPathTargetApi = {
+  resolveGameInstallPathTarget: (
+    serviceId: ServiceChannel,
+    gameId: ActiveGame,
+    targetId: string,
+  ) =>
+    | {
+        ok: true;
+        target: {
+          targetId: string;
+          kind: "config" | "registry";
+          registryPath?: string;
+          registryValueName?: string;
+        };
+      }
+    | { ok: false; code: string; retryable: boolean };
+  collectGameInstallPathTargetSnapshots: (
+    serviceId: ServiceChannel,
+    gameId: ActiveGame,
+  ) => Promise<readonly GameInstallPathTargetSnapshot[]>;
+  deriveGameInstallPathTargetSnapshots: (
+    diagnostics: GameInstallPathDiagnostics,
+  ) => readonly GameInstallPathTargetSnapshot[];
+  applyGameInstallPathTarget: (
+    serviceId: ServiceChannel,
+    gameId: ActiveGame,
+    snapshot: GameInstallPathTargetSnapshot,
+    installPath: string,
+  ) => Promise<GameInstallPathTargetApplyResult>;
+  deleteGameInstallPathRegistryTarget: (
+    serviceId: ServiceChannel,
+    gameId: ActiveGame,
+    request: GameInstallPathRegistryTargetDeleteRequest,
+  ) => Promise<GameInstallPathRegistryTargetDeleteResult>;
+};
+
+const requireGameInstallPathTargetFunction = <
+  Name extends keyof GameInstallPathTargetApi,
+>(
+  name: Name,
+): GameInstallPathTargetApi[Name] => {
+  const candidate = (registryModule as Partial<GameInstallPathTargetApi>)[name];
+  expect(candidate, `${name} must be implemented`).toBeTypeOf("function");
+  return candidate as GameInstallPathTargetApi[Name];
+};
+
 const commandReadsRegistryPath = (command: string, registryPath: string) =>
   command.includes(
     registryPath.replace("HKCU:\\", "Registry::HKEY_CURRENT_USER\\"),
@@ -115,7 +172,11 @@ const kakaoPoe2ConflictTarget = (
   expectedRegistryPath: string,
   candidateIndex: 0 | 1 = 0,
 ) => ({
-  ...kakaoPoe2RegistryTarget(expectedRegistryPath, candidateIndex),
+  targetId:
+    candidateIndex === 0
+      ? ("registry-primary" as const)
+      : ("registry-compatibility" as const),
+  expectedPath: expectedRegistryPath,
   expectedConfigPath,
 });
 
@@ -134,6 +195,883 @@ describe("registry install status", () => {
       stderr: "",
       code: 0,
     });
+  });
+
+  describe("MS6.1 game install path targets", () => {
+    it("maps Kakao and GGG registry diagnostics to stable target IDs", async () => {
+      const kakaoPrimaryPath = String.raw`C:\Games\Kakao POE2`;
+      const kakaoCompatibilityPath = String.raw`D:\Games\Kakao POE2`;
+      mocks.powershellExecute.mockImplementation(async (command: string) => {
+        if (
+          commandReadsRegistryPath(
+            command,
+            GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path,
+          )
+        ) {
+          return registryRead(kakaoPrimaryPath);
+        }
+        if (
+          commandReadsRegistryPath(
+            command,
+            GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[1].path,
+          )
+        ) {
+          return registryRead(kakaoCompatibilityPath);
+        }
+        return registryRead(String.raw`E:\Games\GGG POE2`);
+      });
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      const kakaoDiagnostics = await getGameInstallPathDiagnostics(
+        "Kakao Games",
+        "POE2",
+      );
+      const gggDiagnostics = await getGameInstallPathDiagnostics("GGG", "POE2");
+
+      expect(
+        kakaoDiagnostics.registry.candidates.map(({ targetId }) => targetId),
+      ).toEqual(["registry-primary", "registry-compatibility"]);
+      expect(
+        gggDiagnostics.registry.candidates.map(({ targetId }) => targetId),
+      ).toEqual(["registry-primary"]);
+    });
+
+    it("collects registry read state and config path in target snapshots", async () => {
+      const collectGameInstallPathTargetSnapshots =
+        requireGameInstallPathTargetFunction(
+          "collectGameInstallPathTargetSnapshots",
+        );
+      const primaryPath = String.raw`C:\Games\Kakao POE2`;
+      const configPath = String.raw`D:\Games\Configured POE2`;
+      mocks.contextProviderGet.mockReturnValue(
+        createContext({
+          "Kakao Games": { POE1: "", POE2: configPath },
+          GGG: { POE1: "", POE2: "" },
+        }),
+      );
+      mocks.powershellExecute.mockImplementation(async (command: string) =>
+        commandReadsRegistryPath(
+          command,
+          GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path,
+        )
+          ? registryRead(primaryPath)
+          : registryRead("__REG_VALUE_MISSING__"),
+      );
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      await expect(
+        collectGameInstallPathTargetSnapshots("Kakao Games", "POE2"),
+      ).resolves.toEqual([
+        {
+          targetId: "registry-primary",
+          currentPath: primaryPath,
+          registryState: "found",
+        },
+        {
+          targetId: "registry-compatibility",
+          currentPath: null,
+          registryState: "value-missing",
+        },
+        { targetId: "config", currentPath: configPath },
+      ]);
+    });
+
+    it("purely derives target snapshots from one diagnostics value", () => {
+      const deriveGameInstallPathTargetSnapshots =
+        requireGameInstallPathTargetFunction(
+          "deriveGameInstallPathTargetSnapshots",
+        );
+      const diagnostics = {
+        serviceId: "Kakao Games",
+        gameId: "POE2",
+        executableName: "PathOfExile_KG.exe",
+        config: {
+          source: "config",
+          path: String.raw`E:\Games\Config`,
+          state: "found",
+          verification: "valid",
+        },
+        registry: {
+          source: "registry",
+          path: String.raw`C:\Games\Primary`,
+          state: "found",
+          verification: "valid",
+          registryPath: String.raw`HKCU:\Software\Kakaogames\POE2`,
+          registryValueName: "InstallPath",
+          aggregateState: "valid",
+          candidates: [
+            {
+              targetId: "registry-primary",
+              path: String.raw`C:\Games\Primary`,
+              state: "found",
+              verification: "valid",
+              registryPath: String.raw`HKCU:\Software\Kakaogames\POE2`,
+              registryValueName: "InstallPath",
+              isActive: true,
+            },
+            {
+              targetId: "registry-compatibility",
+              path: null,
+              state: "value-missing",
+              verification: "not-checked",
+              registryPath: String.raw`HKCU:\Software\DaumGames\POE2`,
+              registryValueName: "InstallPath",
+              isActive: false,
+            },
+          ],
+        },
+        hasPathConflict: true,
+        isPathConflictAcknowledged: false,
+        recommendedSource: "registry",
+      } as const satisfies GameInstallPathDiagnostics;
+
+      expect(deriveGameInstallPathTargetSnapshots(diagnostics)).toEqual([
+        {
+          targetId: "registry-primary",
+          currentPath: String.raw`C:\Games\Primary`,
+          registryState: "found",
+        },
+        {
+          targetId: "registry-compatibility",
+          currentPath: null,
+          registryState: "value-missing",
+        },
+        { targetId: "config", currentPath: String.raw`E:\Games\Config` },
+      ]);
+      expect(mocks.powershellExecute).not.toHaveBeenCalled();
+      expect(mocks.contextProviderGet).not.toHaveBeenCalled();
+      expect(mocks.stat).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        label: "Kakao primary",
+        serviceId: "Kakao Games",
+        targetId: "registry-primary",
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path,
+      },
+      {
+        label: "Kakao compatibility",
+        serviceId: "Kakao Games",
+        targetId: "registry-compatibility",
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[1].path,
+      },
+      {
+        label: "GGG primary",
+        serviceId: "GGG",
+        targetId: "registry-primary",
+        registryPath: GAME_INSTALL_REGISTRY_MAP.GGG.POE2[0].path,
+      },
+    ] as const)(
+      "deletes the allowlisted $label value through one atomic command",
+      async ({ serviceId, targetId, registryPath }) => {
+        const deleteGameInstallPathRegistryTarget =
+          requireGameInstallPathTargetFunction(
+            "deleteGameInstallPathRegistryTarget",
+          );
+        const expectedPath = String.raw`C:\Games\Installed POE2`;
+        const request = { targetId, expectedPath };
+        mocks.powershellExecute.mockResolvedValue(
+          registryRead("__GAME_INSTALL_TARGET_DELETE_DELETED__"),
+        );
+
+        const result = await deleteGameInstallPathRegistryTarget(
+          serviceId,
+          "POE2",
+          request,
+        );
+
+        expect(Object.keys(request).sort()).toEqual([
+          "expectedPath",
+          "targetId",
+        ]);
+        expect(result).toEqual({ targetId, status: "deleted" });
+        expect(mocks.powershellExecute).toHaveBeenCalledTimes(1);
+        const command = String(mocks.powershellExecute.mock.calls[0][0]);
+        expect(command).toContain(
+          registryPath.replace("HKCU:\\", "Registry::HKEY_CURRENT_USER\\"),
+        );
+        expect(command).toContain(`$expectedPath = '${expectedPath}'`);
+        expect(command).toContain(
+          "Remove-ItemProperty -LiteralPath $path -Name $name",
+        );
+        expect(command).toContain(
+          "$readBackItem.GetValueNames() -contains $name",
+        );
+        expect(command).toContain("__GAME_INSTALL_TARGET_DELETE_DELETED__");
+        expect(
+          command.indexOf("$currentPath -ine $expectedNormalized"),
+        ).toBeLessThan(command.indexOf("Remove-ItemProperty"));
+        expect(command.indexOf("Remove-ItemProperty")).toBeLessThan(
+          command.indexOf("$readBackItem.GetValueNames() -contains $name"),
+        );
+        expect(command).not.toMatch(/(^|[\r\n;])\s*Remove-Item(?:\s|$)/);
+      },
+    );
+
+    it.each([
+      ["GGG compatibility", "GGG", "registry-compatibility"],
+      ["arbitrary target ID", "Kakao Games", "registry-admin"],
+    ] as const)(
+      "rejects deletion of %s before registry access",
+      async (_label, serviceId, targetId) => {
+        const deleteGameInstallPathRegistryTarget =
+          requireGameInstallPathTargetFunction(
+            "deleteGameInstallPathRegistryTarget",
+          );
+
+        await expect(
+          deleteGameInstallPathRegistryTarget(serviceId, "POE2", {
+            targetId,
+            expectedPath: String.raw`C:\Games\Installed POE2`,
+          } as GameInstallPathRegistryTargetDeleteRequest),
+        ).resolves.toEqual({
+          targetId,
+          status: "failed",
+          code: "target-not-allowed",
+          retryable: false,
+        });
+        expect(mocks.powershellExecute).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        "stale expected path",
+        "__GAME_INSTALL_TARGET_DELETE_CHANGED__",
+        "target-changed",
+      ],
+      [
+        "missing key container",
+        "__GAME_INSTALL_TARGET_DELETE_MISSING__",
+        "target-missing",
+      ],
+      [
+        "registry read failure",
+        "__GAME_INSTALL_TARGET_DELETE_READ_FAILED__\naccess denied",
+        "target-read-failed",
+      ],
+      [
+        "mutation failure",
+        "__GAME_INSTALL_TARGET_DELETE_MUTATION_FAILED__\naccess denied",
+        "mutation-failed",
+      ],
+      [
+        "read-back failure",
+        "__GAME_INSTALL_TARGET_DELETE_READBACK_FAILED__",
+        "readback-failed",
+      ],
+    ] as const)(
+      "returns a stable deletion failure for %s",
+      async (_label, marker, code) => {
+        const deleteGameInstallPathRegistryTarget =
+          requireGameInstallPathTargetFunction(
+            "deleteGameInstallPathRegistryTarget",
+          );
+        const expectedPath = String.raw`C:\Games\Expected POE2`;
+        mocks.powershellExecute.mockResolvedValue(registryRead(marker));
+
+        const result = await deleteGameInstallPathRegistryTarget(
+          "Kakao Games",
+          "POE2",
+          { targetId: "registry-primary", expectedPath },
+        );
+
+        expect(result).toEqual({
+          targetId: "registry-primary",
+          status: "failed",
+          code,
+          retryable: true,
+        });
+        expect(mocks.powershellExecute).toHaveBeenCalledTimes(1);
+        const command = String(mocks.powershellExecute.mock.calls[0][0]);
+        expect(command).toContain(`$expectedPath = '${expectedPath}'`);
+        expect(command).toContain(marker.split("\n")[0]);
+        expect(command).not.toMatch(/(^|[\r\n;])\s*Remove-Item(?:\s|$)/);
+      },
+    );
+
+    it("returns unchanged when the allowlisted target value is already absent", async () => {
+      const deleteGameInstallPathRegistryTarget =
+        requireGameInstallPathTargetFunction(
+          "deleteGameInstallPathRegistryTarget",
+        );
+      mocks.powershellExecute.mockResolvedValue(
+        registryRead("__GAME_INSTALL_TARGET_DELETE_UNCHANGED__"),
+      );
+
+      const result = await deleteGameInstallPathRegistryTarget(
+        "Kakao Games",
+        "POE2",
+        {
+          targetId: "registry-compatibility",
+          expectedPath: String.raw`C:\Games\Expected POE2`,
+        },
+      );
+
+      expect(result).toEqual({
+        targetId: "registry-compatibility",
+        status: "unchanged",
+      });
+      const command = String(mocks.powershellExecute.mock.calls[0][0]);
+      expect(command).toContain("$item.GetValueNames() -notcontains $name");
+      expect(
+        command.indexOf("__GAME_INSTALL_TARGET_DELETE_UNCHANGED__"),
+      ).toBeLessThan(command.indexOf("Remove-ItemProperty"));
+      expect(command).not.toMatch(/(^|[\r\n;])\s*Remove-Item(?:\s|$)/);
+    });
+
+    it("preserves a drive-root expected path in atomic registry deletion", async () => {
+      const deleteGameInstallPathRegistryTarget =
+        requireGameInstallPathTargetFunction(
+          "deleteGameInstallPathRegistryTarget",
+        );
+      const expectedPath = "E:\\";
+      mocks.powershellExecute.mockResolvedValue(
+        registryRead("__GAME_INSTALL_TARGET_DELETE_DELETED__"),
+      );
+
+      await expect(
+        deleteGameInstallPathRegistryTarget("Kakao Games", "POE2", {
+          targetId: "registry-primary",
+          expectedPath,
+        }),
+      ).resolves.toEqual({
+        targetId: "registry-primary",
+        status: "deleted",
+      });
+
+      const command = String(mocks.powershellExecute.mock.calls[0][0]);
+      expect(command).toContain(`$expectedPath = '${expectedPath}'`);
+      expect(command).toContain(
+        "$root = [System.IO.Path]::GetPathRoot($normalized)",
+      );
+      expect(command).toContain("$normalized.Length -gt $root.Length");
+    });
+
+    it.each([
+      {
+        label: "primary create",
+        targetId: "registry-primary",
+        registryState: "key-missing",
+        currentPath: null,
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path,
+      },
+      {
+        label: "primary overwrite",
+        targetId: "registry-primary",
+        registryState: "found",
+        currentPath: String.raw`C:\Games\Old Primary POE2`,
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path,
+      },
+      {
+        label: "compatibility create",
+        targetId: "registry-compatibility",
+        registryState: "value-missing",
+        currentPath: null,
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[1].path,
+      },
+      {
+        label: "compatibility overwrite",
+        targetId: "registry-compatibility",
+        registryState: "found",
+        currentPath: String.raw`D:\Games\Old Compatibility POE2`,
+        registryPath: GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[1].path,
+      },
+    ] as const)(
+      "applies $label through one atomic allowlisted PowerShell command",
+      async ({ targetId, registryState, currentPath, registryPath }) => {
+        const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+          "applyGameInstallPathTarget",
+        );
+        const selectedPath = String.raw`E:\Games\Selected POE2`;
+        mocks.stat.mockResolvedValue({ isFile: () => true });
+        mocks.powershellExecute.mockResolvedValue(
+          registryRead("__GAME_INSTALL_TARGET_APPLIED__"),
+        );
+
+        const result = await applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          { targetId, currentPath, registryState },
+          selectedPath,
+        );
+
+        expect(result).toEqual({
+          targetId,
+          status: "applied",
+          path: selectedPath,
+        });
+        expect(mocks.powershellExecute).toHaveBeenCalledTimes(1);
+        const command = String(mocks.powershellExecute.mock.calls[0][0]);
+        expect(command).toContain(
+          registryPath.replace("HKCU:\\", "Registry::HKEY_CURRENT_USER\\"),
+        );
+        expect(command).toContain(`$expectedState = '${registryState}'`);
+        if (currentPath) {
+          expect(command).toContain(`$expectedPath = '${currentPath}'`);
+        }
+        expect(command).toContain("New-Item -Path $path");
+        expect(command).toContain("New-ItemProperty -LiteralPath $path");
+        expect(command).toContain("-PropertyType String -Force");
+        expect(command).toContain("$readBackItem.GetValue");
+        expect(command).not.toContain("Remove-Item");
+      },
+    );
+
+    it("preserves drive-root expected and selected paths in atomic registry apply", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const expectedPath = "E:\\";
+      const selectedPath = "F:\\";
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+      mocks.powershellExecute.mockResolvedValue(
+        registryRead("__GAME_INSTALL_TARGET_APPLIED__"),
+      );
+
+      await expect(
+        applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          {
+            targetId: "registry-primary",
+            currentPath: expectedPath,
+            registryState: "found",
+          },
+          selectedPath,
+        ),
+      ).resolves.toEqual({
+        targetId: "registry-primary",
+        status: "applied",
+        path: selectedPath,
+      });
+
+      const command = String(mocks.powershellExecute.mock.calls[0][0]);
+      expect(command).toContain(`$expectedPath = '${expectedPath}'`);
+      expect(command).toContain(`$selectedPath = '${selectedPath}'`);
+      expect(command).toContain(
+        "$root = [System.IO.Path]::GetPathRoot($normalized)",
+      );
+      expect(command).toContain("$normalized.Length -gt $root.Length");
+    });
+
+    it.each([
+      {
+        label: "stale expected state",
+        snapshot: {
+          targetId: "registry-primary",
+          currentPath: null,
+          registryState: "value-missing",
+        },
+      },
+      {
+        label: "stale expected path",
+        snapshot: {
+          targetId: "registry-primary",
+          currentPath: String.raw`C:\Games\Previous POE2`,
+          registryState: "found",
+        },
+      },
+    ] as const)(
+      "rejects $label reported by the atomic command",
+      async ({ snapshot }) => {
+        const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+          "applyGameInstallPathTarget",
+        );
+        mocks.stat.mockResolvedValue({ isFile: () => true });
+        mocks.powershellExecute.mockResolvedValue(
+          registryRead("__GAME_INSTALL_TARGET_CHANGED__"),
+        );
+
+        const result = await applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          snapshot,
+          String.raw`E:\Games\Selected POE2`,
+        );
+
+        expect(result).toEqual({
+          targetId: "registry-primary",
+          status: "failed",
+          code: "target-changed",
+          retryable: true,
+        });
+        expect(mocks.powershellExecute).toHaveBeenCalledTimes(1);
+        const command = String(mocks.powershellExecute.mock.calls[0][0]);
+        expect(command).toContain(
+          `$expectedState = '${snapshot.registryState}'`,
+        );
+        if (snapshot.currentPath) {
+          expect(command).toContain(
+            `$expectedPath = '${snapshot.currentPath}'`,
+          );
+        }
+      },
+    );
+
+    it("rejects a registry snapshot captured from a read failure", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      const result = await applyGameInstallPathTarget(
+        "Kakao Games",
+        "POE2",
+        {
+          targetId: "registry-primary",
+          currentPath: null,
+          registryState: "read-failed",
+        },
+        String.raw`E:\Games\Selected POE2`,
+      );
+
+      expect(result).toEqual({
+        targetId: "registry-primary",
+        status: "failed",
+        code: "target-read-failed",
+        retryable: true,
+      });
+      expect(mocks.powershellExecute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        "write failure",
+        "__GAME_INSTALL_TARGET_MUTATION_FAILED__\naccess denied",
+        "mutation-failed",
+      ],
+      [
+        "read-back failure",
+        "__GAME_INSTALL_TARGET_READBACK_FAILED__",
+        "readback-failed",
+      ],
+    ] as const)(
+      "returns a stable failure result for registry $label",
+      async (_label, marker, code) => {
+        const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+          "applyGameInstallPathTarget",
+        );
+        mocks.stat.mockResolvedValue({ isFile: () => true });
+        mocks.powershellExecute.mockResolvedValue(registryRead(marker));
+
+        const result = await applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          {
+            targetId: "registry-primary",
+            currentPath: String.raw`C:\Games\Old POE2`,
+            registryState: "found",
+          },
+          String.raw`E:\Games\Selected POE2`,
+        );
+
+        expect(result).toEqual({
+          targetId: "registry-primary",
+          status: "failed",
+          code,
+          retryable: true,
+        });
+        expect(mocks.powershellExecute).toHaveBeenCalledTimes(1);
+        expect(String(mocks.powershellExecute.mock.calls[0][0])).toContain(
+          marker.split("\n")[0],
+        );
+      },
+    );
+
+    it("returns unchanged only after the atomic command rechecks the same registry path", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const selectedPath = String.raw`E:\Games\Selected POE2`;
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+      mocks.powershellExecute.mockResolvedValue(
+        registryRead("__GAME_INSTALL_TARGET_UNCHANGED__"),
+      );
+
+      const result = await applyGameInstallPathTarget(
+        "Kakao Games",
+        "POE2",
+        {
+          targetId: "registry-primary",
+          currentPath: selectedPath,
+          registryState: "found",
+        },
+        `${selectedPath}\\`,
+      );
+
+      expect(result).toEqual({
+        targetId: "registry-primary",
+        status: "unchanged",
+        path: selectedPath,
+      });
+      const command = String(mocks.powershellExecute.mock.calls[0][0]);
+      expect(command).toContain("__GAME_INSTALL_TARGET_UNCHANGED__");
+      expect(command.indexOf("__GAME_INSTALL_TARGET_UNCHANGED__")).toBeLessThan(
+        command.indexOf("New-ItemProperty"),
+      );
+    });
+
+    it("compares the config snapshot and immutably updates only the selected nested path", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const currentPath = String.raw`C:\Games\Old POE2`;
+      const selectedPath = String.raw`E:\Games\Selected POE2`;
+      const originalPaths = {
+        "Kakao Games": { POE1: "C:\\Games\\Kakao POE1\\", POE2: currentPath },
+        GGG: {
+          POE1: "D:\\Games\\GGG POE1\\",
+          POE2: "D:\\Games\\GGG POE2\\",
+        },
+      };
+      const originalKakaoPaths = originalPaths["Kakao Games"];
+      mocks.contextProviderGet.mockReturnValue(createContext(originalPaths));
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      const result = await applyGameInstallPathTarget(
+        "Kakao Games",
+        "POE2",
+        { targetId: "config", currentPath },
+        `${selectedPath}\\`,
+      );
+
+      expect(result).toEqual({
+        targetId: "config",
+        status: "applied",
+        path: selectedPath,
+      });
+      expect(originalPaths["Kakao Games"]).toBe(originalKakaoPaths);
+      expect(originalPaths["Kakao Games"].POE2).toBe(currentPath);
+      expect(mocks.setConfigWithEvent).toHaveBeenCalledWith(
+        "gameInstallPaths",
+        {
+          "Kakao Games": {
+            POE1: "C:\\Games\\Kakao POE1\\",
+            POE2: selectedPath,
+          },
+          GGG: {
+            POE1: "D:\\Games\\GGG POE1\\",
+            POE2: "D:\\Games\\GGG POE2\\",
+          },
+        },
+      );
+      const writtenPaths = mocks.setConfigWithEvent.mock.calls[0][1];
+      expect(writtenPaths).not.toBe(originalPaths);
+      expect(writtenPaths["Kakao Games"]).not.toBe(originalKakaoPaths);
+    });
+
+    it("applies a config target from a partial persisted shape while preserving unrelated default slots", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const currentPath = String.raw`C:\Games\Current POE2`;
+      const selectedPath = String.raw`E:\Games\Selected POE2`;
+      const partialPaths = {
+        "Kakao Games": { POE2: currentPath },
+      };
+      mocks.contextProviderGet.mockReturnValue({
+        getConfig: () => ({ gameInstallPaths: partialPaths }),
+      });
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      await expect(
+        applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          { targetId: "config", currentPath },
+          selectedPath,
+        ),
+      ).resolves.toEqual({
+        targetId: "config",
+        status: "applied",
+        path: selectedPath,
+      });
+      expect(mocks.setConfigWithEvent).toHaveBeenCalledWith(
+        "gameInstallPaths",
+        {
+          "Kakao Games": {
+            POE1: DEFAULT_CONFIG.gameInstallPaths["Kakao Games"].POE1,
+            POE2: selectedPath,
+          },
+          GGG: { ...DEFAULT_CONFIG.gameInstallPaths.GGG },
+        },
+      );
+      expect(partialPaths).toEqual({
+        "Kakao Games": { POE2: currentPath },
+      });
+    });
+
+    it("returns a stable stale-snapshot failure for a missing service in a partial persisted shape", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      mocks.contextProviderGet.mockReturnValue({
+        getConfig: () => ({
+          gameInstallPaths: {
+            "Kakao Games": { POE2: String.raw`C:\Games\Kakao POE2` },
+          },
+        }),
+      });
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      await expect(
+        applyGameInstallPathTarget(
+          "GGG",
+          "POE2",
+          {
+            targetId: "config",
+            currentPath: String.raw`C:\Games\Expected GGG POE2`,
+          },
+          String.raw`E:\Games\Selected GGG POE2`,
+        ),
+      ).resolves.toEqual({
+        targetId: "config",
+        status: "failed",
+        code: "target-changed",
+        retryable: true,
+      });
+      expect(mocks.setConfigWithEvent).not.toHaveBeenCalled();
+    });
+
+    it("rejects a stale config snapshot without writing", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      mocks.contextProviderGet.mockReturnValue(
+        createContext({
+          "Kakao Games": {
+            POE1: "",
+            POE2: String.raw`C:\Games\Current POE2`,
+          },
+          GGG: { POE1: "", POE2: "" },
+        }),
+      );
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      const result = await applyGameInstallPathTarget(
+        "Kakao Games",
+        "POE2",
+        {
+          targetId: "config",
+          currentPath: String.raw`C:\Games\Expected POE2`,
+        },
+        String.raw`E:\Games\Selected POE2`,
+      );
+
+      expect(result).toEqual({
+        targetId: "config",
+        status: "failed",
+        code: "target-changed",
+        retryable: true,
+      });
+      expect(mocks.setConfigWithEvent).not.toHaveBeenCalled();
+      expect(mocks.powershellExecute).not.toHaveBeenCalled();
+    });
+
+    it("returns unchanged for the same config path without writing", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const selectedPath = String.raw`E:\Games\Selected POE2`;
+      mocks.contextProviderGet.mockReturnValue(
+        createContext({
+          "Kakao Games": { POE1: "", POE2: selectedPath },
+          GGG: { POE1: "", POE2: "" },
+        }),
+      );
+      mocks.stat.mockResolvedValue({ isFile: () => true });
+
+      await expect(
+        applyGameInstallPathTarget(
+          "Kakao Games",
+          "POE2",
+          { targetId: "config", currentPath: selectedPath },
+          `${selectedPath}\\`,
+        ),
+      ).resolves.toEqual({
+        targetId: "config",
+        status: "unchanged",
+        path: selectedPath,
+      });
+      expect(mocks.setConfigWithEvent).not.toHaveBeenCalled();
+    });
+
+    it("freshly verifies the selected executable before applying any target", async () => {
+      const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+        "applyGameInstallPathTarget",
+      );
+      const selectedPath = String.raw`E:\Games\Missing POE2`;
+      mocks.stat.mockRejectedValue(
+        Object.assign(new Error("missing"), { code: "ENOENT" }),
+      );
+
+      const result = await applyGameInstallPathTarget(
+        "Kakao Games",
+        "POE2",
+        {
+          targetId: "registry-primary",
+          currentPath: null,
+          registryState: "key-missing",
+        },
+        selectedPath,
+      );
+
+      expect(mocks.stat).toHaveBeenCalledWith(
+        `${selectedPath}\\PathOfExile_KG.exe`,
+      );
+      expect(result).toEqual({
+        targetId: "registry-primary",
+        status: "failed",
+        code: "install-path-invalid",
+        retryable: false,
+      });
+      expect(mocks.powershellExecute).not.toHaveBeenCalled();
+      expect(mocks.setConfigWithEvent).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["GGG compatibility", "GGG", "registry-compatibility"],
+      ["arbitrary target ID", "Kakao Games", "registry-admin"],
+    ] as const)(
+      "rejects $label before mutation",
+      async (_label, serviceId, targetId) => {
+        const resolveGameInstallPathTarget =
+          requireGameInstallPathTargetFunction("resolveGameInstallPathTarget");
+        const applyGameInstallPathTarget = requireGameInstallPathTargetFunction(
+          "applyGameInstallPathTarget",
+        );
+
+        expect(
+          resolveGameInstallPathTarget(serviceId, "POE2", targetId),
+        ).toEqual({
+          ok: false,
+          code: "target-not-allowed",
+          retryable: false,
+        });
+        await expect(
+          applyGameInstallPathTarget(
+            serviceId,
+            "POE2",
+            {
+              targetId,
+              currentPath: null,
+              registryState: "key-missing",
+            } as GameInstallPathTargetSnapshot,
+            String.raw`E:\Games\Selected POE2`,
+          ),
+        ).resolves.toEqual({
+          targetId,
+          status: "failed",
+          code: "target-not-allowed",
+          retryable: false,
+        });
+        expect(mocks.stat).not.toHaveBeenCalled();
+        expect(mocks.powershellExecute).not.toHaveBeenCalled();
+        expect(mocks.setConfigWithEvent).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("falls back to reg.exe when the PowerShell session cannot start", async () => {
@@ -975,6 +1913,53 @@ HKEY_CURRENT_USER\\Software\\DaumGames\\POE2
     },
   );
 
+  it("derives the conflict mutation registry identity from targetId and ignores raw spoof fields", async () => {
+    const configPath = String.raw`C:\Games\Path of Exile 2`;
+    const registryPath = String.raw`D:\Games\Path of Exile 2`;
+    const primaryRegistryPath =
+      GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[0].path;
+    const legacyRegistryPath =
+      GAME_INSTALL_REGISTRY_MAP["Kakao Games"].POE2[1].path;
+    let mutationCommand = "";
+    mocks.contextProviderGet.mockReturnValue(
+      createContext({
+        "Kakao Games": { POE1: "", POE2: configPath },
+        GGG: { POE1: "", POE2: "" },
+      }),
+    );
+    mocks.stat.mockResolvedValue({ isFile: () => true });
+    mocks.powershellExecute.mockImplementation(async (command: string) => {
+      if (command.includes("Set-ItemProperty")) {
+        mutationCommand = command;
+        return registryRead("__REG_CONDITIONAL_MUTATED__");
+      }
+      if (commandReadsRegistryPath(command, primaryRegistryPath)) {
+        return registryRead(mutationCommand ? configPath : registryPath);
+      }
+      if (commandReadsRegistryPath(command, legacyRegistryPath)) {
+        return registryRead("__REG_VALUE_MISSING__");
+      }
+      throw new Error(`Unexpected PowerShell command: ${command}`);
+    });
+
+    const result = await resolveGameInstallPathConflict(
+      "Kakao Games",
+      "POE2",
+      "sync-registry",
+      {
+        targetId: "registry-primary",
+        expectedPath: registryPath,
+        expectedConfigPath: configPath,
+        registryPath: legacyRegistryPath,
+        registryValueName: "InstallPath",
+      } as never,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(mutationCommand).toContain("Kakaogames\\POE2");
+    expect(mutationCommand).not.toContain("DaumGames\\POE2");
+  });
+
   it("rejects a registry target outside the service/game allowlist", async () => {
     const configPath = String.raw`C:\Games\Path of Exile 2`;
     const registryPath = String.raw`D:\Games\Path of Exile 2`;
@@ -992,11 +1977,10 @@ HKEY_CURRENT_USER\\Software\\DaumGames\\POE2
       "POE2",
       "sync-registry",
       {
-        registryPath: String.raw`HKCU:\Software\Unexpected\POE2`,
-        registryValueName: "InstallPath",
+        targetId: "untrusted-target",
         expectedPath: registryPath,
         expectedConfigPath: configPath,
-      },
+      } as never,
     );
 
     expect(result.ok).toBe(false);
@@ -1009,7 +1993,7 @@ HKEY_CURRENT_USER\\Software\\DaumGames\\POE2
     expect(result.error).toContain("not allowed");
   });
 
-  it("rejects an allowlisted registry path with the wrong value name", async () => {
+  it("rejects a non-registry target ID for conflict mutation", async () => {
     const configPath = String.raw`C:\Games\Path of Exile 2`;
     const registryPath = String.raw`D:\Games\Path of Exile 2`;
     mocks.contextProviderGet.mockReturnValue(
@@ -1026,9 +2010,10 @@ HKEY_CURRENT_USER\\Software\\DaumGames\\POE2
       "POE2",
       "sync-registry",
       {
-        ...kakaoPoe2ConflictTarget(configPath, registryPath),
-        registryValueName: "UnexpectedValue",
-      },
+        targetId: "config",
+        expectedPath: registryPath,
+        expectedConfigPath: configPath,
+      } as never,
     );
 
     expect(result.ok).toBe(false);

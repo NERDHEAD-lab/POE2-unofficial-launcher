@@ -22,12 +22,15 @@ import {
   GameInstallPathConflictTarget,
   GameInstallPathConflictResolveResult,
   GameInstallPathClearResult,
-  GameInstallPathClearSource,
   GameInstallPathDiagnostics,
-  GameInstallPathRegistryTarget,
+  GameInstallPathRegistryTargetDeleteActionResult,
+  GameInstallPathRegistryTargetDeleteRequest,
   GameInstallPathRegisterRequest,
   GameInstallPathRegisterResult,
   GameInstallPathSaveResult,
+  GameInstallPathSelectionBatchResult,
+  GameInstallPathSelectionResult,
+  GameInstallPathTargetId,
   FatalErrorPayload,
   LauncherLogAvailability,
   LauncherLogSaveResult,
@@ -54,11 +57,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     installPath: string,
   ): Promise<GameInstallPathSaveResult> =>
     ipcRenderer.invoke("game-install-path:set", serviceId, gameId, installPath),
-  pickGameInstallPath: (
+  pickGameInstallPathTargets: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ): Promise<GameInstallPathSaveResult> =>
-    ipcRenderer.invoke("game-install-path:pick", serviceId, gameId),
+  ): Promise<GameInstallPathSelectionResult> =>
+    ipcRenderer.invoke("game-install-path:pick-targets", serviceId, gameId),
+  applyGameInstallPathTargets: (
+    selectionId: string,
+    targetIds: readonly GameInstallPathTargetId[],
+  ): Promise<GameInstallPathSelectionBatchResult> =>
+    ipcRenderer.invoke("game-install-path:apply-targets", {
+      selectionId,
+      targetIds,
+    }),
   resolveGameInstallPathConflict: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
@@ -75,15 +86,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   clearGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    source: GameInstallPathClearSource,
-    registryTarget?: GameInstallPathRegistryTarget,
   ): Promise<GameInstallPathClearResult> =>
+    ipcRenderer.invoke("game-install-path:clear-config", serviceId, gameId),
+  deleteGameInstallPathRegistryTarget: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegistryTargetDeleteRequest,
+  ): Promise<GameInstallPathRegistryTargetDeleteActionResult> =>
     ipcRenderer.invoke(
-      "game-install-path:clear",
+      "game-install-path:delete-registry-target",
       serviceId,
       gameId,
-      source,
-      registryTarget,
+      request,
     ),
   registerGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
