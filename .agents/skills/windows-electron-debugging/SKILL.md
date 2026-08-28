@@ -1,118 +1,122 @@
 ---
 name: windows-electron-debugging
-description: Use this skill whenever debugging or visually verifying the POE2 launcher UI, Electron runtime errors, Vite dev-server behavior, Chrome DevTools attachment, screenshots, or CDP capture. This project is Windows-first; this skill prevents WSL/mock-browser verification mistakes by forcing pwsh npm run dev, launcher terminal logs, Chrome remote debugging, and real Electron screenshots.
+description: Run any Windows command invisibly from WSL through one owned GUI-bootstrap runner, including Windows tests, lint, typecheck, builds, package commands, long-running processes, Electron launches, CDP inspection, screenshots, log collection, timeout handling, and exact process-tree cleanup. Use whenever an agent in WSL needs Windows execution or must debug or visually verify a Windows Electron GUI without showing or focusing terminals, console hosts, or app windows.
 ---
 
-# Skill: Windows Electron Debugging
+# Hidden WSL-to-Windows Execution
 
-Use this workflow for launcher UI verification, runtime error triage, and screenshots. The app is Windows-first, so do not validate Electron behavior through WSL-only browser mocks.
+Use `scripts/run-hidden-windows.cjs` as the only WSL-facing entrypoint. Never
+invoke `pwsh.exe`, `powershell.exe`, `cmd.exe`, Windows `node.exe`, Electron, or
+another Windows executable directly from WSL.
 
-## Required Flow
+The runner creates a request, enters Windows through GUI-subsystem
+`wscript.exe //B //NoLogo`, starts its worker hidden, and launches children with
+exact argv, `shell: false`, and `windowsHide: true`. Its supervisor creates the
+target suspended, assigns it to a kill-on-close Windows Job, then resumes it so
+natural root exit cannot orphan descendants. Keep fragile quoting, ownership,
+timeout, redaction, and cleanup logic inside the bundled scripts.
 
-1. Start from WSL only for source inspection and edits.
-2. Run the app from Windows PowerShell:
+## Run a bounded command
 
-```powershell
-cd "D:\project_poe2\POE2-unofficial-launcher"
-npm run dev
+Pass a project-selected cwd and an argv array after `--`. Use `@node` for the
+hidden worker's Windows Node or `@pwsh` for hidden PowerShell. Use
+`--literal-env NAME=VALUE` only for non-secret values that may exist briefly in
+the transient request. Use `--env-path` for a non-secret mounted path. Pass
+sensitive values only as pre-existing named WSL variables with
+`--pass-env NAME`; their values must never appear in CLI arguments or child
+argv. The worker consumes named values from its inherited environment, redacts
+persisted command data to basename plus an argv fingerprint, and deletes the
+transient request before launching the child.
+
+Named pass-through values are exact UTF-8 byte-redacted across output chunks
+before logs or sync relay. Never let a child print secrets: transformed,
+encoded, or binary representations are opaque and cannot be reliably redacted.
+
+```bash
+node <skill>/scripts/run-hidden-windows.cjs sync \
+  --cwd <mounted-wsl-project-path> \
+  --timeout-ms <bounded-ms> \
+  --literal-env MODE=value \
+  --pass-env SECRET_NAME \
+  -- @node <windows-or-cwd-relative-script> <arg>...
 ```
 
-`npm run dev` starts Electron with `--remote-debugging-port=9222` by default. Override only when needed:
+The runner relays stdout and stderr separately and exits with the child exit
+code. Exit `124` means a timeout whose owned tree was verified stopped. Exit
+`125` means cleanup could not verify exact-tree death; treat it as actionable
+failure and never claim the process stopped. Cleanup failure emits a structured
+result containing cleanup detail and child-liveness evidence. On any runner
+failure, diagnose its result/metadata/log artifacts; do not bypass the runner.
 
-```powershell
-$env:ELECTRON_REMOTE_DEBUGGING_PORT="9333"
-npm run dev
+## Start a hidden long-running process
+
+Use detached mode. Supply distinct stdout, stderr, and metadata paths. Include
+`{runId}` to isolate concurrent runs. Configure an optional generic HTTP(S) or
+file readiness probe when the caller needs proof that startup completed.
+
+```bash
+node <skill>/scripts/run-hidden-windows.cjs detached \
+  --cwd <mounted-wsl-project-path> \
+  --stdout <artifact-dir>/{runId}.stdout.log \
+  --stderr <artifact-dir>/{runId}.stderr.log \
+  --metadata <artifact-dir>/{runId}.metadata.json \
+  --ready-url <caller-provided-url> \
+  --ready-timeout-ms <bounded-ms> \
+  --literal-env MODE=value \
+  -- <command> <arg>...
 ```
 
-3. Read the launcher terminal logs before making visual claims. Fatal modal reports, IPC errors, and service errors appear there first.
-4. Verify the debugging endpoint from Windows:
+Copy the returned WSL `metadataPath` verbatim into stop. Returned cwd/log/
+metadata paths are WSL-safe even though internal ownership metadata remains in
+Windows form. Record the run ID and child PID. Do not infer readiness merely
+from process existence.
 
-```powershell
-curl.exe -sS http://127.0.0.1:9222/json/version
-curl.exe -sS http://127.0.0.1:9222/json/list
+## Stop and clean up
+
+Stop only from the metadata returned by detached mode. The runner validates the
+schema, run ID, ownership token, metadata path, and known root PID before
+requesting graceful then bounded force cleanup of that exact tree.
+
+```bash
+node <skill>/scripts/run-hidden-windows.cjs stop \
+  --metadata <copy-returned-WSL-metadataPath-verbatim> \
+  --timeout-ms <bounded-ms>
 ```
 
-5. Attach Chrome DevTools to the real launcher page, not the debug console page:
+Never edit metadata, substitute a PID, kill by executable name, or touch an
+unrelated process. Preserve requested logs and evidence; remove only artifacts
+and temporary profiles owned by the completed run. Accept stop success only
+when the result says `cleanup.stopped: true` and
+`childAliveAfterCleanup: false` plus `targetAliveAfterCleanup: false` with
+matching run/worker/supervisor/target identity; otherwise report cleanup failure.
 
-```powershell
-$targets = Invoke-RestMethod http://127.0.0.1:9222/json/list
-$main = $targets | Where-Object { $_.url -eq "http://localhost:54321/" } | Select-Object -First 1
-Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" $main.devtoolsFrontendUrl
+## Verify Windows Electron
+
+Launch Electron detached with caller-provided hidden-start, isolated user-data,
+debugging, and application-specific environment values. Never use a normal user
+profile. Use a readiness probe selected by the project, then inspect the owned
+stdout/stderr logs before CDP or visual claims.
+
+Run caller-selected CDP or screenshot scripts through sync mode while the
+detached owner remains alive. Target the actual Electron renderer, not a mock
+browser surface. Report the launcher argv/debug endpoint evidence, selected
+target, fatal/runtime events, screenshot path, and relevant owned log excerpts.
+
+Keep Electron hidden unless verification is impossible without visibility. Ask
+before showing or focusing it. Stop the detached owner through metadata and
+confirm cleanup after capture.
+
+## Validate the runner
+
+Run parser/static tests in WSL first:
+
+```bash
+node <skill>/scripts/run-hidden-windows.node-test.cjs
 ```
 
-If the main target is missing, inspect the terminal log and Electron process command line before proceeding.
-
-## Capture Screenshot
-
-Use the bundled script to capture the actual Electron surface and print a small DOM/error summary:
-
-```powershell
-cd "D:\project_poe2\POE2-unofficial-launcher"
-node .agents\skills\windows-electron-debugging\scripts\cdp-capture.js
-```
-
-Default output: `.tmp/electron-cdp.png`.
-
-Optional overrides:
-
-```powershell
-$env:CDP_PORT="9333"
-$env:CDP_TARGET_URL="http://localhost:54321/"
-$env:CDP_OUTPUT="D:\project_poe2\POE2-unofficial-launcher\.tmp\launcher.png"
-node .agents\skills\windows-electron-debugging\scripts\cdp-capture.js
-```
-
-## Kakao Automation Popup Dumps
-
-When diagnosing Kakao login, Daum Game Starter, SecurityCenter, or hidden automation windows, keep the app running from Windows PowerShell and inspect the launcher terminal log first. Then collect the real popup dumps from Windows temp.
-
-In dev mode, automation pages are dumped by default when an automation window is force-shown, times out, or is exposed by inactive-window debugging. Disable only when needed:
-
-```powershell
-$env:VITE_KAKAO_PAGE_DUMP="false"
-npm run dev
-```
-
-Dump location:
-
-```powershell
-$dumpRoot = Join-Path $env:TEMP "poe2-unofficial-launcher\kakao-page-dumps"
-Get-ChildItem $dumpRoot | Sort-Object LastWriteTime -Descending | Select-Object -First 20
-```
-
-Back up each user-run flow before asking them to reproduce another state:
-
-```powershell
-cd "D:\project_poe2\POE2-unofficial-launcher"
-$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backup = ".tmp\kakao-page-dumps\$stamp-login-flow"
-New-Item -ItemType Directory -Force $backup
-Copy-Item "$dumpRoot\*" $backup -Recurse -Force
-```
-
-Read the files in this order:
-
-- `.json`: reason, triggerContext, window id, URL, title, visibility/focus, bounds.
-- `.txt`: visible body text, useful for recognizing transient prompts.
-- `.html`: selectors and page state; use `rg`, not visual guesses.
-- `.png`: final confirmation of the visible surface.
-
-For `security-center.game.daum.net`, do not decide visibility from the URL alone — classify by DOM state. **The SecurityCenter visibility-classification policy (which selectors keep-hidden vs show) lives in the `kakao-automation` skill (Rule 3).** Collect and read the dumps here; apply that policy there.
-
-## What To Report
-
-Report the exact checks, not guesses:
-
-- Electron main process argv includes `--remote-debugging-port=...`.
-- `/json/version` responds.
-- `/json/list` has the `http://localhost:54321/` page target.
-- CDP summary shows whether fatal text is present.
-- Screenshot path and the visible UI state.
-- Kakao popup dump backup path, if automation windows were involved.
-- Launcher terminal log excerpts for the relevant click or error.
-
-## Avoid
-
-- Do not use WSL Playwright/Chromium as the primary verifier for this Windows Electron app.
-- Do not build mock HTML to judge real launcher UI.
-- Do not dismiss an error modal as visual contrast or layout until terminal logs and CDP state are checked.
+Run worker integration tests and the window-visibility probe only through the
+public runner. Trust Windows evidence only after the native monitor observes at
+least 20 samples over a held workload, no gap above 100 ms, zero visible owned
+top-level windows, and zero owned foreground/focus samples. Report owned
+console-host PIDs and names as informational evidence; an invisible console host
+is not itself a failure.

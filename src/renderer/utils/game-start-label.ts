@@ -20,11 +20,15 @@ export const shouldShowUpdateLabel = (
   );
 };
 
+export const shouldOpenGamePathDiagnostic = (status: RunStatus) =>
+  status === "uninstalled" || status === "install_check_blocked";
+
 export const getGameStartButtonLabel = (
   status: RunStatus,
   isUpdateNeeded: boolean,
 ) => {
   if (status === "uninstalled") return "설치하기";
+  if (status === "install_check_blocked") return "경로 확인";
   if (shouldShowUpdateLabel(status, isUpdateNeeded)) return "업데이트";
   return "게임 시작";
 };

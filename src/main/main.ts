@@ -14,7 +14,6 @@ import {
   protocol,
   net,
   webContents,
-  type OpenDialogOptions,
 } from "electron";
 import JSZip from "jszip";
 
@@ -34,6 +33,8 @@ import {
   NewsCategory,
   DebugLogPayload,
   FatalErrorPayload,
+  GameInstallPathConflictTarget,
+  GameInstallPathRegisterRequest,
   GameLaunchContext,
   SERVICE_CHANNELS,
 } from "../shared/types";
@@ -62,8 +63,14 @@ import {
   UIEvent,
 } from "./events/types";
 import {
-  GAME_INSTALL_STATUS_CONTEXTS,
-  reconcileGameInstallStatus,
+  createGameInstallPathIpcHandlers,
+  createGameInstallPathRegistryDeleteHandler,
+} from "./game/GameInstallPathIpcHandlers";
+import { GameInstallPathSelectionService } from "./game/GameInstallPathSelectionService";
+import {
+  reconcileAllGameInstallStatuses,
+  reconcileCurrentGameInstallStatusIfStale,
+  runManualGameInstallPathAction,
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
@@ -85,6 +92,12 @@ import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
+import {
+  buildGamePathDiagnosticQaRendererUrl,
+  isAllowedGamePathDiagnosticQaRendererUrl,
+  resolveGamePathDiagnosticQaLaunch,
+  type GamePathDiagnosticQaLaunchRequest,
+} from "./qa/GamePathDiagnosticQa";
 import { setupSessionSecurity } from "./security/permissions";
 import { changelogService } from "./services/ChangelogService";
 import { diagnosticLogStore } from "./services/DiagnosticLogStore";
@@ -119,7 +132,11 @@ import { PowerShellManager } from "./utils/powershell";
 import {
   getGameInstallPath,
   getGameInstallPathDiagnostics,
+  applyGameInstallPathTarget,
   clearGameInstallPath,
+  deleteGameInstallPathRegistryTarget,
+  deriveGameInstallPathTargetSnapshots,
+  registerGameInstallPath,
   resolveGameInstallPathConflict,
   setGameInstallPath,
   syncInstallLocation,
@@ -218,6 +235,15 @@ let gameWindow: BrowserWindow | null;
 let debugWindow: BrowserWindow | null = null; // Debug Window Reference
 let debugDestructionTimeout: NodeJS.Timeout | null = null; // [New] Delayed destruction timer
 let debugRecoveryTimeout: NodeJS.Timeout | null = null;
+
+const gameInstallPathSelectionService = new GameInstallPathSelectionService({
+  now: () => Date.now(),
+  randomUUID: () => crypto.randomUUID(),
+  fsStat: (targetPath) => fs.stat(targetPath),
+  getDiagnostics: getGameInstallPathDiagnostics,
+  collectSnapshots: deriveGameInstallPathTargetSnapshots,
+  applyTarget: applyGameInstallPathTarget,
+});
 
 // --- Account Validation State ---
 let validationModeActive = false;
@@ -687,6 +713,43 @@ const isSupportedGameInstallContext = (
   );
 };
 
+const gameInstallPathIpcHandlers = createGameInstallPathIpcHandlers({
+  isSupportedContext: isSupportedGameInstallContext,
+  selectionService: gameInstallPathSelectionService,
+  showOpenDialog: async (sender, options) => {
+    const ownerWebContents = webContents.fromId(sender.id);
+    const targetWindow = ownerWebContents
+      ? BrowserWindow.fromWebContents(ownerWebContents)
+      : null;
+    return targetWindow
+      ? dialog.showOpenDialog(targetWindow, options)
+      : dialog.showOpenDialog(options);
+  },
+  runManualAction: (context, action) =>
+    runManualGameInstallPathAction(
+      appContext,
+      context.serviceId,
+      context.gameId,
+      "manual-path-targets-apply",
+      action,
+    ),
+});
+
+const gameInstallPathRegistryDeleteHandler =
+  createGameInstallPathRegistryDeleteHandler({
+    isSupportedContext: isSupportedGameInstallContext,
+    deleteRegistryTarget: deleteGameInstallPathRegistryTarget,
+    getDiagnostics: getGameInstallPathDiagnostics,
+    runManualAction: (context, action) =>
+      runManualGameInstallPathAction(
+        appContext,
+        context.serviceId,
+        context.gameId,
+        "manual-registry-target-delete",
+        action,
+      ),
+  });
+
 ipcMain.handle("config:set", (_event, key: string, value: unknown) => {
   // [Safety] Do not persist if the key is forced in dev:test mode
   if (FORCE_DEBUG && DEBUG_KEYS.includes(key)) {
@@ -745,43 +808,24 @@ ipcMain.handle(
       );
     }
 
-    return setGameInstallPath(serviceId, gameId, installPath);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-config-path-set",
+      () => setGameInstallPath(serviceId, gameId, installPath),
+    );
   },
 );
 
 ipcMain.handle(
-  "game-install-path:pick",
-  async (
-    event,
-    serviceId: AppConfig["serviceChannel"],
-    gameId: AppConfig["activeGame"],
-  ) => {
-    if (!isSupportedGameInstallContext(serviceId, gameId)) {
-      throw new Error(
-        `Unsupported game install context: ${serviceId}/${gameId}`,
-      );
-    }
+  "game-install-path:pick-targets",
+  gameInstallPathIpcHandlers.pickGameInstallPathTargets,
+);
 
-    const targetWindow = BrowserWindow.fromWebContents(event.sender);
-    const openDialogOptions: OpenDialogOptions = {
-      title: "게임 설치 폴더 선택",
-      buttonLabel: "이 폴더 사용",
-      properties: ["openDirectory"],
-    };
-    const result = targetWindow
-      ? await dialog.showOpenDialog(targetWindow, openDialogOptions)
-      : await dialog.showOpenDialog(openDialogOptions);
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return {
-        ok: false,
-        canceled: true,
-        verification: "not-checked",
-      };
-    }
-
-    return setGameInstallPath(serviceId, gameId, result.filePaths[0]);
-  },
+ipcMain.handle(
+  "game-install-path:apply-targets",
+  gameInstallPathIpcHandlers.applyGameInstallPathTargets,
 );
 
 ipcMain.handle(
@@ -791,6 +835,7 @@ ipcMain.handle(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: "launcher-config-only" | "sync-registry",
+    registryTarget: GameInstallPathConflictTarget,
   ) => {
     if (!isSupportedGameInstallContext(serviceId, gameId)) {
       throw new Error(
@@ -801,18 +846,34 @@ ipcMain.handle(
     if (action !== "launcher-config-only" && action !== "sync-registry") {
       throw new Error(`Unsupported game install conflict action: ${action}`);
     }
+    const canonicalRegistryTarget: GameInstallPathConflictTarget = {
+      targetId: registryTarget?.targetId,
+      expectedPath: registryTarget?.expectedPath,
+      expectedConfigPath: registryTarget?.expectedConfigPath,
+    };
 
-    return resolveGameInstallPathConflict(serviceId, gameId, action);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      `manual-path-conflict-${action}`,
+      () =>
+        resolveGameInstallPathConflict(
+          serviceId,
+          gameId,
+          action,
+          canonicalRegistryTarget,
+        ),
+    );
   },
 );
 
 ipcMain.handle(
-  "game-install-path:clear",
+  "game-install-path:clear-config",
   async (
     _event,
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    source: "config" | "registry",
   ) => {
     if (!isSupportedGameInstallContext(serviceId, gameId)) {
       throw new Error(
@@ -820,19 +881,42 @@ ipcMain.handle(
       );
     }
 
-    if (source !== "config" && source !== "registry") {
-      throw new Error(`Unsupported game install path clear source: ${source}`);
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-config-path-clear",
+      () => clearGameInstallPath(serviceId, gameId, "config"),
+    );
+  },
+);
+
+ipcMain.handle(
+  "game-install-path:delete-registry-target",
+  gameInstallPathRegistryDeleteHandler,
+);
+
+ipcMain.handle(
+  "game-install-path:register",
+  async (
+    _event,
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ) => {
+    if (!isSupportedGameInstallContext(serviceId, gameId)) {
+      throw new Error(
+        `Unsupported game install context: ${serviceId}/${gameId}`,
+      );
     }
 
-    const result = await clearGameInstallPath(serviceId, gameId, source);
-
-    if (result.ok && source === "registry") {
-      await reconcileGameInstallStatus(appContext, serviceId, gameId, {
-        reason: "manual-registry-path-clear",
-      });
-    }
-
-    return result;
+    return runManualGameInstallPathAction(
+      appContext,
+      serviceId,
+      gameId,
+      "manual-registry-path-register",
+      () => registerGameInstallPath(serviceId, gameId, request),
+    );
   },
 );
 
@@ -2036,6 +2120,46 @@ function broadcastTitleUpdate() {
   }
 }
 
+async function createGamePathDiagnosticQaWindow(
+  request: GamePathDiagnosticQaLaunchRequest,
+) {
+  mainWindow = new BrowserWindow({
+    width: 1024,
+    height: 683,
+    minWidth: 1024,
+    minHeight: 683,
+    resizable: false,
+    maximizable: false,
+    frame: false,
+    titleBarStyle: "hidden",
+    icon: path.join(process.env.VITE_PUBLIC as string, "icon.ico"),
+    show: false,
+    backgroundColor: "#000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (
+      !isAllowedGamePathDiagnosticQaRendererUrl(
+        url,
+        request.devServerUrl,
+        request.runId,
+      )
+    ) {
+      event.preventDefault();
+    }
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    app.quit();
+  });
+
+  await mainWindow.loadURL(buildGamePathDiagnosticQaRendererUrl(request));
+}
+
 async function createWindow() {
   // 1. Main Window (UI)
   mainWindow = new BrowserWindow({
@@ -2169,11 +2293,22 @@ async function createWindow() {
     };
   };
 
+  const refreshCurrentGameInstallStatusIfStale = (reason: string) => {
+    void reconcileCurrentGameInstallStatusIfStale(appContext, { reason }).catch(
+      (error) => {
+        logger.warn(
+          `[Main] Deferred game install status refresh failed; reason=${reason}; error=${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
+  };
+
   mainWindow.on("show", () => {
     newsService.setActive(true, getNewsRefreshContext("show"));
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
     syncDebugWindow("MainShow");
+    refreshCurrentGameInstallStatusIfStale("window-show");
   });
   mainWindow.on("hide", () => {
     newsService.setActive(false);
@@ -2281,12 +2416,9 @@ async function createWindow() {
   // Perform initial installation check for ALL contexts
   const checkAllGameStatuses = async () => {
     logger.log("[Main] Checking initial status for all game contexts...");
-
-    for (const { serviceId, gameId } of GAME_INSTALL_STATUS_CONTEXTS) {
-      await reconcileGameInstallStatus(appContext, serviceId, gameId, {
-        reason: "initial-status-check",
-      });
-    }
+    await reconcileAllGameInstallStatuses(appContext, {
+      reason: "initial-status-check",
+    });
   };
 
   // Sync Auto Launch Status
@@ -2311,11 +2443,19 @@ async function createWindow() {
     logger.log("[Main] Window focused.");
     newsService.setActive(true, getNewsRefreshContext("focus"));
     getProcessWatcher()?.cancelSuspension();
+    refreshCurrentGameInstallStatusIfStale("window-focus");
   });
 
   // --- Main Window Loading ---
   if (VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(VITE_DEV_SERVER_URL);
+    let rendererUrl = VITE_DEV_SERVER_URL;
+    const qaRunId = process.env.ELECTRON_QA_RUN_ID;
+    if (process.env.ELECTRON_START_HIDDEN === "true" && qaRunId) {
+      const qaRendererUrl = new URL(rendererUrl);
+      qaRendererUrl.searchParams.set("codexQaRun", qaRunId);
+      rendererUrl = qaRendererUrl.toString();
+    }
+    mainWindow.loadURL(rendererUrl);
   } else {
     mainWindow.loadFile(path.join(process.env.DIST as string, "index.html"));
   }
@@ -3203,6 +3343,19 @@ ipcMain.handle("theme:sync-force", async () => {
 });
 
 app.whenReady().then(async () => {
+  const gamePathDiagnosticQaLaunch = resolveGamePathDiagnosticQaLaunch({
+    isPackaged: app.isPackaged,
+    devServerUrl: VITE_DEV_SERVER_URL,
+    startHidden: process.env.ELECTRON_START_HIDDEN,
+    runId: process.env.ELECTRON_QA_RUN_ID,
+    userDataPath: process.env.ELECTRON_QA_USER_DATA_DIR,
+    fixtureMode: process.env.ELECTRON_QA_GAME_PATH_FIXTURE,
+  });
+  if (gamePathDiagnosticQaLaunch.kind === "active") {
+    await createGamePathDiagnosticQaWindow(gamePathDiagnosticQaLaunch.request);
+    return;
+  }
+
   diagnosticLogStore.initialize(app.getPath("logs"), getLogHistory());
   setupDiagnosticLogSink((payload) => diagnosticLogStore.append(payload));
   registerDiagnosticLogIpc(diagnosticLogStore);

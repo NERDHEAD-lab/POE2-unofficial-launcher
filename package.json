@@ -1,7 +1,7 @@
 {
   "name": "poe2-unofficial-launcher",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Unofficial Launcher for Path of Exile & Path of Exile 2",
   "author": {
     "name": "NERDHEAD LAB",
@@ -16,7 +16,7 @@
   "scripts": {
     "setup": "node -e \"if(!require('fs').existsSync('node_modules')) { require('child_process').execSync('npm install', {stdio: 'inherit'}) }\"",
     "dev": "chcp 65001 && vite",
-    "dev:wsl": "command -v pwsh.exe >/dev/null && PS=pwsh.exe || PS=powershell.exe; \"$PS\" -NoProfile -Command \"chcp 65001; npm run dev\"",
+    "dev:wsl": "node .agents/skills/windows-electron-debugging/scripts/run-hidden-windows.cjs detached --cwd . --stdout .tmp/electron/{runId}.stdout.log --stderr .tmp/electron/{runId}.stderr.log --metadata .tmp/electron/{runId}.metadata.json --ready-file .tmp/electron/{runId}.ready.json --ready-timeout-ms 35000 -- @node scripts/qa/hidden-electron-launch.cjs --ready-file .tmp/electron/{runId}.ready.json --renderer-target http://localhost:54321/ --timeout-ms 30000",
     "dev:crash:immediate": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=IMMEDIATE vite",
     "dev:crash:delayed": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=DELAYED vite",
     "dev:crash:null": "chcp 65001 && cross-env VITE_TEST_CRASH_MODE=NULL_REF vite",
@@ -27,6 +27,7 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
+    "audit:kakao-registry-source": "node scripts/check-kakao-registry-source.cjs",
     "roadmap:issue-body": "node scripts/build-roadmap-issue-body.cjs",
     "roadmap:notice": "node scripts/build-roadmap-notice.cjs",
     "test": "vitest",

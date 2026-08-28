@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GameStatusSyncHandler } from "../events/handlers/GameStatusSyncHandler";
+import { EventType } from "../events/types";
 import {
   getGameStatus,
   isLaunchBlockingStatus,
@@ -8,6 +10,8 @@ import {
   shouldResetStatusOnAutomationWindowClosed,
   updateGameStatusCache,
 } from "../state/GameStatusStore";
+
+import type { AppContext, GameStatusChangeEvent } from "../events/types";
 
 describe("GameStatusStore", () => {
   beforeEach(() => {
@@ -37,6 +41,179 @@ describe("GameStatusStore", () => {
 
     expect(status.timestamp).toBe(Date.now());
     expect(getGameStatus("POE2", "Kakao Games")).toEqual(status);
+  });
+
+  it("preserves install-path health across unrelated runtime status changes", () => {
+    const installPathHealth = {
+      installationStatus: "installed" as const,
+      checkedAt: 100,
+      registryAdvisory: { state: "absent" as const },
+    };
+    updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth,
+    });
+
+    const runtime = updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "running",
+    });
+
+    expect(runtime.installPathHealth).toEqual(installPathHealth);
+  });
+
+  it("lets a completed install reconciliation replace or clear its context health", () => {
+    updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 100,
+        registryAdvisory: { state: "invalid" },
+      },
+    });
+
+    const healthy = updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 200,
+      },
+    });
+
+    expect(healthy.installPathHealth).toEqual({
+      installationStatus: "installed",
+      checkedAt: 200,
+    });
+  });
+
+  it("does not let an older carried snapshot overwrite newer health", () => {
+    updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 200,
+      },
+    });
+
+    const delayedRuntimeEvent = updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "running",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 100,
+        registryAdvisory: { state: "absent" },
+      },
+    });
+
+    expect(delayedRuntimeEvent.installPathHealth).toEqual({
+      installationStatus: "installed",
+      checkedAt: 200,
+    });
+  });
+
+  it("never spreads install-path health to another service or game context", () => {
+    updateGameStatusCache({
+      gameId: "POE1",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 100,
+        registryAdvisory: { state: "unknown" },
+      },
+    });
+
+    expect(
+      updateGameStatusCache({
+        gameId: "POE2",
+        serviceId: "Kakao Games",
+        status: "running",
+      }).installPathHealth,
+    ).toBeUndefined();
+    expect(
+      updateGameStatusCache({
+        gameId: "POE1",
+        serviceId: "GGG",
+        status: "idle",
+      }).installPathHealth,
+    ).toBeUndefined();
+  });
+
+  it("broadcasts the preserved advisory for runtime events and the replaced health for reconciliation events", async () => {
+    const send = vi.fn();
+    const context = {
+      mainWindow: {
+        isDestroyed: () => false,
+        webContents: { send },
+      },
+    } as unknown as AppContext;
+    updateGameStatusCache({
+      gameId: "POE2",
+      serviceId: "Kakao Games",
+      status: "idle",
+      installPathHealth: {
+        installationStatus: "installed",
+        checkedAt: 100,
+        registryAdvisory: { state: "absent" },
+      },
+    });
+
+    await GameStatusSyncHandler.handle(
+      {
+        type: EventType.GAME_STATUS_CHANGE,
+        payload: {
+          gameId: "POE2",
+          serviceId: "Kakao Games",
+          status: "running",
+        },
+      } as GameStatusChangeEvent,
+      context,
+    );
+    expect(send).toHaveBeenLastCalledWith(
+      "game-status-update",
+      expect.objectContaining({
+        status: "running",
+        installPathHealth: expect.objectContaining({
+          registryAdvisory: { state: "absent" },
+        }),
+      }),
+    );
+
+    await GameStatusSyncHandler.handle(
+      {
+        type: EventType.GAME_STATUS_CHANGE,
+        payload: {
+          gameId: "POE2",
+          serviceId: "Kakao Games",
+          status: "idle",
+          installPathHealth: {
+            installationStatus: "installed",
+            checkedAt: 200,
+          },
+        },
+      } as GameStatusChangeEvent,
+      context,
+    );
+    expect(send).toHaveBeenLastCalledWith(
+      "game-status-update",
+      expect.objectContaining({
+        status: "idle",
+        installPathHealth: {
+          installationStatus: "installed",
+          checkedAt: 200,
+        },
+      }),
+    );
   });
 
   it("identifies statuses that keep a launch session active", () => {

@@ -8,11 +8,16 @@ import {
   getDebugLogPreview,
   getExceptionDebugLogs,
 } from "../../shared/debug-log-policy";
-import { DebugLogPayload } from "../../shared/types";
+import { DebugLogPayload, OperationalNotification } from "../../shared/types";
+import { dedupeOperationalNotifications } from "../utils/game-path-registry-warning";
 
 interface WindowControlsProps {
   devMode: boolean;
   debugConsole: boolean;
+  operationalNotifications?: readonly OperationalNotification[];
+  onOperationalNotificationClick?: (
+    notification: OperationalNotification,
+  ) => void;
 }
 
 const DISMISSED_NOTIFICATION_STORAGE_KEY =
@@ -23,6 +28,8 @@ const MAX_VISIBLE_NOTIFICATION_ITEMS = 4;
 const WindowControls: React.FC<WindowControlsProps> = ({
   devMode,
   debugConsole,
+  operationalNotifications = [],
+  onOperationalNotificationClick,
 }) => {
   const [exceptionLogs, setExceptionLogs] = useState<DebugLogPayload[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -88,7 +95,12 @@ const WindowControls: React.FC<WindowControlsProps> = ({
         .reverse(),
     [dismissedNotificationIds, exceptionLogs],
   );
-  const notificationCount = notificationLogs.length;
+  const operationalNotificationItems = useMemo(
+    () => dedupeOperationalNotifications(operationalNotifications),
+    [operationalNotifications],
+  );
+  const notificationCount =
+    notificationLogs.length + operationalNotificationItems.length;
   const shouldScrollNotifications =
     notificationCount >= MAX_VISIBLE_NOTIFICATION_ITEMS;
 
@@ -117,6 +129,13 @@ const WindowControls: React.FC<WindowControlsProps> = ({
       },
     });
     window.dispatchEvent(event);
+    setIsNotificationOpen(false);
+  };
+
+  const handleOpenOperationalNotification = (
+    notification: OperationalNotification,
+  ) => {
+    onOperationalNotificationClick?.(notification);
     setIsNotificationOpen(false);
   };
 
@@ -216,7 +235,7 @@ const WindowControls: React.FC<WindowControlsProps> = ({
             textShadow: "0 0 8px rgba(255, 183, 77, 0.55)",
             position: "relative",
           }}
-          title={`오류 로그 ${notificationCount}건 확인 및 제보`}
+          title={`알림 ${notificationCount}건 확인`}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "rgba(255,183,77,0.12)";
             e.currentTarget.style.color = "#fff";
@@ -286,7 +305,7 @@ const WindowControls: React.FC<WindowControlsProps> = ({
               fontWeight: 700,
             }}
           >
-            <span>오류 알림</span>
+            <span>알림</span>
             <span style={{ color: "#ffb74d", fontSize: "12px" }}>
               {notificationCount}건
             </span>
@@ -299,6 +318,73 @@ const WindowControls: React.FC<WindowControlsProps> = ({
               padding: "6px",
             }}
           >
+            {operationalNotificationItems.map((notification) => (
+              <button
+                key={notification.id}
+                type="button"
+                data-notification-id={notification.id}
+                onClick={() => handleOpenOperationalNotification(notification)}
+                style={{
+                  width: "100%",
+                  minHeight: "76px",
+                  display: "grid",
+                  gridTemplateColumns: "28px 1fr",
+                  gap: "8px",
+                  padding: "10px 8px",
+                  border: "none",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                  borderRadius: "6px",
+                  background: "transparent",
+                  color: "#ddd",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background 0.15s ease",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background =
+                    "rgba(255, 183, 77, 0.1)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                }}
+              >
+                <span
+                  className="material-symbols-outlined"
+                  style={{
+                    color: "#ffb74d",
+                    fontSize: "18px",
+                    lineHeight: "20px",
+                    marginTop: "1px",
+                  }}
+                >
+                  warning
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      color: "#f0d8a8",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      lineHeight: "1.35",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {notification.title}
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      color: "#aaa",
+                      fontSize: "11px",
+                      lineHeight: "1.45",
+                    }}
+                  >
+                    {notification.message}
+                  </span>
+                </span>
+              </button>
+            ))}
             {notificationLogs.map((log) => (
               <div
                 key={getDebugLogNotificationId(log)}
