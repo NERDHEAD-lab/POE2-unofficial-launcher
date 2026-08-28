@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.0...1.6.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* 카카오게임즈로 설치된 게임의 경로 유효성 검토 강화 ([#275](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/275)) ([c2d50de](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c2d50dee2790f07856f1cdd67db958331edb84b3))
+
 ## [1.6.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.5.0...1.6.0) (2026-07-30)
 
 
