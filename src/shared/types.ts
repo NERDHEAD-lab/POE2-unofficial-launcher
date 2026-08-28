@@ -966,6 +966,9 @@ export interface RemoteWebRootPayload {
   fetchedAt: number;
 }
 
+export const UPDATE_DOWNLOAD_FAILURE_MESSAGE =
+  "다운로드를 시작하지 못했습니다. 다시 시도해주세요.";
+
 export type UpdateStatus =
   | { state: "idle" }
   | { state: "checking"; isSilent?: boolean }
@@ -976,7 +979,18 @@ export type UpdateStatus =
       changelogs?: ChangelogItem[];
     }
   | { state: "not-available"; isSilent?: boolean }
-  | { state: "error"; message?: string; isSilent?: boolean }
+  | {
+      state: "requesting";
+      progress: 0;
+      version?: string;
+      isSilent?: boolean;
+    }
+  | {
+      state: "error";
+      message?: string;
+      version?: string;
+      isSilent?: boolean;
+    }
   | {
       state: "downloading";
       progress: number;

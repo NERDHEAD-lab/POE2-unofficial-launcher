@@ -28,9 +28,11 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
 
   const currentVersion = __APP_VERSION__;
   const isAvailable = status.state === "available";
+  const isRequesting = status.state === "requesting";
   const isDownloading = status.state === "downloading";
+  const isDownloadBusy = isRequesting || isDownloading;
   const isDownloaded = status.state === "downloaded";
-  const progress = status.state === "downloading" ? status.progress : 0;
+  const progress = isDownloadBusy ? status.progress : 0;
   const changelogs = isAvailable ? status.changelogs || [] : [];
   const copy = getUpdateModalCopy(status);
 
@@ -39,7 +41,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
       <div className="update-modal-content">
         <h2 className="update-title">
           {copy.title}
-          {!isDownloaded && (
+          {!isDownloaded && version && (
             <span className="update-title-version">
               (v{currentVersion} → v{version})
             </span>
@@ -70,7 +72,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
           )}
         </div>
 
-        {isDownloading && (
+        {isDownloadBusy && (
           <div className="update-progress-wrapper">
             <div className="update-progress-container">
               <div
@@ -103,16 +105,16 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
               </>
             ) : (
               <button
-                className={`btn-update-primary ${isDownloading ? "disabled" : ""}`}
+                className={`btn-update-primary ${isDownloadBusy ? "disabled" : ""}`}
                 onClick={onUpdate}
-                disabled={isDownloading}
+                disabled={isDownloadBusy}
               >
                 {copy.primaryActionText}
               </button>
             )}
           </div>
 
-          {!isDownloading && (
+          {!isDownloadBusy && (
             <div className="update-secondary-actions">
               <button className="btn-update-secondary" onClick={onClose}>
                 나중에 하기

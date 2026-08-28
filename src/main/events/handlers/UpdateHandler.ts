@@ -2,7 +2,10 @@ import axios from "axios";
 import { app } from "electron";
 import { autoUpdater } from "electron-updater";
 
-import { UpdateStatus } from "../../../shared/types";
+import {
+  UPDATE_DOWNLOAD_FAILURE_MESSAGE,
+  UpdateStatus,
+} from "../../../shared/types";
 import { changelogService } from "../../services/ChangelogService";
 import { logger } from "../../utils/logger";
 import { PowerShellManager } from "../../utils/powershell";
@@ -23,6 +26,11 @@ autoUpdater.autoInstallOnAppQuit = true;
 let isListenerAttached = false;
 let currentCheckIsSilent = false;
 let lastEmittedPercent = -1; // For throttling progress updates
+let lastVersionInfo = "";
+let downloadLifecycle: "idle" | "active" | "failed" | "downloaded" = "idle";
+
+const isDownloadInProgress = () => downloadLifecycle === "active";
+const isDownloadLifecycleOwned = () => downloadLifecycle !== "idle";
 
 const TRANSIENT_UPDATE_HTTP_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 const UPDATE_NETWORK_ERROR_CODES = new Set([
@@ -125,17 +133,42 @@ const sendStatus = (context: AppContext, status: UpdateStatus) => {
   }
 };
 
+const handleDownloadFailure = (context: AppContext, error: unknown) => {
+  if (!isDownloadInProgress()) return;
+
+  downloadLifecycle = "failed";
+  lastEmittedPercent = -1;
+
+  if (isExpectedUpdateNetworkError(error)) {
+    warnExpectedUpdateNetworkError(
+      "Update download",
+      error,
+      "The user can retry the download.",
+    );
+  } else {
+    logger.error("[UpdateHandler] Failed to download update:", error);
+  }
+
+  sendStatus(context, {
+    state: "error",
+    message: UPDATE_DOWNLOAD_FAILURE_MESSAGE,
+    version: lastVersionInfo,
+  });
+};
+
 const attachUpdateListeners = (context: AppContext) => {
   if (isListenerAttached) return;
 
   autoUpdater.on("checking-for-update", () => {
+    if (isDownloadLifecycleOwned()) return;
+
     logger.log("[UpdateHandler] Checking for updates...");
     sendStatus(context, { state: "checking" });
   });
 
-  let lastVersionInfo = "";
-
   autoUpdater.on("update-available", async (info) => {
+    if (isDownloadLifecycleOwned()) return;
+
     lastVersionInfo = info.version; // Store version for progress updates
     logger.log(
       `[UpdateHandler] Update available: ${info.version} (Current: ${app.getVersion()}, Silent: ${currentCheckIsSilent})`,
@@ -147,6 +180,8 @@ const attachUpdateListeners = (context: AppContext) => {
       app.getVersion(),
     );
 
+    if (isDownloadLifecycleOwned()) return;
+
     sendStatus(context, {
       state: "available",
       version: info.version,
@@ -155,6 +190,8 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("update-not-available", (info) => {
+    if (isDownloadLifecycleOwned()) return;
+
     logger.log(
       `[UpdateHandler] Update not available. (Current: ${app.getVersion()}, Latest: ${info.version})`,
     );
@@ -162,6 +199,13 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("error", (err) => {
+    if (isDownloadLifecycleOwned()) {
+      // electron-updater emits this event before downloadUpdate() rejects.
+      // The request promise owns download failure reporting so overlapping
+      // or stale update-check errors cannot downgrade download-owned state.
+      return;
+    }
+
     if (isExpectedUpdateNetworkError(err)) {
       warnExpectedUpdateNetworkError(
         "Update check",
@@ -191,6 +235,7 @@ const attachUpdateListeners = (context: AppContext) => {
   autoUpdater.on("update-downloaded", (info) => {
     logger.log(`[UpdateHandler] Update downloaded: ${info.version}`);
     sendStatus(context, { state: "downloaded", version: info.version });
+    downloadLifecycle = "downloaded";
     lastEmittedPercent = -1; // Reset for next time
   });
 
@@ -279,6 +324,13 @@ export const triggerUpdateCheck = async (
   context: AppContext,
   isSilent = false,
 ) => {
+  if (isDownloadLifecycleOwned()) {
+    logger.log(
+      "[UpdateHandler] Skipping update check in download-owned state.",
+    );
+    return;
+  }
+
   if (!app.isPackaged || process.env.VITE_DEV_SERVER_URL) {
     logger.log(`[UpdateHandler] Skipping update check in development mode.`);
     return;
@@ -330,10 +382,27 @@ export const UpdateDownloadHandler: EventHandler<UIUpdateDownloadEvent> = {
   condition: () => true,
 
   handle: async (_event, context: AppContext) => {
+    if (isDownloadInProgress() || downloadLifecycle === "downloaded") {
+      logger.log("[UpdateHandler] Ignoring duplicate download request.");
+      return;
+    }
+
+    downloadLifecycle = "active";
+    lastEmittedPercent = -1;
     logger.log("[UpdateHandler] Requesting download...");
     currentCheckIsSilent = false; // Downloading is usually explicit
-    attachUpdateListeners(context);
-    await autoUpdater.downloadUpdate();
+
+    try {
+      attachUpdateListeners(context);
+      sendStatus(context, {
+        state: "requesting",
+        progress: 0,
+        version: lastVersionInfo,
+      });
+      await autoUpdater.downloadUpdate();
+    } catch (error) {
+      handleDownloadFailure(context, error);
+    }
   },
 };
 

@@ -19,6 +19,20 @@ describe("getUpdateModalCopy", () => {
     });
   });
 
+  it("shows preparation copy while the download request is starting", () => {
+    expect(
+      getUpdateModalCopy({
+        state: "requesting",
+        progress: 0,
+        version: "1.4.2",
+      }),
+    ).toMatchObject({
+      title: "업데이트 다운로드 중...",
+      messageLines: ["다운로드 준비 중..."],
+      primaryActionText: "다운로드 준비 중...",
+    });
+  });
+
   it("describes progress while the update is downloading", () => {
     expect(
       getUpdateModalCopy({
@@ -49,6 +63,20 @@ describe("getUpdateModalCopy", () => {
         "런처를 재시작하여 설치를 완료할까요?",
       ],
       primaryActionText: "재시작하여 설치",
+    });
+  });
+
+  it("offers a retry after the download request fails", () => {
+    expect(
+      getUpdateModalCopy({
+        state: "error",
+        message: "다운로드를 시작하지 못했습니다. 다시 시도해주세요.",
+        version: "1.4.2",
+      }),
+    ).toMatchObject({
+      title: "업데이트 다운로드 실패",
+      messageLines: ["다운로드를 시작하지 못했습니다. 다시 시도해주세요."],
+      primaryActionText: "다시 시도",
     });
   });
 });
