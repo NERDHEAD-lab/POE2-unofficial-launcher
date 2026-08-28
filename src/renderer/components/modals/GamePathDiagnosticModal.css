@@ -12,7 +12,10 @@
 
 .game-path-modal {
   position: relative;
-  width: min(960px, calc(100vw - 80px));
+  display: flex;
+  flex-direction: column;
+  width: min(960px, calc((100vw - 80px) / var(--app-scale, 1)));
+  max-height: calc((100vh - 48px) / var(--app-scale, 1));
   overflow: hidden;
   border: 1px solid rgba(223, 207, 153, 0.22);
   border-radius: 8px;
@@ -23,7 +26,17 @@
   animation: gamePathContentIn 0.18s ease-out;
 }
 
+.game-path-modal-background {
+  display: contents;
+}
+
+.game-path-modal-background[inert] > * {
+  pointer-events: none;
+  user-select: none;
+}
+
 .game-path-modal-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -182,6 +195,9 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
 }
 
 .game-path-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 20px 22px 22px;
   background: #151515;
 }
@@ -361,6 +377,116 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   overflow-wrap: anywhere;
 }
 
+.game-path-registry-candidates {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+
+.game-path-registry-candidate {
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.game-path-registry-candidate.is-active {
+  border-color: rgba(64, 192, 87, 0.42);
+  background: rgba(64, 192, 87, 0.055);
+}
+
+.game-path-registry-candidate.is-unknown {
+  border-color: rgba(255, 171, 0, 0.32);
+}
+
+.game-path-registry-candidate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-path-registry-candidate-head > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.game-path-candidate-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(250, 82, 82, 0.36);
+  border-radius: 4px;
+  background: rgba(185, 63, 63, 0.16);
+  color: #ff9b9b;
+  cursor: pointer;
+}
+
+.game-path-candidate-delete .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.game-path-candidate-delete:hover:not(:disabled) {
+  border-color: rgba(250, 82, 82, 0.62);
+  background: rgba(185, 63, 63, 0.3);
+}
+
+.game-path-candidate-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.game-path-registry-candidate-head strong {
+  color: #ddd;
+  font-size: 11px;
+}
+
+.game-path-registry-candidate-head strong:focus-visible {
+  outline: 2px solid rgba(223, 207, 153, 0.62);
+  outline-offset: 3px;
+}
+
+.game-path-registry-candidate-head span {
+  color: #999;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.game-path-registry-candidate-head span.is-valid {
+  color: #40c057;
+}
+
+.game-path-registry-candidate-head span.is-invalid {
+  color: #fa7070;
+}
+
+.game-path-registry-candidate-head span.is-empty,
+.game-path-registry-candidate-head span.is-unknown {
+  color: #ffb83d;
+}
+
+.game-path-registry-candidate-path {
+  margin-top: 5px;
+  color: #bbb;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.game-path-registry-candidate-path.is-empty {
+  color: #777;
+  font-family: var(--launcher-font-family);
+}
+
 .game-path-option-actions {
   display: flex;
   gap: 8px;
@@ -389,6 +515,32 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   border: 1px solid rgba(223, 207, 153, 0.14);
   border-radius: 8px;
   background: rgba(223, 207, 153, 0.045);
+}
+
+.game-path-registry-register-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 171, 0, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 171, 0, 0.055);
+}
+
+.game-path-registry-register-row strong {
+  display: block;
+  color: #ffd27a;
+  font-size: 13px;
+}
+
+.game-path-registry-register-row span {
+  display: block;
+  margin-top: 3px;
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .game-path-manual-row.is-highlighted {
@@ -431,6 +583,7 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
 }
 
 .game-path-modal-footer {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -520,16 +673,14 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   border: 1px solid rgba(255, 171, 0, 0.44);
   border-radius: 8px;
   background:
-    linear-gradient(rgba(255, 171, 0, 0.055), rgba(255, 171, 0, 0.02)),
-    #181818;
+    linear-gradient(rgba(255, 171, 0, 0.055), rgba(255, 171, 0, 0.02)), #181818;
   box-shadow: 0 24px 58px rgba(0, 0, 0, 0.72);
 }
 
 .game-path-confirm-dialog.is-danger {
   border-color: rgba(250, 82, 82, 0.52);
   background:
-    linear-gradient(rgba(250, 82, 82, 0.06), rgba(250, 82, 82, 0.02)),
-    #181818;
+    linear-gradient(rgba(250, 82, 82, 0.06), rgba(250, 82, 82, 0.02)), #181818;
 }
 
 .game-path-confirm-icon {
@@ -607,6 +758,256 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   margin-top: 4px;
 }
 
+.game-path-target-overlay {
+  z-index: 30;
+  padding: 18px;
+}
+
+.game-path-target-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(660px, 100%);
+  max-height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(223, 207, 153, 0.4);
+  border-radius: 8px;
+  background: #181818;
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.76);
+}
+
+.game-path-target-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(105deg, rgba(223, 207, 153, 0.08), transparent);
+}
+
+.game-path-target-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #8f8465;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.game-path-target-header h3 {
+  margin: 0;
+  color: #f1dca4;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.game-path-target-header > .material-symbols-outlined {
+  color: var(--theme-accent, #dfcf99);
+  font-size: 28px;
+}
+
+.game-path-target-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr);
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 14px 20px 10px;
+}
+
+.game-path-target-context > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.game-path-target-context span {
+  display: block;
+  margin-bottom: 4px;
+  color: #818181;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.game-path-target-context strong {
+  display: block;
+  color: #ddd;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.game-path-target-context .game-path-target-selected-path {
+  grid-column: 1 / -1;
+}
+
+.game-path-target-selected-path strong {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.game-path-target-list,
+.game-path-target-results {
+  min-height: 0;
+  margin: 0;
+  padding: 10px 20px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0;
+}
+
+.game-path-target-list legend {
+  margin-bottom: 7px;
+  padding: 0;
+  color: #aaa;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.game-path-target-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  margin-top: 7px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+}
+
+.game-path-target-option:has(input:checked) {
+  border-color: rgba(223, 207, 153, 0.42);
+  background: rgba(223, 207, 153, 0.07);
+}
+
+.game-path-target-option:focus-within {
+  outline: 2px solid rgba(223, 207, 153, 0.62);
+  outline-offset: 2px;
+}
+
+.game-path-target-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.game-path-target-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--theme-accent, #dfcf99);
+}
+
+.game-path-target-checkmark {
+  display: none;
+}
+
+.game-path-target-option-copy {
+  min-width: 0;
+}
+
+.game-path-target-option-copy strong,
+.game-path-target-option-copy span {
+  display: block;
+}
+
+.game-path-target-option-copy strong {
+  color: #dedede;
+  font-size: 12px;
+}
+
+.game-path-target-option-copy span {
+  margin-top: 4px;
+  color: #888;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.game-path-target-count {
+  display: block;
+  margin-top: 9px;
+  color: #9d9274;
+  font-size: 11px;
+  text-align: right;
+}
+
+.game-path-target-results > strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #ddd;
+  font-size: 12px;
+}
+
+.game-path-target-results ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-path-target-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  color: #bbb;
+  font-size: 11px;
+}
+
+.game-path-target-results li.is-applied strong,
+.game-path-target-results li.is-unchanged strong {
+  color: #62cf75;
+}
+
+.game-path-target-results li.is-failed strong {
+  color: #ff8787;
+}
+
+.game-path-nested-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 20px 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(250, 82, 82, 0.34);
+  border-radius: 5px;
+  background: rgba(250, 82, 82, 0.09);
+  color: #ff9b9b;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.game-path-confirm-paths > .game-path-nested-error {
+  margin: 0;
+}
+
+.game-path-nested-error .material-symbols-outlined {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.game-path-target-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #121212;
+}
+
 .game-path-modal .shared-toast.visible {
   animation: gamePathToastLifecycle 2.5s ease forwards;
 }
@@ -663,11 +1064,12 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
 
 @media (max-width: 680px) {
   .game-path-modal {
-    width: min(640px, 92vw);
+    width: min(640px, calc(92vw / var(--app-scale, 1)));
   }
 
   .game-path-modal-header,
-  .game-path-manual-row {
+  .game-path-manual-row,
+  .game-path-registry-register-row {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -696,5 +1098,31 @@ img.game-path-channel-logo[alt="Grinding Gear Games"] {
   .game-path-confirm-actions {
     justify-content: stretch;
     flex-direction: column;
+  }
+
+  .game-path-target-context {
+    grid-template-columns: 1fr;
+  }
+
+  .game-path-target-context .game-path-target-selected-path {
+    grid-column: auto;
+  }
+
+  .game-path-target-actions {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-path-modal-overlay,
+  .game-path-modal,
+  .game-path-manual-row.is-highlighted,
+  .game-path-modal .shared-toast.visible {
+    animation: none;
+  }
+
+  .game-path-action,
+  .game-path-context-trigger .material-symbols-outlined {
+    transition: none;
   }
 }

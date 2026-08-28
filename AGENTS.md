@@ -166,31 +166,37 @@ in its area:
   `docs/Roadmap.md` (CI-synced to Issue #7 + gh-pages notice, public
   wording gate); dev-internal (tooling/build/CI/refactor/tech debt/agent
   workflow) → root `AGENTS-ROADMAP.md` (not CI-coupled).
-- `windows-electron-debugging` — debugging/visually verifying the launcher
-  (pwsh `npm run dev`, CDP capture, page dumps, real Electron screenshots —
-  never WSL/mock-browser verification).
+- `windows-electron-debugging` — **mandatory single owner** for every
+  WSL→Windows command (tests/lint/build/dev), hidden process lifecycle, Electron
+  runtime/CDP/screenshots and cleanup. Read it before any Windows execution.
 - `github-cli-token` — see above.
 
 ### Windows Electron QA visibility
 
-- Agent-driven Electron QA defaults to hidden, non-focus-stealing execution.
-  Set `ELECTRON_START_HIDDEN=true` and an isolated
-  `ELECTRON_QA_USER_DATA_DIR=<temporary absolute Windows path>` before
-  `npm run dev`, then use CDP against the real launcher target for
-  interaction, DOM inspection, and screenshots.
-- Never point `ELECTRON_QA_USER_DATA_DIR` at the user's normal launcher data
-  directory. Remove the temporary QA profile after the hidden instance exits.
-- Agent-started Windows QA terminals and console hosts must also stay hidden.
-  Run synchronous PowerShell commands through WSL interop without opening a
-  terminal UI. For detached or long-running Vite/Electron processes, use
-  `Start-Process -WindowStyle Hidden` and redirect stdout/stderr to temporary
-  log files so no PowerShell, cmd, or console window is shown or focused.
-- Hidden execution does not weaken the real-Windows requirement: Electron,
-  preload, IPC, terminal logs, and the actual renderer target must still be
-  used.
+- Agent-driven Windows commands and Electron QA must follow the mandatory
+  `windows-electron-debugging` skill from first WSL interop through exact owned
+  cleanup. Do not substitute a second launcher or direct Windows interop.
+- Electron QA must remain hidden, use the real app, and use an isolated
+  temporary profile rather than the user's launcher profile.
 - Show or focus a QA window only when the behavior cannot be verified while
   hidden. Explain why and obtain the user's confirmation before making it
   visible.
+
+Project-specific recipes (after reading the skill):
+
+- Repository cwd: `/mnt/d/project_poe2/POE2-unofficial-launcher` ↔
+  `D:\project_poe2\POE2-unofficial-launcher`.
+- Hidden launcher variables: `ELECTRON_START_HIDDEN`, `ELECTRON_QA_RUN_ID`,
+  `ELECTRON_REMOTE_DEBUGGING_PORT`, `ELECTRON_QA_USER_DATA_DIR`.
+- Renderer target: `http://localhost:54321/`; project CDP capture script:
+  `scripts/qa/cdp-capture.cjs` (`CDP_PORT`, `CDP_TARGET_URL`, `CDP_OUTPUT`).
+- `dev:wsl` uses `scripts/qa/hidden-electron-launch.cjs`; it selects a unique CDP
+  port and succeeds only when its owned child exposes the run-marked exact
+  renderer target. Its default isolated profile is outside the repository under
+  `%TEMP%\poe2-unofficial-launcher-codex-qa\<runId>`; ready evidence records the
+  absolute profile path and matching run ownership marker.
+- Kakao dump source: `%TEMP%\poe2-unofficial-launcher\kakao-page-dumps`;
+  preserve selected evidence only under this repository's `.tmp` directory.
 
 ## WSL execution rules (detect at session start)
 
@@ -199,19 +205,19 @@ development primary (edit/git/inspection) and Windows is the build/run
 primary (Electron + actual POE/POE2 game test, which Linux cannot run).
 Both OSes share the same `node_modules` under `D:\project_poe2\POE2-unofficial-launcher\`.
 
-Split commands by where they belong:
+Split work by where it belongs:
 
 - WSL bash, direct: pure Node scripts only (e.g. `node -e ...` hypothesis
   checks). **eslint/vitest both require Linux-native binaries
   (`unrs-resolver`, `@rolldown/binding-linux-x64-gnu`) that are absent in
   this shared `node_modules` — they fail in WSL; do not try.**
-- Windows PowerShell, never WSL: `npm install`, `npm ci`, `npm run build`,
-  `npm run build:check`, `npm run dev`, `npm run lint`, `npm run lint:fix`, `npm test`.
-  - Prefer `pwsh.exe` (PowerShell 7); fall back to `powershell.exe` (5.1) if absent.
-  - Detect: `command -v pwsh.exe >/dev/null && PS=pwsh.exe || PS=powershell.exe`
-  - Invoke: `"$PS" -NoProfile -Command "cd 'D:\project_poe2\POE2-unofficial-launcher'; npm run <script>"`
-  - On failure (e.g. native module mismatch), fall back to asking the user
-    to run it on Windows.
+- Windows: `npm install`, `npm ci`, tests, lint, build, dev, Electron, CDP and
+  Windows-only probes. From WSL, read and follow
+  `.agents/skills/windows-electron-debugging/SKILL.md`; it owns the exact
+  hidden runner invocation, sync/detached modes, logs, timeouts and cleanup.
+- Do not improvise a second WSL→Windows launcher or bypass the runner after a
+  failure. Report the actionable runner failure or ask the user to execute the
+  command in an already-visible Windows terminal.
 
 Why `npm install`/`npm ci` must not run in WSL: WSL's npm writes only POSIX
 symlinks under `node_modules/.bin/` and does not create the Windows wrappers
@@ -221,7 +227,8 @@ dependencies need reinstalling (lock conflict, native binding error,
 pre-commit hook failing on unrs-resolver, etc.), ask the user to run
 `npm ci` from Windows pwsh — do not auto-repair from WSL.
 
-The pre-commit hook works in WSL: `.husky/pre-commit` detects WSL and delegates
+The pre-commit hook is the sole direct-interop exception: `.husky/pre-commit`
+detects WSL and internally delegates
 lint-staged to Windows pwsh (path via `wslpath -w`), so `git commit` from WSL
 passes without `--no-verify` while still running eslint/prettier through the
 Windows `node_modules` (#241). If pwsh/`wslpath` are missing it fails closed

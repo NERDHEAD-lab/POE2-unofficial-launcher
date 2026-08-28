@@ -136,6 +136,174 @@ export type GameInstallPathRegistryState =
 export type GameInstallPathConfigState =
   "found" | "empty" | "context-unavailable";
 
+export type GameInstallPathTargetId =
+  "registry-primary" | "registry-compatibility" | "config";
+
+export type GameInstallPathRegistryTargetId = Exclude<
+  GameInstallPathTargetId,
+  "config"
+>;
+
+export type GameInstallPathTargetSnapshot =
+  | {
+      readonly targetId: GameInstallPathRegistryTargetId;
+      readonly currentPath: string | null;
+      readonly registryState: GameInstallPathRegistryState;
+    }
+  | {
+      readonly targetId: "config";
+      readonly currentPath: string | null;
+    };
+
+export type GameInstallPathTargetApplyStatus =
+  "applied" | "unchanged" | "failed";
+
+export type GameInstallPathTargetApplyFailureCode =
+  | "target-not-allowed"
+  | "invalid-snapshot"
+  | "install-path-empty"
+  | "install-path-invalid"
+  | "install-path-check-failed"
+  | "target-read-failed"
+  | "target-changed"
+  | "selection-invalidated"
+  | "context-unavailable"
+  | "mutation-failed"
+  | "readback-failed";
+
+export type GameInstallPathTargetApplyResult =
+  | {
+      readonly targetId: GameInstallPathTargetId;
+      readonly status: Exclude<GameInstallPathTargetApplyStatus, "failed">;
+      readonly path: string;
+    }
+  | {
+      readonly targetId: GameInstallPathTargetId;
+      readonly status: "failed";
+      readonly code: GameInstallPathTargetApplyFailureCode;
+      readonly retryable: boolean;
+    };
+
+export type GameInstallPathSelectionTargetDisabledReason =
+  "target-read-failed" | "target-completed";
+
+export interface GameInstallPathSelectionTargetDescriptor {
+  readonly targetId: GameInstallPathTargetId;
+  readonly currentPath: string | null;
+  readonly selectedByDefault: boolean;
+  readonly completed: boolean;
+  readonly disabled: boolean;
+  readonly disabledReason?: GameInstallPathSelectionTargetDisabledReason;
+  readonly registryPath?: string;
+  readonly registryValueName?: string;
+}
+
+export interface GameInstallPathSelectionDescriptor {
+  readonly selectionId: string;
+  readonly serviceId: AppConfig["serviceChannel"];
+  readonly gameId: AppConfig["activeGame"];
+  readonly path: string;
+  readonly targets: readonly GameInstallPathSelectionTargetDescriptor[];
+}
+
+export type GameInstallPathSelectionResult =
+  | {
+      readonly ok: true;
+      readonly status: "selected";
+      readonly selection: GameInstallPathSelectionDescriptor;
+    }
+  | {
+      readonly ok: false;
+      readonly status: "canceled";
+    }
+  | {
+      readonly ok: false;
+      readonly status: "invalid";
+      readonly code:
+        | "install-path-empty"
+        | "install-path-invalid"
+        | "install-path-check-failed";
+      readonly verification: "missing" | "unknown";
+    }
+  | {
+      readonly ok: false;
+      readonly status: "unavailable";
+      readonly code: "selection-id-unavailable";
+    };
+
+export interface GameInstallPathSelectionApplyRequest {
+  readonly selectionId: string;
+  readonly targetIds: readonly GameInstallPathTargetId[];
+}
+
+export type GameInstallPathSelectionBatchFailureCode =
+  | "selection-not-found"
+  | "selection-expired"
+  | "selection-owner-mismatch"
+  | "selection-busy"
+  | "selection-invalidated"
+  | "invalid-target-ids"
+  | "duplicate-target-ids"
+  | "target-not-allowed"
+  | "target-completed";
+
+export type GameInstallPathSelectionBatchResult =
+  | {
+      readonly ok: false;
+      readonly overall: "failed";
+      readonly failureCode: GameInstallPathSelectionBatchFailureCode;
+      readonly results: readonly [];
+      readonly retryableTargetIds: readonly [];
+    }
+  | {
+      readonly ok: boolean;
+      readonly overall: "partial" | "failed";
+      readonly failureCode: "selection-invalidated";
+      readonly results: readonly GameInstallPathTargetApplyResult[];
+      readonly retryableTargetIds: readonly [];
+    }
+  | {
+      readonly ok: boolean;
+      readonly overall: "success" | "partial" | "failed";
+      readonly results: readonly GameInstallPathTargetApplyResult[];
+      readonly retryableTargetIds: readonly GameInstallPathTargetId[];
+      readonly diagnostics: GameInstallPathDiagnostics;
+      readonly selection: GameInstallPathSelectionDescriptor;
+    };
+
+export interface GameInstallPathRegistryTargetDeleteRequest {
+  readonly targetId: GameInstallPathRegistryTargetId;
+  readonly expectedPath: string;
+}
+
+export type GameInstallPathRegistryTargetDeleteFailureCode =
+  | "target-not-allowed"
+  | "expected-path-empty"
+  | "target-changed"
+  | "target-missing"
+  | "target-read-failed"
+  | "mutation-failed"
+  | "readback-failed";
+
+export type GameInstallPathRegistryTargetDeleteResult =
+  | {
+      readonly targetId: GameInstallPathRegistryTargetId;
+      readonly status: "deleted" | "unchanged";
+    }
+  | {
+      readonly targetId: GameInstallPathRegistryTargetId;
+      readonly status: "failed";
+      readonly code: GameInstallPathRegistryTargetDeleteFailureCode;
+      readonly retryable: boolean;
+    };
+
+export interface GameInstallPathRegistryTargetDeleteActionResult {
+  readonly ok: boolean;
+  readonly source: "registry";
+  readonly result: GameInstallPathRegistryTargetDeleteResult;
+  readonly diagnostics: GameInstallPathDiagnostics;
+}
+
 export interface GameInstallPathConfigDiagnostic {
   source: "config";
   path: string | null;
@@ -154,6 +322,23 @@ export interface GameInstallPathRegistryDiagnostic {
   error?: string;
   registryPath: string;
   registryValueName: string;
+  aggregateState: GameInstallPathRegistryAggregateState;
+  candidates: GameInstallPathRegistryCandidateDiagnostic[];
+}
+
+export type GameInstallPathRegistryAggregateState =
+  "valid" | "absent" | "invalid" | "unknown";
+
+export interface GameInstallPathRegistryCandidateDiagnostic {
+  readonly targetId: GameInstallPathRegistryTargetId;
+  path: string | null;
+  state: GameInstallPathRegistryState;
+  verification: GameInstallPathVerificationStatus;
+  executablePath?: string;
+  error?: string;
+  registryPath: string;
+  registryValueName: string;
+  isActive: boolean;
 }
 
 export interface GameInstallPathDiagnostics {
@@ -171,6 +356,22 @@ export type GameInstallPathConflictAction =
   "launcher-config-only" | "sync-registry";
 
 export type GameInstallPathClearSource = "config" | "registry";
+
+export interface GameInstallPathRegistryTarget {
+  registryPath: string;
+  registryValueName: string;
+  expectedPath: string;
+}
+
+export interface GameInstallPathConflictTarget {
+  readonly targetId: GameInstallPathRegistryTargetId;
+  readonly expectedPath: string;
+  readonly expectedConfigPath: string;
+}
+
+export interface GameInstallPathRegisterRequest {
+  expectedConfigPath: string;
+}
 
 export type GameInstallPathSaveResult =
   | {
@@ -215,6 +416,34 @@ export type GameInstallPathConflictResolveResult =
       error?: string;
       diagnostics?: GameInstallPathDiagnostics;
     };
+
+export type GameInstallPathRegisterResult =
+  | {
+      ok: true;
+      path: string;
+      registryPath: string;
+      registryValueName: string;
+      diagnostics: GameInstallPathDiagnostics;
+    }
+  | {
+      ok: false;
+      path?: string;
+      verification: GameInstallPathVerificationStatus;
+      error?: string;
+      diagnostics?: GameInstallPathDiagnostics;
+    };
+
+export interface OperationalNotification {
+  id: string;
+  contextKey: string;
+  level: "warn";
+  tone: "amber";
+  title: string;
+  message: string;
+  serviceId: AppConfig["serviceChannel"];
+  gameId: AppConfig["activeGame"];
+  action: "open-game-path-diagnostic";
+}
 
 export interface PatchReservation {
   id: string; // 고유 ID (UUID 또는 timestamp)
@@ -308,6 +537,19 @@ export interface GameStatusState {
   status: RunStatus;
   errorCode?: string;
   timestamp?: number;
+  installPathHealth?: GameInstallPathHealth;
+}
+
+export type GameInstallationStatus = "installed" | "uninstalled" | "unknown";
+
+export interface GameInstallPathRegistryAdvisory {
+  state: Exclude<GameInstallPathRegistryAggregateState, "valid">;
+}
+
+export interface GameInstallPathHealth {
+  installationStatus: GameInstallationStatus;
+  checkedAt: number;
+  registryAdvisory?: GameInstallPathRegistryAdvisory;
 }
 
 export interface FileProgress {
@@ -507,20 +749,34 @@ export interface ElectronAPI {
     gameId: AppConfig["activeGame"],
     installPath: string,
   ) => Promise<GameInstallPathSaveResult>;
-  pickGameInstallPath: (
+  pickGameInstallPathTargets: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ) => Promise<GameInstallPathSaveResult>;
+  ) => Promise<GameInstallPathSelectionResult>;
+  applyGameInstallPathTargets: (
+    selectionId: string,
+    targetIds: readonly GameInstallPathTargetId[],
+  ) => Promise<GameInstallPathSelectionBatchResult>;
   resolveGameInstallPathConflict: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: GameInstallPathConflictAction,
+    registryTarget: GameInstallPathConflictTarget,
   ) => Promise<GameInstallPathConflictResolveResult>;
   clearGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    source: GameInstallPathClearSource,
   ) => Promise<GameInstallPathClearResult>;
+  deleteGameInstallPathRegistryTarget: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegistryTargetDeleteRequest,
+  ) => Promise<GameInstallPathRegistryTargetDeleteActionResult>;
+  registerGameInstallPath: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ) => Promise<GameInstallPathRegisterResult>;
   minimizeWindow: () => void;
   closeWindow: () => void;
   getConfig: (
@@ -535,7 +791,9 @@ export interface ElectronAPI {
     callback: (key: string, value: unknown) => void,
   ) => () => void;
   onProgressMessage?: (callback: (text: string) => void) => void; // Deprecated
-  onGameStatusUpdate?: (callback: (status: GameStatusState) => void) => void;
+  onGameStatusUpdate?: (
+    callback: (status: GameStatusState) => void,
+  ) => () => void;
   onDebugLog?: (callback: (log: DebugLogPayload) => void) => () => void;
   onExceptionLog?: (callback: (log: DebugLogPayload) => void) => () => void;
   onPatchProgress?: (callback: (progress: PatchProgress) => void) => () => void; // New

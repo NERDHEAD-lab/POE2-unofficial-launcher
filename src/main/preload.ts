@@ -19,11 +19,18 @@ import {
   KakaoMaintenanceInfo,
   KakaoGameStarterMigrationRequest,
   GameInstallPathConflictAction,
+  GameInstallPathConflictTarget,
   GameInstallPathConflictResolveResult,
   GameInstallPathClearResult,
-  GameInstallPathClearSource,
   GameInstallPathDiagnostics,
+  GameInstallPathRegistryTargetDeleteActionResult,
+  GameInstallPathRegistryTargetDeleteRequest,
+  GameInstallPathRegisterRequest,
+  GameInstallPathRegisterResult,
   GameInstallPathSaveResult,
+  GameInstallPathSelectionBatchResult,
+  GameInstallPathSelectionResult,
+  GameInstallPathTargetId,
   FatalErrorPayload,
   LauncherLogAvailability,
   LauncherLogSaveResult,
@@ -50,28 +57,59 @@ contextBridge.exposeInMainWorld("electronAPI", {
     installPath: string,
   ): Promise<GameInstallPathSaveResult> =>
     ipcRenderer.invoke("game-install-path:set", serviceId, gameId, installPath),
-  pickGameInstallPath: (
+  pickGameInstallPathTargets: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ): Promise<GameInstallPathSaveResult> =>
-    ipcRenderer.invoke("game-install-path:pick", serviceId, gameId),
+  ): Promise<GameInstallPathSelectionResult> =>
+    ipcRenderer.invoke("game-install-path:pick-targets", serviceId, gameId),
+  applyGameInstallPathTargets: (
+    selectionId: string,
+    targetIds: readonly GameInstallPathTargetId[],
+  ): Promise<GameInstallPathSelectionBatchResult> =>
+    ipcRenderer.invoke("game-install-path:apply-targets", {
+      selectionId,
+      targetIds,
+    }),
   resolveGameInstallPathConflict: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     action: GameInstallPathConflictAction,
+    registryTarget: GameInstallPathConflictTarget,
   ): Promise<GameInstallPathConflictResolveResult> =>
     ipcRenderer.invoke(
       "game-install-path:resolve-conflict",
       serviceId,
       gameId,
       action,
+      registryTarget,
     ),
   clearGameInstallPath: (
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    source: GameInstallPathClearSource,
   ): Promise<GameInstallPathClearResult> =>
-    ipcRenderer.invoke("game-install-path:clear", serviceId, gameId, source),
+    ipcRenderer.invoke("game-install-path:clear-config", serviceId, gameId),
+  deleteGameInstallPathRegistryTarget: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegistryTargetDeleteRequest,
+  ): Promise<GameInstallPathRegistryTargetDeleteActionResult> =>
+    ipcRenderer.invoke(
+      "game-install-path:delete-registry-target",
+      serviceId,
+      gameId,
+      request,
+    ),
+  registerGameInstallPath: (
+    serviceId: AppConfig["serviceChannel"],
+    gameId: AppConfig["activeGame"],
+    request: GameInstallPathRegisterRequest,
+  ): Promise<GameInstallPathRegisterResult> =>
+    ipcRenderer.invoke(
+      "game-install-path:register",
+      serviceId,
+      gameId,
+      request,
+    ),
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   closeWindow: () => ipcRenderer.send("window-close"),
   getConfig: (
@@ -93,7 +131,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("message-progress", (_event, text) => callback(text));
   },
   onGameStatusUpdate: (callback: (status: GameStatusState) => void) => {
-    ipcRenderer.on("game-status-update", (_event, status) => callback(status));
+    const handler = (_event: IpcRendererEvent, status: GameStatusState) =>
+      callback(status);
+    ipcRenderer.on("game-status-update", handler);
+    return () => ipcRenderer.off("game-status-update", handler);
   },
   getGameStatus: (gameId: string, serviceId: string) =>
     ipcRenderer.invoke("game:get-status", gameId, serviceId),
