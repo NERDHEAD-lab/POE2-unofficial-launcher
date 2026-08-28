@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.1...1.6.2) (2026-08-28)
+
+
+### Bug Fixes
+
+* 업데이트 다운로드 요청 직후 진행 상태를 표시하도록 개선 ([#263](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/263)) ([0a03bda](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0a03bda38cc8af96ec1950584ac72e13a499d935))
+
 ## [1.6.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.0...1.6.1) (2026-08-28)
 
 
