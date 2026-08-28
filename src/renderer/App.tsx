@@ -2322,6 +2322,7 @@ function App() {
   // --- Auto Scaling Logic (Scale-to-Fit) ---
   const BASE_WIDTH = 1440;
   const BASE_HEIGHT = 960;
+  const TITLE_BAR_HEIGHT = 32;
   const [scale, setScale] = useState(() => {
     // Initial calculation to prevent 1.0 -> actual_scale flicker
     const windowWidth = window.innerWidth;
@@ -2349,11 +2350,19 @@ function App() {
         "--app-scale",
         newScale.toString(),
       );
+      const frameTop = (windowHeight - BASE_HEIGHT * newScale) / 2;
+      document.documentElement.style.setProperty(
+        "--app-modal-overlay-top",
+        `${frameTop + TITLE_BAR_HEIGHT * newScale}px`,
+      );
     };
 
     updateScale();
     window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      document.documentElement.style.removeProperty("--app-modal-overlay-top");
+    };
   }, []);
 
   return (

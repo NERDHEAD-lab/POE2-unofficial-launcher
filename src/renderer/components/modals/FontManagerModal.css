@@ -23,6 +23,8 @@
 .font-modal {
   width: 840px;
   height: 740px;
+  max-height: calc(100vh - var(--app-modal-overlay-top, 0px));
+  box-sizing: border-box;
   background: #121212;
   border: 1px solid rgba(223, 207, 153, 0.2);
   border-radius: 12px;
@@ -46,6 +48,7 @@
   align-items: center;
   background: linear-gradient(to right, #1a1a1a, #121212);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
 }
 
 .font-header h2 {
@@ -120,6 +123,7 @@
 /* Modal Content & List */
 .font-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: #121212;
 }
@@ -568,6 +572,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .font-library-actions {

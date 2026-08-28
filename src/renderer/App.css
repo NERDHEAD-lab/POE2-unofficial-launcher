@@ -59,6 +59,25 @@ body {
   background-color: #000;
 }
 
+#app-container > :is(
+  .update-modal-overlay,
+  .changelog-overlay,
+  .forced-repair-overlay,
+  .notice-overlay,
+  .onboarding-modal-overlay,
+  .patch-fix-modal-overlay,
+  .patch-reservation-modal-overlay,
+  .settings-overlay,
+  .confirm-modal-overlay,
+  .game-path-modal-overlay,
+  .font-modal-overlay,
+  .font-catalog-overlay
+) {
+  top: var(--app-modal-overlay-top, 0px);
+  bottom: 0;
+  height: auto;
+}
+
 /* Dedicated Background Layer */
 #app-background {
   width: 100%;
