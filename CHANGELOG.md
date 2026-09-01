@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.3...1.6.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* 게시판 제목의 특수문자가 올바르게 표시되도록 수정 ([#284](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/284)) ([ffe1a04](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/ffe1a04a2071061c6aad0827f7f1121fa8b10496))
+
 ## [1.6.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.2...1.6.3) (2026-09-01)
 
 
