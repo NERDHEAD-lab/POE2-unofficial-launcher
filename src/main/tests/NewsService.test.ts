@@ -102,6 +102,25 @@ describe("NewsService", () => {
     expect(items[0].id).toBe("12345");
   });
 
+  it("decodes HTML entities in forum titles", async () => {
+    (globalThis.fetch as Mock).mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          mockForumHtml(
+            "3990149",
+            "패스 오브 엑자일 1&amp;2 패키지 상품 가격 조정 안내",
+          ),
+        ),
+    });
+
+    const items = await service.fetchNewsList("POE2", "Kakao Games", "notice");
+
+    expect(items[0].title).toBe(
+      "패스 오브 엑자일 1&2 패키지 상품 가격 조정 안내",
+    );
+  });
+
   it("falls back to Kakao maintenance info when forum fetch redirects to inspection", async () => {
     (globalThis.fetch as Mock).mockResolvedValue({
       ok: true,

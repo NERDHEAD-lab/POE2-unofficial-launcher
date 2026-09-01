@@ -431,7 +431,7 @@ export class NewsService {
         const dateElement = row.querySelector(".post_date");
 
         if (titleAnchor) {
-          const title = titleAnchor.innerText.trim();
+          const title = titleAnchor.text.trim();
           const link = titleAnchor.getAttribute("href") || "";
 
           let date = dateElement ? dateElement.innerText.trim() : "";
