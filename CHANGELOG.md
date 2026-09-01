@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.2...1.6.3) (2026-09-01)
+
+
+### Bug Fixes
+
+* 모달 오버레이가 앱 타이틀바를 가리는 문제 수정 ([#279](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/279)) ([4b6c961](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/4b6c9618de0be641436ef981c82f1ce2ec9e7cba))
+
 ## [1.6.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.1...1.6.2) (2026-08-28)
 
 
