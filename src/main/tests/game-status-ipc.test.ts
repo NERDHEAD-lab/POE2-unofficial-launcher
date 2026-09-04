@@ -35,6 +35,22 @@ describe("registerGameStatusIpc", () => {
     vi.clearAllMocks();
   });
 
+  it("does not accept game status from a deferred or stale Kakao document", () => {
+    registerGameStatusIpc({
+      getAppContext: () => ({}) as AppContext,
+      getActiveSessionContext: () => null,
+      getWindowContext: () => undefined,
+      acceptsPage: () => false,
+    });
+    getRegisteredListener("game-status-update")(
+      { sender: { id: 42 } } as IpcMainEvent,
+      "ready",
+      null,
+      7,
+    );
+    expect(eventBus.emit).not.toHaveBeenCalled();
+  });
+
   it("registers game status IPC channels", () => {
     registerGameStatusIpc({
       getAppContext: () => ({}) as AppContext,
