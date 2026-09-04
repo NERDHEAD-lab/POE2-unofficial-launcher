@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { ipcMain } from "electron";
 
 import { FontManager } from "../../services/FontManager";
+import { ProcessFontMitigationService } from "../../services/ProcessFontMitigationService";
 import { Logger } from "../../utils/logger";
 
 import type { RemoteFontItem, ImportSelection } from "../../../shared/types";
@@ -17,6 +18,18 @@ export class FontIpcHandler {
       logger.log("Font IPC Handlers already registered. Skipping.");
       return;
     }
+
+    ipcMain.handle("font:get-force-apply-policy", () =>
+      ProcessFontMitigationService.getInstance().getPolicy(),
+    );
+    ipcMain.handle(
+      "font:set-force-apply-policy",
+      async (_, enabled: unknown) => {
+        if (typeof enabled !== "boolean")
+          throw new Error("폰트 정책 값은 boolean이어야 합니다.");
+        return ProcessFontMitigationService.getInstance().setPolicy(enabled);
+      },
+    );
 
     ipcMain.handle("font:get-fonts", () => {
       try {

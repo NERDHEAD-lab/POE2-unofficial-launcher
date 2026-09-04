@@ -22,7 +22,7 @@
 
 .font-modal {
   width: 840px;
-  height: 740px;
+  height: 840px;
   max-height: calc(100vh - var(--app-modal-overlay-top, 0px));
   box-sizing: border-box;
   background: #121212;
@@ -549,6 +549,207 @@
 
 .font-warning-banner.info-small p strong {
   color: #4ec9b0;
+}
+
+.font-force-apply-card {
+  min-height: 62px;
+  box-sizing: border-box;
+  margin: 0 24px 16px;
+  padding: 11px 16px;
+  border: 1px solid rgba(78, 201, 176, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(
+    100deg,
+    rgba(78, 201, 176, 0.08),
+    rgba(223, 207, 153, 0.025)
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.font-force-apply-card:hover:not(.disabled) {
+  border-color: rgba(78, 201, 176, 0.42);
+  background: linear-gradient(
+    100deg,
+    rgba(78, 201, 176, 0.12),
+    rgba(223, 207, 153, 0.04)
+  );
+}
+
+.font-force-apply-card.disabled {
+  cursor: not-allowed;
+}
+
+.font-force-apply-card.off {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.font-force-apply-card.off:hover:not(.disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.font-force-apply-card.off .font-force-apply-option {
+  filter: saturate(0);
+}
+
+.font-force-apply-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: inherit;
+}
+
+.font-force-apply-card.disabled .font-force-apply-checkbox {
+  opacity: 0.55;
+}
+
+.font-force-apply-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 19px;
+  margin-left: 36px;
+  color: #4ec9b0;
+  font-size: 0.73rem;
+  cursor: default;
+}
+
+.font-force-apply-status.warning {
+  color: #e6bd7e;
+}
+
+.font-force-apply-status button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.font-force-apply-status button:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 3px;
+}
+
+.font-force-apply-checkbox:indeterminate {
+  border-color: #e6bd7e;
+  background: #e6bd7e;
+}
+
+.font-force-apply-checkbox:indeterminate::before {
+  height: 0;
+  border-left: 0;
+  opacity: 1;
+  transform: none;
+}
+
+.font-force-apply-icon {
+  color: #4ec9b0;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.font-force-apply-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.font-force-apply-title {
+  color: #e8e8e8;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.font-force-apply-description {
+  color: #858585;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.font-force-apply-checkbox {
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.25);
+  appearance: none;
+  display: grid;
+  flex-shrink: 0;
+  place-content: center;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.font-force-apply-checkbox::before {
+  width: 9px;
+  height: 5px;
+  border-bottom: 2px solid #111;
+  border-left: 2px solid #111;
+  content: "";
+  opacity: 0;
+  transform: translateY(-1px) rotate(-45deg) scale(0.7);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.font-force-apply-checkbox:checked {
+  border-color: #4ec9b0;
+  background: #4ec9b0;
+  box-shadow: 0 0 0 3px rgba(78, 201, 176, 0.12);
+}
+
+.font-force-apply-checkbox:checked::before {
+  opacity: 1;
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+.font-force-apply-checkbox:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 3px;
+}
+
+.font-force-apply-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+/* Keep the font list usable alongside policy and conflict notices in small windows. */
+@media (max-height: 850px) {
+  .font-modal .font-header,
+  .font-modal .font-footer {
+    padding: 16px 24px;
+  }
+
+  .font-top-preview-section {
+    height: 90px;
+    padding: 8px 24px;
+  }
+
+  .font-preview-img-container {
+    padding: 6px 24px;
+  }
+
+  .font-preview-main-img {
+    max-height: 40px;
+  }
 }
 
 /* 쓰이지 않는 이전 스타일 정리 */

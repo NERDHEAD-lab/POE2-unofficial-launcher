@@ -438,6 +438,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // [Font Management]
   font: {
+    getForceApplyPolicy: () =>
+      ipcRenderer.invoke("font:get-force-apply-policy"),
+    setForceApplyPolicy: (enabled: boolean) =>
+      ipcRenderer.invoke("font:set-force-apply-policy", enabled),
     getFonts: () => ipcRenderer.invoke("font:get-fonts"),
     getUnifiedFonts: () => ipcRenderer.invoke("font:get-unified-fonts"),
     pickFontFile: () => ipcRenderer.invoke("font:pick-file"),

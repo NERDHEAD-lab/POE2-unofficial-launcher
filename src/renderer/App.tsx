@@ -2524,6 +2524,7 @@ function App() {
         onClose={() => setIsFontModalOpen(false)}
         gameId={config.activeGame}
         onOpenCatalog={() => setIsFontCatalogOpen(true)}
+        fontForceApplyState={config.fontForceApplyState}
       />
 
       <FontCatalogModal

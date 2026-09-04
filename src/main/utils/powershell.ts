@@ -3,7 +3,13 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 
 import { Logger } from "./logger";
+import {
+  FONT_FORCE_APPLY_TARGETS,
+  normalizeFontForceApplyState,
+} from "../../shared/font-force-apply";
 import { AppContext } from "../events/types";
+
+import type { FontForceApplyPolicy } from "../../shared/types";
 
 export class UACDeniedException extends Error {
   constructor(message = "관리자 권한 요청이 사용자에 의해 취소되었습니다.") {
@@ -22,6 +28,8 @@ type ProcessError = Error & {
 type PowerShellBlockedReasonContext = "spawn" | "command";
 
 export class PowerShellBlockedException extends Error {
+  public commandSubmitted = false;
+
   constructor(reason: string, cause?: unknown) {
     super(`${POWERSHELL_BLOCKED_GUIDANCE} 원본 오류: ${reason}`);
     this.name = "PowerShellBlockedException";
@@ -82,6 +90,8 @@ interface PSResult {
   stdout: string;
   stderr: string;
   code: number | null;
+  /** Present only when failure is proven to precede socket submission. */
+  notSubmitted?: true;
 }
 
 interface IPCRequest {
@@ -425,6 +435,73 @@ ${buildDeferredFontCleanupFunctions()}
     `;
 };
 
+// Local script scope must not overwrite the persistent pipe worker's $id/$res/$results.
+export const buildGetFontForceApplyScript = (): string => `& {
+  $state = @{}; $errors = @{}
+  foreach ($target in ${quotePowerShellArray([...FONT_FORCE_APPLY_TARGETS])}) {
+    $state[$target] = $null
+    try {
+      $policies = @(Get-ProcessMitigation -Name $target -ErrorAction Stop)
+      if ($policies.Count -gt 1) { throw 'Multiple path-specific policies require Windows Security inspection.' }
+      $value = 'NOTSET'
+      if ($policies.Count -eq 1) {
+        $value = $policies[0].FontDisable.DisableNonSystemFonts.ToString()
+      }
+      if ($value -eq 'NOTSET') {
+        $system = Get-ProcessMitigation -System -ErrorAction Stop
+        $value = $system.FontDisable.DisableNonSystemFonts.ToString()
+      }
+      switch ($value) {
+        'ON' { $state[$target] = $true }
+        'OFF' { $state[$target] = $false }
+        'NOTSET' { $state[$target] = $false }
+        default { throw "Unknown font policy: $value" }
+      }
+    } catch { $errors[$target] = $_.Exception.Message }
+  }
+  @{ state = $state; errors = $errors } | ConvertTo-Json -Compress -Depth 4
+}`;
+
+export const buildSetFontForceApplyScript = (enabled: boolean): string => {
+  if (typeof enabled !== "boolean")
+    throw new Error("폰트 정책 값은 boolean이어야 합니다.");
+  return `& {
+    $errors = @{}
+    $targets = ${quotePowerShellArray([...FONT_FORCE_APPLY_TARGETS])}
+    # Runs after UAC, immediately before writing; also catches games started outside the launcher.
+    $blockingNames = @('PathOfExile_KG', 'PathOfExile', 'PathOfExile_x64_KG', 'PathOfExile_x64', 'POE2_Launcher', 'POE_Launcher')
+    $running = @(Get-Process -ErrorAction Stop | Where-Object { $_.ProcessName -in $blockingNames })
+    if ($running.Count -gt 0) { throw '게임을 먼저 종료해 주세요.' }
+    foreach ($target in $targets) {
+      try {
+        Set-ProcessMitigation -Name $target ${enabled ? "-Enable" : "-Remove -Disable"} DisableNonSystemFonts -ErrorAction Stop | Out-Null
+      } catch { $errors[$target] = $_.Exception.Message }
+    }
+    @{ errors = $errors } | ConvertTo-Json -Compress -Depth 3
+  }`;
+};
+
+const parseFontPolicyErrors = (
+  value: unknown,
+): FontForceApplyPolicy["errors"] => {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("폰트 정책 응답 형식이 올바르지 않습니다.");
+  const errors: FontForceApplyPolicy["errors"] = {};
+  for (const [key, error] of Object.entries(value)) {
+    if (
+      !FONT_FORCE_APPLY_TARGETS.includes(
+        key as (typeof FONT_FORCE_APPLY_TARGETS)[number],
+      ) ||
+      typeof error !== "string" ||
+      !error
+    ) {
+      throw new Error("폰트 정책 오류 응답 형식이 올바르지 않습니다.");
+    }
+    errors[key as (typeof FONT_FORCE_APPLY_TARGETS)[number]] = error;
+  }
+  return errors;
+};
+
 export class PowerShellManager {
   private static instance: PowerShellManager;
   private context: AppContext | null = null;
@@ -444,6 +521,7 @@ export class PowerShellManager {
   private adminSession: SessionState = this.createEmptySession();
   private normalSession: SessionState = this.createEmptySession();
   private isDestroyed: boolean = false;
+  private uncertainFontPolicy: { socket: net.Socket | null } | null = null;
 
   private constructor() {}
 
@@ -519,7 +597,7 @@ export class PowerShellManager {
       }
       const msg = `Failed to establish connection to PowerShell session: ${err instanceof Error ? err.message : String(err)}`;
       logger.error(msg);
-      return { stdout: "", stderr: msg, code: 1 };
+      return { stdout: "", stderr: msg, code: 1, notSubmitted: true };
     }
 
     if (!session.socket) {
@@ -529,6 +607,7 @@ export class PowerShellManager {
         stdout: "",
         stderr: msg,
         code: 1,
+        notSubmitted: true,
       };
     }
 
@@ -557,6 +636,7 @@ export class PowerShellManager {
           const blockedError = createPowerShellBlockedException(
             res.stderr || res.stdout,
           );
+          blockedError.commandSubmitted = true;
           logger.error(blockedError.message);
           reject(blockedError);
           return;
@@ -594,7 +674,7 @@ export class PowerShellManager {
         session.pendingRequests.delete(id);
         const msg = "Socket disconnected or process died before request";
         logger.error(msg);
-        resolve({ stdout: "", stderr: msg, code: 1 });
+        resolve({ stdout: "", stderr: msg, code: 1, notSubmitted: true });
       }
     });
   }
@@ -874,6 +954,86 @@ try {
       this.rejectSessionInitialization(session, new Error(errMsg));
       this.failAllPendingRequests(session, isAdmin, errMsg);
     });
+  }
+
+  public async getFontForceApplyPolicy(): Promise<FontForceApplyPolicy> {
+    const result = await this.execute(
+      buildGetFontForceApplyScript(),
+      false,
+      true,
+    );
+    if (result.code !== 0)
+      throw new Error(result.stderr || "폰트 정책 조회 실패");
+    const parsed = JSON.parse(result.stdout) as FontForceApplyPolicy;
+    const errors = parseFontPolicyErrors(parsed.errors);
+    for (const target of FONT_FORCE_APPLY_TARGETS) {
+      const value = parsed.state?.[target];
+      if (
+        (value !== null && typeof value !== "boolean") ||
+        (value === null && !errors[target]) ||
+        (errors[target] && value !== null)
+      ) {
+        throw new Error("폰트 정책 상태 응답 형식이 올바르지 않습니다.");
+      }
+    }
+    return { state: normalizeFontForceApplyState(parsed.state), errors };
+  }
+
+  public async setFontForceApplyPolicy(
+    enabled: boolean,
+  ): Promise<FontForceApplyPolicy["errors"]> {
+    const script = buildSetFontForceApplyScript(enabled);
+    await this.confirmFontForceApplyIdle();
+    let result: PSResult;
+    try {
+      result = await this.execute(script, true, true);
+    } catch (error) {
+      if (
+        !(error instanceof UACDeniedException) &&
+        !(
+          error instanceof PowerShellBlockedException && !error.commandSubmitted
+        )
+      )
+        this.uncertainFontPolicy = { socket: this.adminSession.socket };
+      throw error;
+    }
+    if (result.code !== 0) {
+      if (!result.notSubmitted)
+        this.uncertainFontPolicy = { socket: this.adminSession.socket };
+      throw new Error(result.stderr || "폰트 정책 변경 실패");
+    }
+    return parseFontPolicyErrors(
+      (JSON.parse(result.stdout) as { errors: unknown }).errors,
+    );
+  }
+
+  /** A normal-session read cannot fence a timed-out admin write. Never start a replacement session as proof. */
+  public async confirmFontForceApplyIdle(): Promise<void> {
+    const pending = this.uncertainFontPolicy;
+    if (!pending) return;
+    const message =
+      "이전 폰트 정책 명령의 종료를 확인할 수 없습니다. 잠시 후 다시 확인해 주세요.";
+    if (
+      !pending.socket ||
+      pending.socket.destroyed ||
+      this.adminSession.socket !== pending.socket
+    )
+      throw new Error(
+        "이전 폰트 정책 명령의 종료를 확인할 연결이 끊겼습니다. Windows를 다시 시작한 뒤 확인해 주세요.",
+      );
+    const fence = await this.executeCommand(
+      "& { Write-Output 'FONT_POLICY_IDLE' }",
+      this.adminSession,
+      true,
+      true,
+    );
+    if (
+      fence.code !== 0 ||
+      fence.stdout.trim() !== "FONT_POLICY_IDLE" ||
+      this.adminSession.socket !== pending.socket
+    )
+      throw new Error(message);
+    this.uncertainFontPolicy = null;
   }
 
   public async installSystemFont(

@@ -235,6 +235,13 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     description:
       "마지막으로 폰트를 설치한 변조 스키마 버전입니다. 마이그레이션 판정에 사용됩니다. (자동 관리)",
   },
+  FONT_FORCE_APPLY_STATE: {
+    key: "fontForceApplyState",
+    name: "Font Force Apply State",
+    category: "Appearance",
+    description:
+      "실행 파일별 마지막 Windows 폰트 정책 확인값. 모달을 열 때 갱신하는 표시 캐시이며 null은 미확인입니다.",
+  },
 };
 
 // 기존 코드와의 호환성을 위한 키 매핑
@@ -331,6 +338,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   fontScaleNoto: 100,
   fontScaleSpoqa: 100,
   fontMutationSchema: 1,
+  fontForceApplyState: { "PathOfExile_KG.exe": null, "PathOfExile.exe": null },
 };
 
 export const DEBUG_APP_CONFIG = {
