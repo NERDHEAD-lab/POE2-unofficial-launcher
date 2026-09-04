@@ -74,6 +74,7 @@ import {
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
+import { registerEventNotificationIpc } from "./ipc/event-notifications";
 import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import {
   createRenewedPatchReservation,
@@ -3362,6 +3363,7 @@ app.whenReady().then(async () => {
 
   // Register Font IPC Handlers early to avoid race conditions
   FontIpcHandler.register();
+  registerEventNotificationIpc(context);
 
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {
