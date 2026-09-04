@@ -17,6 +17,7 @@ import {
 } from "electron";
 import JSZip from "jszip";
 
+import { registerShutdownHandlers } from "./app-shutdown";
 import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
 import { registerCoreEventHandlers } from "./events/register-handlers";
@@ -74,6 +75,7 @@ import {
 } from "./game/GameInstallStatusReconciler";
 import { GameSessionTracker, SessionContext } from "./game/GameSessionTracker";
 import { registerDiagnosticLogIpc } from "./ipc/diagnostic-log-ipc";
+import { registerEventNotificationIpc } from "./ipc/event-notifications";
 import { registerGameStatusIpc } from "./ipc/game-status-ipc";
 import {
   createRenewedPatchReservation,
@@ -81,13 +83,13 @@ import {
 } from "./ipc/renewed-patch-reservation-ipc";
 import {
   archiveAutomationDumpSession,
-  discardAutomationDumpSession,
   dumpAutomationPage,
   handleAutomationDumpGameStatus,
   scheduleAutomationDumpRetentionCleanup,
   startAutomationDumpSession,
   type AutomationDumpArchiveResult,
 } from "./kakao/automation-page-dump";
+import { KakaoChallengeGate } from "./kakao/cloudflare-challenge";
 import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
@@ -251,15 +253,133 @@ let validationTimeout: NodeJS.Timeout | null = null;
 const VALIDATION_TIMEOUT_MS = 10000; // 10s
 let automationTimeout: NodeJS.Timeout | null = null;
 let lastActiveAutomationWebContentsId: number | null = null; // [New] Track which window last updated the timeout
+let validationOwnerWebContentsId: number | null = null;
+let suspendedValidationOwner: number | null = null;
+let automationTimeoutMs = VALIDATION_TIMEOUT_MS;
+let suspendedAutomation: { id: number; ms: number } | null = null;
+const retiredAutomationWindows = new WeakSet<BrowserWindow>();
+
+const kakaoChallengeGate = new KakaoChallengeGate(
+  (id) => {
+    for (const memberId of kakaoChallengeGate.taskMembers(id)) {
+      const member = webContents.fromId(memberId);
+      if (member && !member.isDestroyed()) member.send("kakao:page-paused");
+    }
+    if (
+      validationOwnerWebContentsId !== null &&
+      kakaoChallengeGate.taskBlocked(validationOwnerWebContentsId)
+    ) {
+      if (validationTimeout) {
+        suspendedValidationOwner = validationOwnerWebContentsId;
+        clearTimeout(validationTimeout);
+      }
+      validationTimeout = null;
+    }
+    if (
+      lastActiveAutomationWebContentsId !== null &&
+      kakaoChallengeGate.taskBlocked(lastActiveAutomationWebContentsId)
+    ) {
+      if (automationTimeout)
+        suspendedAutomation = {
+          id: lastActiveAutomationWebContentsId,
+          ms: automationTimeoutMs,
+        };
+      clearAutomationTimeout(true);
+    }
+    const wc = webContents.fromId(id);
+    const win = wc && BrowserWindow.fromWebContents(wc);
+    if (!win || win.isDestroyed()) return;
+    logger.log(
+      `[Cloudflare] Waiting for user verification in window ${win.id}.`,
+    );
+    win.show();
+    win.focus();
+  },
+  (ids) => {
+    if (
+      suspendedValidationOwner !== null &&
+      ids.includes(suspendedValidationOwner) &&
+      validationModeActive
+    ) {
+      suspendedValidationOwner = null;
+      setValidationMode(true);
+    }
+    if (suspendedAutomation && ids.includes(suspendedAutomation.id)) {
+      startAutomationTimeout(suspendedAutomation.ms);
+    }
+    for (const id of ids) {
+      const wc = webContents.fromId(id);
+      if (!wc || wc.isDestroyed()) continue;
+      wc.send("kakao:page-resumed");
+      const win = BrowserWindow.fromWebContents(wc);
+      if (
+        win &&
+        !forcedVisibleWindows.has(win.id) &&
+        getEffectiveConfig("show_inactive_windows") !== true &&
+        process.env.VITE_SHOW_GAME_WINDOW !== "true"
+      ) {
+        hideAutomationWindow(win, "cloudflare-verification-finished");
+      }
+    }
+  },
+  (ids, successorId) => {
+    const successorContents = webContents.fromId(successorId);
+    const successor =
+      successorContents && BrowserWindow.fromWebContents(successorContents);
+    for (const id of ids) {
+      const wc = webContents.fromId(id);
+      const win = wc && BrowserWindow.fromWebContents(wc);
+      if (win && !win.isDestroyed()) {
+        retiredAutomationWindows.add(win);
+        wc!.send("kakao:page-paused");
+        wc!.stop();
+        hideAutomationWindow(win, "automation-task-replaced");
+        // window.open children normally die with their opener. Empty the retired
+        // document now, and close its window only after the successor is finished.
+        void wc!.loadURL("about:blank").catch(() => {
+          logger.warn(`[Cloudflare] Could not empty retired window ${win.id}.`);
+        });
+        const closeRetired = () => {
+          if (!win.isDestroyed() && retiredAutomationWindows.has(win))
+            win.close();
+        };
+        if (successor && !successor.isDestroyed())
+          successor.once("closed", closeRetired);
+        else closeRetired();
+      }
+    }
+  },
+);
+
+function acceptsKakaoPage(
+  event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
+  documentId?: number | null,
+) {
+  if (event.sender.session !== session.fromPartition(KAKAO_PARTITION))
+    return true;
+  return (
+    event.senderFrame === event.sender.mainFrame &&
+    kakaoChallengeGate.accepts(event.sender.id, documentId)
+  );
+}
 
 // [New] Safety Cleanup for Automation Tracking
 app.on("web-contents-created", (_, wc) => {
+  wc.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) kakaoChallengeGate.beginNavigation(wc.id);
+  });
+  wc.on("did-navigate", (_event, url) => kakaoChallengeGate.commit(wc.id, url));
   wc.on("destroyed", () => {
+    if (validationOwnerWebContentsId === wc.id) {
+      setValidationMode(false);
+      validationOwnerWebContentsId = null;
+    }
     if (lastActiveAutomationWebContentsId === wc.id) {
       logger.log(
         `[Main] Clearing lastActiveAutomationWebContentsId ${wc.id} (Destroyed)`,
       );
       lastActiveAutomationWebContentsId = null;
+      clearAutomationTimeout();
     }
     // navigationTriggerContexts is not globally available here but we can use the helper
     setNavigationTrigger(wc.id, null);
@@ -314,13 +434,25 @@ async function resizeToFitContent(win: BrowserWindow) {
 
 function setValidationMode(active: boolean) {
   validationModeActive = active;
+  if (!active) suspendedValidationOwner = null;
   if (validationTimeout) {
     clearTimeout(validationTimeout);
     validationTimeout = null;
   }
 
-  if (active) {
+  if (
+    active &&
+    !(
+      validationOwnerWebContentsId !== null &&
+      kakaoChallengeGate.taskBlocked(validationOwnerWebContentsId)
+    )
+  ) {
     validationTimeout = setTimeout(() => {
+      if (
+        validationOwnerWebContentsId !== null &&
+        kakaoChallengeGate.taskBlocked(validationOwnerWebContentsId)
+      )
+        return;
       const currentUrl =
         gameWindow && !gameWindow.isDestroyed()
           ? gameWindow.webContents.getURL()
@@ -344,7 +476,8 @@ function setValidationMode(active: boolean) {
   }
 }
 
-function clearAutomationTimeout() {
+function clearAutomationTimeout(preserveSuspension = false) {
+  if (!preserveSuspension) suspendedAutomation = null;
   if (automationTimeout) {
     clearTimeout(automationTimeout);
     automationTimeout = null;
@@ -353,6 +486,13 @@ function clearAutomationTimeout() {
 
 function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
   clearAutomationTimeout();
+  automationTimeoutMs = ms;
+
+  if (
+    lastActiveAutomationWebContentsId !== null &&
+    kakaoChallengeGate.taskBlocked(lastActiveAutomationWebContentsId)
+  )
+    return;
 
   if (ms === -1) {
     logger.log("[Automation] Process timer DISABLED (infinite wait).");
@@ -360,6 +500,11 @@ function startAutomationTimeout(ms: number = VALIDATION_TIMEOUT_MS) {
   }
 
   automationTimeout = setTimeout(async () => {
+    if (
+      lastActiveAutomationWebContentsId !== null &&
+      kakaoChallengeGate.taskBlocked(lastActiveAutomationWebContentsId)
+    )
+      return;
     // [Getter Logic] Determine which window to show for the timeout
     let targetWindow = gameWindow;
 
@@ -447,6 +592,7 @@ registerGameStatusIpc({
   getAppContext: () => appContext,
   getActiveSessionContext: () => gameSessionTracker.getActiveSessionContext(),
   getWindowContext: (webContentsId) => windowContextMap.get(webContentsId),
+  acceptsPage: acceptsKakaoPage,
 });
 
 // --- Single Instance Lock ---
@@ -642,7 +788,12 @@ ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
 
 ipcMain.on(
   "kakao:automation-failure",
-  async (event, payload: KakaoAutomationFailurePayload) => {
+  async (
+    event,
+    payload: KakaoAutomationFailurePayload,
+    documentId?: number | null,
+  ) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
     if (!appContext) return;
 
     const senderId = event.sender.id;
@@ -1382,7 +1533,19 @@ const navigationTriggerContexts = new Map<number, string>();
 function setNavigationTrigger(
   webContentsId: number,
   trigger: string | null | undefined,
+  parentId?: number,
 ) {
+  if (trigger && parentId === undefined) {
+    const wc = webContents.fromId(webContentsId);
+    const selectedWindow = wc && BrowserWindow.fromWebContents(wc);
+    if (selectedWindow && !selectedWindow.isDestroyed()) {
+      // An explicit new task owns this window, including a reused popup.
+      retiredAutomationWindows.delete(selectedWindow);
+      gameWindow = selectedWindow;
+      if (appContext) appContext.gameWindow = selectedWindow;
+    }
+  }
+  kakaoChallengeGate.setTrigger(webContentsId, trigger ?? null, parentId);
   if (trigger) {
     logger.log(`[Context] WebContents ${webContentsId} marked as: ${trigger}`);
     navigationTriggerContexts.set(webContentsId, trigger);
@@ -1410,6 +1573,16 @@ ipcMain.handle("account:get-trigger-context", (event) => {
   return context;
 });
 
+ipcMain.handle("kakao:get-page-state", (event) => {
+  if (
+    event.sender.session !== session.fromPartition(KAKAO_PARTITION) ||
+    event.senderFrame !== event.sender.mainFrame
+  ) {
+    return { blocked: true, documentId: null };
+  }
+  return kakaoChallengeGate.pageState(event.sender.id);
+});
+
 // Cache for specific login URLs encountered during validation
 const pendingLoginUrls = new Map<string, string>(); // ServiceId -> URL
 
@@ -1423,7 +1596,8 @@ ipcMain.on("account:clear-pending-login", (_event, serviceId?: string) => {
   }
 });
 
-ipcMain.on("account:clear-trigger", (event) => {
+ipcMain.on("account:clear-trigger", (event, documentId?: number | null) => {
+  if (!acceptsKakaoPage(event, documentId)) return;
   logger.log(`[Context] Clearing trigger context for ${event.sender.id}`);
   navigationTriggerContexts.delete(event.sender.id);
 });
@@ -1436,7 +1610,10 @@ const isNavigating = new Set<string>();
 async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
   if (serviceId !== "Kakao Games") return; // GGG not implemented yet
 
-  if (isNavigating.has(serviceId)) {
+  if (
+    isNavigating.has(serviceId) ||
+    kakaoChallengeGate.hasChallenge("ACCOUNT_VALIDATION")
+  ) {
     logger.log(
       `[Account] Validation already in progress for ${serviceId}. Ignoring.`,
     );
@@ -1445,7 +1622,6 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
 
   logger.log(`[Account] Triggering validation for ${serviceId}...`);
   isNavigating.add(serviceId);
-  setValidationMode(true);
 
   if (!appContext) {
     isNavigating.delete(serviceId);
@@ -1461,6 +1637,8 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
   // Mark the game window for validation
   if (gw && !gw.isDestroyed()) {
     setNavigationTrigger(gw.webContents.id, "ACCOUNT_VALIDATION");
+    validationOwnerWebContentsId = gw.webContents.id;
+    setValidationMode(true);
 
     try {
       // DO NOT show window yet
@@ -1490,7 +1668,12 @@ async function runAccountValidation(serviceId: AppConfig["serviceChannel"]) {
 
 ipcMain.on(
   "account:trigger-validation",
-  (_event, serviceId: AppConfig["serviceChannel"]) => {
+  (
+    event,
+    serviceId: AppConfig["serviceChannel"],
+    documentId?: number | null,
+  ) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
     runAccountValidation(serviceId).catch((err) =>
       logger.error("[Account] Error running validation:", err),
     );
@@ -1555,78 +1738,94 @@ ipcMain.on(
   },
 );
 
-ipcMain.on("kakao:account-id-fetched", (_event, id: string) => {
-  logger.log(`[Account] Fetched ID for Kakao: ${id}`);
-  setValidationMode(false);
+ipcMain.on(
+  "kakao:account-id-fetched",
+  (event, id: string, documentId?: number | null) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
+    logger.log(`[Account] Fetched ID for Kakao: ${id}`);
+    setValidationMode(false);
 
-  // Update Config Cache
-  const config = getConfig() as AppConfig;
-  config.kakaoAccountId = id;
-  setConfigWithEvent("kakaoAccountId", id);
+    // Update Config Cache
+    const config = getConfig() as AppConfig;
+    config.kakaoAccountId = id;
+    setConfigWithEvent("kakaoAccountId", id);
 
-  // Notify Renderer
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("account:updated", { id });
-  }
+    // Notify Renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("account:updated", { id });
+    }
 
-  // Close hidden window if successful
-  if (gameWindow && !gameWindow.isDestroyed()) {
-    gameWindow.close();
-  }
-});
-
-ipcMain.on("kakao:login-required", (event, data?: { url?: string }) => {
-  logger.log("[Account] Login required for Kakao.");
-
-  // If URL is provided during validation failure, 'keep' it for later
-  if (data?.url) {
-    logger.log(`[Account] Caching redirect URL for sync login: ${data.url}`);
-    pendingLoginUrls.set("Kakao Games", data.url);
-  }
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("account:updated", { loginRequired: true });
-  }
-
-  // Explicitly disable timeout when login is required to allow user to interact
-  setValidationMode(false);
-
-  // [Refinement] Close the background validation window if it's no longer needed
-  // (User will explicitly open it via "Login" button if they want to)
-  if (gameWindow && !gameWindow.isDestroyed()) {
-    const context = getNavigationTrigger(gameWindow.webContents.id);
-    if (context === "ACCOUNT_VALIDATION") {
-      logger.log(
-        "[Account] Closing background validation window (Login Required).",
-      );
+    // Close hidden window if successful
+    if (gameWindow && !gameWindow.isDestroyed()) {
       gameWindow.close();
     }
-  }
-});
+  },
+);
 
-ipcMain.on("automation:update-timeout", (event, timeoutMs: number) => {
-  lastActiveAutomationWebContentsId = event.sender.id; // Correctly track the caller
-  startAutomationTimeout(timeoutMs);
-  logger.log(
-    `[Automation] Timer updated: ${timeoutMs}ms (Caller: ${event.sender.id})`,
-  );
-});
+ipcMain.on(
+  "kakao:login-required",
+  (event, data?: { url?: string }, documentId?: number | null) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
+    logger.log("[Account] Login required for Kakao.");
 
-ipcMain.on("account:update-timeout", (event, timeoutMs: number) => {
-  if (validationModeActive) {
-    lastActiveAutomationWebContentsId = event.sender.id; // Track even in validation
-    if (timeoutMs === -1) {
-      if (validationTimeout) {
-        clearTimeout(validationTimeout);
-        validationTimeout = null;
-      }
-      logger.log("[Account] Background validation timer paused.");
-    } else {
-      setValidationMode(true);
-      logger.log("[Account] Background validation timer refreshed.");
+    // If URL is provided during validation failure, 'keep' it for later
+    if (data?.url) {
+      logger.log(`[Account] Caching redirect URL for sync login: ${data.url}`);
+      pendingLoginUrls.set("Kakao Games", data.url);
     }
-  }
-});
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("account:updated", { loginRequired: true });
+    }
+
+    // Explicitly disable timeout when login is required to allow user to interact
+    setValidationMode(false);
+
+    // [Refinement] Close the background validation window if it's no longer needed
+    // (User will explicitly open it via "Login" button if they want to)
+    if (gameWindow && !gameWindow.isDestroyed()) {
+      const context = getNavigationTrigger(gameWindow.webContents.id);
+      if (context === "ACCOUNT_VALIDATION") {
+        logger.log(
+          "[Account] Closing background validation window (Login Required).",
+        );
+        gameWindow.close();
+      }
+    }
+  },
+);
+
+ipcMain.on(
+  "automation:update-timeout",
+  (event, timeoutMs: number, documentId?: number | null) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
+    lastActiveAutomationWebContentsId = event.sender.id; // Correctly track the caller
+    startAutomationTimeout(timeoutMs);
+    logger.log(
+      `[Automation] Timer updated: ${timeoutMs}ms (Caller: ${event.sender.id})`,
+    );
+  },
+);
+
+ipcMain.on(
+  "account:update-timeout",
+  (event, timeoutMs: number, documentId?: number | null) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
+    if (validationModeActive) {
+      validationOwnerWebContentsId = event.sender.id;
+      if (timeoutMs === -1) {
+        if (validationTimeout) {
+          clearTimeout(validationTimeout);
+          validationTimeout = null;
+        }
+        logger.log("[Account] Background validation timer paused.");
+      } else {
+        setValidationMode(true);
+        logger.log("[Account] Background validation timer refreshed.");
+      }
+    }
+  },
+);
 
 // --- Shared Window Open Handler Factory ---
 const createHandleWindowOpen =
@@ -1672,6 +1871,7 @@ const forcedVisibleWindows = new Set<number>();
 
 function hideAutomationWindow(window: BrowserWindow, reason: string) {
   if (!window || window.isDestroyed()) return;
+  if (kakaoChallengeGate.isVisible(window.webContents.id)) return;
 
   const isMainWindow =
     context.mainWindow && context.mainWindow.id === window.id;
@@ -1696,68 +1896,72 @@ function hideAutomationWindow(window: BrowserWindow, reason: string) {
 }
 
 // [IPC] Dynamic Visibility Request from Preload
-ipcMain.on("window-visibility-request", async (event, isVisible: boolean) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-  if (!window || window.isDestroyed()) return;
+ipcMain.on(
+  "window-visibility-request",
+  async (event, isVisible: boolean, documentId?: number | null) => {
+    if (!acceptsKakaoPage(event, documentId)) return;
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed()) return;
 
-  const showInactive = getEffectiveConfig("show_inactive_windows") === true;
-  const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
-  const triggerContext = getNavigationTrigger(event.sender.id);
-  const isValidation = triggerContext === "ACCOUNT_VALIDATION";
+    const showInactive = getEffectiveConfig("show_inactive_windows") === true;
+    const isDebugEnv = process.env.VITE_SHOW_GAME_WINDOW === "true";
+    const triggerContext = getNavigationTrigger(event.sender.id);
+    const isValidation = triggerContext === "ACCOUNT_VALIDATION";
 
-  if (isVisible) {
-    if (isValidation) {
-      logger.log(
-        `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
-      );
-      return;
-    }
-
-    if (!forcedVisibleWindows.has(window.id)) {
-      forcedVisibleWindows.add(window.id);
-      logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
-    }
-
-    if (!window.isVisible()) {
-      window.show();
-    }
-    // [v22] Adjust size with 0.1s delay
-    await resizeToFitContent(window);
-    window.center();
-    window.focus();
-    window.moveTop();
-    await dumpAutomationPage(window, {
-      reason: "window-visibility-request",
-      triggerContext: triggerContext ?? undefined,
-      mainWindow,
-      debugWindow,
-    });
-  } else {
-    if (forcedVisibleWindows.has(window.id)) {
-      forcedVisibleWindows.delete(window.id);
-      logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
-
-      const isMainWindow =
-        context.mainWindow && context.mainWindow.id === window.id;
-      const isDebugWindow =
-        context.debugWindow && context.debugWindow.id === window.id;
-
-      if (
-        shouldHideReleasedAutomationWindow({
-          showInactive,
-          isDebugEnv,
-          isMainWindow: Boolean(isMainWindow),
-          isDebugWindow: Boolean(isDebugWindow),
-        })
-      ) {
+    if (isVisible) {
+      if (isValidation) {
         logger.log(
-          `[Main] Hiding window ${window.id} (Visibility released & inactive display disabled)`,
+          `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
         );
-        window.hide();
+        return;
+      }
+
+      if (!forcedVisibleWindows.has(window.id)) {
+        forcedVisibleWindows.add(window.id);
+        logger.log(`[Main] Window ${window.id} requested FORCED VISIBILITY.`);
+      }
+
+      if (!window.isVisible()) {
+        window.show();
+      }
+      // [v22] Adjust size with 0.1s delay
+      await resizeToFitContent(window);
+      window.center();
+      window.focus();
+      window.moveTop();
+      await dumpAutomationPage(window, {
+        reason: "window-visibility-request",
+        triggerContext: triggerContext ?? undefined,
+        mainWindow,
+        debugWindow,
+      });
+    } else {
+      if (forcedVisibleWindows.has(window.id)) {
+        forcedVisibleWindows.delete(window.id);
+        logger.log(`[Main] Window ${window.id} released FORCED VISIBILITY.`);
+
+        const isMainWindow =
+          context.mainWindow && context.mainWindow.id === window.id;
+        const isDebugWindow =
+          context.debugWindow && context.debugWindow.id === window.id;
+
+        if (
+          shouldHideReleasedAutomationWindow({
+            showInactive,
+            isDebugEnv,
+            isMainWindow: Boolean(isMainWindow),
+            isDebugWindow: Boolean(isDebugWindow),
+          })
+        ) {
+          logger.log(
+            `[Main] Hiding window ${window.id} (Visibility released & inactive display disabled)`,
+          );
+          window.hide();
+        }
       }
     }
-  }
-});
+  },
+);
 
 // Global Context
 let appContext: AppContext;
@@ -1800,10 +2004,12 @@ const ensureGameWindow = (options?: { service: string }) => {
     if (appContext) appContext.gameWindow = gameWindow;
 
     // Handle closing
-    gameWindow.on("closed", () => {
-      resetGameStatusIfInterrupted(gameWindow!);
-      gameWindow = null;
-      if (appContext) appContext.gameWindow = null;
+    const createdWindow = gameWindow;
+    createdWindow.on("closed", () => {
+      resetGameStatusIfInterrupted(createdWindow);
+      if (gameWindow === createdWindow) gameWindow = null;
+      if (appContext?.gameWindow === createdWindow)
+        appContext.gameWindow = null;
     });
   }
   return gameWindow!;
@@ -1817,7 +2023,11 @@ const context: AppContext = {
 
   store,
   serviceManager: serviceManager as IServiceManager,
-  isForcedVisible: (windowId: number) => forcedVisibleWindows.has(windowId),
+  isForcedVisible: (windowId: number) =>
+    forcedVisibleWindows.has(windowId) ||
+    kakaoChallengeGate.isVisible(
+      BrowserWindow.fromId(windowId)?.webContents.id ?? -1,
+    ),
   hideAutomationWindow,
   ensureGameWindow: ensureGameWindow,
   getConfig: (key?: string) => getEffectiveConfig(key),
@@ -1839,6 +2049,7 @@ const context: AppContext = {
 };
 
 function resetGameStatusIfInterrupted(_win: BrowserWindow) {
+  if (retiredAutomationWindows.has(_win)) return;
   const resetStatus = gameSessionTracker.getInterruptedResetStatus(appContext);
 
   if (!resetStatus) {
@@ -2241,6 +2452,10 @@ async function createWindow() {
         logger.log("[Main] Window hidden due to 'minimize' closeAction.");
         return;
       }
+      // Keep the window usable if saving login cookies cancels shutdown.
+      e.preventDefault();
+      app.quit();
+      return;
     }
     logger.log("[Main] Window closing (quitting).");
   });
@@ -2268,7 +2483,9 @@ async function createWindow() {
 
       if (visible) {
         // Removed isUserFacingPage: Visibility is now controlled by Preload IPC or Inactive Config
-        const shouldShowWindow = isDebugMode && showInactiveWindows;
+        const shouldShowWindow =
+          (isDebugMode && showInactiveWindows) ||
+          kakaoChallengeGate.isVisible(win.webContents.id);
 
         if (shouldShowWindow && !win.isVisible()) {
           win.show();
@@ -2365,7 +2582,7 @@ async function createWindow() {
   setupSessionSecurity(session.defaultSession, "default");
 
   // Initialize Kakao Partition (Security & Config)
-  initKakaoSession();
+  initKakaoSession(kakaoChallengeGate);
 
   // Apply to GGG Partition (if exists)
   if (PARTITIONS.GGG) {
@@ -3084,7 +3301,9 @@ app.on("browser-window-created", (_, window) => {
         );
         // Fallback to previous window if it's still alive, otherwise null
         const fallbackWindow =
-          previousGameWindow && !previousGameWindow.isDestroyed()
+          previousGameWindow &&
+          !previousGameWindow.isDestroyed() &&
+          !retiredAutomationWindows.has(previousGameWindow)
             ? previousGameWindow
             : null;
 
@@ -3128,7 +3347,9 @@ app.on("browser-window-created", (_, window) => {
 
     // 1. Determine if window should be shown (Central Policy)
     // Removed isUserFacingPage: Visibility is now controlled by Preload IPC or Inactive Config
-    const isForcedVisible = forcedVisibleWindows.has(window.id);
+    const isForcedVisible =
+      forcedVisibleWindows.has(window.id) ||
+      kakaoChallengeGate.isVisible(window.webContents.id);
 
     // Priority: Forced > DebugEnv > InactiveConfig
     // Note: ForcedVisible might not be set yet during initial load (Preload not run yet)
@@ -3207,7 +3428,7 @@ app.on("web-contents-created", (_, wc) => {
       logger.log(
         `[Context] Propagating trigger '${parentContext}' from ${wc.id} -> ${window.webContents.id}`,
       );
-      setNavigationTrigger(window.webContents.id, parentContext);
+      setNavigationTrigger(window.webContents.id, parentContext, wc.id);
     }
   });
 });
@@ -3263,42 +3484,11 @@ eventBus.register({
   },
 });
 
-/**
- * Performs ultimate cleanup of all background services and PowerShell sessions
- * to ensure no file locks remain before the app terminates.
- */
-async function cleanupServices() {
-  logger.log("[Main] Performing global service cleanup...");
-
-  try {
-    await discardAutomationDumpSession("app-cleanup");
-  } catch (e) {
-    logger.error("[Main] Failed to cleanup automation dump session:", e);
-  }
-
-  // 1. Stop all registered services (Waiters, Watchers, Schedulers)
-  try {
-    await serviceManager.stopAll();
-  } catch (e) {
-    logger.error("[Main] Failed to stop services during cleanup:", e);
-  }
-
-  // 2. Cleanup PowerShell Sessions (FINAL)
-  // This will set isDestroyed=true and block further creations
-  try {
-    PowerShellManager.getInstance().cleanup();
-  } catch (e) {
-    logger.error("[Main] Failed to cleanup PowerShell session:", e);
-  }
-}
-
-app.on("before-quit", async () => {
-  isQuitting = true;
-  await cleanupServices();
+registerShutdownHandlers((quitting) => {
+  isQuitting = quitting;
 });
 
-app.on("window-all-closed", async () => {
-  await cleanupServices();
+app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -3362,6 +3552,7 @@ app.whenReady().then(async () => {
 
   // Register Font IPC Handlers early to avoid race conditions
   FontIpcHandler.register();
+  registerEventNotificationIpc(context);
 
   // Register custom protocol to load assets from %appdata%
   protocol.handle("asset", (request) => {

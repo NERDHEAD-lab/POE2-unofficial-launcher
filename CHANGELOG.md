@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.4...1.6.5) (2026-09-04)
+
+
+### Bug Fixes
+
+* 커스텀 폰트 관리 모달에서 폰트를 강제 적용할 수 있도록 개선 ([#286](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/286)) ([2e38ed0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/2e38ed03d2552ab8a977959b1822670fa1b7ad72))
+
 ## [1.6.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.3...1.6.4) (2026-09-01)
 
 

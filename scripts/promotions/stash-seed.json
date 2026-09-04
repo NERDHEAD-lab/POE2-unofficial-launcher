@@ -1,0 +1,14 @@
+{
+  "origin": "manual-announcement",
+  "startDate": "2026-08-21",
+  "endDate": "2026-08-25",
+  "timeZone": "Asia/Seoul",
+  "sourceUrls": [
+    "https://poe.kakaogames.com/forum/view-thread/3991174",
+    "https://poe.kakaogames.com/forum/view-thread/3998528"
+  ],
+  "scope": [
+    { "service": "kakao", "game": "poe1" },
+    { "service": "kakao", "game": "poe2" }
+  ]
+}

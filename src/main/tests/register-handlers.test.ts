@@ -72,6 +72,10 @@ const CORE_HANDLER_IDS = [
   "KakaoMaintenanceUISyncHandler",
   "RenewedPatchReservationCreateHandler",
   "RenewedPatchReservationDeleteHandler",
+  "EventNotificationSettingsHandler",
+  "EventNotificationSettingsDeleteHandler",
+  "EventNotificationUISyncHandler",
+  "EventNotificationDismissHandler",
 ] as const;
 
 describe("CORE_EVENT_HANDLERS", () => {

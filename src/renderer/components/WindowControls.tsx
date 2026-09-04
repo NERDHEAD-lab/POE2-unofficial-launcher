@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import PromotionDismissModal from "./modals/PromotionDismissModal";
+import { PromotionRow } from "./PromotionRow";
 import {
   buildErrorReportData,
   getDebugLogNotificationId,
@@ -8,8 +11,16 @@ import {
   getDebugLogPreview,
   getExceptionDebugLogs,
 } from "../../shared/debug-log-policy";
+import {
+  promotionScheduleKey,
+  type PromotionEvent,
+} from "../../shared/promotions";
 import { DebugLogPayload, OperationalNotification } from "../../shared/types";
+import { usePromotions } from "../hooks/usePromotions";
+import { useReadNotifications } from "../hooks/useReadNotifications";
 import { dedupeOperationalNotifications } from "../utils/game-path-registry-warning";
+
+import "./WindowControls.css";
 
 interface WindowControlsProps {
   devMode: boolean;
@@ -23,7 +34,6 @@ interface WindowControlsProps {
 const DISMISSED_NOTIFICATION_STORAGE_KEY =
   "poe-launcher:dismissed-error-notifications";
 const MAX_DISMISSED_NOTIFICATION_IDS = 100;
-const MAX_VISIBLE_NOTIFICATION_ITEMS = 4;
 
 const WindowControls: React.FC<WindowControlsProps> = ({
   devMode,
@@ -32,12 +42,16 @@ const WindowControls: React.FC<WindowControlsProps> = ({
   onOperationalNotificationClick,
 }) => {
   const [exceptionLogs, setExceptionLogs] = useState<DebugLogPayload[]>([]);
+  const promotions = usePromotions();
+  const { readIds, markRead } = useReadNotifications();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [dismissTarget, setDismissTarget] = useState<PromotionEvent | null>(
+    null,
+  );
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<
     Set<string>
   >(loadDismissedNotificationIds);
   const controlsRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     let isMounted = true;
     let unsubscribe: (() => void) | undefined;
@@ -100,9 +114,24 @@ const WindowControls: React.FC<WindowControlsProps> = ({
     [operationalNotifications],
   );
   const notificationCount =
-    notificationLogs.length + operationalNotificationItems.length;
-  const shouldScrollNotifications =
-    notificationCount >= MAX_VISIBLE_NOTIFICATION_ITEMS;
+    notificationLogs.length +
+    operationalNotificationItems.length +
+    promotions.length;
+  const unreadWarningCount =
+    notificationLogs.filter(
+      (log) => !readIds.has(`error:${getDebugLogNotificationId(log)}`),
+    ).length +
+    operationalNotificationItems.filter(
+      (item) => !readIds.has(`operational:${item.id}`),
+    ).length;
+  const unreadCount =
+    unreadWarningCount +
+    promotions.filter(
+      (event) => !readIds.has(`promotion:${promotionScheduleKey(event)}`),
+    ).length;
+  const hasWarnings = unreadWarningCount > 0;
+  const notificationColor =
+    unreadCount === 0 ? "#888888" : hasWarnings ? "#ffb74d" : "#90bcee";
 
   const handleToggleDebug = async () => {
     if (window.electronAPI) {
@@ -129,13 +158,17 @@ const WindowControls: React.FC<WindowControlsProps> = ({
       },
     });
     window.dispatchEvent(event);
+    markRead(`error:${getDebugLogNotificationId(selectedLog)}`);
     setIsNotificationOpen(false);
   };
 
   const handleOpenOperationalNotification = (
     notification: OperationalNotification,
   ) => {
-    onOperationalNotificationClick?.(notification);
+    if (onOperationalNotificationClick) {
+      onOperationalNotificationClick(notification);
+      markRead(`operational:${notification.id}`);
+    }
     setIsNotificationOpen(false);
   };
 
@@ -192,6 +225,15 @@ const WindowControls: React.FC<WindowControlsProps> = ({
   return (
     <div
       ref={controlsRef}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && isNotificationOpen) {
+          event.preventDefault();
+          setIsNotificationOpen(false);
+          controlsRef.current
+            ?.querySelector<HTMLButtonElement>("[data-notification-toggle]")
+            ?.focus();
+        }
+      }}
       style={
         {
           display: "flex",
@@ -228,54 +270,63 @@ const WindowControls: React.FC<WindowControlsProps> = ({
       )}
       {notificationCount > 0 && (
         <button
+          data-notification-toggle
+          aria-expanded={isNotificationOpen}
           onClick={() => setIsNotificationOpen((prev) => !prev)}
           style={{
             ...buttonStyle,
-            color: "#ffb74d",
-            textShadow: "0 0 8px rgba(255, 183, 77, 0.55)",
+            color: notificationColor,
+            textShadow:
+              unreadCount > 0 ? `0 0 8px ${notificationColor}80` : "none",
             position: "relative",
           }}
-          title={`알림 ${notificationCount}건 확인`}
+          title={unreadCount > 0 ? `알림 ${unreadCount}건 확인` : "알림 확인"}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "rgba(255,183,77,0.12)";
             e.currentTarget.style.color = "#fff";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "#ffb74d";
+            e.currentTarget.style.color = notificationColor;
           }}
         >
           <span
             className="material-symbols-outlined"
             style={{ fontSize: "17px" }}
           >
-            warning
+            {hasWarnings ? "warning" : "notifications"}
           </span>
-          <span
-            style={{
-              position: "absolute",
-              top: "3px",
-              right: "4px",
-              minWidth: "15px",
-              height: "15px",
-              padding: "0 4px",
-              borderRadius: "999px",
-              background: "#ff4444",
-              color: "#fff",
-              fontSize: "10px",
-              fontWeight: 700,
-              lineHeight: "15px",
-              textAlign: "center",
-              boxSizing: "border-box",
-              boxShadow: "0 0 6px rgba(255, 68, 68, 0.9)",
-            }}
-          >
-            {notificationCount > 9 ? "9+" : notificationCount}
-          </span>
+          {unreadCount > 0 && (
+            <span
+              data-notification-badge
+              style={{
+                position: "absolute",
+                top: "3px",
+                right: "4px",
+                minWidth: "15px",
+                height: "15px",
+                padding: "0 4px",
+                borderRadius: "999px",
+                background: hasWarnings ? "#ff4444" : "#487caf",
+                color: "#fff",
+                fontSize: "10px",
+                fontWeight: 700,
+                lineHeight: "15px",
+                textAlign: "center",
+                boxSizing: "border-box",
+                boxShadow: hasWarnings
+                  ? "0 0 6px rgba(255, 68, 68, 0.9)"
+                  : "none",
+              }}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
       )}
       {isNotificationOpen && notificationCount > 0 && (
         <div
+          data-notification-panel
           style={
             {
               position: "absolute",
@@ -284,7 +335,7 @@ const WindowControls: React.FC<WindowControlsProps> = ({
               width: "380px",
               maxHeight: "460px",
               background: "rgba(17, 17, 17, 0.98)",
-              border: "1px solid rgba(255, 183, 77, 0.35)",
+              border: `1px solid ${notificationColor}59`,
               borderRadius: "8px",
               boxShadow: "0 18px 48px rgba(0, 0, 0, 0.65)",
               zIndex: 10002,
@@ -306,15 +357,15 @@ const WindowControls: React.FC<WindowControlsProps> = ({
             }}
           >
             <span>알림</span>
-            <span style={{ color: "#ffb74d", fontSize: "12px" }}>
-              {notificationCount}건
+            <span style={{ color: notificationColor, fontSize: "12px" }}>
+              {unreadCount > 0 ? `안 읽음 ${unreadCount}건` : "모두 읽음"}
             </span>
           </div>
           <div
             className="custom-scrollbar"
             style={{
-              maxHeight: shouldScrollNotifications ? "328px" : "none",
-              overflowY: shouldScrollNotifications ? "auto" : "visible",
+              maxHeight: "min(328px, calc(100vh - 96px))",
+              overflowY: "auto",
               padding: "6px",
             }}
           >
@@ -323,6 +374,11 @@ const WindowControls: React.FC<WindowControlsProps> = ({
                 key={notification.id}
                 type="button"
                 data-notification-id={notification.id}
+                className={
+                  readIds.has(`operational:${notification.id}`)
+                    ? "notification-read"
+                    : undefined
+                }
                 onClick={() => handleOpenOperationalNotification(notification)}
                 style={{
                   width: "100%",
@@ -388,6 +444,12 @@ const WindowControls: React.FC<WindowControlsProps> = ({
             {notificationLogs.map((log) => (
               <div
                 key={getDebugLogNotificationId(log)}
+                data-error-notification
+                className={
+                  readIds.has(`error:${getDebugLogNotificationId(log)}`)
+                    ? "notification-read"
+                    : undefined
+                }
                 style={{
                   width: "100%",
                   display: "grid",
@@ -522,11 +584,34 @@ const WindowControls: React.FC<WindowControlsProps> = ({
                 </button>
               </div>
             ))}
+            {promotions.map((event) => (
+              <PromotionRow
+                key={promotionScheduleKey(event)}
+                event={event}
+                isRead={readIds.has(`promotion:${promotionScheduleKey(event)}`)}
+                onRead={() =>
+                  markRead(`promotion:${promotionScheduleKey(event)}`)
+                }
+                onDismiss={() => {
+                  setIsNotificationOpen(false);
+                  setDismissTarget(event);
+                }}
+              />
+            ))}
           </div>
         </div>
       )}
+      {dismissTarget &&
+        createPortal(
+          <PromotionDismissModal
+            event={dismissTarget}
+            onClose={() => setDismissTarget(null)}
+          />,
+          document.getElementById("app-container") ?? document.body,
+        )}
       <button
         onClick={handleMinimize}
+        aria-label="창 최소화"
         style={buttonStyle}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "rgba(255,255,255,0.1)";

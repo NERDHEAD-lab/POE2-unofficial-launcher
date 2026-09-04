@@ -1,3 +1,10 @@
+import type {
+  EventNotificationPreferences,
+  PromotionDismissRequest,
+  PromotionDismissResult,
+  PromotionSnapshot,
+} from "./promotions";
+
 export const CONFIG_CATEGORIES = [
   "Info",
   "General",
@@ -66,6 +73,7 @@ export interface AppConfig {
   quitOnGameStart: boolean;
   showOnboarding: boolean;
   newsOpenMode: NewsOpenMode;
+  eventNotifications: EventNotificationPreferences;
   /**
    * - "resource-saving": Optimization Mode (Background Scan OFF)
    * - "always-on": High Performance Mode (Background Scan ON)
@@ -120,6 +128,8 @@ export interface AppConfig {
    * 미설정이면 구버전(1)으로 간주. 설치된 폰트가 없으면 의미 없음.
    */
   fontMutationSchema?: number;
+  /** 마지막으로 확인한 실행 파일별 Windows 폰트 정책. 명령의 입력/원본이 아닌 표시 캐시. */
+  fontForceApplyState: FontForceApplyState;
 }
 
 export interface GameLaunchContext {
@@ -684,7 +694,22 @@ export interface FontMetadata {
   isKrSupported: boolean;
 }
 
+export type FontForceApplyTarget = "PathOfExile_KG.exe" | "PathOfExile.exe";
+export type FontForceApplyState = Record<FontForceApplyTarget, boolean | null>;
+export interface FontForceApplyPolicy {
+  state: FontForceApplyState;
+  errors: Partial<Record<FontForceApplyTarget, string>>;
+}
+export interface FontForceApplyUpdateResult extends FontForceApplyPolicy {
+  error?: string;
+  cancelled?: boolean;
+}
+
 export interface FontAPI {
+  getForceApplyPolicy: () => Promise<FontForceApplyPolicy>;
+  setForceApplyPolicy: (
+    enabled: boolean,
+  ) => Promise<FontForceApplyUpdateResult>;
   getFonts: () => Promise<CustomFontData[]>;
   getUnifiedFonts: () => Promise<UnifiedFontData[]>;
   pickFontFile: () => Promise<string | null>;
@@ -726,6 +751,13 @@ export interface RevalidateThemeColorsEventDetail {
 }
 
 export interface ElectronAPI {
+  dismissPromotion: (
+    request: PromotionDismissRequest,
+  ) => Promise<PromotionDismissResult>;
+  getPromotions: () => Promise<PromotionSnapshot>;
+  onPromotionsUpdated: (
+    callback: (snapshot: PromotionSnapshot) => void,
+  ) => () => void;
   getAllChangelogs: () => Promise<ChangelogItem[]>;
   onShowChangelog?: (
     callback: (
