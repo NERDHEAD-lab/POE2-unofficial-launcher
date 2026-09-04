@@ -47,6 +47,12 @@ vi.mock("../services/UpdateSchedulerService", () => ({
   },
 }));
 
+vi.mock("../services/EventNotificationService", () => ({
+  EventNotificationService: class MockEventNotificationService {
+    readonly id = "EventNotificationService";
+  },
+}));
+
 describe("initializeCoreServices", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,6 +75,7 @@ describe("initializeCoreServices", () => {
       "LogWatcher",
       "PatchReservationService",
       "UpdateSchedulerService",
+      "EventNotificationService",
     ]);
     expect(serviceManager.initAll).toHaveBeenCalledOnce();
     expect(result.processWatcher).toBe(processWatcher);
