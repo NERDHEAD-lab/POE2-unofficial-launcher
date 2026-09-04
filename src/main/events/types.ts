@@ -12,6 +12,12 @@ import {
   RenewedPatchReservationCommandResult,
 } from "../../shared/types";
 
+import type {
+  PromotionDismissRequest,
+  PromotionDismissResult,
+  PromotionSnapshot,
+} from "../../shared/promotions";
+
 // Event Enums
 export enum EventType {
   UI_GAME_START_CLICK = "UI:GAME_START_CLICK",
@@ -57,6 +63,8 @@ export enum EventType {
 
   // Kakao Games maintenance
   KAKAO_MAINTENANCE_DETECTED = "KAKAO:MAINTENANCE_DETECTED",
+  PROMOTIONS_UPDATED = "PROMOTIONS:UPDATED",
+  PROMOTION_DISMISS = "PROMOTIONS:DISMISS",
 }
 
 export interface ToolForceRepairEvent {
@@ -289,6 +297,8 @@ export interface KakaoMaintenanceDetectedEvent {
 
 // --- Discriminated Union ---
 export type AppEvent =
+  | PromotionDismissEvent
+  | PromotionsUpdatedEvent
   | ConfigChangeEvent
   | ProcessEvent
   | UIEvent
@@ -320,6 +330,21 @@ export type AppEvent =
   | RenewedPatchReservationDeleteEvent
   | RemoteVersionUpdatedEvent
   | KakaoMaintenanceDetectedEvent;
+
+export interface PromotionsUpdatedEvent {
+  type: EventType.PROMOTIONS_UPDATED;
+  payload: PromotionSnapshot;
+  timestamp?: number;
+}
+
+export interface PromotionDismissEvent {
+  type: EventType.PROMOTION_DISMISS;
+  payload: {
+    request: PromotionDismissRequest;
+    result: { value: PromotionDismissResult };
+  };
+  timestamp?: number;
+}
 
 export interface RemoteVersionUpdatedEvent {
   type: EventType.REMOTE_VERSION_UPDATED;

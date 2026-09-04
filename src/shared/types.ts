@@ -1,3 +1,10 @@
+import type {
+  EventNotificationPreferences,
+  PromotionDismissRequest,
+  PromotionDismissResult,
+  PromotionSnapshot,
+} from "./promotions";
+
 export const CONFIG_CATEGORIES = [
   "Info",
   "General",
@@ -66,6 +73,7 @@ export interface AppConfig {
   quitOnGameStart: boolean;
   showOnboarding: boolean;
   newsOpenMode: NewsOpenMode;
+  eventNotifications: EventNotificationPreferences;
   /**
    * - "resource-saving": Optimization Mode (Background Scan OFF)
    * - "always-on": High Performance Mode (Background Scan ON)
@@ -743,6 +751,13 @@ export interface RevalidateThemeColorsEventDetail {
 }
 
 export interface ElectronAPI {
+  dismissPromotion: (
+    request: PromotionDismissRequest,
+  ) => Promise<PromotionDismissResult>;
+  getPromotions: () => Promise<PromotionSnapshot>;
+  onPromotionsUpdated: (
+    callback: (snapshot: PromotionSnapshot) => void,
+  ) => () => void;
   getAllChangelogs: () => Promise<ChangelogItem[]>;
   onShowChangelog?: (
     callback: (

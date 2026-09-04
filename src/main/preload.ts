@@ -36,12 +36,30 @@ import {
   LauncherLogSaveResult,
 } from "../shared/types";
 
+import type {
+  PromotionDismissRequest,
+  PromotionDismissResult,
+  PromotionSnapshot,
+} from "../shared/promotions";
+
 const logger = new PreloadLogger({ type: "PRELOAD", typeColor: "#8BE9FD" });
 
 // --- Electron API Expose ---
 // Used by React Renderer (App.tsx)
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  dismissPromotion: (
+    request: PromotionDismissRequest,
+  ): Promise<PromotionDismissResult> =>
+    ipcRenderer.invoke("promotions:dismiss", request),
+  getPromotions: (): Promise<PromotionSnapshot> =>
+    ipcRenderer.invoke("promotions:get"),
+  onPromotionsUpdated: (callback: (snapshot: PromotionSnapshot) => void) => {
+    const handler = (_event: IpcRendererEvent, snapshot: PromotionSnapshot) =>
+      callback(snapshot);
+    ipcRenderer.on("promotions:updated", handler);
+    return () => ipcRenderer.off("promotions:updated", handler);
+  },
   triggerGameStart: (context: GameLaunchContext) => {
     logger.log("[Preload] Sending trigger-game-start to Main Process");
     ipcRenderer.send("trigger-game-start", context);

@@ -54,9 +54,11 @@ import NoticeModal from "./components/modals/NoticeModal";
 import { OnboardingModal } from "./components/modals/OnboardingModal";
 import { PatchFixModal } from "./components/modals/PatchFixModal";
 import { PatchReservationModal } from "./components/modals/PatchReservationModal";
+import EventNotificationModal from "./components/modals/EventNotificationModal";
 import NewsDashboard from "./components/news/NewsDashboard";
 import NewsSection from "./components/news/NewsSection";
 import OfficialLinkButtons from "./components/OfficialLinkButtons";
+import PromotionStatus from "./components/PromotionStatus";
 import ServiceChannelSelector from "./components/ServiceChannelSelector";
 import SettingsModal from "./components/settings/SettingsModal";
 import SupportLinks from "./components/SupportLinks";
@@ -309,6 +311,7 @@ function App() {
 
   // Patch Reservation State
   const [isPatchReservationOpen, setIsPatchReservationOpen] = useState(false);
+  const [isEventNotificationOpen, setIsEventNotificationOpen] = useState(false);
 
   // UI States (Local only)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -2493,6 +2496,15 @@ function App() {
         onClose={handlePatchClose}
       />
 
+      {isEventNotificationOpen && (
+        <EventNotificationModal
+          onClose={() => setIsEventNotificationOpen(false)}
+          preferences={config.eventNotifications}
+          onSave={(preferences) =>
+            window.electronAPI.setConfig("eventNotifications", preferences)
+          }
+        />
+      )}
       {/* Modal: Patch Reservation */}
       <PatchReservationModal
         isOpen={isPatchReservationOpen}
@@ -2662,6 +2674,9 @@ function App() {
               >
                 <SupportLinks
                   remoteVersions={remoteVersions}
+                  onEventNotificationRequest={() =>
+                    setIsEventNotificationOpen(true)
+                  }
                   onForcedRepairRequest={handleForcedRepairRequest}
                   onPatchReservationRequest={() =>
                     setIsPatchReservationOpen(true)
@@ -2757,6 +2772,10 @@ function App() {
             {/* === Right Panel: Content Area === */}
             <div className="right-panel">
               <div className="news-refresh-toolbar">
+                <PromotionStatus
+                  activeGame={config.activeGame}
+                  serviceChannel={config.serviceChannel}
+                />
                 <div className="news-open-mode-panel">
                   <span className="news-open-mode-label">게시글 보기:</span>
                   <div

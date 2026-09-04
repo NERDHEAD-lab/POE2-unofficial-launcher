@@ -1,6 +1,14 @@
+import { normalizeEventPreferences } from "./promotions";
 import { AppConfig, ConfigDefinition } from "./types";
 
 export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
+  EVENT_NOTIFICATIONS: {
+    key: "eventNotifications",
+    name: "Event Notifications",
+    category: "General",
+    description:
+      "이벤트 알림 종류와 전체 종류에 공통 적용할 알림 방식을 설정합니다.",
+  },
   LAUNCHER_VERSION: {
     key: "launcherVersion",
     name: "Launcher Version",
@@ -297,6 +305,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   quitOnGameStart: false,
   showOnboarding: true,
   newsOpenMode: "inline",
+  eventNotifications: normalizeEventPreferences(undefined),
   processWatchMode: "resource-saving",
   aggressivePatchMode: false,
   skipDaumGameStarterUac: false,

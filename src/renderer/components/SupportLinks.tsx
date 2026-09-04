@@ -154,6 +154,7 @@ interface SupportLinksProps {
     timestamp: string | number;
   }) => void;
   onPatchReservationRequest?: () => void;
+  onEventNotificationRequest?: () => void;
   onFontManagerSettingsRequest?: () => void;
 }
 
@@ -161,6 +162,7 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
   remoteVersions,
   onForcedRepairRequest,
   onPatchReservationRequest,
+  onEventNotificationRequest,
   onFontManagerSettingsRequest,
 }) => {
   // Define Links Configuration
@@ -336,6 +338,19 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
 
   return (
     <div className="support-links-wrapper">
+      <button
+        type="button"
+        className="support-link event-notification-menu"
+        onClick={onEventNotificationRequest}
+      >
+        <span
+          className="material-symbols-outlined support-link-icon"
+          aria-hidden="true"
+        >
+          notifications_active
+        </span>
+        이벤트 알림 관리
+      </button>
       {linkDefinitions.map((def) => (
         <SupportLinkItemRenderer key={def.id} item={def} />
       ))}

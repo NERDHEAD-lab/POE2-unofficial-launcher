@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
+import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parsePromotionFeed } from "./contract.mjs";
 import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
@@ -207,6 +208,20 @@ test("validator matches the actual launcher consumer when available", async (t) 
     );
     return;
   }
+  // The launcher uses bundler-style imports; keep this Node-only check dependency-free.
+  const hooks = registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (
+        context.parentURL?.endsWith(".ts") &&
+        /^\.\.?\//.test(specifier) &&
+        !extname(specifier)
+      ) {
+        return nextResolve(`${specifier}.ts`, context);
+      }
+      return nextResolve(specifier, context);
+    },
+  });
+  t.after(() => hooks.deregister());
   const consumer = await import(pathToFileURL(path).href);
   for (const input of [...valid, ...Object.values(samples)])
     assert.deepEqual(

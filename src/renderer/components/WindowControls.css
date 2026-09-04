@@ -1,0 +1,4 @@
+.notification-read {
+  filter: saturate(0.15);
+  opacity: 0.78;
+}
