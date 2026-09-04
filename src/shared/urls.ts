@@ -56,6 +56,8 @@ export const SUPPORT_URLS = {
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher/latest-versions.json",
   THEMES_JSON:
     "https://nerdhead-lab.github.io/POE2-unofficial-launcher/themes.json",
+  PROMOTIONS_JSON:
+    "https://nerdhead-lab.github.io/POE2-unofficial-launcher/promotions.json",
   ASSETS_BASE: "https://nerdhead-lab.github.io/POE2-unofficial-launcher/",
 };
 

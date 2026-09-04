@@ -1,0 +1,32 @@
+name: Check Event Promotions
+
+on:
+  pull_request:
+    paths:
+      - "scripts/promotions/**"
+      - "src/shared/promotions.ts"
+      - "src/shared/stash-sales.ts"
+      - ".github/workflows/check-promotions.yml"
+      - ".github/workflows/update-promotions.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: event-promotions-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/promotions/*.test.mjs

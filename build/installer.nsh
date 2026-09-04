@@ -1,22 +1,24 @@
-!macro customInit
-  ; Check if the app is running and kill it before installation
-  DetailPrint "Checking for running instance..."
-  ExecWait 'taskkill /F /IM "${PRODUCT_FILENAME}.exe" /T' $R0
-  Sleep 1000
-!macroend
+; Defining customCheckAppRunning disables these declarations in electron-builder.
+!include "getProcessInfo.nsh"
+Var pid
 
-!macro customInstall
-  ; Add custom install logic here if needed
-!macroend
-
-!macro customUnInit
-  ; Check if the app is running and kill it using taskkill (Plugin-free)
-  DetailPrint "Checking for running instance..."
-  ExecWait 'taskkill /F /IM "${PRODUCT_FILENAME}.exe" /T' $R0
-  Sleep 1000
-
-  ; [Cleaned] No extra logic here.
-  ; Verification: UAC disable logic moved to customUnInstall to support reinstall/update scenarios.
+!macro customCheckAppRunning
+  !insertmacro IS_POWERSHELL_AVAILABLE
+  ; The updater starts NSIS before app.quit(). Give normal shutdown time to finish.
+  ; Keep the stock running-app check and its timeout fallback for locked files.
+  StrCpy $R1 0
+  ${Do}
+    !insertmacro FIND_PROCESS "${APP_EXECUTABLE_FILENAME}" $R0
+    ${If} $R0 != 0
+      ${ExitDo}
+    ${EndIf}
+    ${If} $R1 >= 15
+      ${ExitDo}
+    ${EndIf}
+    Sleep 1000
+    IntOp $R1 $R1 + 1
+  ${Loop}
+  !insertmacro _CHECK_APP_RUNNING
 !macroend
 
 !macro customUnInstall

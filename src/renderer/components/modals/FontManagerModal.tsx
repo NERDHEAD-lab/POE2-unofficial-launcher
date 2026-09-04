@@ -2,7 +2,12 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 
 import { ExternalFontImportModal } from "./ExternalFontImportModal";
 import FontDetailSettingsModal from "./FontDetailSettingsModal";
-import { AppConfig, UnifiedFontData } from "../../../shared/types";
+import FontForceApplyControl from "./FontForceApplyControl";
+import {
+  AppConfig,
+  UnifiedFontData,
+  FontForceApplyState,
+} from "../../../shared/types";
 import { useGameState } from "../../contexts/GameStateContext";
 import { Toast } from "../ui/Toast";
 import "./FontManagerModal.css";
@@ -12,6 +17,7 @@ interface FontManagerModalProps {
   onClose: () => void;
   gameId: AppConfig["activeGame"];
   onOpenCatalog: () => void;
+  fontForceApplyState?: FontForceApplyState;
 }
 
 type ServiceKey = "Kakao Games" | "GGG";
@@ -21,6 +27,7 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
   onClose,
   gameId,
   onOpenCatalog,
+  fontForceApplyState,
 }) => {
   const [fonts, setFonts] = useState<UnifiedFontData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +67,17 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
   const isKakaoRunning =
     getActiveGameState(gameId, "Kakao Games").status === "running";
   const isGGGRunning = getActiveGameState(gameId, "GGG").status === "running";
+  const isAnyGameBusy = ["POE1", "POE2"].some((game) =>
+    ["Kakao Games", "GGG"].some((service) =>
+      [
+        "preparing",
+        "processing",
+        "authenticating",
+        "ready",
+        "running",
+      ].includes(getActiveGameState(game, service).status),
+    ),
+  );
 
   const sortedFonts = useMemo(() => {
     return [...fonts]
@@ -120,11 +138,7 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
     (
       msg: string,
       variant:
-        | "default"
-        | "success"
-        | "warning"
-        | "error"
-        | "white" = "default",
+        "default" | "success" | "warning" | "error" | "white" = "default",
     ) => {
       setToastMsg(msg);
       setToastVariant(variant);
@@ -156,8 +170,10 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
       // Deferred via microtask so the synchronous setFonts/setAssignments inside
       // fetchFonts doesn't trigger a cascading render from this effect.
       void Promise.resolve().then(() => fetchFonts());
-      syncGameState(gameId, "Kakao Games");
-      syncGameState(gameId, "GGG");
+      for (const game of ["POE1", "POE2"]) {
+        void syncGameState(game, "Kakao Games");
+        void syncGameState(game, "GGG");
+      }
     }
   }, [isVisible, gameId, syncGameState, fetchFonts]);
 
@@ -571,6 +587,11 @@ const FontManagerModal: React.FC<FontManagerModalProps> = ({
             </p>
           </div>
         )}
+
+        <FontForceApplyControl
+          cachedState={fontForceApplyState}
+          blocked={isAnyGameBusy || isLoading}
+        />
 
         <div className="font-footer">
           <div className="font-library-actions">

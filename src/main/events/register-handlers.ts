@@ -18,6 +18,12 @@ import {
 } from "./handlers/ConfigSyncHandler";
 import { DebugLogHandler } from "./handlers/DebugLogHandler";
 import { DevToolsVisibilityHandler } from "./handlers/DevToolsVisibilityHandler";
+import {
+  EventNotificationDismissHandler,
+  EventNotificationSettingsHandler,
+  EventNotificationSettingsDeleteHandler,
+  EventNotificationUISyncHandler,
+} from "./handlers/EventNotificationHandler";
 import { GameInstallCheckHandler } from "./handlers/GameInstallCheckHandler";
 import {
   GameProcessStartHandler,
@@ -75,6 +81,10 @@ export const CORE_EVENT_HANDLERS = [
   KakaoMaintenanceUISyncHandler,
   RenewedPatchReservationCreateHandler,
   RenewedPatchReservationDeleteHandler,
+  EventNotificationSettingsHandler,
+  EventNotificationSettingsDeleteHandler,
+  EventNotificationUISyncHandler,
+  EventNotificationDismissHandler,
 ] as const;
 
 export function registerCoreEventHandlers() {

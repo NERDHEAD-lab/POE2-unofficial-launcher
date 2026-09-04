@@ -4,6 +4,7 @@ import {
   findKakaoAccountValidationElements,
   getElementText,
 } from "./account-validation-dom";
+import { AutomationClock } from "./automation-clock";
 import {
   hasVisibleKakaoLoginForm,
   hasVisibleKakaoQrLoginPrompt,
@@ -124,6 +125,15 @@ const SELECTORS = {
 
 // --- Global State ---
 let isValidationMode = false;
+let automationDocumentId: number | null = null;
+let pageDeferred = false;
+let pageStarted = false;
+const automationClock = new AutomationClock();
+
+function sendPageMessage(channel: string, ...args: unknown[]) {
+  if (automationClock.paused) return;
+  ipcRenderer.send(channel, ...args, automationDocumentId);
+}
 
 /**
  * Helper to request visibility with automatic sizing
@@ -137,7 +147,7 @@ function requestWindowVisibility(visible: boolean) {
     return;
   }
 
-  ipcRenderer.send("window-visibility-request", visible);
+  sendPageMessage("window-visibility-request", visible);
 }
 
 function createVisibilityRequest(context: HandlerContext, description: string) {
@@ -172,7 +182,7 @@ function serializeAutomationError(error: unknown) {
 
 function reportAutomationFailure(handlerName: string, error: unknown) {
   const serialized = serializeAutomationError(error);
-  ipcRenderer.send("kakao:automation-failure", {
+  sendPageMessage("kakao:automation-failure", {
     errorCode: "KAKAO_AUTOMATION_HANDLER_FAILURE",
     handlerName,
     url: window.location.href,
@@ -183,7 +193,7 @@ function reportAutomationFailure(handlerName: string, error: unknown) {
 
 function reportStartButtonTimeout(handlerName: string) {
   const message = `${handlerName} timed out while waiting for the Kakao game start button.`;
-  ipcRenderer.send("kakao:automation-failure", {
+  sendPageMessage("kakao:automation-failure", {
     errorCode: "KAKAO_START_BUTTON_TIMEOUT",
     handlerName,
     url: window.location.href,
@@ -204,7 +214,7 @@ function scheduleStableVisibilityReveal(options: {
   const initialUrl = window.location.href;
   const delayMs = options.delayMs ?? USER_REQUIRED_PAGE_REVEAL_DELAY_MS;
 
-  const timeoutId = window.setTimeout(() => {
+  const timeoutId = automationClock.setTimeout(() => {
     if (window.location.href !== initialUrl) {
       logger.log(
         `[Visibility] ${options.description} reveal skipped: URL changed before ${delayMs}ms.`,
@@ -227,14 +237,14 @@ function scheduleStableVisibilityReveal(options: {
     );
   }, delayMs);
 
-  return () => window.clearTimeout(timeoutId);
+  return () => automationClock.clearTimeout(timeoutId);
 }
 
 function safeClick(
   element: HTMLElement | null,
   description: string = "element",
 ) {
-  if (!element) return false;
+  if (!element || automationClock.paused) return false;
 
   const identity = element.id
     ? `#${element.id}`
@@ -289,25 +299,39 @@ function observeAndInteract(
   timeoutMs: number = 10000,
   onTimeout?: () => void,
 ) {
-  if (checkFn()) return;
+  if (!automationClock.paused && checkFn()) return;
 
   logger.log(
     "[Game Window] Target not found immediately. Starting observer...",
   );
 
   let completed = false;
-  const observer = new MutationObserver((_mutations, obs) => {
-    if (checkFn(obs)) {
+  let timeoutId: number | undefined;
+  const check = () => {
+    if (automationClock.paused) return;
+    if (checkFn(observer)) {
       completed = true;
+      if (timeoutId !== undefined) automationClock.clearTimeout(timeoutId);
     }
-  });
+  };
+  const observer = new MutationObserver(check);
+  const unsubscribe = automationClock.onResume(check);
+  const disconnect = observer.disconnect.bind(observer);
+  // Some login handlers keep observing after a successful match for dynamic UI.
+  // Preserve the handler's explicit disconnect decision while cleaning up our clock.
+  observer.disconnect = () => {
+    disconnect();
+    unsubscribe();
+    if (timeoutId !== undefined) automationClock.clearTimeout(timeoutId);
+  };
 
   observer.observe(document.body, { childList: true, subtree: true });
 
   if (timeoutMs > 0) {
-    setTimeout(() => {
+    timeoutId = automationClock.setTimeout(() => {
       if (completed) return;
       observer.disconnect();
+      unsubscribe();
       logger.log("[Game Window] Observer timed out.");
       onTimeout?.();
     }, timeoutMs);
@@ -393,7 +417,7 @@ const AccountValidationHandler: PageHandler = {
         logger.log(
           `[AccountValidationHandler] Tier 2 Success: Found POE Account ID: ${accountId}`,
         );
-        ipcRenderer.send("kakao:account-id-fetched", accountId);
+        sendPageMessage("kakao:account-id-fetched", accountId);
         if (obs) obs.disconnect();
         return true;
       }
@@ -427,7 +451,7 @@ const DaumGameLoginValidationHandler: PageHandler = {
 
     ctx.setVisible(false);
 
-    window.setTimeout(() => {
+    automationClock.setTimeout(() => {
       if (
         !shouldSignalDaumGameLoginRequired(initialHref, window.location.href)
       ) {
@@ -437,7 +461,7 @@ const DaumGameLoginValidationHandler: PageHandler = {
         return;
       }
 
-      ipcRenderer.send("kakao:login-required", { url: initialHref });
+      sendPageMessage("kakao:login-required", { url: initialHref });
       logger.log("[Validator] Validation stopped at Daum login redirect.");
     }, DAUM_GAME_LOGIN_REDIRECT_GRACE_MS);
   },
@@ -490,7 +514,7 @@ const Poe2MainHandler: PageHandler = {
           } else if (closeBtn && safeClick(closeBtn as HTMLElement)) {
             logger.log('[Poe2MainHandler] Clicked "Close X"');
           }
-          await new Promise((r) => setTimeout(r, 500)); // Small delay after close
+          await new Promise<void>((r) => automationClock.setTimeout(r, 500)); // Small delay after close
         }
       }
     };
@@ -820,7 +844,7 @@ const KakaoQRLoginHandler: PageHandler = {
           // Also listen for clicks on label since that's how it's often toggled
           checkboxLabel.addEventListener("click", () => {
             // Delay to let the input state update
-            setTimeout(() => {
+            automationClock.setTimeout(() => {
               warningMsg.style.display = checkboxInput.checked
                 ? "none"
                 : "block";
@@ -945,14 +969,14 @@ const SecurityCenterHandler: PageHandler = {
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: (context) => {
     logger.log(`[Handler] Executing ${SecurityCenterHandler.name}`);
-    ipcRenderer.send("game-status-update", "authenticating", activeGameContext);
+    sendPageMessage("game-status-update", "authenticating", activeGameContext);
 
     const reveal = createVisibilityRequest(context, "Security Center");
     let delayTimeoutId: number | null = null;
 
     const clearDelayedReveal = () => {
       if (delayTimeoutId === null) return;
-      window.clearTimeout(delayTimeoutId);
+      automationClock.clearTimeout(delayTimeoutId);
       delayTimeoutId = null;
     };
 
@@ -960,7 +984,7 @@ const SecurityCenterHandler: PageHandler = {
       if (delayTimeoutId !== null) return;
 
       const initialUrl = window.location.href;
-      delayTimeoutId = window.setTimeout(() => {
+      delayTimeoutId = automationClock.setTimeout(() => {
         delayTimeoutId = null;
 
         if (window.location.href !== initialUrl) {
@@ -1064,7 +1088,7 @@ const LauncherCompletionHandler: PageHandler = {
   triggeredBy: ["GAME_START_POE1", "GAME_START_POE2"],
   execute: () => {
     logger.log(`[Handler] Executing ${LauncherCompletionHandler.name}`);
-    ipcRenderer.send("game-status-update", "ready", activeGameContext);
+    sendPageMessage("game-status-update", "ready", activeGameContext);
 
     observeAndInteract((obs) => {
       for (const sel of SELECTORS.LAUNCHER.GAME_START_BUTTONS) {
@@ -1151,7 +1175,7 @@ const KakaoLoginValidationHandler: PageHandler = {
     ctx.setVisible(false);
 
     // Notify main process: Login is required, here is the context URL to resume later
-    ipcRenderer.send("kakao:login-required", { url: window.location.href });
+    sendPageMessage("kakao:login-required", { url: window.location.href });
 
     // Stop validation since user interaction is needed
     logger.log("[Validator] Validation stuck at Login. Signalling failure.");
@@ -1174,9 +1198,9 @@ const KakaoManualValidationHandler: PageHandler = {
     // 1. Hide Window
     ctx.setVisible(false);
     // 2. Clear Context so we don't accidentally match this again
-    ipcRenderer.send("account:clear-trigger");
+    sendPageMessage("account:clear-trigger");
     // 3. Trigger immediate re-validation to refresh Account ID in UI
-    ipcRenderer.send("account:trigger-validation", "Kakao Games");
+    sendPageMessage("account:trigger-validation", "Kakao Games");
   },
 };
 
@@ -1206,6 +1230,19 @@ const HANDLERS: PageHandler[] = [
 // --- Core Dispatcher ---
 
 async function dispatchPageLogic(triggerContext?: string) {
+  if (pageStarted) return;
+  const page = await ipcRenderer.invoke("kakao:get-page-state");
+  if (page.blocked) {
+    pageDeferred = true;
+    logger.log(
+      "[Cloudflare] Page automation deferred until verification finishes.",
+    );
+    return;
+  }
+  if (pageStarted) return;
+  pageStarted = true;
+  pageDeferred = false;
+  automationDocumentId = page.documentId;
   const currentUrl = new URL(window.location.href);
   logger.log(`[Game Window] Logic Dispatcher: ${currentUrl.href}`);
 
@@ -1252,6 +1289,15 @@ async function dispatchPageLogic(triggerContext?: string) {
         requestWindowVisibility(false);
       }
 
+      // Apply the new document's policy before a handler can navigate or await input.
+      const timeout = handler.timeoutMs ?? 10000;
+      sendPageMessage(
+        isValidationMode
+          ? "account:update-timeout"
+          : "automation:update-timeout",
+        timeout,
+      );
+
       // 2. Execute Handler with Context
       try {
         const context: HandlerContext = {
@@ -1266,15 +1312,6 @@ async function dispatchPageLogic(triggerContext?: string) {
         return;
       }
 
-      // 3. Update Timeout in Main Process
-      const timeout =
-        handler.timeoutMs !== undefined ? handler.timeoutMs : 10000;
-
-      if (isValidationMode) {
-        ipcRenderer.send("account:update-timeout", timeout);
-      } else {
-        ipcRenderer.send("automation:update-timeout", timeout);
-      }
       return;
     }
   }
@@ -1288,7 +1325,7 @@ async function dispatchPageLogic(triggerContext?: string) {
       `[Game Window] Unhandled page candidate during automated flow: ${initialHref}. Waiting ${UNHANDLED_PAGE_REVEAL_DELAY_MS}ms before showing.`,
     );
 
-    window.setTimeout(() => {
+    automationClock.setTimeout(() => {
       if (window.location.href !== initialHref) {
         logger.log(
           `[Game Window] Unhandled page reveal skipped: URL changed from ${initialHref} to ${window.location.href}.`,
@@ -1300,7 +1337,7 @@ async function dispatchPageLogic(triggerContext?: string) {
         `[Game Window] UNHANDLED PAGE DETECTED during automated flow: ${initialHref}`,
       );
       // Explicitly bypass local visibility helpers and force main process to show
-      ipcRenderer.send("window-visibility-request", true);
+      sendPageMessage("window-visibility-request", true);
     }, UNHANDLED_PAGE_REVEAL_DELAY_MS);
   }
 }
@@ -1328,6 +1365,13 @@ try {
 }
 
 // --- IPC Listeners ---
+
+ipcRenderer.on("kakao:page-resumed", () => {
+  automationClock.resume();
+  if (pageDeferred) void dispatchPageLogic();
+});
+
+ipcRenderer.on("kakao:page-paused", () => automationClock.pause());
 
 ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
   logger.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
@@ -1363,7 +1407,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     logger.log("[Game Window] Background validation mode ACTIVE.");
   }
 
-  dispatchPageLogic(triggerContext);
+  await dispatchPageLogic(triggerContext);
 });
 
 logger.log("[Game Window] Preload Loaded");

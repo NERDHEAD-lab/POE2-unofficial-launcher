@@ -13,12 +13,17 @@ interface RegisterGameStatusIpcOptions {
   getAppContext: () => AppContext | undefined;
   getActiveSessionContext: () => SessionContext | null;
   getWindowContext: (webContentsId: number) => SessionContext | undefined;
+  acceptsPage?: (
+    event: Electron.IpcMainEvent,
+    documentId?: number | null,
+  ) => boolean;
 }
 
 export function registerGameStatusIpc({
   getAppContext,
   getActiveSessionContext,
   getWindowContext,
+  acceptsPage,
 }: RegisterGameStatusIpcOptions) {
   ipcMain.handle(
     "game:get-status",
@@ -36,7 +41,9 @@ export function registerGameStatusIpc({
         gameId: AppConfig["activeGame"];
         serviceId: AppConfig["serviceChannel"];
       } | null,
+      documentId?: number | null,
     ) => {
+      if (acceptsPage && !acceptsPage(event, documentId)) return;
       const appContext = getAppContext();
       if (!appContext) {
         return;
