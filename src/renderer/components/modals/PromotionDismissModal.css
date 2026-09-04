@@ -1,0 +1,32 @@
+.promotion-dismiss-modal {
+  width: 420px;
+}
+.promotion-dismiss-event {
+  margin: 0;
+  color: #eee;
+  font-size: 15px;
+  font-weight: 600;
+}
+.promotion-dismiss-period {
+  margin: 8px 0 24px;
+  color: #aaa;
+  font-size: 13px;
+}
+.promotion-dismiss-remember {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+}
+.promotion-dismiss-remember input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--theme-accent);
+}
+.promotion-dismiss-remember:has(input:disabled) {
+  opacity: 0.6;
+  cursor: default;
+}

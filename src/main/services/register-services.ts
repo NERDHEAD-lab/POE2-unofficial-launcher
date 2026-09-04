@@ -1,3 +1,4 @@
+import { EventNotificationService } from "./EventNotificationService";
 import { LogWatcher } from "./LogWatcher";
 import { PatchReservationService } from "./PatchReservationService";
 import { ProcessWatcher } from "./ProcessWatcher";
@@ -13,6 +14,7 @@ export function registerCoreServices(appContext: AppContext) {
   serviceManager.register(new LogWatcher(appContext));
   serviceManager.register(new PatchReservationService(appContext));
   serviceManager.register(new UpdateSchedulerService(appContext));
+  serviceManager.register(new EventNotificationService(appContext));
 }
 
 export async function initializeCoreServices(appContext: AppContext) {
