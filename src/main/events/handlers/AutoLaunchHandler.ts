@@ -33,7 +33,6 @@ export const syncAutoLaunch = async () => {
   try {
     app.setLoginItemSettings({
       openAtLogin: shouldAutoLaunch,
-      openAsHidden: shouldStartMinimized,
       args: shouldStartMinimized ? ["--hidden"] : [],
     });
     logger.log("[AutoLaunch] Standard login item settings updated.");

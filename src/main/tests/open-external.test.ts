@@ -32,6 +32,7 @@ vi.mock("../utils/logger", () => ({
 describe("openExternalSafely", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.clipboardWriteText.mockResolvedValue(undefined);
     mocks.dialogShowMessageBox.mockResolvedValue({ response: 1 });
     mocks.shellOpenExternal.mockResolvedValue(undefined);
   });
@@ -138,5 +139,50 @@ describe("openExternalSafely", () => {
       "[ExternalLink] Failed to copy URL to the clipboard.",
       clipboardError,
     );
+  });
+
+  it("handles asynchronous clipboard failures without rejecting", async () => {
+    const clipboardError = new Error("clipboard unavailable");
+    mocks.shellOpenExternal.mockRejectedValueOnce(new Error("no browser"));
+    mocks.dialogShowMessageBox.mockResolvedValueOnce({ response: 0 });
+    mocks.clipboardWriteText.mockRejectedValueOnce(clipboardError);
+
+    await expect(openExternalSafely("https://example.com")).resolves.toBe(
+      false,
+    );
+
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "[ExternalLink] Failed to copy URL to the clipboard.",
+      clipboardError,
+    );
+  });
+
+  it("waits for the fallback URL to finish copying", async () => {
+    let finishCopy!: () => void;
+    const copying = new Promise<void>((resolve) => {
+      finishCopy = resolve;
+    });
+    mocks.shellOpenExternal.mockRejectedValueOnce(new Error("no browser"));
+    mocks.dialogShowMessageBox.mockResolvedValueOnce({ response: 0 });
+    mocks.clipboardWriteText.mockReturnValueOnce(copying);
+
+    let settled = false;
+    const result = openExternalSafely("https://example.com").then((value) => {
+      settled = true;
+      return value;
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.clipboardWriteText).toHaveBeenCalledWith(
+        "https://example.com",
+      );
+    });
+    try {
+      expect(settled).toBe(false);
+    } finally {
+      finishCopy();
+      await result;
+    }
+    await expect(result).resolves.toBe(false);
   });
 });
