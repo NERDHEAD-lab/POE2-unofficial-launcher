@@ -54,7 +54,7 @@ export async function openExternalSafely(
 
   if (shouldCopyUrl) {
     try {
-      clipboard.writeText(url);
+      await clipboard.writeText(url);
     } catch (error) {
       logger.error(
         "[ExternalLink] Failed to copy URL to the clipboard.",
