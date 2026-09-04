@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.0...1.7.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* 카카오 보안 확인이 자동 완료될 때 창이 잠깐 뜨는 문제 개선 ([#295](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/295)) ([64cc707](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/64cc70732188457b8746c1ba72d6a81edb3cf131))
+
 ## [1.7.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.5...1.7.0) (2026-09-04)
 
 
