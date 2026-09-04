@@ -17,6 +17,7 @@ import {
 } from "electron";
 import JSZip from "jszip";
 
+import { registerShutdownHandlers } from "./app-shutdown";
 import { ContextProvider } from "./context-provider";
 import { eventBus } from "./events/EventBus";
 import { registerCoreEventHandlers } from "./events/register-handlers";
@@ -82,7 +83,6 @@ import {
 } from "./ipc/renewed-patch-reservation-ipc";
 import {
   archiveAutomationDumpSession,
-  discardAutomationDumpSession,
   dumpAutomationPage,
   handleAutomationDumpGameStatus,
   scheduleAutomationDumpRetentionCleanup,
@@ -2242,6 +2242,10 @@ async function createWindow() {
         logger.log("[Main] Window hidden due to 'minimize' closeAction.");
         return;
       }
+      // Keep the window usable if saving login cookies cancels shutdown.
+      e.preventDefault();
+      app.quit();
+      return;
     }
     logger.log("[Main] Window closing (quitting).");
   });
@@ -3264,42 +3268,11 @@ eventBus.register({
   },
 });
 
-/**
- * Performs ultimate cleanup of all background services and PowerShell sessions
- * to ensure no file locks remain before the app terminates.
- */
-async function cleanupServices() {
-  logger.log("[Main] Performing global service cleanup...");
-
-  try {
-    await discardAutomationDumpSession("app-cleanup");
-  } catch (e) {
-    logger.error("[Main] Failed to cleanup automation dump session:", e);
-  }
-
-  // 1. Stop all registered services (Waiters, Watchers, Schedulers)
-  try {
-    await serviceManager.stopAll();
-  } catch (e) {
-    logger.error("[Main] Failed to stop services during cleanup:", e);
-  }
-
-  // 2. Cleanup PowerShell Sessions (FINAL)
-  // This will set isDestroyed=true and block further creations
-  try {
-    PowerShellManager.getInstance().cleanup();
-  } catch (e) {
-    logger.error("[Main] Failed to cleanup PowerShell session:", e);
-  }
-}
-
-app.on("before-quit", async () => {
-  isQuitting = true;
-  await cleanupServices();
+registerShutdownHandlers((quitting) => {
+  isQuitting = quitting;
 });
 
-app.on("window-all-closed", async () => {
-  await cleanupServices();
+app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }

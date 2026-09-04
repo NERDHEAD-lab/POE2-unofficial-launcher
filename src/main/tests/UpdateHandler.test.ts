@@ -4,6 +4,7 @@ import {
   EventType,
   type AppContext,
   type UIUpdateDownloadEvent,
+  type UIUpdateInstallEvent,
 } from "../events/types";
 
 type AutoUpdaterListener = (...args: unknown[]) => void;
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     ),
     getVersion: vi.fn(() => "1.3.3"),
     isPackaged: true,
+    quit: vi.fn(),
   },
   autoUpdaterListeners: new Map<string, AutoUpdaterListener>(),
   autoUpdater: {
@@ -26,10 +28,13 @@ const mocks = vi.hoisted(() => ({
     downloadUpdate: vi.fn(),
     on: vi.fn(),
     quitAndInstall: vi.fn(),
+    once: vi.fn(),
   },
   axiosGet: vi.fn(),
   axiosIsAxiosError: vi.fn(),
   fetchChangelogs: vi.fn(),
+  prepareForShutdown: vi.fn(),
+  showErrorBox: vi.fn(),
   logger: {
     log: vi.fn(),
     warn: vi.fn(),
@@ -39,6 +44,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: mocks.app,
+  dialog: { showErrorBox: mocks.showErrorBox },
+}));
+
+vi.mock("../app-shutdown", () => ({
+  prepareForShutdown: mocks.prepareForShutdown,
 }));
 
 vi.mock("electron-updater", () => ({
@@ -77,6 +87,11 @@ const context = {
 const downloadEvent: UIUpdateDownloadEvent = {
   type: EventType.UI_UPDATE_DOWNLOAD,
   payload: undefined,
+};
+
+const installEvent: UIUpdateInstallEvent = {
+  type: EventType.UI_UPDATE_INSTALL,
+  payload: { isSilent: false },
 };
 
 const createWindowContext = () => {
@@ -124,6 +139,14 @@ describe("UpdateHandler", () => {
       },
     );
     mocks.autoUpdater.downloadUpdate.mockResolvedValue(undefined);
+    mocks.prepareForShutdown.mockResolvedValue(undefined);
+    mocks.autoUpdater.quitAndInstall.mockReset();
+    mocks.autoUpdater.once.mockImplementation(
+      (event: string, listener: AutoUpdaterListener) => {
+        mocks.autoUpdaterListeners.set(`once:${event}`, listener);
+        return mocks.autoUpdater;
+      },
+    );
     mocks.fetchChangelogs.mockResolvedValue([]);
     mocks.app.isPackaged = true;
     mocks.app.getVersion.mockReturnValue("1.3.3");
@@ -133,6 +156,73 @@ describe("UpdateHandler", () => {
         typeof error === "object" && error !== null && "isAxiosError" in error,
     );
   });
+
+  it("waits for shutdown preparation before installing and ignores duplicate requests", async () => {
+    const pending = createDeferred();
+    mocks.prepareForShutdown.mockReturnValueOnce(pending.promise);
+    const { UpdateDownloadHandler, UpdateInstallHandler } =
+      await loadUpdateHandler();
+    await UpdateDownloadHandler.handle(downloadEvent, context);
+    emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
+
+    const first = UpdateInstallHandler.handle(installEvent, context);
+    await UpdateInstallHandler.handle(installEvent, context);
+    expect(mocks.prepareForShutdown).toHaveBeenCalledTimes(1);
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+
+    pending.resolve();
+    await first;
+    expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledExactlyOnceWith(
+      false,
+      true,
+    );
+  });
+
+  it("keeps the downloaded update available for retry after storage preparation fails", async () => {
+    mocks.prepareForShutdown.mockRejectedValueOnce(
+      new Error("storage failure"),
+    );
+    const { UpdateDownloadHandler, UpdateInstallHandler } =
+      await loadUpdateHandler();
+    await UpdateDownloadHandler.handle(downloadEvent, context);
+    emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
+
+    await UpdateInstallHandler.handle(installEvent, context);
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(mocks.app.quit).not.toHaveBeenCalled();
+    expect(mocks.showErrorBox).toHaveBeenCalledTimes(1);
+
+    await UpdateInstallHandler.handle(installEvent, context);
+    expect(mocks.prepareForShutdown).toHaveBeenCalledTimes(2);
+    expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stop the app for an install request without a completed download", async () => {
+    const { UpdateInstallHandler } = await loadUpdateHandler();
+    await UpdateInstallHandler.handle(installEvent, context);
+    expect(mocks.prepareForShutdown).not.toHaveBeenCalled();
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it.each(["event", "throw"])(
+    "quits without auto-install retry after installer startup failure (%s)",
+    async (mode) => {
+      const { UpdateDownloadHandler, UpdateInstallHandler } =
+        await loadUpdateHandler();
+      await UpdateDownloadHandler.handle(downloadEvent, context);
+      emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
+      mocks.autoUpdater.quitAndInstall.mockImplementationOnce(() => {
+        const error = new Error("installer missing");
+        if (mode === "throw") throw error;
+        emitAutoUpdaterEvent("once:error", error);
+      });
+
+      await UpdateInstallHandler.handle(installEvent, context);
+      expect(mocks.showErrorBox).toHaveBeenCalledTimes(1);
+      expect(mocks.autoUpdater.autoInstallOnAppQuit).toBe(false);
+      expect(mocks.app.quit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("falls back without logging an error when the smart update check times out", async () => {
     const timeoutError = Object.assign(
