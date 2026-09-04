@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T08:25:25.664Z",
+  "events": [
+    {
+      "id": "ggg-4000901-twitch-471bcf3ba0",
+      "kind": "twitch-drops",
+      "game": "poe1",
+      "startsAt": "2026-09-03T21:00:00.000Z",
+      "endsAt": "2026-09-04T21:00:00.000Z",
+      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4000901",
+      "precision": "exact"
+    },
+    {
+      "id": "ggg-4001078-twitch-cb86680b9a",
+      "kind": "twitch-drops",
+      "game": "poe2",
+      "startsAt": "2026-09-04T20:00:00.000Z",
+      "endsAt": "2026-09-11T20:00:00.000Z",
+      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4001078",
+      "precision": "exact"
+    }
+  ]
+}
