@@ -65,7 +65,7 @@ describe("Kakao Cloudflare challenge gate", () => {
     expect(gate.hasChallenge("ACCOUNT_VALIDATION")).toBe(false);
     expect(gate.accepts(2, oldDocument)).toBe(false);
     expect(gate.pageState(2).blocked).toBe(true);
-    expect(gate.isVisible(3)).toBe(false);
+    expect(gate.taskBlocked(3)).toBe(false);
   });
 
   it("restores the committed normal document if the first challenge response is cancelled", () => {
@@ -76,7 +76,7 @@ describe("Kakao Cloudflare challenge gate", () => {
     gate.beginNavigation(1);
     respond(gate, 2);
     gate.requestFailed({ id: 2, webContentsId: 1 });
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
     expect(gate.accepts(1, documentId)).toBe(true);
   });
   it("blocks a challenge before page handlers and notifies only once", () => {
@@ -84,7 +84,7 @@ describe("Kakao Cloudflare challenge gate", () => {
     respond(gate, 10);
     gate.commit(1, url);
     expect(gate.pageState(1).blocked).toBe(true);
-    expect(gate.isVisible(1)).toBe(true);
+    expect(gate.taskBlocked(1)).toBe(true);
     respond(gate, 11);
     expect(onChallenge).toHaveBeenCalledExactlyOnceWith(1);
   });
@@ -100,7 +100,7 @@ describe("Kakao Cloudflare challenge gate", () => {
         1,
         "https://pathofexile2.kakaogames.com/main#autoStart",
       );
-      expect(gate.isVisible(1)).toBe(true);
+      expect(gate.taskBlocked(1)).toBe(true);
     },
   );
 
@@ -108,7 +108,7 @@ describe("Kakao Cloudflare challenge gate", () => {
     const { gate } = setup();
     respond(gate, 1, { server: ["cloudflare"], title: ["Just a moment..."] });
     gate.commit(1, url);
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
     expect(gate.pageState(1).blocked).toBe(false);
   });
 
@@ -123,7 +123,7 @@ describe("Kakao Cloudflare challenge gate", () => {
       statusCode: 403,
       responseHeaders: challenge,
     });
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
   });
 
   it.each([
@@ -133,13 +133,13 @@ describe("Kakao Cloudflare challenge gate", () => {
   ])("ignores unapproved host/protocol %s", (target) => {
     const { gate } = setup();
     respond(gate, 1, challenge, 1, target);
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
   });
 
   it("does not reveal a window without an automation trigger", () => {
     const gate = new KakaoChallengeGate(vi.fn());
     respond(gate, 1);
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
   });
 
   it("keeps the challenge through navigation, redirects and headers until normal document commit", () => {
@@ -162,11 +162,11 @@ describe("Kakao Cloudflare challenge gate", () => {
       responseHeaders: {},
     });
     gate.commit(1, url);
-    expect(gate.isVisible(1)).toBe(true);
+    expect(gate.taskBlocked(1)).toBe(true);
     respond(gate, 2, {});
-    expect(gate.isVisible(1)).toBe(true);
+    expect(gate.taskBlocked(1)).toBe(true);
     gate.commit(1, url);
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
     expect(gate.pageState(1).blocked).toBe(false);
   });
 
@@ -187,7 +187,7 @@ describe("Kakao Cloudflare challenge gate", () => {
       responseHeaders: {},
     });
     gate.commit(1, url);
-    expect(gate.isVisible(1)).toBe(true);
+    expect(gate.taskBlocked(1)).toBe(true);
     expect(gate.accepts(1, oldDocument)).toBe(false);
     gate.setTrigger(1, "GAME_START_POE2");
     gate.responseStarted({
@@ -198,7 +198,7 @@ describe("Kakao Cloudflare challenge gate", () => {
       statusCode: 403,
       responseHeaders: challenge,
     });
-    expect(gate.isVisible(1)).toBe(false);
+    expect(gate.taskBlocked(1)).toBe(false);
     expect(gate.accepts(1, oldDocument)).toBe(false);
   });
 
@@ -215,7 +215,7 @@ describe("Kakao Cloudflare challenge gate", () => {
     expect(gate.hasChallenge("ACCOUNT_VALIDATION")).toBe(false);
   });
 
-  it("preserves a displayed challenge when a replacement request is cancelled", () => {
+  it("preserves a committed challenge when a replacement request is cancelled", () => {
     const { gate } = setup();
     respond(gate, 1);
     gate.commit(1, url);
@@ -223,6 +223,6 @@ describe("Kakao Cloudflare challenge gate", () => {
     respond(gate, 2, {});
     gate.requestFailed({ id: 2, webContentsId: 1 });
     gate.commit(1, url);
-    expect(gate.isVisible(1)).toBe(true);
+    expect(gate.taskBlocked(1)).toBe(true);
   });
 });

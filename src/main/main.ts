@@ -89,7 +89,10 @@ import {
   startAutomationDumpSession,
   type AutomationDumpArchiveResult,
 } from "./kakao/automation-page-dump";
-import { KakaoChallengeGate } from "./kakao/cloudflare-challenge";
+import {
+  CLOUDFLARE_REVEAL_DELAY_MS,
+  KakaoChallengeGate,
+} from "./kakao/cloudflare-challenge";
 import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
@@ -290,10 +293,8 @@ const kakaoChallengeGate = new KakaoChallengeGate(
     const win = wc && BrowserWindow.fromWebContents(wc);
     if (!win || win.isDestroyed()) return;
     logger.log(
-      `[Cloudflare] Waiting for user verification in window ${win.id}.`,
+      `[Cloudflare] Verification detected in window ${win.id}; delaying display for ${CLOUDFLARE_REVEAL_DELAY_MS}ms.`,
     );
-    win.show();
-    win.focus();
   },
   (ids) => {
     if (
@@ -348,6 +349,16 @@ const kakaoChallengeGate = new KakaoChallengeGate(
         else closeRetired();
       }
     }
+  },
+  (id) => {
+    const wc = webContents.fromId(id);
+    const win = wc && BrowserWindow.fromWebContents(wc);
+    if (!win || win.isDestroyed() || !kakaoChallengeGate.isVisible(id)) return;
+    logger.log(
+      `[Cloudflare] Verification still pending; showing window ${win.id}.`,
+    );
+    win.show();
+    win.focus();
   },
 );
 

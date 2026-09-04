@@ -11,6 +11,8 @@ interface WindowState {
   trigger: string;
   task: number;
   challenge: boolean;
+  visible: boolean;
+  revealTimer?: ReturnType<typeof setTimeout>;
   documentId: number | null;
   committed: { challenge: boolean; documentId: number | null };
   request?: { id: number; response?: { url: string; challenge: boolean } };
@@ -22,6 +24,8 @@ const TRIGGERS = new Set([
   "GAME_START_POE1",
   "GAME_START_POE2",
 ]);
+
+export const CLOUDFLARE_REVEAL_DELAY_MS = 5000;
 
 function documentUrl(value: string) {
   return value.split("#")[0];
@@ -40,6 +44,7 @@ export class KakaoChallengeGate {
       ids: number[],
       successorId: number,
     ) => void = () => {},
+    private readonly onReveal: (id: number) => void = () => {},
   ) {}
 
   setTrigger(id: number, trigger: string | null, parentId?: number) {
@@ -52,6 +57,7 @@ export class KakaoChallengeGate {
       const retired: number[] = [];
       for (const [windowId, state] of this.windows) {
         if (state.task === oldTask) {
+          this.cancelReveal(state);
           this.windows.delete(windowId);
           this.retired.add(windowId);
           if (windowId !== id) retired.push(windowId);
@@ -59,6 +65,8 @@ export class KakaoChallengeGate {
       }
       this.onRetired(retired, id);
     }
+    const previous = this.windows.get(id);
+    if (previous) this.cancelReveal(previous);
     this.retired.delete(id);
     this.windows.set(id, {
       trigger,
@@ -67,6 +75,7 @@ export class KakaoChallengeGate {
           ? undefined
           : this.windows.get(parentId)?.task) ?? ++this.sequence,
       challenge: false,
+      visible: false,
       documentId: null,
       committed: { challenge: false, documentId: null },
     });
@@ -115,6 +124,12 @@ export class KakaoChallengeGate {
     state.request.response = { url: documentUrl(details.url), challenge };
     if (challenge && !state.challenge) {
       state.challenge = true;
+      state.revealTimer = setTimeout(() => {
+        state.revealTimer = undefined;
+        if (this.windows.get(id) !== state || !state.challenge) return;
+        state.visible = true;
+        this.onReveal(id);
+      }, CLOUDFLARE_REVEAL_DELAY_MS);
       this.onChallenge(id);
     }
   }
@@ -126,6 +141,7 @@ export class KakaoChallengeGate {
     const wasChallenged = state.challenge;
     state.challenge = state.committed.challenge;
     state.documentId = state.committed.documentId;
+    if (!state.challenge) this.cancelReveal(state);
     if (wasChallenged && !state.challenge) this.resumeTask(state.task);
   }
 
@@ -141,14 +157,22 @@ export class KakaoChallengeGate {
       challenge: state.challenge,
       documentId: state.documentId,
     };
+    if (!state.challenge) this.cancelReveal(state);
     if (wasChallenged && !state.challenge) this.resumeTask(state.task);
   }
 
   remove(id: number) {
     const state = this.windows.get(id);
+    if (state) this.cancelReveal(state);
     this.windows.delete(id);
     this.retired.delete(id);
     if (state?.challenge) this.resumeTask(state.task);
+  }
+
+  private cancelReveal(state: WindowState) {
+    clearTimeout(state.revealTimer);
+    state.revealTimer = undefined;
+    state.visible = false;
   }
 
   private resumeTask(task: number) {
@@ -160,7 +184,7 @@ export class KakaoChallengeGate {
   }
 
   isVisible(id: number) {
-    return this.windows.get(id)?.challenge === true;
+    return this.windows.get(id)?.visible === true;
   }
 
   taskBlocked(id: number) {
