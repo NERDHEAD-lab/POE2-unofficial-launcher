@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.5...1.7.0) (2026-09-04)
+
+
+### Features
+
+* 트위치 드롭스와 보관함 할인 일정·알림을 확인할 수 있도록 추가 ([#290](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/290)) ([3296f00](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3296f00b97ca1a3d3048303b7329b451c9f14e4b))
+
+
+### Bug Fixes
+
+* Electron 44에서 자동 시작 설정과 링크 복사 오류 처리를 개선 ([#281](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/281)) ([219237d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/219237dce5ab4fc4a1b08e6e1ec097a3ac8542f3))
+* 업데이트 후 카카오 로그인이 풀리는 문제 개선 ([#292](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/292)) ([320f88b](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/320f88be222d4b57978bbd86ef25f3b2127782f9))
+* 이벤트 알림 관리의 아이콘을 주요 소식과 통일 ([#294](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/294)) ([35cb50d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/35cb50de323a0bf67a98064417bb4bdd2b64f522))
+* 카카오 게임 실행과 계정 확인 중 보안 확인 창을 표시하도록 개선 ([#293](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/293)) ([e375084](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/e375084b8e4dcc498ba6f572dd788540453b2835))
+
 ## [1.6.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.6.4...1.6.5) (2026-09-04)
 
 
