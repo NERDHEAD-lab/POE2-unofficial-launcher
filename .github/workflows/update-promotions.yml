@@ -1,0 +1,104 @@
+name: Update Event Promotions
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "scripts/promotions/**"
+      - "src/shared/promotions.ts"
+      - ".github/workflows/update-promotions.yml"
+  pull_request:
+    paths:
+      - "scripts/promotions/**"
+      - "src/shared/promotions.ts"
+      - ".github/workflows/update-promotions.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: event-promotions-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publisher' }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/promotions/*.test.mjs
+
+  collect-and-publish:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && github.repository == 'NERDHEAD-lab/POE2-unofficial-launcher'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Confirm existing Pages target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/pages" > "$RUNNER_TEMP/promotions-pages.json"
+          jq -e '.build_type == "legacy" and .source.branch == "gh-pages" and .source.path == "/"' "$RUNNER_TEMP/promotions-pages.json"
+      - name: Record collection revision
+        id: base
+        working-directory: pages
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Collect official GGG events
+        run: node scripts/promotions/collect.mjs --previous pages/promotions.json --output .tmp/promotions-candidate.json
+      - name: Publish only the validated feed
+        env:
+          COLLECTION_REVISION: ${{ steps.base.outputs.revision }}
+        run: node scripts/promotions/publish.mjs pages .tmp/promotions-candidate.json "$COLLECTION_REVISION"
+      - name: Request and verify Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/pages/builds"
+          for attempt in $(seq 1 30); do
+            gh api "repos/${GITHUB_REPOSITORY}/pages/builds/latest" > "$RUNNER_TEMP/promotions-build.json"
+            status=$(jq -r '.status' "$RUNNER_TEMP/promotions-build.json")
+            if [ "$status" = "built" ]; then
+              commit=$(jq -r '.commit' "$RUNNER_TEMP/promotions-build.json")
+              git -C pages fetch origin gh-pages
+              if git -C pages merge-base --is-ancestor HEAD "$commit"; then
+                jq '{status,commit,updated_at}' "$RUNNER_TEMP/promotions-build.json"
+                exit 0
+              fi
+            fi
+            if [ "$status" = "errored" ]; then
+              jq '{status,commit,error}' "$RUNNER_TEMP/promotions-build.json"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Pages build completion not verified" >&2
+          exit 1
+      - name: Verify public HTTP 200 and matching contents
+        run: node scripts/promotions/verify-published.mjs .tmp/promotions-candidate.json
