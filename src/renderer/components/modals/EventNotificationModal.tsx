@@ -4,6 +4,7 @@ import {
   normalizeEventPreferences,
   type EventNotificationPreferences,
 } from "../../../shared/promotions";
+import PromotionIcon from "../PromotionIcon";
 
 import "./EventNotificationModal.css";
 
@@ -12,8 +13,16 @@ const GROUPS = [
     id: "types",
     name: "알림 종류",
     options: [
-      { id: "twitch", name: "트위치 드롭스", icon: "live_tv" },
-      { id: "stash", name: "보관함 할인", icon: "inventory_2" },
+      {
+        id: "twitch",
+        name: "트위치 드롭스",
+        icon: <PromotionIcon kind="twitch-drops" />,
+      },
+      {
+        id: "stash",
+        name: "보관함 할인",
+        icon: <PromotionIcon kind="stash-sale" />,
+      },
     ],
   },
   {
@@ -162,7 +171,11 @@ export default function EventNotificationModal({
                       }}
                     />
                     <span
-                      className="material-symbols-outlined"
+                      className={
+                        typeof option.icon === "string"
+                          ? "material-symbols-outlined"
+                          : "event-notification-option-icon"
+                      }
                       aria-hidden="true"
                     >
                       {option.icon}
