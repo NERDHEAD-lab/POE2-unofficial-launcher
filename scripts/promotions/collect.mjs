@@ -1,9 +1,16 @@
 /* global fetch, AbortSignal, Buffer, process, URL, console */
-import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
+import {
+  readFile,
+  writeFile,
+  rename,
+  mkdir,
+  appendFile,
+} from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { parsePromotionFeed } from "./contract.mjs";
+import { collectStashSales, collectionSummary } from "./stash-sales.mjs";
 import {
   canonicalSource,
   parseArticle,
@@ -17,7 +24,7 @@ export async function fetchOfficial(url) {
     headers: {
       "User-Agent":
         "PoE-Unofficial-Launcher-Promotions/1.0 (+https://github.com/NERDHEAD-lab/POE2-unofficial-launcher)",
-      Accept: "text/html, application/rss+xml",
+      Accept: "application/json, text/html, application/rss+xml",
     },
     signal: AbortSignal.timeout(15_000),
     redirect: "error",
@@ -44,9 +51,51 @@ export async function collect({
   overrides,
   fetchText = fetchOfficial,
   pause = () => delay(500),
-  now = new Date(),
+  now,
+  clock = now ? () => now : () => new Date(),
 }) {
+  now ??= clock();
   if (previous) previous = parsePromotionFeed(previous);
+  // Input corruption still fails before writing. Source failures are independent.
+  const fallback = mergePromotions(previous, [], overrides, now);
+  let drops;
+  try {
+    drops = await collectDrops({ previous, overrides, fetchText, pause, now });
+  } catch (error) {
+    drops = {
+      feed: fallback,
+      warnings: [`Drops collection unavailable: ${error.message}`],
+    };
+  }
+  const shop = await collectStashSales({
+    previous: previous?.stashSales,
+    fetchText,
+    pause,
+    clock,
+  });
+  const completedAt = clock();
+  const feed = parsePromotionFeed({
+    ...drops.feed,
+    generatedAt: completedAt.toISOString(),
+    events: drops.feed.events.filter(
+      (event) => Date.parse(event.endsAt) > completedAt.getTime(),
+    ),
+    stashSales: shop.stashSales,
+  });
+  const warnings = [...drops.warnings, ...shop.warnings];
+  return {
+    feed,
+    warnings,
+    summary: collectionSummary(feed, shop.reports, warnings),
+  };
+}
+
+async function collectDrops({ previous, overrides, fetchText, pause, now }) {
+  if (previous)
+    previous = {
+      ...previous,
+      events: previous.events.filter((event) => event.kind === "twitch-drops"),
+    };
   // Validate controls before requests. Disabled official IDs retain their source
   // as a candidate even after the published feed no longer contains the event.
   mergePromotions(previous, [], overrides, now);
@@ -63,7 +112,7 @@ export async function collect({
     for (const item of items)
       candidates.set(item.url, { ...candidates.get(item.url), ...item });
   };
-  // Fail the run on discovery failure; an error/challenge page is not an empty feed.
+  // Fail this source on discovery failure; an error page is not an empty feed.
   discover(parseRss(await fetchText("https://www.pathofexile.com/news/rss")));
   // Keep the bounded window on every run so an initially failed page-two source
   // is retried even when other successful sources advance generatedAt.
@@ -168,13 +217,16 @@ async function main() {
       "Usage: node scripts/promotions/collect.mjs --output <promotions.json> [--previous <promotions.json>]",
     );
   const output = resolve(option("--output"));
-  const { feed, warnings } = await collectToFile({
+  const { feed, warnings, summary } = await collectToFile({
     output,
     previousPath: args.includes("--previous")
       ? resolve(option("--previous"))
       : output,
   });
   console.log(`Validated ${feed.events.length} events -> ${output}`);
+  console.log(summary);
+  if (process.env.GITHUB_STEP_SUMMARY)
+    await appendFile(process.env.GITHUB_STEP_SUMMARY, summary);
   for (const warning of warnings) console.warn(warning);
 }
 

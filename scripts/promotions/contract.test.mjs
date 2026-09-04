@@ -4,6 +4,8 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parsePromotionFeed } from "./contract.mjs";
+import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
+import { parsePromotionFeed as parseLegacy } from "./fixtures/legacy-contract-v1.mjs";
 
 const event = {
   id: "ggg-4000901-twitch-471bcf3ba0",
@@ -66,6 +68,133 @@ test("schema v1 accepts supported payloads and rejects malformed events", () => 
   for (const input of invalid) assert.throws(() => parsePromotionFeed(input));
 });
 
+test("optional stash section round-trips the shared manual/API/failure/expiry samples", () => {
+  for (const sample of Object.values(samples))
+    assert.deepEqual(parsePromotionFeed(sample), sample);
+});
+
+test("the pre-extension consumer keeps reading drops from the extended feed", () => {
+  for (const sample of Object.values(samples)) {
+    const extended = { ...sample, events: [event] };
+    assert.deepEqual(parseLegacy(extended), {
+      schemaVersion: 1,
+      generatedAt: sample.generatedAt,
+      events: [event],
+    });
+  }
+});
+
+const changeStash = (change) => {
+  const value = structuredClone(samples.confirmed);
+  change(value.stashSales);
+  return value;
+};
+const badStash = [
+  null,
+  {},
+  { ...samples.manual.stashSales, version: 2 },
+  ...[
+    (s) => {
+      s.observations = [];
+    },
+    (s) => {
+      s.observations[0] = s.observations[1];
+    },
+    (s) => {
+      s.observations[1].sourceUrl += "&lang=en";
+    },
+    (s) => {
+      s.observations[1].game = "poe1";
+    },
+    (s) => {
+      s.observations[1].status = "guessed";
+    },
+    (s) => {
+      s.observations[1].checkedAt = "2026-02-30T00:00:00Z";
+    },
+    (s) => {
+      delete s.observations[0].confirmedPeriod;
+    },
+    (s) => {
+      s.observations[1].confirmedPeriod.productIds = [];
+    },
+    (s) => {
+      s.observations[1].confirmedPeriod.productIds = [
+        "CurrencyTab",
+        "CurrencyTab",
+      ];
+    },
+    (s) => {
+      s.observations[1].confirmedPeriod.productIds = Array.from(
+        { length: 101 },
+        (_, i) => `Tab${i}`,
+      );
+    },
+    (s) => {
+      s.observations[1].confirmedPeriod.observedAt = "2026-09-11T02:00:00Z";
+    },
+    (s) => {
+      s.observations[1].confirmedPeriod.endsAt =
+        s.observations[1].confirmedPeriod.startsAt;
+    },
+    (s) => {
+      s.anchor.sourceUrl = "https://example.com";
+    },
+    (s) => {
+      s.anchor.origin = "manual";
+    },
+    (s) => {
+      s.nextEstimate.intervalDays = 42;
+    },
+    (s) => {
+      s.nextEstimate.startDate = "2026-02-30";
+    },
+    (s) => {
+      s.nextEstimate.startDate = "2026-10-03";
+    },
+    (s) => {
+      s.nextEstimate.timeZone = "UTC";
+    },
+    (s) => {
+      s.nextEstimate.basisOrigin = "estimated";
+    },
+    (s) => {
+      s.nextEstimate.basisSourceUrl = "https://example.com";
+    },
+  ].map((change) => changeStash(change).stashSales),
+];
+
+test("stash source scopes and precise or date-only fields fail closed", () => {
+  for (const stashSales of badStash)
+    assert.throws(() => parsePromotionFeed({ ...feed, stashSales }));
+  for (const change of [
+    (s) => {
+      s.anchor.startDate = "2026-02-30";
+    },
+    (s) => {
+      s.anchor.scope = [{ service: "kakao", game: "both" }];
+    },
+    (s) => {
+      s.anchor.sourceUrls = ["https://example.com"];
+    },
+    (s) => {
+      s.anchor.sourceUrls = Array.from(
+        { length: 5 },
+        (_, i) => `https://poe.kakaogames.com/forum/view-thread/${i}`,
+      );
+    },
+    (s) => {
+      s.anchor.sourceUrls = [
+        "https://poe.kakaogames.com/forum/view-thread/3998528/filter-account-type/staff",
+      ];
+    },
+  ]) {
+    const sample = structuredClone(samples.manual);
+    change(sample.stashSales);
+    assert.throws(() => parsePromotionFeed(sample));
+  }
+});
+
 test("validator matches the actual launcher consumer when available", async (t) => {
   const path = resolve(
     process.env.PROMOTIONS_CONSUMER_MODULE ?? "src/shared/promotions.ts",
@@ -79,11 +208,13 @@ test("validator matches the actual launcher consumer when available", async (t) 
     return;
   }
   const consumer = await import(pathToFileURL(path).href);
-  for (const input of valid)
+  for (const input of [...valid, ...Object.values(samples)])
     assert.deepEqual(
       parsePromotionFeed(input),
       consumer.parsePromotionFeed(input),
     );
   for (const input of invalid)
     assert.throws(() => consumer.parsePromotionFeed(input));
+  for (const stashSales of badStash)
+    assert.throws(() => consumer.parsePromotionFeed({ ...feed, stashSales }));
 });

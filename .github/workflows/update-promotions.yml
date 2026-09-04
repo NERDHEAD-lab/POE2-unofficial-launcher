@@ -70,7 +70,7 @@ jobs:
         id: base
         working-directory: pages
         run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Collect official GGG events
+      - name: Collect official Twitch drops and shop sale observations
         run: node scripts/promotions/collect.mjs --previous pages/promotions.json --output .tmp/promotions-candidate.json
       - name: Publish only the validated feed
         env:
