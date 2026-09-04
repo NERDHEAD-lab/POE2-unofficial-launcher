@@ -16,16 +16,44 @@ const previous = {
   generatedAt: "2026-09-04T00:00:00Z",
   events: [
     {
-      id: "ggg-1-stash",
-      kind: "stash-sale",
-      game: "both",
+      id: "ggg-1-twitch-370116f319",
+      kind: "twitch-drops",
+      game: "poe2",
       startsAt: "2026-09-04T00:00:00Z",
       endsAt: "2026-09-08T00:00:00Z",
       sourceUrl: "https://www.pathofexile.com/forum/view-thread/1",
-      precision: "derived-start",
+      precision: "exact",
     },
   ],
 };
+const shopReply = (url) =>
+  JSON.stringify(
+    url.includes("categories")
+      ? {
+          items: [
+            {
+              id: "CurrencyTab",
+              guild: false,
+              cost: 75,
+              originalCost: 75,
+              onSpecial: false,
+            },
+          ],
+          total: 1,
+        }
+      : {
+          data: [
+            {
+              id: "CurrencyTab",
+              guild: false,
+              tags: ["StashTabs"],
+              cost: 75,
+              baseCost: 75,
+            },
+          ],
+          meta: {},
+        },
+  );
 const options = {
   previous,
   overrides: { events: [], disabledIds: [] },
@@ -33,14 +61,20 @@ const options = {
   pause: async () => {},
 };
 
-test("a discovery failure rejects before a replacement feed can be published", async () => {
-  await assert.rejects(
-    collect({ ...options, fetchText: async () => "<html>challenge</html>" }),
+test("failed discovery preserves existing drops and reports all shop sources unavailable", async () => {
+  const result = await collect({
+    ...options,
+    fetchText: async () => "<html>challenge</html>",
+  });
+  assert.deepEqual(result.feed.events, previous.events);
+  assert.ok(
+    result.feed.stashSales.observations.every(
+      (x) => x.status === "unavailable",
+    ),
   );
-  assert.equal(previous.events.length, 1);
 });
 
-test("failed discovery leaves previous output byte-for-byte intact", async (t) => {
+test("invalid previous input leaves previous output byte-for-byte intact", async (t) => {
   await mkdir(".tmp", { recursive: true });
   const parent = await realpath(resolve(".tmp"));
   const dir = await mkdtemp(join(parent, "promotions-file-test-"));
@@ -49,7 +83,7 @@ test("failed discovery leaves previous output byte-for-byte intact", async (t) =
     await rm(dir, { recursive: true });
   });
   const output = join(dir, "promotions.json");
-  const original = JSON.stringify(previous);
+  const original = JSON.stringify({ ...previous, schemaVersion: 2 });
   await writeFile(output, original);
   await assert.rejects(
     collectToFile({
@@ -64,8 +98,8 @@ test("failed discovery leaves previous output byte-for-byte intact", async (t) =
 const rss =
   "<rss><channel><item><title>Build Showcase</title></item></channel></rss>";
 const emptyForum = '<table class="forumTable"></table>';
-const stash =
-  '<table><tr class="newsPost"><td><div class="content">Stash Tab Sale<br>The Stash Tab sale ends at Sep 8, 2026 9AM GMT+9<br>both Path of Exile 1 and 2</div></td></tr><tr class="newsPostInfo"><td><span class="staff"></span><span class="post_date">Sep 4, 2026, 9:00:00 AM</span></td></tr></table><script>window.momentTimezone = "Asia/Seoul";</script>';
+const drop =
+  '<table><tr class="newsPost"><td><div class="content">Twitch Drops<br>Start Time: Sep 4, 2026 12AM UTC<br>End Time: Sep 8, 2026 12AM UTC<br>Path of Exile 2 category</div></td></tr><tr class="newsPostInfo"><td><span class="staff"></span><span class="post_date">Sep 4, 2026, 9:00:00 AM</span></td></tr></table><script>window.momentTimezone = "Asia/Seoul";</script>';
 
 test("bootstrap finds page-two schedules with a hard three-page bound", async () => {
   const calls = [];
@@ -73,15 +107,16 @@ test("bootstrap finds page-two schedules with a hard three-page bound", async ()
     ...options,
     previous: null,
     fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
       calls.push(url);
       if (url.endsWith("/rss")) return rss;
       if (url.endsWith("/news/page/2"))
-        return '<table class="forumTable"><a href="/forum/view-thread/2">Stash Tab Sale</a></table>';
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Twitch Drops</a></table>';
       if (url.includes("view-forum")) return emptyForum;
-      return stash;
+      return drop;
     },
   });
-  assert.equal(feed.events[0]?.kind, "stash-sale");
+  assert.equal(feed.events[0]?.kind, "twitch-drops");
   assert.equal(calls.filter((url) => url.includes("view-forum")).length, 6);
   assert.ok(calls.every((url) => !url.endsWith("/page/4")));
 });
@@ -96,10 +131,11 @@ test("fresh and stale feeds retain the same bounded discovery window", async () 
       ...options,
       previous: { ...previous, generatedAt },
       fetchText: async (url) => {
+        if (url.includes("/api/")) return shopReply(url);
         calls.push(url);
         if (url.endsWith("/rss")) return rss;
         if (url.includes("view-forum")) return emptyForum;
-        return stash;
+        return drop;
       },
     });
     assert.equal(
@@ -115,20 +151,18 @@ test("a failed page-two source is rediscovered on the next scheduled run", async
     ...options,
     previous: null,
     fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
       if (url.endsWith("/rss")) return rss;
       if (url.endsWith("/news"))
-        return '<table class="forumTable"><a href="/forum/view-thread/1">Stash Tab Sale</a></table>';
+        return '<table class="forumTable"><a href="/forum/view-thread/1">Twitch Drops</a></table>';
       if (url.endsWith("/news/page/2"))
-        return '<table class="forumTable"><a href="/forum/view-thread/2">Stash Tab Sale</a></table>';
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Twitch Drops</a></table>';
       if (url.includes("view-forum")) return emptyForum;
       if (url.includes("/view-thread/2/")) {
         if (!recovered) throw new Error("HTTP 503");
-        return stash.replace(
-          "Sep 4, 2026, 9:00:00 AM",
-          "Sep 4, 2026, 10:00:00 AM",
-        );
+        return drop.replace("Sep 4, 2026 12AM UTC", "Sep 4, 2026 1AM UTC");
       }
-      return stash;
+      return drop;
     },
   };
   const first = await collect(config);
@@ -142,33 +176,34 @@ test("a failed page-two source is rediscovered on the next scheduled run", async
   assert.equal(second.feed.events.length, 2);
 });
 
-test("a failed bootstrap discovery page rejects the whole run", async () => {
-  await assert.rejects(
-    collect({
-      ...options,
-      previous: null,
-      fetchText: async (url) => {
-        if (url.endsWith("/rss")) return rss;
-        if (url.endsWith("/page/2")) throw new Error("HTTP 503");
-        return emptyForum;
-      },
-    }),
-    /503/,
+test("a failed bootstrap discovery page still allows successful shop observations", async () => {
+  const result = await collect({
+    ...options,
+    previous: null,
+    fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
+      if (url.endsWith("/rss")) return rss;
+      if (url.endsWith("/page/2")) throw new Error("HTTP 503");
+      return emptyForum;
+    },
+  });
+  assert.deepEqual(result.feed.events, []);
+  assert.ok(
+    result.feed.stashSales.observations.every((x) => x.status === "ok"),
   );
+  assert.ok(result.warnings.some((x) => x.includes("503")));
 });
 
 test("a failed source is preserved while a different source advances", async () => {
   const { feed, warnings } = await collect({
     ...options,
     fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
       if (url.endsWith("/rss")) return rss;
       if (url.includes("view-forum"))
-        return '<table class="forumTable"><a href="/forum/view-thread/2">Stash Tab Sale</a></table>';
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Twitch Drops</a></table>';
       if (url.includes("/view-thread/1/")) throw new Error("HTTP 503");
-      return stash.replace(
-        "Sep 4, 2026, 9:00:00 AM",
-        "Sep 4, 2026, 10:00:00 AM",
-      );
+      return drop.replace("Sep 4, 2026 12AM UTC", "Sep 4, 2026 1AM UTC");
     },
   });
   assert.equal(feed.events.length, 2);
@@ -183,6 +218,7 @@ test("failed active source preserves last known events and reports the source", 
   const { feed, warnings } = await collect({
     ...options,
     fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
       if (url.endsWith("/rss"))
         return "<rss><channel><item><title>Build Showcase</title></item></channel></rss>";
       if (url.includes("view-forum"))
@@ -199,13 +235,14 @@ test("disabled official source is rechecked so a repost stays disabled on later 
   const config = {
     ...options,
     previous: null,
-    overrides: { events: [], disabledIds: ["ggg-1-stash"] },
+    overrides: { events: [], disabledIds: ["ggg-1-twitch-370116f319"] },
     fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
       calls.push(url);
       if (url.endsWith("/rss")) return rss;
       if (url.includes("view-forum"))
-        return '<table class="forumTable"><a href="/forum/view-thread/2">Stash Tab Sale</a></table>';
-      return stash;
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Twitch Drops</a></table>';
+      return drop;
     },
   };
   const first = await collect(config);
@@ -219,16 +256,57 @@ test("disabled official source is rechecked so a repost stays disabled on later 
 });
 
 test("an unavailable disabled source cannot silently re-enable its reposts", async () => {
-  await assert.rejects(
-    collect({
-      ...options,
-      overrides: { events: [], disabledIds: ["ggg-1-stash"] },
-      fetchText: async (url) => {
-        if (url.endsWith("/rss")) return rss;
-        if (url.includes("view-forum")) return emptyForum;
-        throw new Error("HTTP 503");
-      },
-    }),
-    /disabled source/i,
+  const result = await collect({
+    ...options,
+    overrides: { events: [], disabledIds: ["ggg-1-twitch-370116f319"] },
+    fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
+      if (url.endsWith("/rss")) return rss;
+      if (url.includes("view-forum")) return emptyForum;
+      throw new Error("HTTP 503");
+    },
+  });
+  assert.deepEqual(result.feed.events, []);
+  assert.ok(result.warnings.some((x) => /disabled source/i.test(x)));
+});
+
+test("legacy stash events and stash-only forum announcements do not enter the drops feed", async () => {
+  const result = await collect({
+    ...options,
+    previous: {
+      ...previous,
+      events: [{ ...previous.events[0], kind: "stash-sale", game: "both" }],
+    },
+    fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
+      if (url.endsWith("/rss"))
+        return "<rss><channel><item><title>Stash Tab Sale</title></item></channel></rss>";
+      if (url.includes("view-forum"))
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Stash Tab Sale</a></table>';
+      throw new Error("Stash-only source must not be fetched");
+    },
+  });
+  assert.deepEqual(result.feed.events, []);
+  assert.deepEqual(result.warnings, []);
+});
+
+test("unavailable shop APIs cannot block newly discovered drops", async () => {
+  const result = await collect({
+    ...options,
+    previous: null,
+    fetchText: async (url) => {
+      if (url.includes("/api/")) throw new Error("HTTP 403");
+      if (url.endsWith("/rss")) return rss;
+      if (url.includes("view-forum"))
+        return '<table class="forumTable"><a href="/forum/view-thread/2">Twitch Drops</a></table>';
+      return drop;
+    },
+  });
+  assert.equal(result.feed.events.length, 1);
+  assert.equal(result.feed.events[0].kind, "twitch-drops");
+  assert.ok(
+    result.feed.stashSales.observations.every(
+      (x) => x.status === "unavailable",
+    ),
   );
 });

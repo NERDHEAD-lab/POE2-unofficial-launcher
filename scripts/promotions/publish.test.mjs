@@ -11,11 +11,13 @@ import {
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { publishFeed } from "./publish.mjs";
+import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
 
 const feed = {
   schemaVersion: 1,
   generatedAt: "2026-09-04T08:00:00Z",
   events: [],
+  stashSales: samples.manual.stashSales,
 };
 const git = (cwd, ...args) =>
   execFileSync("git", args, {
@@ -78,6 +80,10 @@ test("initial publication writes only promotions.json and identical repeat is a 
   assert.equal(
     git(r.origin, "rev-parse", "gh-pages"),
     git(r.pages, "rev-parse", "HEAD"),
+  );
+  assert.deepEqual(
+    JSON.parse(git(r.origin, "show", "gh-pages:promotions.json")).stashSales,
+    feed.stashSales,
   );
   assert.equal(
     publishFeed({ ...r, revision: git(r.pages, "rev-parse", "HEAD") }).changed,

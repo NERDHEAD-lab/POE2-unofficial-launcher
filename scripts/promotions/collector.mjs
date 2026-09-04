@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { parse } from "node-html-parser";
 import { parsePromotionFeed, scheduleKey } from "./contract.mjs";
 
-const candidate = /\btwitch\s+drops?\b|\bstash(?:\s+tab)?\s+sale\b/i;
+const candidate = /\btwitch\s+drops?\b/i;
 const text = (html) =>
   parse(`<div>${html.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")}</div>`).text;
 export function canonicalSource(url) {
@@ -199,10 +199,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
   const add = (kind, game, startsAt, endsAt, section, precision = "exact") => {
     if (Math.abs(Date.parse(startsAt) - Date.parse(published)) > 60 * 86400_000)
       throw new Error("Event too far from publication");
-    const suffix =
-      kind === "stash-sale"
-        ? "stash"
-        : `twitch-${createHash("sha256").update(section.toLowerCase().trim()).digest("hex").slice(0, 10)}`;
+    const suffix = `twitch-${createHash("sha256").update(section.toLowerCase().trim()).digest("hex").slice(0, 10)}`;
     events.push({
       id: `ggg-${thread}-${suffix}`,
       kind,
@@ -213,22 +210,6 @@ export function parseArticle(html, sourceUrl, publishedAt) {
       precision,
     });
   };
-
-  if (/stash(?:\s+tab)?\s+sale/i.test(body)) {
-    const ending =
-      /stash(?:\s+tab)?\s+sale\s+ends?\s+(?:at|on)\s+([^\n]+)/i.exec(body)?.[1];
-    if (!ending) throw new Error("Stash sale end missing");
-    const game = /both Path of Exile\s+1\s+and\s+2/i.test(body) ? "both" : null;
-    if (!game) throw new Error("Stash sale game scope missing");
-    add(
-      "stash-sale",
-      game,
-      published,
-      calendarTime(ending, published, zone),
-      "stash",
-      "derived-start",
-    );
-  }
 
   if (/twitch\s+drops?/i.test(body)) {
     // Keep section headings so Support-a-Streamer and quest ranges cannot become drops.
@@ -361,6 +342,7 @@ export function mergePromotions(previous, parsed, overrides, now = new Date()) {
     schemaVersion: 1,
     generatedAt: now.toISOString(),
     events: result
+      .filter((event) => event.kind === "twitch-drops")
       .filter((event) => Date.parse(event.endsAt) > now.getTime())
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
   });

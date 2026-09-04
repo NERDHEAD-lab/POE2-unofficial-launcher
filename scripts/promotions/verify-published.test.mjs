@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { verifyPublished } from "./verify-published.mjs";
+import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
 
 const expected = {
   schemaVersion: 1,
@@ -34,4 +35,16 @@ test("invalid or unchanged public responses fail within the retry bound", async 
     /not verified/,
   );
   assert.equal(calls, 2);
+});
+
+test("public verification rejects a feed whose legacy publisher stripped the stash anchor", async () => {
+  const { stashSales: _stash, ...stripped } = samples.manual;
+  await assert.rejects(
+    verifyPublished(samples.manual, {
+      attempts: 1,
+      fetchResponse: async () => Response.json(stripped),
+      pause: async () => {},
+    }),
+    /not verified/,
+  );
 });

@@ -9,7 +9,7 @@ const source = (id) => `https://www.pathofexile.com/forum/view-thread/${id}`;
 
 test("RSS decodes CDATA descriptions and ignores unrelated posts", () => {
   const result = parseRss(
-    `<rss><channel><item><title>News</title><link>${source(1)}</link><description><![CDATA[<p>Stash Tab Sale</p>]]></description><pubDate>Thu, 03 Sep 2026 03:00:00 +0000</pubDate></item><item><title>Build Showcase</title></item></channel></rss>`,
+    `<rss><channel><item><title>News</title><link>${source(1)}</link><description><![CDATA[<p>Twitch Drops</p>]]></description><pubDate>Thu, 03 Sep 2026 03:00:00 +0000</pubDate></item><item><title>Build Showcase</title></item></channel></rss>`,
   );
   assert.equal(result.length, 1);
   assert.equal(result[0].url, source(1));
@@ -63,22 +63,12 @@ test("4001078 reads the drops section without confusing realm/patch times", () =
   assert.equal(event.endsAt, "2026-09-11T20:00:00.000Z");
 });
 
-test("3926103 derives stash start from publication in declared source timezone", () => {
+test("historical stash announcements are no longer parsed into promotion events", () => {
   const html = article(
     `Stash Tab Sale<br>The Stash Tab sale ends at <strong>Apr 07, 2026 10:00 AM (GMT+9)</strong><br>both Path of Exile 1 and 2`,
     "Apr 3, 2026, 9:00:00 AM",
   );
-  const [event] = parseArticle(html, source(3926103));
-  assert.equal(event.game, "both");
-  assert.equal(event.precision, "derived-start");
-  assert.equal(event.startsAt, "2026-04-03T00:00:00.000Z");
-  assert.equal(event.endsAt, "2026-04-07T01:00:00.000Z");
-  assert.throws(() =>
-    parseArticle(
-      html.replace("window.momentTimezone", "unknown"),
-      source(3926103),
-    ),
-  );
+  assert.throws(() => parseArticle(html, source(3926103)), /No supported/);
 });
 
 test("unknown game, missing boundaries and non-staff HTML cannot publish", () => {
@@ -96,9 +86,9 @@ test("unknown game, missing boundaries and non-staff HTML cannot publish", () =>
   assert.throws(() => parseArticle("<html>Just a moment</html>", source(3)));
 });
 
-test("the same sale from an Eastern-time source yields identical UTC bounds", () => {
+test("Eastern-time drops produce precise UTC bounds", () => {
   const html = article(
-    "Stash Tab Sale<br>The Stash Tab sale ends at Apr 06, 2026 9:00 PM (EDT)<br>both Path of Exile 1 and 2",
+    "Twitch Drops<br>Start Time: Apr 2, 2026 8PM EDT<br>End Time: Apr 6, 2026 9PM EDT<br>Path of Exile 2 category",
     "Apr 2, 2026, 8:00:00 PM",
   ).replace("Asia/Seoul", "America/New_York");
   const [event] = parseArticle(html, source(3926103));
@@ -109,13 +99,13 @@ test("the same sale from an Eastern-time source yields identical UTC bounds", ()
 test("overrides win; disabled IDs stay removed; reposts do not duplicate campaigns", () => {
   const now = new Date("2026-09-04T02:00:00Z");
   const base = {
-    id: "ggg-1-stash",
-    kind: "stash-sale",
-    game: "both",
+    id: "ggg-1-twitch",
+    kind: "twitch-drops",
+    game: "poe2",
     startsAt: "2026-09-04T00:00:00Z",
     endsAt: "2026-09-08T00:00:00Z",
     sourceUrl: source(1),
-    precision: "derived-start",
+    precision: "exact",
   };
   const previous = {
     schemaVersion: 1,
@@ -124,7 +114,7 @@ test("overrides win; disabled IDs stay removed; reposts do not duplicate campaig
   };
   const repost = {
     ...base,
-    id: "ggg-2-stash",
+    id: "ggg-2-twitch",
     sourceUrl: source(2),
     startsAt: "2026-09-04T00:00:00.000Z",
   };
@@ -167,13 +157,13 @@ test("a staff reply cannot authenticate a non-staff original post", () => {
 });
 
 const sale = {
-  id: "ggg-1-stash",
-  kind: "stash-sale",
-  game: "both",
+  id: "ggg-1-twitch",
+  kind: "twitch-drops",
+  game: "poe2",
   startsAt: "2026-09-04T00:00:00Z",
   endsAt: "2026-09-08T00:00:00Z",
   sourceUrl: source(1),
-  precision: "derived-start",
+  precision: "exact",
 };
 const previousFeed = (events) => ({
   schemaVersion: 1,
@@ -183,13 +173,13 @@ const previousFeed = (events) => ({
 const now = new Date("2026-09-04T01:00:00Z");
 const overrides = { events: [], disabledIds: [] };
 
-test("different stash starts are different schedules", () => {
+test("different drops starts are different schedules", () => {
   const result = mergePromotions(
     previousFeed([sale]),
     [
       {
         ...sale,
-        id: "ggg-2-stash",
+        id: "ggg-2-twitch",
         sourceUrl: source(2),
         startsAt: "2026-09-04T01:00:00Z",
       },
