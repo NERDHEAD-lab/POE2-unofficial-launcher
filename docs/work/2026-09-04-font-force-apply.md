@@ -1,6 +1,6 @@
 # 폰트 강제 적용 Implementation Plan
 
-> 작성일: 2026-09-04 · 상태: PR #286 상신, QA 이미지 첨부 및 사용자 Windows 검증 대기 · 브랜치: fix/font-force-apply-mockup
+> 작성일: 2026-09-04 · 갱신: 2026-09-04 · 상태: PR #286 상신, 사용자 Windows 검증 대기 · 브랜치: fix/font-force-apply-mockup
 > 사용자 승인: 실행 파일별 AppConfig map 캐시 설계에 대해 “ㅇㅇ 그렇게 계획하고 진행해”. 구현자는 현 세션, 리뷰는 별도 컨텍스트에서 수행한다.
 
 **Goal:** 폰트 관리 모달에서 두 실행 파일의 Windows 폰트 정책을 조회하고 함께 변경한다.
@@ -157,6 +157,13 @@ DoD [Windows-pwsh]: 캐시가 첫 렌더부터 표시됨; 읽기 실패 때 캐�
 - 최종 전체 회귀 [Windows-pwsh]: 2026-09-04 11:45:10 KST 시작, 76 files / 623 tests PASS (26.06초). Vite build 재실행 PASS. 앞선 린트·타입 검사와 별개로 제품 커밋의 pre-commit eslint/prettier도 PASS. 훅 우회 없음.
 - PR 본문은 Summary / Motivation만 사용하고 실제 UAC 승인 후 정책 변경 및 인게임 검증이 미수행임을 명시했다. 자동 PowerShell 테스트의 cmdlet 대역과 실제 비승격 조회를 구분한다.
 - 최신 실제 Electron 캡처 2장: `.tmp/evidence/font-force-off/font-policy-real-1440x960.png`, `.tmp/evidence/font-force-off/font-policy-real-1024x768.png`. 두 캡처 모두 OFF 저채도 UI이며 정상 ON/OFF 중복 상태 문구가 없다.
-- 이미지/로그는 제품 소스나 docs에 커밋하지 않는다. GitHub 네이티브 첨부를 시도했으나 Chrome 확장 프로그램의 파일 URL 접근 권한으로 업로드가 차단되어 사용자 설정을 요청했다. 이미지 본문 첨부는 아직 미완료다.
+- 최초 GitHub 네이티브 첨부는 Chrome 확장 프로그램의 파일 URL 접근 권한으로 차단됐다. 이때 요청했던 사용자 설정 변경은 불필요한 것으로 정정한다. 아래 기존 raw URL 전달 방식으로 마무리한다.
 - 위키 raw 노트: `/home/nerdhead/project_llm_wiki/raw/projects/poe2-launcher/2026-09-04-font-force-apply.md` 신규 작성. 위키 지침의 별도 승인 게이트에 따라 `/ingest raw/projects/poe2-launcher/2026-09-04-font-force-apply.md`는 미실시했다. 실제 사용자 검증도 남아 있어 본 문서는 docs/work에 유지한다.
 - 내부 작업/QA 기록은 제품 커밋과 별도 `internal:` 커밋으로 전달한다. master 머지 및 릴리스는 실행하지 않았다.
+
+### QA 본문 이미지 전달 방식 정정
+
+- 사용자의 기존 첨부 방식 지적을 받아 PR #279와 #284의 실제 본문을 확인했다. 두 PR 모두 캡처를 저장소에 커밋하고 커밋 SHA 고정 `raw.githubusercontent.com` URL을 본문 이미지로 사용했다. 브라우저 파일 업로드는 필수 조건이 아니다.
+- 현재 docs/README.md는 docs에 로그·스크린샷·실행 산출물 추가를 금지하므로 기존 docs/evidence 위치를 늘리지 않는다. 이번 두 PNG만 `.github/qa/font-force-apply/`에 보관하고 제품 코드와 별도 `internal:` 커밋으로 푸시한다. 각 PNG는 원본과 SHA256이 같음을 확인했다.
+- PR의 Summary 아래에 1440×960 / 1024×768 실제 Electron 캡처를 커밋 고정 raw URL로 삽입한다. 두 화면 모두 실제 비승격 조회의 OFF 상태이며, 모의 ON 화면이나 실제 정책 변경 검증으로 표현하지 않는다.
+- Chrome 확장 권한이나 공유 인증 상태는 변경하지 않는다. 실제 UAC·인게임 검증 및 머지·릴리스 게이트는 그대로 유지한다.
