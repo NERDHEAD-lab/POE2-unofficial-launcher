@@ -9,18 +9,14 @@ on:
     paths:
       - "scripts/promotions/**"
       - "src/shared/promotions.ts"
-      - ".github/workflows/update-promotions.yml"
-  pull_request:
-    paths:
-      - "scripts/promotions/**"
-      - "src/shared/promotions.ts"
+      - "src/shared/stash-sales.ts"
       - ".github/workflows/update-promotions.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: event-promotions-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publisher' }}
+  group: event-promotions-publisher
   cancel-in-progress: false
 
 jobs:

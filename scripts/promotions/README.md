@@ -76,7 +76,7 @@ PoE2 태그는 `StashTabs` 또는 `PoE2StashTabs` **정확히 일치**해야 한
 
 `.github/workflows/update-promotions.yml`은 UTC **00:17/06:17/12:17/18:17**(KST **09:17/15:17/21:17/03:17**)에 실행한다. GitHub schedule은 지연되거나 누락될 수 있으므로 정확한 시작·종료 판정은 런처가 로컬 시각으로 수행한다. 런처의 시작/절전 복귀/1시간 조회 계약은 유지한다. [GitHub schedule 문서](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
 
-동일 workflow의 PR 실행은 읽기 권한의 테스트만 수행한다. 수집·발행은 원래 저장소 master의 schedule/수동 실행/관련 경로 push에서만 가능하다. 별도 중복 스케줄러는 필요 없다. 예약/수동 실행을 등록하려면 workflow가 기본 브랜치에 적용되어야 한다.
+PR 검사는 `.github/workflows/check-promotions.yml`의 **Check Event Promotions**에서 읽기 권한의 테스트만 수행한다. **Update Event Promotions**는 PR에서 실행하지 않으므로 수집·발행 작업이 PR 체크 목록에 생성되지 않는다. 수집·발행은 원래 저장소 master의 schedule/수동 실행/관련 경로 push에서 테스트를 통과한 뒤에만 가능하다. 별도 중복 스케줄러는 필요 없다. 예약/수동 실행을 등록하려면 workflow가 기본 브랜치에 적용되어야 한다.
 
 수집 단계는 `GITHUB_STEP_SUMMARY`에 네 소스의 상태/마지막 확인 시각/분류한 상품 수/할인 상품 ID/확정 기간을 기록한다. 실패 시 캐시 확정은 `Cached API confirmation`, 이번 성공은 `API confirmed`로 표시한다. 수동 기준과 날짜 예측은 별도 줄로 표시하므로 수동 표시를 API 감지 성공으로 오인하지 않는다.
 
