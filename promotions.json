@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-04T08:25:25.664Z",
+  "generatedAt": "2026-09-04T10:57:37.562Z",
   "events": [
     {
       "id": "ggg-4000901-twitch-471bcf3ba0",
@@ -20,5 +20,70 @@
       "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4001078",
       "precision": "exact"
     }
-  ]
+  ],
+  "stashSales": {
+    "version": 1,
+    "observations": [
+      {
+        "service": "ggg",
+        "game": "poe1",
+        "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
+        "checkedAt": "2026-09-04T10:57:28.975Z",
+        "status": "ok",
+        "confirmedPeriod": null
+      },
+      {
+        "service": "ggg",
+        "game": "poe2",
+        "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
+        "checkedAt": "2026-09-04T10:57:29.725Z",
+        "status": "ok",
+        "confirmedPeriod": null
+      },
+      {
+        "service": "kakao",
+        "game": "poe1",
+        "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
+        "checkedAt": "2026-09-04T10:57:31.962Z",
+        "status": "ok",
+        "confirmedPeriod": null
+      },
+      {
+        "service": "kakao",
+        "game": "poe2",
+        "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
+        "checkedAt": "2026-09-04T10:57:37.561Z",
+        "status": "ok",
+        "confirmedPeriod": null
+      }
+    ],
+    "anchor": {
+      "origin": "manual-announcement",
+      "startDate": "2026-08-21",
+      "endDate": "2026-08-25",
+      "timeZone": "Asia/Seoul",
+      "sourceUrls": [
+        "https://poe.kakaogames.com/forum/view-thread/3991174",
+        "https://poe.kakaogames.com/forum/view-thread/3998528"
+      ],
+      "scope": [
+        {
+          "service": "kakao",
+          "game": "poe1"
+        },
+        {
+          "service": "kakao",
+          "game": "poe2"
+        }
+      ]
+    },
+    "nextEstimate": {
+      "startDate": "2026-09-11",
+      "endDate": "2026-09-15",
+      "timeZone": "Asia/Seoul",
+      "intervalDays": 21,
+      "basisOrigin": "manual-announcement",
+      "basisSourceUrl": "https://poe.kakaogames.com/forum/view-thread/3998528"
+    }
+  }
 }
