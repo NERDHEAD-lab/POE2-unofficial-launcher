@@ -20,6 +20,11 @@ import {
   USER_REQUIRED_PAGE_REVEAL_DELAY_MS,
 } from "./visibility-policy";
 import {
+  formatKakaoDiagnostic,
+  KakaoDiagnosticLimiter,
+  type KakaoDiagnosticFields,
+} from "../../shared/kakao-diagnostics";
+import {
   isKakaoGamesAgreementUrl,
   isKakaoGamesMemberLoginUrl,
   isKakaoLauncherUrl,
@@ -129,9 +134,40 @@ let automationDocumentId: number | null = null;
 let pageDeferred = false;
 let pageStarted = false;
 const automationClock = new AutomationClock();
+const diagnosticLimiter = new KakaoDiagnosticLimiter();
+let diagnosticHandler: string | undefined;
+
+function diagnosePage(event: string, fields: KakaoDiagnosticFields = {}) {
+  try {
+    const data = {
+      documentId: automationDocumentId,
+      handler: diagnosticHandler,
+      url: window.location.href,
+      paused: automationClock.paused,
+      validation: isValidationMode,
+      ...fields,
+    };
+    const occurrences = diagnosticLimiter.include(event, data);
+    if (occurrences)
+      logger.log(formatKakaoDiagnostic(event, { ...data, occurrences }));
+  } catch {
+    /* Diagnostic failures must not affect page automation. */
+  }
+}
 
 function sendPageMessage(channel: string, ...args: unknown[]) {
-  if (automationClock.paused) return;
+  const fields = {
+    channel,
+    requestedVisible:
+      channel === "window-visibility-request" ? args[0] : undefined,
+    status: channel === "game-status-update" ? args[0] : undefined,
+    timeoutMs: channel.endsWith(":update-timeout") ? args[0] : undefined,
+  };
+  if (automationClock.paused) {
+    diagnosePage("ipc.suppressed", { ...fields, reason: "paused" });
+    return;
+  }
+  diagnosePage("ipc.sent", fields);
   ipcRenderer.send(channel, ...args, automationDocumentId);
 }
 
@@ -141,6 +177,10 @@ function sendPageMessage(channel: string, ...args: unknown[]) {
 function requestWindowVisibility(visible: boolean) {
   // Suppress visibility requests if in validation mode and window is not already shown
   if (isValidationMode && visible) {
+    diagnosePage("visibility.suppressed", {
+      requestedVisible: visible,
+      reason: "validation",
+    });
     logger.log(
       "[Game Window] Background validation mode, auto-show suppressed.",
     );
@@ -154,7 +194,13 @@ function createVisibilityRequest(context: HandlerContext, description: string) {
   let didRequest = false;
 
   return (reason: string) => {
-    if (didRequest) return;
+    if (didRequest) {
+      diagnosePage("visibility.suppressed", {
+        reason: "already-requested",
+        requestedVisible: true,
+      });
+      return;
+    }
     didRequest = true;
 
     logger.log(
@@ -301,6 +347,10 @@ function observeAndInteract(
 ) {
   if (!automationClock.paused && checkFn()) return;
 
+  const startedAt = Date.now();
+  const handler = diagnosticHandler;
+  diagnosePage("observer.started", { handler, timeoutMs });
+
   logger.log(
     "[Game Window] Target not found immediately. Starting observer...",
   );
@@ -317,9 +367,16 @@ function observeAndInteract(
   const observer = new MutationObserver(check);
   const unsubscribe = automationClock.onResume(check);
   const disconnect = observer.disconnect.bind(observer);
+  let stopReason = "disconnected";
   // Some login handlers keep observing after a successful match for dynamic UI.
   // Preserve the handler's explicit disconnect decision while cleaning up our clock.
   observer.disconnect = () => {
+    diagnosePage("observer.stopped", {
+      handler,
+      reason: stopReason,
+      elapsedMs: Date.now() - startedAt,
+      timeoutMs,
+    });
     disconnect();
     unsubscribe();
     if (timeoutId !== undefined) automationClock.clearTimeout(timeoutId);
@@ -330,6 +387,7 @@ function observeAndInteract(
   if (timeoutMs > 0) {
     timeoutId = automationClock.setTimeout(() => {
       if (completed) return;
+      stopReason = "timeout";
       observer.disconnect();
       unsubscribe();
       logger.log("[Game Window] Observer timed out.");
@@ -976,18 +1034,26 @@ const SecurityCenterHandler: PageHandler = {
 
     const clearDelayedReveal = () => {
       if (delayTimeoutId === null) return;
+      diagnosePage("security.reveal-cancelled");
       automationClock.clearTimeout(delayTimeoutId);
       delayTimeoutId = null;
     };
 
     const scheduleUnresolvedReveal = () => {
       if (delayTimeoutId !== null) return;
+      diagnosePage("security.reveal-scheduled", {
+        timeoutMs: SECURITY_CENTER_UNRESOLVED_REVEAL_DELAY_MS,
+      });
 
       const initialUrl = window.location.href;
       delayTimeoutId = automationClock.setTimeout(() => {
         delayTimeoutId = null;
+        diagnosePage("security.reveal-fired", {
+          state: getSecurityCenterVisibilityState(document),
+        });
 
         if (window.location.href !== initialUrl) {
+          diagnosePage("security.reveal-cancelled", { reason: "url-changed" });
           logger.log(
             `[SecurityCenter] Delayed reveal skipped: URL changed before ${SECURITY_CENTER_UNRESOLVED_REVEAL_DELAY_MS}ms.`,
           );
@@ -996,6 +1062,10 @@ const SecurityCenterHandler: PageHandler = {
 
         const state = getSecurityCenterVisibilityState(document);
         if (state === "auto-progress") {
+          diagnosePage("visibility.suppressed", {
+            reason: "auto-progress",
+            requestedVisible: true,
+          });
           logger.log(
             "[SecurityCenter] Delayed reveal skipped: auto-progress UI is still active.",
           );
@@ -1014,8 +1084,13 @@ const SecurityCenterHandler: PageHandler = {
       }, SECURITY_CENTER_UNRESOLVED_REVEAL_DELAY_MS);
     };
 
+    let lastDiagnosticState: string | undefined;
     observeAndInteract((obs) => {
       const state = getSecurityCenterVisibilityState(document);
+      if (state !== lastDiagnosticState) {
+        lastDiagnosticState = state;
+        diagnosePage("security.state", { state });
+      }
 
       if (state === "user-required") {
         clearDelayedReveal();
@@ -1040,6 +1115,7 @@ const SecurityCenterHandler: PageHandler = {
           ));
 
       if (clickedPcInfoButton) {
+        diagnosePage("security.pc-info-click", { clicked: true, state });
         logger.log("[SecurityCenter] Clicked PC Info Button");
         clearDelayedReveal();
         context.setVisible(false);
@@ -1233,6 +1309,7 @@ async function dispatchPageLogic(triggerContext?: string) {
   if (pageStarted) return;
   const page = await ipcRenderer.invoke("kakao:get-page-state");
   if (page.blocked) {
+    diagnosePage("page.deferred", { documentId: page.documentId });
     pageDeferred = true;
     logger.log(
       "[Cloudflare] Page automation deferred until verification finishes.",
@@ -1272,6 +1349,8 @@ async function dispatchPageLogic(triggerContext?: string) {
       // Note: If handler.triggeredBy is undefined, it's global.
 
       logger.log(`[Game Window] Matched Handler: ${handler.name}`);
+      diagnosticHandler = handler.name;
+      diagnosePage("page.dispatch", { trigger: triggerContext });
 
       // 1. Check Visibility Requirement
       const shouldShowOnMatch = shouldRequestVisibilityOnHandlerMatch(
@@ -1368,10 +1447,14 @@ try {
 
 ipcRenderer.on("kakao:page-resumed", () => {
   automationClock.resume();
+  diagnosePage("page.resumed");
   if (pageDeferred) void dispatchPageLogic();
 });
 
-ipcRenderer.on("kakao:page-paused", () => automationClock.pause());
+ipcRenderer.on("kakao:page-paused", () => {
+  automationClock.pause();
+  diagnosePage("page.paused");
+});
 
 ipcRenderer.on("execute-game-start", (_event, context: GameSessionContext) => {
   logger.log('[Game Window] IPC "execute-game-start" RECEIVED!', context);
