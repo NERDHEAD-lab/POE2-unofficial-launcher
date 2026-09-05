@@ -225,4 +225,34 @@ export class KakaoChallengeGate {
     const page = this.pageState(id);
     return !page.blocked && page.documentId === documentId;
   }
+
+  /** Read-only snapshot; diagnostics never authorize or restore a document. */
+  diagnosticState(id: number, receivedDocumentId?: number | null) {
+    const state = this.windows.get(id);
+    const retired = this.retired.has(id);
+    const taskBlocked = this.taskBlocked(id);
+    const page = this.pageState(id);
+    const reason = retired
+      ? "retired"
+      : taskBlocked
+        ? "task-challenged"
+        : state && state.documentId === null
+          ? "document-uncommitted"
+          : page.documentId !== receivedDocumentId
+            ? "document-mismatch"
+            : "accepted";
+    return {
+      tracked: Boolean(state),
+      retired,
+      taskId: state?.task ?? null,
+      trigger: state?.trigger,
+      gateDocumentId: page.documentId,
+      committedDocumentId: state?.committed.documentId ?? null,
+      requestId: state?.request?.id ?? null,
+      challenge: state?.challenge ?? false,
+      taskBlocked,
+      revealPending: state?.revealTimer !== undefined,
+      reason,
+    };
+  }
 }

@@ -95,6 +95,12 @@ import {
 } from "./kakao/cloudflare-challenge";
 import { isExpectedNavigationAbort } from "./kakao/navigation-error";
 import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
+import {
+  formatKakaoDiagnostic,
+  KakaoDiagnosticLimiter,
+  parseKakaoDiagnostic,
+  type KakaoDiagnosticFields,
+} from "../shared/kakao-diagnostics";
 import { shouldHideReleasedAutomationWindow } from "./kakao/visibility-policy";
 import { trayManager } from "./managers/TrayManager";
 import {
@@ -362,24 +368,119 @@ const kakaoChallengeGate = new KakaoChallengeGate(
   },
 );
 
+const kakaoDiagnosticRunId = `${Date.now().toString(36)}-${process.pid}`;
+const kakaoDiagnosticLimiter = new KakaoDiagnosticLimiter();
+
+function kakaoDiagnosticContext(id: number) {
+  const state: KakaoDiagnosticFields = {
+    ...kakaoChallengeGate.diagnosticState(id),
+  };
+  delete state.reason;
+  const wc = webContents.fromId(id);
+  const win =
+    wc && !wc.isDestroyed() ? BrowserWindow.fromWebContents(wc) : null;
+  return {
+    ...state,
+    runId: kakaoDiagnosticRunId,
+    appVersion: app.getVersion(),
+    webContentsId: id,
+    windowId: win?.id ?? null,
+    visible: win && !win.isDestroyed() ? win.isVisible() : false,
+    focused: win && !win.isDestroyed() ? win.isFocused() : false,
+    minimized: win && !win.isDestroyed() ? win.isMinimized() : false,
+  };
+}
+
+function logKakaoDiagnostic(
+  id: number,
+  event: string,
+  fields: KakaoDiagnosticFields = {},
+) {
+  try {
+    const data = { ...kakaoDiagnosticContext(id), ...fields };
+    const occurrences = kakaoDiagnosticLimiter.include(event, data);
+    if (occurrences)
+      logger.log(formatKakaoDiagnostic(event, { ...data, occurrences }));
+  } catch {
+    /* Diagnostics must not interrupt authentication or window handling. */
+  }
+}
+
 function acceptsKakaoPage(
   event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
   documentId?: number | null,
+  channel?: string,
 ) {
   if (event.sender.session !== session.fromPartition(KAKAO_PARTITION))
     return true;
-  return (
+  const accepted =
     event.senderFrame === event.sender.mainFrame &&
-    kakaoChallengeGate.accepts(event.sender.id, documentId)
+    kakaoChallengeGate.accepts(event.sender.id, documentId);
+  logKakaoDiagnostic(
+    event.sender.id,
+    accepted ? "ipc.accepted" : "ipc.rejected",
+    {
+      channel,
+      receivedDocumentId: documentId ?? null,
+      reason:
+        event.senderFrame !== event.sender.mainFrame
+          ? "frame-mismatch"
+          : kakaoChallengeGate.diagnosticState(event.sender.id, documentId)
+              .reason,
+      isMainFrame: event.senderFrame === event.sender.mainFrame,
+    },
   );
+  return accepted;
 }
 
 // [New] Safety Cleanup for Automation Tracking
 app.on("web-contents-created", (_, wc) => {
-  wc.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+  wc.on("did-start-navigation", (_event, url, isInPlace, isMainFrame) => {
+    const previousDocumentId = kakaoChallengeGate.pageState(wc.id).documentId;
     if (isMainFrame && !isInPlace) kakaoChallengeGate.beginNavigation(wc.id);
+    if (wc.session === session.fromPartition(KAKAO_PARTITION))
+      logKakaoDiagnostic(wc.id, "navigation.start", {
+        url,
+        isMainFrame,
+        isSameDocument: isInPlace,
+        previousDocumentId,
+      });
   });
-  wc.on("did-navigate", (_event, url) => kakaoChallengeGate.commit(wc.id, url));
+  wc.on("did-navigate", (_event, url) => {
+    kakaoChallengeGate.commit(wc.id, url);
+    if (wc.session === session.fromPartition(KAKAO_PARTITION))
+      logKakaoDiagnostic(wc.id, "navigation.commit", { url });
+  });
+  wc.on(
+    "did-fail-provisional-load",
+    (_event, errorCode, _description, url, isMainFrame) => {
+      if (wc.session === session.fromPartition(KAKAO_PARTITION))
+        logKakaoDiagnostic(wc.id, "navigation.failed", {
+          errorCode,
+          url,
+          isMainFrame,
+        });
+    },
+  );
+  wc.on(
+    "did-fail-load",
+    (_event, errorCode, _description, url, isMainFrame) => {
+      if (wc.session === session.fromPartition(KAKAO_PARTITION))
+        logKakaoDiagnostic(wc.id, "navigation.failed", {
+          errorCode,
+          url,
+          isMainFrame,
+        });
+    },
+  );
+  wc.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+    if (wc.session === session.fromPartition(KAKAO_PARTITION))
+      logKakaoDiagnostic(wc.id, "navigation.in-page", { url, isMainFrame });
+  });
+  wc.on("did-stop-loading", () => {
+    if (wc.session === session.fromPartition(KAKAO_PARTITION))
+      logKakaoDiagnostic(wc.id, "navigation.stopped", { url: wc.getURL() });
+  });
   wc.on("destroyed", () => {
     if (validationOwnerWebContentsId === wc.id) {
       setValidationMode(false);
@@ -394,6 +495,7 @@ app.on("web-contents-created", (_, wc) => {
     }
     // navigationTriggerContexts is not globally available here but we can use the helper
     setNavigationTrigger(wc.id, null);
+    kakaoDiagnosticLimiter.forget(wc.id);
   });
 });
 
@@ -603,7 +705,8 @@ registerGameStatusIpc({
   getAppContext: () => appContext,
   getActiveSessionContext: () => gameSessionTracker.getActiveSessionContext(),
   getWindowContext: (webContentsId) => windowContextMap.get(webContentsId),
-  acceptsPage: acceptsKakaoPage,
+  acceptsPage: (event, documentId) =>
+    acceptsKakaoPage(event, documentId, "game-status-update"),
 });
 
 // --- Single Instance Lock ---
@@ -790,7 +893,24 @@ ipcMain.handle("config:is-forced", (_event, key: string) => {
   return FORCE_DEBUG && DEBUG_KEYS.includes(key);
 });
 
-ipcMain.on("debug-log:send", (_event, log: DebugLogPayload) => {
+ipcMain.on("debug-log:send", (event, log: DebugLogPayload) => {
+  const diagnostic = parseKakaoDiagnostic(log.content);
+  if (diagnostic) {
+    try {
+      // The sender owns its original documentId; main owns the current gate/window IDs.
+      const data = {
+        ...diagnostic,
+        ...kakaoDiagnosticContext(event.sender.id),
+      };
+      // Preload already limits repeats; retain its count instead of sampling twice.
+      log = {
+        ...log,
+        content: formatKakaoDiagnostic(String(diagnostic.event), data),
+      };
+    } catch {
+      return;
+    }
+  }
   recordDebugLogPayload(log);
   if (appContext) {
     eventBus.emit<DebugLogEvent>(EventType.DEBUG_LOG, appContext, log);
@@ -804,7 +924,8 @@ ipcMain.on(
     payload: KakaoAutomationFailurePayload,
     documentId?: number | null,
   ) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "kakao:automation-failure"))
+      return;
     if (!appContext) return;
 
     const senderId = event.sender.id;
@@ -1546,6 +1667,7 @@ function setNavigationTrigger(
   trigger: string | null | undefined,
   parentId?: number,
 ) {
+  if (!trigger) logKakaoDiagnostic(webContentsId, "task.removed");
   if (trigger && parentId === undefined) {
     const wc = webContents.fromId(webContentsId);
     const selectedWindow = wc && BrowserWindow.fromWebContents(wc);
@@ -1557,6 +1679,7 @@ function setNavigationTrigger(
     }
   }
   kakaoChallengeGate.setTrigger(webContentsId, trigger ?? null, parentId);
+  if (trigger) logKakaoDiagnostic(webContentsId, "task.bound", { parentId });
   if (trigger) {
     logger.log(`[Context] WebContents ${webContentsId} marked as: ${trigger}`);
     navigationTriggerContexts.set(webContentsId, trigger);
@@ -1608,7 +1731,7 @@ ipcMain.on("account:clear-pending-login", (_event, serviceId?: string) => {
 });
 
 ipcMain.on("account:clear-trigger", (event, documentId?: number | null) => {
-  if (!acceptsKakaoPage(event, documentId)) return;
+  if (!acceptsKakaoPage(event, documentId, "account:clear-trigger")) return;
   logger.log(`[Context] Clearing trigger context for ${event.sender.id}`);
   navigationTriggerContexts.delete(event.sender.id);
 });
@@ -1684,7 +1807,8 @@ ipcMain.on(
     serviceId: AppConfig["serviceChannel"],
     documentId?: number | null,
   ) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "account:trigger-validation"))
+      return;
     runAccountValidation(serviceId).catch((err) =>
       logger.error("[Account] Error running validation:", err),
     );
@@ -1752,7 +1876,8 @@ ipcMain.on(
 ipcMain.on(
   "kakao:account-id-fetched",
   (event, id: string, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "kakao:account-id-fetched"))
+      return;
     logger.log(`[Account] Fetched ID for Kakao: ${id}`);
     setValidationMode(false);
 
@@ -1776,7 +1901,7 @@ ipcMain.on(
 ipcMain.on(
   "kakao:login-required",
   (event, data?: { url?: string }, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "kakao:login-required")) return;
     logger.log("[Account] Login required for Kakao.");
 
     // If URL is provided during validation failure, 'keep' it for later
@@ -1809,7 +1934,8 @@ ipcMain.on(
 ipcMain.on(
   "automation:update-timeout",
   (event, timeoutMs: number, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "automation:update-timeout"))
+      return;
     lastActiveAutomationWebContentsId = event.sender.id; // Correctly track the caller
     startAutomationTimeout(timeoutMs);
     logger.log(
@@ -1821,7 +1947,7 @@ ipcMain.on(
 ipcMain.on(
   "account:update-timeout",
   (event, timeoutMs: number, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    if (!acceptsKakaoPage(event, documentId, "account:update-timeout")) return;
     if (validationModeActive) {
       validationOwnerWebContentsId = event.sender.id;
       if (timeoutMs === -1) {
@@ -1910,7 +2036,12 @@ function hideAutomationWindow(window: BrowserWindow, reason: string) {
 ipcMain.on(
   "window-visibility-request",
   async (event, isVisible: boolean, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId)) return;
+    logKakaoDiagnostic(event.sender.id, "visibility.request", {
+      receivedDocumentId: documentId ?? null,
+      requestedVisible: isVisible,
+    });
+    if (!acceptsKakaoPage(event, documentId, "window-visibility-request"))
+      return;
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window || window.isDestroyed()) return;
 
@@ -1921,6 +2052,10 @@ ipcMain.on(
 
     if (isVisible) {
       if (isValidation) {
+        logKakaoDiagnostic(event.sender.id, "visibility.suppressed", {
+          reason: "validation",
+          requestedVisible: isVisible,
+        });
         logger.log(
           `[Main] Window ${window.id} requested visibility but SUPPRESSED (Validation Mode).`,
         );
@@ -1935,6 +2070,10 @@ ipcMain.on(
       if (!window.isVisible()) {
         window.show();
       }
+      logKakaoDiagnostic(event.sender.id, "visibility.applied", {
+        requestedVisible: true,
+        forcedVisible: forcedVisibleWindows.has(window.id),
+      });
       // [v22] Adjust size with 0.1s delay
       await resizeToFitContent(window);
       window.center();
@@ -1970,6 +2109,10 @@ ipcMain.on(
           window.hide();
         }
       }
+      logKakaoDiagnostic(event.sender.id, "visibility.applied", {
+        requestedVisible: false,
+        forcedVisible: forcedVisibleWindows.has(window.id),
+      });
     }
   },
 );
@@ -2593,7 +2736,7 @@ async function createWindow() {
   setupSessionSecurity(session.defaultSession, "default");
 
   // Initialize Kakao Partition (Security & Config)
-  initKakaoSession(kakaoChallengeGate);
+  initKakaoSession(kakaoChallengeGate, logKakaoDiagnostic);
 
   // Apply to GGG Partition (if exists)
   if (PARTITIONS.GGG) {
@@ -3286,6 +3429,29 @@ app.on("browser-window-created", (_, window) => {
   const webContents = window.webContents as unknown as ExtendedWebContents;
   const webPrefs = webContents.getWebPreferences?.();
   const currentPartition = webPrefs?.partition;
+  if (window.webContents.session === session.fromPartition(KAKAO_PARTITION)) {
+    const diagnosticId = window.webContents.id;
+    const diagnosticWindowId = window.id;
+    window.on("show", () =>
+      logKakaoDiagnostic(diagnosticId, "visibility.observed", {
+        reason: "show",
+        windowId: diagnosticWindowId,
+      }),
+    );
+    window.on("hide", () =>
+      logKakaoDiagnostic(diagnosticId, "visibility.observed", {
+        reason: "hide",
+        windowId: diagnosticWindowId,
+      }),
+    );
+    window.on("closed", () =>
+      logKakaoDiagnostic(diagnosticId, "visibility.observed", {
+        reason: "closed",
+        windowId: diagnosticWindowId,
+        destroyed: true,
+      }),
+    );
+  }
 
   // Propagate the trigger context from opener to the new window
   window.webContents.setWindowOpenHandler(
