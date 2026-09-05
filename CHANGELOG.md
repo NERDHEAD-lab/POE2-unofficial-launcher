@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.1...1.7.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* 특정 상황에서 게임이 실행되지 않을 때 진단 로그 보강 ([#297](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/297)) ([3656b46](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/3656b467068e47a4202e3e2ac8d463a7eb975563))
+
 ## [1.7.1](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.0...1.7.1) (2026-09-04)
 
 
