@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.2...1.7.3) (2026-09-08)
+
+
+### Bug Fixes
+
+* 폰트 강제 적용을 해제할 수 없는 문제 수정 ([#305](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/305)) ([0806a2a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/0806a2a017358f05ded598cbc8edf7b3df94b294))
+
 ## [1.7.2](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.1...1.7.2) (2026-09-05)
 
 
