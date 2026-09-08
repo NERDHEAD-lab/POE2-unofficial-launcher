@@ -8,6 +8,7 @@
 
 ## P0 - 안정성 및 운영 기반
 
+- [ ] 폰트 강제 적용 시 일부 화면이 기본 글꼴로 대체되는 호환성 문제 개선
 - [ ] 카카오 게임 실행 자동화 실패 판정 강화
   - [ ] 자동화 세션 checkpoint 도입 (`session-started`, `handler-matched`, `user-input-required`, `launch-command-triggered`, `process-start-detected` 등)
   - [ ] 로그인, QR 로그인, 본인인증, 보안센터 등 사용자 입력이 필요한 화면은 timeout 실패 판정에서 제외
