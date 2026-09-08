@@ -474,7 +474,7 @@ export const buildSetFontForceApplyScript = (enabled: boolean): string => {
     if ($running.Count -gt 0) { throw '게임을 먼저 종료해 주세요.' }
     foreach ($target in $targets) {
       try {
-        Set-ProcessMitigation -Name $target ${enabled ? "-Enable" : "-Remove -Disable"} DisableNonSystemFonts -ErrorAction Stop | Out-Null
+        Set-ProcessMitigation -Name $target ${enabled ? "-Enable" : "-Disable"} DisableNonSystemFonts -ErrorAction Stop | Out-Null
       } catch { $errors[$target] = $_.Exception.Message }
     }
     @{ errors = $errors } | ConvertTo-Json -Compress -Depth 3

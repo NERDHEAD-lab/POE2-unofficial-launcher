@@ -110,7 +110,7 @@ describe.skipIf(process.platform !== "win32")(
           expect(call[enabled ? "enable" : "disable"]).toEqual([
             "DisableNonSystemFonts",
           ]);
-          expect(call.remove).toBe(!enabled);
+          expect(call.remove).toBe(false);
         }
         expect(result.id).toBe("TRANSPORT_SENTINEL");
         expect(result.results).toBe("TRANSPORT_RESULTS");
