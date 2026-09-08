@@ -42,8 +42,9 @@ describe("font force apply PowerShell boundary", () => {
       expect(script).toContain(
         enabled
           ? "-Enable DisableNonSystemFonts"
-          : "-Remove -Disable DisableNonSystemFonts",
+          : "-Disable DisableNonSystemFonts",
       );
+      if (!enabled) expect(script).not.toContain("-Remove");
       expect(script).toContain("Get-Process -ErrorAction Stop");
       expect(script).not.toContain("-Reset");
       expect(script).not.toContain("-PolicyFilePath");

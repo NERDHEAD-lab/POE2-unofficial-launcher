@@ -1,6 +1,6 @@
 # 폰트 강제 적용 Implementation Plan
 
-> 작성일: 2026-09-04 · 갱신: 2026-09-04 · 상태: PR #286 상신, 사용자 Windows 검증 대기 · 브랜치: fix/font-force-apply-mockup
+> 작성일: 2026-09-04 · 갱신: 2026-09-08 · 상태: #286 배포 후 OFF 복구 hotfix 로컬 검증·리뷰 완료 · 브랜치: hotfix/font-force-apply-recovery
 > 사용자 승인: 실행 파일별 AppConfig map 캐시 설계에 대해 “ㅇㅇ 그렇게 계획하고 진행해”. 구현자는 현 세션, 리뷰는 별도 컨텍스트에서 수행한다.
 
 **Goal:** 폰트 관리 모달에서 두 실행 파일의 Windows 폰트 정책을 조회하고 함께 변경한다.
@@ -11,12 +11,12 @@
 
 ## 승인 범위와 preflight
 
-- 기존 UI 변경 3개 파일을 보존하고 현재 fix 브랜치에서 계속한다. 기준 커밋 a9f4365 (1.6.4).
+- 최초 구현 당시에는 기존 UI 변경 3개 파일을 보존하고 fix 브랜치에서 계속했다. 당시 기준 커밋 a9f4365 (1.6.4).
 - AppConfig 필드 1개 추가: type + CONFIG_METADATA + DEFAULT_CONFIG 등록. 기존 설정 마이그레이션 없음. 구버전의 누락/손상 캐시는 null로 정규화한다.
 - 신규 IPC는 getForceApplyPolicy / setForceApplyPolicy(boolean). Renderer가 실행 파일명이나 명령을 주입할 수 없다.
 - 실행 단계는 runtime/user action뿐이다. 자동 시작 시 정책 변경, 신규 백그라운드 서비스/승격 경로, 폰트 파일 설치 로직 변경 없음.
-- ON은 DisableNonSystemFonts 활성화, OFF는 해당 override만 시스템 기본으로 복원. 사용자가 외부에서 켜 둔 동일 항목도 명시적으로 OFF할 수 있는 직접 제어 방식이다. 소유권/원상복원 이력, 언인스톨 자동 복원은 구현하지 않는다.
-- 관리자 세션은 변경 요청에만 사용. 실게임 대상 OS 정책을 에이전트 QA에서 변경하지 않는다. 검증 시 실제 모달·비승격 조회와 격리된 IPC fixture를 구분한다.
+- ON은 DisableNonSystemFonts 활성화. 최초 OFF 설계는 해당 override를 시스템 기본으로 복원하는 것이었으나, 2026-09-08 hotfix부터 두 앱의 폰트 정책에 명시적 OFF를 기록한다. 외부에서 켜 둔 동일 항목도 해제하며 다른 mitigation과 시스템 기본값은 변경하지 않는다. 소유권/원상복원 이력, 언인스톨 자동 복원은 구현하지 않는다.
+- 관리자 세션은 변경 요청에만 사용. 최초 구현 QA는 실제 OS 정책을 변경하지 않았다. 2026-09-08에는 사용자의 복구·QA 요청 및 UAC 승인에 따라 실게임 두 대상의 OFF 복구와 실제 앱의 OFF 요청을 검증했다. 실제 모달·정책 변경과 격리된 cmdlet 대역 테스트를 구분한다.
 - 기존 폰트 적용 버튼과 별개이며 중복 클릭/게임 실행 중 변경을 차단한다. Main은 모든 게임/채널 런타임 상태를 검사하고 승격 후 명령 안에서도 프로세스를 검사한다.
 - 여러 대상 변경은 OS의 원자적 트랜잭션이 아니다. 일부 실패 시 readback으로 실제 상태를 표시하며 전체 성공을 주장하지 않는다.
 - 최초 계획은 커밋/PR 전 사용자 Windows 검증이었다. 이후 사용자가 “PR상신해줘 QA 캡쳐도 첨부해서”로 선행 상신을 명시적으로 승인했다. 실제 Windows 검증은 미완료로 공개하고, master 머지와 릴리스는 별도 승인 게이트를 유지한다.
@@ -54,8 +54,9 @@ expect(DEFAULT_CONFIG.fontForceApplyState).toEqual({
   "PathOfExile.exe": null,
 });
 expect(buildSetFontForceApplyScript(false)).toContain(
-  "-Remove -Disable DisableNonSystemFonts",
+  "-Disable DisableNonSystemFonts",
 );
+expect(buildSetFontForceApplyScript(false)).not.toContain("-Remove");
 expect(buildSetFontForceApplyScript(false)).not.toContain("-Reset");
 ```
 
@@ -89,7 +90,7 @@ DoD [Windows-pwsh]: 캐시가 첫 렌더부터 표시됨; 읽기 실패 때 캐�
 - [x] 숨김 실제 Electron, 고유 QA profile: 실제 비승격 조회 및 1440×960 / 1024×768 캡처. 상태 시나리오는 Vitest의 IPC 대역으로 검증했으며 실제 정책 변경과 구분한다.
 - [x] 원시 DOM rectangle으로 카드/푸터/모달이 viewport 안에 있는지 확인. QA 소유 프로세스 정리 확인.
 - [x] 분리 리뷰: 본 문서 + 전체 변경분 + 검증 결과로 판정 기록. 코드 Round 2 및 최종 CSS/캡처 리뷰 통과.
-- [ ] [사용자] 게임 종료 → ON(UAC) → 두 실행 파일의 정책 및 두 클라이언트 폰트 표시 확인 → OFF → 해당 override만 복원 확인. 실제 정책 변경/인게임 성공을 빌드로 대체하지 않는다.
+- [ ] [사용자] 게임 종료 → ON(UAC) → 두 실행 파일의 정책 및 두 클라이언트 폰트 표시 확인 → OFF → 두 앱의 명시적 OFF 확인. 최초 #286의 override 복원 DoD는 2026-09-08 hotfix 계약으로 대체한다. 실제 정책 변경/인게임 성공을 빌드로 대체하지 않는다.
 
 ## 조사 근거
 
@@ -97,7 +98,7 @@ DoD [Windows-pwsh]: 캐시가 첫 렌더부터 표시됨; 읽기 실패 때 캐�
 - https://learn.microsoft.com/en-us/powershell/module/processmitigations/set-processmitigation
 - https://learn.microsoft.com/en-us/powershell/module/processmitigations/get-processmitigation
 
-앱별 NOTSET은 기본값 상속이므로 조회 시 시스템 정책을 확인한다. OFF는 `-Remove -Disable DisableNonSystemFonts`만 사용하며 전체 process 정책 제거/Reset/XML import는 금지한다. 모듈 미지원/형식 불명/권한 차단은 확인 실패로 처리한다.
+앱별 NOTSET은 기본값 상속이므로 조회 시 시스템 정책을 확인한다. 2026-09-08 실환경 검증에서 기존 `-Remove -Disable DisableNonSystemFonts`는 성공 종료 후에도 ON을 남겼다. 긴급 OFF 복구는 `-Disable DisableNonSystemFonts`로 해당 앱에 명시적 OFF를 기록하며 전체 process 정책 제거/Reset/XML import는 금지한다. 모듈 미지원/형식 불명/권한 차단은 확인 실패로 처리한다.
 
 ## 실행 및 리뷰 기록
 
@@ -134,8 +135,8 @@ DoD [Windows-pwsh]: 캐시가 첫 렌더부터 표시됨; 읽기 실패 때 캐�
 
 ### 남은 사용자 검증과 전달 경계
 
-- [사용자] 실제 ON 시 UAC 승인/취소, 게임 재시작 후 카카오/GGG 폰트 표시, OFF 후 해당 override 복원 확인.
-- 시스템 기본이 ON이면 override를 지워도 유효 정책은 ON이다. 이 경우 OFF 성공으로 표시하지 않고 readback과 실패 안내를 표시하도록 자동 테스트했다.
+- [사용자] 실제 ON 시 UAC 승인/취소, 게임 재시작 후 카카오/GGG 폰트 표시, OFF 후 두 앱의 명시적 OFF 확인(2026-09-08 hotfix 계약).
+- 최초 복원 설계에서는 시스템 기본이 ON이면 override를 지워도 유효 정책은 ON이었다. 2026-09-08 hotfix는 앱별 명시적 OFF로 바뀌었으며, 변경 후 실제 결과가 요청과 다를 때 readback 불일치를 실패 처리하는 서비스 계약은 유지한다.
 - 최초 구현 완료 시점에는 로컬 변경만 존재했다. 이후 사용자 요청으로 커밋/푸시/PR을 진행했으며 아래 상신 기록을 현재 상태로 삼는다. 사용자 Windows 검증, 머지, 릴리스는 미완료다.
 
 ### 사용자 UI 피드백 — 중복 상태 문구 제거
@@ -167,3 +168,23 @@ DoD [Windows-pwsh]: 캐시가 첫 렌더부터 표시됨; 읽기 실패 때 캐�
 - 현재 docs/README.md는 docs에 로그·스크린샷·실행 산출물 추가를 금지하므로 기존 docs/evidence 위치를 늘리지 않는다. 이번 두 PNG만 `.github/qa/font-force-apply/`에 보관하고 제품 코드와 별도 `internal:` 커밋으로 푸시한다. 각 PNG는 원본과 SHA256이 같음을 확인했다.
 - PR의 Summary 아래에 1440×960 / 1024×768 실제 Electron 캡처를 커밋 고정 raw URL로 삽입한다. 두 화면 모두 실제 비승격 조회의 OFF 상태이며, 모의 ON 화면이나 실제 정책 변경 검증으로 표현하지 않는다.
 - Chrome 확장 권한이나 공유 인증 상태는 변경하지 않는다. 실제 UAC·인게임 검증 및 머지·릴리스 게이트는 그대로 유지한다.
+
+### OFF 복구 hotfix — 2026-09-08
+
+- 사용자와 동일 PC의 설치 앱에서 체크 해제를 재현했다. `%APPDATA%\POE2 Unofficial Launcher\logs\launcher-2026-09-08.000.log` 950–986행은 최초 `false/false` → ON 명령 및 readback `true/true` → 기존 OFF 명령 오류 없음 → readback이 계속 `true/true`인 순서를 기록한다.
+- 독립 `Get-ProcessMitigation` 조회에서도 두 실행 파일은 ON, 시스템 기본은 NOTSET이었다. UI는 post-write readback 불일치를 정상적으로 실패 처리했으며 캐시나 체크박스 렌더링 문제가 아니다.
+- 고유한 비실행 probe 이름에서 `-Remove -Enable DisableNonSystemFonts`도 ON을 제거하지 못했다. `-Disable DisableNonSystemFonts`는 폰트 정책을 OFF로 바꾸면서 함께 설정한 `TerminateOnError` sentinel을 ON으로 보존했다. probe IFEO 키는 실험 종료 뒤 정확한 경로로 삭제하고 부재를 확인했다.
+- 사용자 우선순위에 따라 이번 hotfix는 OFF 복구만 다룬다. `DisableNonSystemFonts`가 게임 번들/메모리 폰트를 차단해 일부 화면을 기본 글꼴로 fallback시킬 수 있는 호환성 문제는 승인된 공개 문구로 `docs/Roadmap.md` P0에 분리했다.
+- RED: 정책 builder 및 fake-cmdlet 통합 테스트 2개가 기존 `-Remove` 때문에 실패했다. GREEN: OFF를 명시적 `-Disable`로 바꾼 뒤 관련 8 files / 128 tests 통과.
+- 영향 범위: 기존 두 고정 실행 파일의 폰트 mitigation을 사용자가 해제할 때만 앱별 OFF를 기록한다. AppConfig/IPC/서비스 수명주기/의존성/자동 마이그레이션 변경은 없다. 시스템 기본이 ON인 PC에서도 해제 요청은 앱별 OFF를 의도하며, 쓰기 권한 거부나 readback 불일치는 기존 실패 처리를 따른다.
+- [x] [Windows-pwsh] 사용자 UAC 승인 후 실제 두 대상의 ON → OFF 복구를 확인했다. 앱 외부의 독립 조회에서도 `FontDisable.DisableNonSystemFonts=OFF`; 시스템 기본은 NOTSET이었다.
+- [x] [Windows-pwsh] 전체 제품 소스 회귀: `.\node_modules\.bin\vitest.cmd --run --dir src` 92 files / 752 tests PASS. `npm run lint`, `npm run build:check`, `git diff --check` PASS. 빌드는 기존 500 kB chunk 경고만 남았다.
+- 무필터 `npm test -- --run`은 기존 무시 디렉터리 `.tmp/renovate-*`의 저장소 사본까지 수집하여 suite/import 오류 및 FontMutator timeout으로 실패했다. 사본은 보존했고 `--dir src`로 제품 테스트 루트를 한정해 위 결과를 얻었다. 테스트 설정 변경이나 실패 테스트 제외는 하지 않았다.
+- [x] [Windows-pwsh] `npm run roadmap:issue-body`, `npm run roadmap:notice` 생성 결과에 승인된 P0 문구가 포함됨을 확인했다.
+- [x] [Windows-pwsh] 숨김 실제 Electron: 고유 runId `font-off-hotfix-20260908-qa1`, CDP 61891, 해당 run-marked renderer 및 `%TEMP%/poe2-unofficial-launcher-codex-qa/<runId>` 격리 프로필을 확인했다. 실제 Main/preload 조회는 false/false, errors 없음. 1440×960 / 1024×768 캡처 모두 unchecked, indeterminate=false, disabled=false, off=true, 오류 상태 문구 없음, renderer 오류 이벤트 0이었다.
+- [x] [Windows-pwsh] 같은 앱에서 실제 `setForceApplyPolicy(false)`를 실행하여 관리자 요청과 후속 readback까지 false/false, errors={}, error/cancelled 없음으로 성공했다. 이는 이미 OFF인 상태에서 동일한 OFF를 요청한 검증이며, ON을 다시 켜거나 ON 체크박스를 직접 해제한 UI 시나리오로 주장하지 않는다.
+- 증거: `.tmp/evidence/font-force-off-hotfix/font-off-hotfix-20260908-qa1/capture/qa-state.json`, `off-request.json`, 해상도별 PNG. 앱은 격리 프로필의 closeAction을 exit로 설정한 뒤 기존 closeWindow API로 정상 종료했다. QA 소유 launcher/Vite/Electron/PowerShell/conhost 8개 PID의 생존 0 및 CDP listener 부재를 확인했다. 캡처와 격리 프로필은 증거로 보존했다.
+- [ ] [사용자] 게임 재실행 후 해제 상태와 실제 폰트 표시 확인. ON 재활성화 및 ON 체크박스에서 OFF로 전환하는 추가 실사용 검증은 미수행이며, 기본 글꼴 fallback 개선은 별도 P0 후속이다.
+- 분리 리뷰 Round 1 — 조건부 통과: 제품 코드·테스트에 blocking 결함 없음. 기존 M3/남은 사용자 검증의 override 복원 문구를 명시적 OFF 계약으로 정정하는 문서 조건만 제시됐고 반영했다. 재리뷰 불필요 조건으로 통과 처리한다.
+- 위키 raw 초안은 `.tmp/wiki-raw/2026-09-08-font-force-off-recovery.md`에 보관했다. 현재 native Windows의 `C:\Users\nerdl\project_llm_wiki`는 존재하지 않아 위키 반영과 `/ingest`는 미실시했다. 사용자 인게임 검증과 위키 반영이 남아 본 문서는 docs/work에 유지한다.
+- 전달 범위: 사용자 요청에 따른 커밋·PR 상신까지이며 master 머지/릴리스는 별도 승인 게이트다.
