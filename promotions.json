@@ -1,26 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-11T16:31:44.609Z",
-  "events": [
-    {
-      "id": "ggg-4001078-twitch-cb86680b9a",
-      "kind": "twitch-drops",
-      "game": "poe2",
-      "startsAt": "2026-09-04T20:00:00.000Z",
-      "endsAt": "2026-09-11T20:00:00.000Z",
-      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4001078",
-      "precision": "exact"
-    },
-    {
-      "id": "ggg-4003685-twitch-471bcf3ba0",
-      "kind": "twitch-drops",
-      "game": "poe1",
-      "startsAt": "2026-09-10T21:00:00.000Z",
-      "endsAt": "2026-09-11T21:00:00.000Z",
-      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4003685",
-      "precision": "exact"
-    }
-  ],
+  "generatedAt": "2026-09-11T21:00:44.154Z",
+  "events": [],
   "stashSales": {
     "version": 1,
     "observations": [
@@ -28,7 +9,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-09-11T16:31:37.079Z",
+        "checkedAt": "2026-09-11T21:00:37.104Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -36,12 +17,12 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-09-11T16:31:37.786Z",
+        "checkedAt": "2026-09-11T21:00:37.985Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-09-11T00:00:00.000Z",
           "endsAt": "2026-09-15T00:00:00.000Z",
-          "observedAt": "2026-09-11T16:31:37.786Z",
+          "observedAt": "2026-09-11T21:00:37.985Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
@@ -72,7 +53,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-09-11T16:31:39.549Z",
+        "checkedAt": "2026-09-11T21:00:39.236Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -80,12 +61,12 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-09-11T16:31:44.608Z",
+        "checkedAt": "2026-09-11T21:00:44.153Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-09-11T00:00:00.000Z",
           "endsAt": "2026-09-15T00:00:00.000Z",
-          "observedAt": "2026-09-11T16:31:44.608Z",
+          "observedAt": "2026-09-11T21:00:44.153Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
