@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-10T20:54:44.967Z",
+  "generatedAt": "2026-09-11T04:45:29.848Z",
   "events": [
     {
       "id": "ggg-4001078-twitch-cb86680b9a",
@@ -28,62 +28,107 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-09-10T20:54:37.609Z",
-        "status": "ok",
+        "checkedAt": "2026-09-11T04:45:21.258Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-09-10T20:54:38.343Z",
+        "checkedAt": "2026-09-11T04:45:22.149Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-09-11T00:00:00.000Z",
+          "endsAt": "2026-09-15T00:00:00.000Z",
+          "observedAt": "2026-09-11T04:45:22.149Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       },
       {
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-09-10T20:54:39.756Z",
-        "status": "ok",
+        "checkedAt": "2026-09-11T04:45:24.389Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-09-10T20:54:44.966Z",
+        "checkedAt": "2026-09-11T04:45:29.847Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-09-11T00:00:00.000Z",
+          "endsAt": "2026-09-15T00:00:00.000Z",
+          "observedAt": "2026-09-11T04:45:29.847Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       }
     ],
     "anchor": {
-      "origin": "manual-announcement",
-      "startDate": "2026-08-21",
-      "endDate": "2026-08-25",
-      "timeZone": "Asia/Seoul",
-      "sourceUrls": [
-        "https://poe.kakaogames.com/forum/view-thread/3991174",
-        "https://poe.kakaogames.com/forum/view-thread/3998528"
-      ],
-      "scope": [
-        {
-          "service": "kakao",
-          "game": "poe1"
-        },
-        {
-          "service": "kakao",
-          "game": "poe2"
-        }
-      ]
+      "origin": "api",
+      "service": "ggg",
+      "game": "poe2",
+      "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
+      "startsAt": "2026-09-11T00:00:00.000Z",
+      "endsAt": "2026-09-15T00:00:00.000Z",
+      "observedAt": "2026-09-11T04:45:22.149Z"
     },
     "nextEstimate": {
-      "startDate": "2026-09-11",
-      "endDate": "2026-09-15",
+      "startDate": "2026-10-02",
+      "endDate": "2026-10-06",
       "timeZone": "Asia/Seoul",
       "intervalDays": 21,
-      "basisOrigin": "manual-announcement",
-      "basisSourceUrl": "https://poe.kakaogames.com/forum/view-thread/3998528"
+      "basisOrigin": "api",
+      "basisSourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2"
     }
   }
 }
