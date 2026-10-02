@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-01T22:44:01.691Z",
+  "generatedAt": "2026-10-02T05:43:13.958Z",
   "events": [],
   "stashSales": {
     "version": 1,
@@ -9,33 +9,91 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-10-01T22:43:54.726Z",
-        "status": "ok",
+        "checkedAt": "2026-10-02T05:43:05.786Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-10-01T22:43:55.565Z",
+        "checkedAt": "2026-10-02T05:43:06.622Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-10-02T00:00:00.000Z",
+          "endsAt": "2026-10-06T00:00:00.000Z",
+          "observedAt": "2026-10-02T05:43:06.622Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RelicTab",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       },
       {
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-10-01T22:43:56.840Z",
-        "status": "ok",
+        "checkedAt": "2026-10-02T05:43:08.000Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-10-01T22:44:01.691Z",
+        "checkedAt": "2026-10-02T05:43:13.957Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-10-02T00:00:00.000Z",
+          "endsAt": "2026-10-06T00:00:00.000Z",
+          "observedAt": "2026-10-02T05:43:13.957Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RelicTab",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       }
     ],
     "anchor": {
@@ -43,13 +101,13 @@
       "service": "ggg",
       "game": "poe2",
       "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-      "startsAt": "2026-09-11T00:00:00.000Z",
-      "endsAt": "2026-09-15T00:00:00.000Z",
-      "observedAt": "2026-09-11T04:45:22.149Z"
+      "startsAt": "2026-10-02T00:00:00.000Z",
+      "endsAt": "2026-10-06T00:00:00.000Z",
+      "observedAt": "2026-10-02T05:43:06.622Z"
     },
     "nextEstimate": {
-      "startDate": "2026-10-02",
-      "endDate": "2026-10-06",
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-27",
       "timeZone": "Asia/Seoul",
       "intervalDays": 21,
       "basisOrigin": "api",
