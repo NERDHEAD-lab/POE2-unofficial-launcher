@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T21:20:44.112Z",
+  "generatedAt": "2026-10-04T05:58:33.237Z",
   "events": [],
   "stashSales": {
     "version": 1,
@@ -9,7 +9,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-10-03T21:20:36.527Z",
+        "checkedAt": "2026-10-04T05:58:25.497Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -17,12 +17,12 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-10-03T21:20:37.417Z",
+        "checkedAt": "2026-10-04T05:58:26.445Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-10-02T00:00:00.000Z",
           "endsAt": "2026-10-06T00:00:00.000Z",
-          "observedAt": "2026-10-03T21:20:37.417Z",
+          "observedAt": "2026-10-04T05:58:26.445Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
@@ -54,7 +54,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-10-03T21:20:38.655Z",
+        "checkedAt": "2026-10-04T05:58:28.199Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -62,12 +62,12 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-10-03T21:20:44.111Z",
+        "checkedAt": "2026-10-04T05:58:33.236Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-10-02T00:00:00.000Z",
           "endsAt": "2026-10-06T00:00:00.000Z",
-          "observedAt": "2026-10-03T21:20:44.111Z",
+          "observedAt": "2026-10-04T05:58:33.236Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
