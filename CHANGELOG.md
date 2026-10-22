@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.3...1.7.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* 게임 업데이트 대상과 패치 완료 판정 오류 수정 ([38786ba](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/38786ba348e5247810d7475051b98e6323600524))
+* 실제 표시한 게시글 기준으로 NEW 표시 개선 ([36edb1d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/36edb1de7047e9689f6e10544e774c8e21744603))
+
 ## [1.7.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.2...1.7.3) (2026-09-08)
 
 
