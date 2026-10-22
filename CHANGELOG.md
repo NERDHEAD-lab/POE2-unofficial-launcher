@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.3...1.7.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* 게임 업데이트 대상과 패치 완료 판정 오류 수정 ([38786ba](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/38786ba348e5247810d7475051b98e6323600524))
+  * 게임사의 버전 표기 규칙이 바뀌었지만 버전 숫자의 대소 비교를 계속 사용해 업데이트가 필요한 상황을 잘못 판단하던 문제입니다. 게임 서버가 제공한 버전과 패치 주소를 기준으로 처리하도록 수정했습니다.
+* 새 게시물 표시가 제거되는 타이밍 개선 ([36edb1d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/36edb1de7047e9689f6e10544e774c8e21744603))
+
 ## [1.7.3](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.2...1.7.3) (2026-09-08)
 
 
