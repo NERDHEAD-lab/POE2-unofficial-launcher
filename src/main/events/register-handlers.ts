@@ -6,6 +6,7 @@ import {
   LogErrorHandler,
   LogSessionHandler,
   LogWebRootHandler,
+  GameVersionCompletionHandler,
   PatchProgressHandler,
   ProcessWillTerminateHandler,
 } from "./handlers/AutoPatchHandler";
@@ -32,6 +33,7 @@ import {
 import { GameStatusSyncHandler } from "./handlers/GameStatusSyncHandler";
 import { InactiveWindowVisibilityHandler } from "./handlers/InactiveWindowVisibilityHandler";
 import { KakaoMaintenanceUISyncHandler } from "./handlers/KakaoMaintenanceUISyncHandler";
+import { NewsSelectionHandler } from "./handlers/NewsSelectionHandler";
 import {
   RenewedPatchReservationCreateHandler,
   RenewedPatchReservationDeleteHandler,
@@ -52,6 +54,7 @@ import type { AppEvent, EventHandler } from "./types";
 export const CORE_EVENT_HANDLERS = [
   DebugLogHandler,
   ConfigChangeSyncHandler,
+  NewsSelectionHandler,
   ConfigDeleteSyncHandler,
   StartPoe1KakaoHandler,
   StartPoe2KakaoHandler,
@@ -68,6 +71,7 @@ export const CORE_EVENT_HANDLERS = [
   AutoPatchProcessStartHandler,
   LogSessionHandler,
   LogWebRootHandler,
+  GameVersionCompletionHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
   PatchProgressHandler,

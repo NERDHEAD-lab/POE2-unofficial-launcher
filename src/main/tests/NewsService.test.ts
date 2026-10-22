@@ -3,6 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
 import { NEWS_REFRESH_INTERVAL } from "../../shared/news-config";
 import { NewsService } from "../services/NewsService";
 
+const storeMocks = vi.hoisted(() => ({
+  persisted: null as Record<string, unknown> | null,
+  failWrite: false,
+}));
+
 // Mock fetch and electron-store
 vi.stubGlobal("fetch", vi.fn());
 
@@ -11,14 +16,16 @@ vi.mock("electron-store", () => {
     default: class {
       data: Record<string, unknown> = {};
       constructor(options: { defaults?: Record<string, unknown> }) {
-        this.data = options.defaults
+        storeMocks.persisted ??= options.defaults
           ? JSON.parse(JSON.stringify(options.defaults))
           : {};
+        this.data = storeMocks.persisted!;
       }
       get(key: string) {
         return this.data[key];
       }
       set(key: string, value: unknown) {
+        if (storeMocks.failWrite) throw new Error("fixture save failed");
         this.data[key] = value;
       }
     },
@@ -32,6 +39,8 @@ describe("NewsService", () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00.000Z"));
+    storeMocks.persisted = null;
+    storeMocks.failWrite = false;
     service = new NewsService();
   });
 
@@ -75,6 +84,125 @@ describe("NewsService", () => {
       });
     });
   };
+
+  const source = { game: "POE2", service: "GGG", category: "notice" } as const;
+  const seedPosts = (
+    ids: string[],
+    category = "notice",
+    game = "POE2",
+    channel = "GGG",
+  ) => {
+    const data = storeMocks.persisted!;
+    (data.items as Record<string, unknown>)[`${channel}-${game}-${category}`] =
+      ids.map((id) => ({
+        id,
+        title: `Title ${id}`,
+        link: `https://example.com/${id}`,
+        date: "2026-10-22",
+        type: category,
+        isSticky: id === "pinned",
+        isNew: false, // Deliberately stale cache flag must not be authoritative.
+      }));
+    const updated = data.lastUpdatedAt as Record<string, number>;
+    updated[`${channel}-${game}-notice`] = Date.now();
+    updated[`${channel}-${game}-patch-notes`] = Date.now();
+    updated["dev-notice"] = Date.now();
+  };
+  const activate = () => {
+    service.setSelectedContext(source);
+    service.setActive(true);
+    return service.getView("POE2", "GGG");
+  };
+
+  it("keeps actually displayed titles NEW until the next activation and never consumes unseen titles", () => {
+    seedPosts(["pinned", "outside"]);
+    const hidden = service.getView("POE2", "GGG");
+    expect(
+      service.reportDisplayed({ ...source, ...hidden, ids: ["pinned"] }),
+    ).toBe(false);
+    const first = activate();
+    expect(
+      service.reportDisplayed({
+        ...source,
+        ...first,
+        ids: ["pinned", "not-cached"],
+      }),
+    ).toBe(true);
+    expect(
+      service.getView("POE2", "GGG").notices.map((item) => item.isNew),
+    ).toEqual([true, true]);
+    service.setActive(true); // duplicate show/focus and renderer cache queries retain the same generation.
+    expect(service.getView("POE2", "GGG").generation).toBe(first.generation);
+    seedPosts(["pinned", "outside", "arrived"]);
+    expect(
+      service.getView("POE2", "GGG").notices.map((item) => item.isNew),
+    ).toEqual([true, true, true]);
+    service.setActive(false);
+    expect(
+      service.reportDisplayed({ ...source, ...first, ids: ["outside"] }),
+    ).toBe(false);
+    const second = activate();
+    expect(second.notices.map((item) => item.isNew)).toEqual([
+      false,
+      true,
+      true,
+    ]);
+    expect(
+      service.reportDisplayed({ ...source, ...first, ids: ["outside"] }),
+    ).toBe(false);
+  });
+
+  it("scopes direct reads and rejects reports from a previous selection even after switching back", () => {
+    seedPosts(["same-id"]);
+    seedPosts(["same-id"], "patch-notes");
+    seedPosts(["same-id"], "notice", "POE1");
+    const first = activate();
+    service.setSelectedContext({ game: "POE1", service: "GGG" });
+    expect(
+      service.reportDisplayed({ ...source, ...first, ids: ["same-id"] }),
+    ).toBe(false);
+    service.setSelectedContext(source);
+    expect(
+      service.reportDisplayed({ ...source, ...first, ids: ["same-id"] }),
+    ).toBe(false);
+    expect(service.getView("POE2", "GGG").notices[0].isNew).toBe(true);
+    service.markAsRead("same-id", source);
+    expect(service.getView("POE2", "GGG").notices[0].isNew).toBe(false);
+    expect(service.getView("POE2", "GGG").patchNotes[0].isNew).toBe(true);
+    expect(service.getView("POE1", "GGG").notices[0].isNew).toBe(true);
+  });
+
+  it("retains persisted scoped/pinned and legacy history across process restart without clearing unseen posts", () => {
+    seedPosts(["pinned", "legacy", "unseen"]);
+    storeMocks.persisted!.lastReadIds = ["legacy"];
+    // A current cached pinned identity survives pruning of older history.
+    storeMocks.persisted!.readKeys = [
+      JSON.stringify(["GGG-POE2-notice", "pinned"]),
+      ...Array.from({ length: 210 }, (_, index) => `old-${index}`),
+    ];
+    const first = activate();
+    service.reportDisplayed({ ...source, ...first, ids: ["pinned"] });
+    const restarted = new NewsService();
+    restarted.setSelectedContext(source);
+    restarted.setActive(true);
+    expect(
+      restarted.getView("POE2", "GGG").notices.map((item) => item.isNew),
+    ).toEqual([false, false, true]);
+    expect(storeMocks.persisted!.lastReadIds).toEqual(["legacy"]);
+    restarted.stop();
+  });
+
+  it("leaves a title NEW after a failed persistence write and a later activation", () => {
+    seedPosts(["not-saved"]);
+    const first = activate();
+    storeMocks.failWrite = true;
+    expect(
+      service.reportDisplayed({ ...source, ...first, ids: ["not-saved"] }),
+    ).toBe(false);
+    storeMocks.failWrite = false;
+    service.setActive(false);
+    expect(activate().notices[0].isNew).toBe(true);
+  });
 
   it("should fetch news list correctly from GGG", async () => {
     const mockHtml = `
@@ -165,14 +293,10 @@ describe("NewsService", () => {
     expect(content).toContain("This is the <p>patch note</p> content.");
   });
 
-  it("should handle read status correctly", () => {
-    service.markAsRead("12345");
-    // Just verify no crash
-  });
-
   it("refreshes due forum news and developer notices on one schedule", async () => {
     const onUpdated = vi.fn();
     mockNewsFetches();
+    service.setActive(true);
     service.init(onUpdated);
 
     await service.refreshDue({
@@ -182,7 +306,7 @@ describe("NewsService", () => {
     });
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
-    expect(onUpdated).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalled();
     expect(service.getCacheItems("GGG-POE2-notice")[0].title).toBe("Notice");
     expect(service.getCacheItems("GGG-POE2-patch-notes")[0].title).toBe(
       "Patch Note",
@@ -213,20 +337,21 @@ describe("NewsService", () => {
 
     expect(unchangedDueRefresh).toBe(false);
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
-    expect(onUpdated).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalled();
     expect(service.getLastUpdatedAt("GGG-POE2-notice")).toBe(Date.now());
   });
 
   it("manually refreshes all news sources before the scheduled interval", async () => {
     const onUpdated = vi.fn();
     mockNewsFetches();
+    service.setActive(true);
     service.init(onUpdated);
 
     const changed = await service.refreshAllNews();
 
     expect(changed).toBe(true);
     expect(globalThis.fetch).toHaveBeenCalledTimes(9);
-    expect(onUpdated).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalled();
     expect(service.getCacheItems("GGG-POE2-notice")[0].title).toBe("Notice");
     expect(service.getCacheItems("GGG-POE2-patch-notes")[0].title).toBe(
       "Patch Note",
@@ -247,7 +372,7 @@ describe("NewsService", () => {
 
     expect(unchanged).toBe(false);
     expect(globalThis.fetch).toHaveBeenCalledTimes(9);
-    expect(onUpdated).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalled();
     expect(service.getLastUpdatedAt("GGG-POE2-notice")).toBe(Date.now());
     expect(service.getLastUpdatedAt("GGG-POE2-patch-notes")).toBe(Date.now());
     expect(service.getLastUpdatedAt("Kakao Games-POE1-patch-notes")).toBe(
@@ -259,6 +384,7 @@ describe("NewsService", () => {
   it("defers due refresh while inactive and runs it when focused again", async () => {
     const onUpdated = vi.fn();
     mockNewsFetches();
+    service.setActive(true);
     service.init(onUpdated);
 
     service.setActive(false);
@@ -279,7 +405,7 @@ describe("NewsService", () => {
 
     await vi.waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
-      expect(onUpdated).toHaveBeenCalledTimes(1);
+      expect(onUpdated).toHaveBeenCalled();
     });
   });
 });

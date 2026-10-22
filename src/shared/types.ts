@@ -92,7 +92,7 @@ export interface AppConfig {
   // Version Tracking
   knownGameVersions: Record<
     string, // Key: "${gameId}_${serviceId}"
-    { version: string; webRoot: string; timestamp: number }
+    LocalGameVersion
   >;
 
   // Game installation paths cached by service/game after registry discovery.
@@ -470,6 +470,12 @@ export interface RenewedPatchReservationBase {
   serviceId: AppConfig["serviceChannel"];
   createdAt: string;
   lastNotifiedVersion?: string;
+  /** Failed checks remain visible across restarts; older reservations need no migration. */
+  lastCheckFailure?: {
+    scheduleFingerprint: string;
+    checkedAt: number;
+    message: string;
+  };
 }
 
 export type RenewedPatchReservation =
@@ -862,7 +868,7 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
-    remoteWebRoot?: string, // [Hotfix] 원격/수동 웹 루트 전달용
+    target?: RemoteWebRootPayload,
   ) => Promise<boolean>; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],
@@ -894,8 +900,13 @@ export interface ElectronAPI {
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => Promise<number | null>;
-  markNewsAsRead: (id: string) => Promise<void>;
+  markNewsAsRead: (id: string, source?: NewsSource) => Promise<void>;
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
+  getNewsView: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ) => Promise<NewsViewSnapshot>;
+  reportNewsDisplayed: (report: NewsDisplayReport) => Promise<boolean>;
   onNewsUpdated: (callback: () => void) => () => void;
   onWindowShow: (callback: () => void) => () => void;
   sendDebugLog: (log: DebugLogPayload) => void;
@@ -980,9 +991,12 @@ export interface ElectronAPI {
   remoteVersion: {
     resolve: (
       gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
+      fresh?: boolean,
     ) => Promise<RemoteWebRootPayload | null>;
     peek: (
       gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
     ) => Promise<RemoteWebRootPayload | null>;
     onUpdated: (
       callback: (payload: RemoteWebRootPayload) => void,
@@ -990,12 +1004,40 @@ export interface ElectronAPI {
   };
 }
 
-export interface RemoteWebRootPayload {
+export interface GameVersionContext {
   gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+  installPath: string;
+}
+
+/** Legacy entries without a path remain observations, never installation proof. */
+export interface LocalGameVersion {
+  version: string;
+  webRoot: string;
+  timestamp: number;
+  installPath?: string;
+  observationSource?: "live-log" | "log-scan";
+  sourceTimestamp?: number;
+  completed?: {
+    version: string;
+    webRoot: string;
+    installPath: string;
+    timestamp: number;
+    runId: string;
+    evidence: "patch-done" | "game-startup";
+    invalidatedAt?: number;
+  };
+}
+
+export interface RemoteWebRootPayload extends GameVersionContext {
   webRoot: string;
   version: string;
-  source: "master-socket" | "gh-pages";
+  source: "master-socket" | "gh-pages" | null;
+  status: "ok" | "unavailable" | "unknown" | "mismatch";
+  /** Time this lookup completed, distinct from the fallback document's timestamp. */
   fetchedAt: number;
+  sourceTimestamp: number | null;
+  revision: number;
 }
 
 export const UPDATE_DOWNLOAD_FAILURE_MESSAGE =
@@ -1070,7 +1112,31 @@ export interface NewsServiceState {
   items: Record<string, NewsItem[]>; // Key: "game-service-category"
   contents: Record<string, NewsContent>; // Key: threadId
   lastReadIds: string[]; // For 'N' marker logic
+  readKeys: string[]; // Scoped game/service/board identities; legacy lastReadIds remain readable.
   lastUpdatedAt: Record<string, number>; // Key: "game-service-category" or "dev-notice"
+}
+
+export interface NewsSource {
+  game: AppConfig["activeGame"];
+  service: AppConfig["serviceChannel"];
+  category: "notice" | "patch-notes";
+}
+
+export interface NewsViewSnapshot {
+  game: AppConfig["activeGame"];
+  service: AppConfig["serviceChannel"];
+  generation: number;
+  selectionRevision: number;
+  revision: number;
+  active: boolean;
+  notices: NewsItem[];
+  patchNotes: NewsItem[];
+}
+
+export interface NewsDisplayReport extends NewsSource {
+  generation: number;
+  selectionRevision: number;
+  ids: string[];
 }
 
 declare global {

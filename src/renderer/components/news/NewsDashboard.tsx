@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
 import "./NewsDashboard.css";
 import NewsSection from "./NewsSection";
-import { NewsItem, AppConfig, NewsOpenMode } from "../../../shared/types";
+import {
+  NewsItem,
+  AppConfig,
+  NewsOpenMode,
+  NewsSource,
+  NewsViewSnapshot,
+} from "../../../shared/types";
 import { FORUM_URLS } from "../../../shared/urls";
 
 interface NewsDashboardProps {
@@ -10,8 +16,8 @@ interface NewsDashboardProps {
   serviceChannel: AppConfig["serviceChannel"];
   openMode: NewsOpenMode;
   onItemClick?: (item: NewsItem) => void;
+  visibilityBlocked?: boolean;
 }
-
 const combinations = [
   { game: "POE1", service: "GGG" },
   { game: "POE2", service: "GGG" },
@@ -19,252 +25,63 @@ const combinations = [
   { game: "POE2", service: "Kakao Games" },
 ] as const;
 
-interface NewsViewState {
-  notices: NewsItem[];
-  patchNotes: NewsItem[];
-}
-
 const NewsDashboard: React.FC<NewsDashboardProps> = ({
   activeGame,
   serviceChannel,
   openMode,
   onItemClick,
+  visibilityBlocked = false,
 }) => {
-  // Store news for all 4 combinations to allow instant switching
-  const [allNews, setAllNews] = useState<Record<string, NewsViewState>>({
-    "GGG-POE1": { notices: [], patchNotes: [] },
-    "GGG-POE2": { notices: [], patchNotes: [] },
-    "Kakao Games-POE1": { notices: [], patchNotes: [] },
-    "Kakao Games-POE2": { notices: [], patchNotes: [] },
-  });
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [fetchedKeys, setFetchedKeys] = useState<Set<string>>(new Set());
-
-  // Refs to allow event listeners to access latest props without effect dependencies (Stale Closure fix)
-  const gameRef = useRef(activeGame);
-  const serviceRef = useRef(serviceChannel);
-  const allNewsRef = useRef(allNews);
-  // Track previous key for tab switching logic
-  const prevKeyRef = useRef(`${serviceChannel}-${activeGame}`);
+  const [views, setViews] = useState<Record<string, NewsViewSnapshot>>({});
+  const [initializedKey, setInitializedKey] = useState("");
+  const currentKey = `${serviceChannel}-${activeGame}`;
+  const isInitialized = initializedKey === currentKey;
 
   useEffect(() => {
-    gameRef.current = activeGame;
-    serviceRef.current = serviceChannel;
+    let disposed = false;
+    let requestSerial = 0;
+    const key = `${serviceChannel}-${activeGame}`;
+    const loadView = async () => {
+      const request = ++requestSerial;
+      const snapshot = await window.electronAPI.getNewsView(
+        activeGame,
+        serviceChannel,
+      );
+      if (
+        disposed ||
+        request !== requestSerial ||
+        snapshot.game !== activeGame ||
+        snapshot.service !== serviceChannel
+      )
+        return;
+      setViews((previous) => {
+        if ((previous[key]?.revision ?? -1) > snapshot.revision)
+          return previous;
+        return { ...previous, [key]: snapshot };
+      });
+      setInitializedKey(key);
+    };
+    const unsubscribe = window.electronAPI.onNewsUpdated(() => {
+      void loadView();
+    });
+    void loadView();
+    void Promise.all([
+      window.electronAPI.getNews(activeGame, serviceChannel, "notice"),
+      window.electronAPI.getNews(activeGame, serviceChannel, "patch-notes"),
+    ])
+      .then(() => {
+        if (!disposed) return loadView();
+      })
+      .catch(console.error);
+    return () => {
+      disposed = true;
+      requestSerial++;
+      unsubscribe();
+    };
   }, [activeGame, serviceChannel]);
 
-  useEffect(() => {
-    allNewsRef.current = allNews;
-  }, [allNews]);
-
-  const fetchedKeysRef = useRef(fetchedKeys);
-  useEffect(() => {
-    fetchedKeysRef.current = fetchedKeys;
-  }, [fetchedKeys]);
-
-  const fetchCurrentNews = useCallback(async (force = false) => {
-    // Use refs if we want to ensure we get the ABSOLUTE latest values in async/listener contexts
-    const currentService = serviceRef.current;
-    const currentGame = gameRef.current;
-    const key = `${currentService}-${currentGame}`;
-
-    if (!force && fetchedKeysRef.current.has(key)) return;
-
-    try {
-      const [notices, patchNotes] = await Promise.all([
-        window.electronAPI.getNews(currentGame, currentService, "notice"),
-        window.electronAPI.getNews(currentGame, currentService, "patch-notes"),
-      ]);
-
-      setAllNews((prev) => ({
-        ...prev,
-        [key]: { notices, patchNotes },
-      }));
-      setFetchedKeys((prev) => new Set([...prev, key]));
-    } catch (e) {
-      console.error(`Failed to live fetch news for ${key}:`, e);
-    }
-  }, []);
-
-  const loadAllCaches = useCallback(async () => {
-    const results = await Promise.all(
-      combinations.map(async ({ game, service }) => {
-        const notices = await window.electronAPI.getNewsCache(
-          game,
-          service,
-          "notice",
-        );
-        const patchNotes = await window.electronAPI.getNewsCache(
-          game,
-          service,
-          "patch-notes",
-        );
-        return {
-          key: `${service}-${game}`,
-          notices,
-          patchNotes,
-          game,
-          service,
-        };
-      }),
-    );
-
-    const nextNews = { ...allNewsRef.current };
-    results.forEach((r) => {
-      nextNews[r.key] = { notices: r.notices, patchNotes: r.patchNotes };
-    });
-
-    setAllNews(nextNews);
-    return nextNews;
-  }, []);
-
-  const markAllViewsAsRead = useCallback(
-    (targetNews?: Record<string, NewsViewState>) => {
-      const currentNews = targetNews || allNewsRef.current;
-      const allIds: string[] = [];
-      Object.values(currentNews).forEach((v) => {
-        const view = v as NewsViewState;
-        view.notices.filter((n) => n.isNew).forEach((n) => allIds.push(n.id));
-        view.patchNotes
-          .filter((p) => p.isNew)
-          .forEach((p) => allIds.push(p.id));
-      });
-
-      if (allIds.length > 0) {
-        window.electronAPI.markMultipleNewsAsRead(allIds);
-        // Clear locally for immediate UI update
-        setAllNews((prevNews) => {
-          const next = { ...prevNews };
-          Object.keys(next).forEach((key) => {
-            if (!next[key]) return;
-            next[key] = {
-              ...next[key],
-              notices: next[key].notices.map((item) => ({
-                ...item,
-                isNew: false,
-              })),
-              patchNotes: next[key].patchNotes.map((item) => ({
-                ...item,
-                isNew: false,
-              })),
-            };
-          });
-          return next;
-        });
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const init = async () => {
-      // 1. Initial Load (Cache first)
-      const cached = await loadAllCaches();
-      if (!isMounted) return;
-
-      // 2. Clear 'N' badges BEFORE live-refreshing (Requirement: 갱신 전에 N는 지우고)
-      // Pass cached data directly to avoid race condition with async state refresh
-      markAllViewsAsRead(cached);
-
-      // 3. Wait for 500ms to let initial configs settle
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      if (!isMounted) return;
-
-      // 4. Live fetch current active tab
-      await fetchCurrentNews(true);
-
-      if (isMounted) {
-        setIsInitialized(true);
-      }
-    };
-
-    init();
-
-    const unlistenNews = window.electronAPI.onNewsUpdated(() => {
-      // Periodic background refresh: Do NOT clear 'N' markers
-      setFetchedKeys(new Set());
-      loadAllCaches();
-    });
-
-    const unlistenShow = window.electronAPI.onWindowShow(() => {
-      // Restoration from tray: Clear 'N' markers. Main process handles TTL-based refresh.
-      markAllViewsAsRead();
-    });
-
-    return () => {
-      isMounted = false;
-      unlistenNews();
-      unlistenShow();
-    };
-  }, [loadAllCaches, markAllViewsAsRead, fetchCurrentNews]);
-
-  // Lazy Loading: Trigger live fetch when tab changes IF not already fetched
-  // Handle Lazy Loading & Tab Transitions
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    const currentKey = `${serviceChannel}-${activeGame}`;
-    if (currentKey === prevKeyRef.current) return;
-
-    // Tab Changed:
-    // 1. Mark previous view as read
-    const prevKey = prevKeyRef.current;
-    const prevViewData = allNewsRef.current[prevKey];
-    if (prevViewData) {
-      const ids = [
-        ...prevViewData.notices.filter((n) => n.isNew).map((n) => n.id),
-        ...prevViewData.patchNotes.filter((p) => p.isNew).map((p) => p.id),
-      ];
-
-      if (ids.length > 0) {
-        window.electronAPI.markMultipleNewsAsRead(ids);
-        // Clear 'N' locally for previous view so it's clean when we return
-        setAllNews((curr) => {
-          const next = { ...curr };
-          if (next[prevKey]) {
-            next[prevKey] = {
-              ...next[prevKey],
-              notices: next[prevKey].notices.map((n) => ({
-                ...n,
-                isNew: false,
-              })),
-              patchNotes: next[prevKey].patchNotes.map((p) => ({
-                ...p,
-                isNew: false,
-              })),
-            };
-          }
-          return next;
-        });
-      }
-    }
-
-    // 2. Update Ref
-    prevKeyRef.current = currentKey;
-
-    // 3. Force Fetch NEW view data
-    fetchCurrentNews(true);
-  }, [activeGame, serviceChannel, isInitialized, fetchCurrentNews]);
-
-  const handleRead = (id: string) => {
-    window.electronAPI.markNewsAsRead(id);
-    // Locally update all instances in state to remove 'N' marker
-    setAllNews((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((key) => {
-        next[key] = {
-          ...next[key],
-          notices: next[key].notices.map((item) =>
-            item.id === id ? { ...item, isNew: false } : item,
-          ),
-          patchNotes: next[key].patchNotes.map((item) =>
-            item.id === id ? { ...item, isNew: false } : item,
-          ),
-        };
-      });
-      return next;
-    });
+  const handleRead = (id: string, source: NewsSource) => {
+    void window.electronAPI.markNewsAsRead(id, source);
   };
 
   const getForumUrls = (game: string, service: string) => {
@@ -299,38 +116,48 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
       <div className="news-dashboard-content">
         {combinations.map(({ game, service }) => {
           const key = `${service}-${game}`;
-          const isActive = game === activeGame && service === serviceChannel;
+          const selected = key === currentKey;
           const urls = getForumUrls(game, service);
-          const data = allNews[key];
-
+          const view = views[key];
+          const enabled = selected && isInitialized && !visibilityBlocked;
           return (
             <div
               key={key}
               className="news-view-wrapper"
               style={{
-                display: isActive ? "flex" : "none",
+                display: selected ? "flex" : "none",
                 width: "100%",
                 gap: "30px",
               }}
             >
               <NewsSection
                 title="공지사항"
-                items={data.notices}
+                items={view?.notices || []}
                 forumUrl={urls.notice}
                 openMode={openMode}
-                onRead={handleRead}
+                onRead={(id) =>
+                  handleRead(id, { game, service, category: "notice" })
+                }
                 onShowModal={onItemClick}
                 headerVariant="short"
+                visibilityEnabled={enabled}
+                newsView={view}
+                source={{ game, service, category: "notice" }}
               />
               <div className="divider"></div>
               <NewsSection
                 title="패치노트"
-                items={data.patchNotes}
+                items={view?.patchNotes || []}
                 forumUrl={urls.patchNotes}
                 openMode={openMode}
-                onRead={handleRead}
+                onRead={(id) =>
+                  handleRead(id, { game, service, category: "patch-notes" })
+                }
                 onShowModal={onItemClick}
                 headerVariant="short"
+                visibilityEnabled={enabled}
+                newsView={view}
+                source={{ game, service, category: "patch-notes" }}
               />
             </div>
           );
@@ -339,5 +166,4 @@ const NewsDashboard: React.FC<NewsDashboardProps> = ({
     </div>
   );
 };
-
 export default NewsDashboard;

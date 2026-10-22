@@ -41,10 +41,10 @@ export class GameVersionScanner {
     return results;
   }
 
-  private static async scanGame(
+  public static async scanGame(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-  ): Promise<{ version: string; webRoot: string; timestamp: number } | null> {
+  ): Promise<AppConfig["knownGameVersions"][string] | null> {
     const installPath = await getGameInstallPath(serviceId, gameId);
     if (!installPath) return null;
 
@@ -66,6 +66,9 @@ export class GameVersionScanner {
             version,
             webRoot,
             timestamp: stats.mtimeMs, // Use file modification time as approximate
+            installPath,
+            observationSource: "log-scan",
+            sourceTimestamp: stats.mtimeMs,
           };
         }
       }

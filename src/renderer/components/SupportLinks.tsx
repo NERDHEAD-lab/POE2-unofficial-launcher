@@ -2,7 +2,11 @@ import React, { useMemo, useState, useEffect } from "react";
 
 import "./SupportLinks.css";
 import { buildErrorReportData } from "../../shared/debug-log-policy";
-import { AppConfig } from "../../shared/types";
+import {
+  gameVersionContextKey,
+  versionContextFromConfig,
+} from "../../shared/game-version";
+import { AppConfig, RemoteWebRootPayload } from "../../shared/types";
 import { SUPPORT_URLS } from "../../shared/urls";
 import iconDiscord from "../assets/icon-discord.svg?raw";
 import { VersionService, RemoteVersions } from "../services/VersionService";
@@ -148,11 +152,7 @@ const SupportLinkItemRenderer: React.FC<{
 
 interface SupportLinksProps {
   remoteVersions?: RemoteVersions | null;
-  onForcedRepairRequest?: (versionInfo: {
-    version: string;
-    webRoot: string;
-    timestamp: string | number;
-  }) => void;
+  onForcedRepairRequest?: (versionInfo: RemoteWebRootPayload) => void;
   onPatchReservationRequest?: () => void;
   onEventNotificationRequest?: () => void;
   onFontManagerSettingsRequest?: () => void;
@@ -196,59 +196,40 @@ const SupportLinks: React.FC<SupportLinksProps> = ({
         icon: "build",
         defaultLabel: "실행 파일 강제 복구 ( 확인 중... )",
         defaultDisabled: true,
-        refreshOn: ["activeGame", "serviceChannel", "knownGameVersions"],
+        refreshOn: [
+          "activeGame",
+          "serviceChannel",
+          "knownGameVersions",
+          "gameInstallPaths",
+        ],
         onInit: async ({ setLabel, setDisabled, setOnClick }) => {
           const config = (await window.electronAPI.getConfig()) as AppConfig;
           const gameId = config.activeGame;
           const serviceId = config.serviceChannel;
-          const key = `${gameId}_${serviceId}`;
-
-          // Priority 1: Local Version (knownGameVersions)
-          const localInfo = config.knownGameVersions?.[key];
-          // Priority 2: Remote Version (latest-versions.json)
-          const remoteInfo = VersionService.getRemoteVersionForGame(
+          const target = VersionService.getRemoteVersionForGame(
             remoteVersions || null,
-            gameId,
+            versionContextFromConfig(config, gameId, serviceId),
           );
-
-          // Decision logic: Which one is "Best"?
-          let activeInfo = localInfo || remoteInfo;
-          if (localInfo && remoteInfo) {
-            const cmp = VersionService.compareVersions(
-              remoteInfo.version,
-              localInfo.version,
-            );
-            // If remote is newer or equal, use remote. Otherwise use local.
-            activeInfo = cmp >= 0 ? remoteInfo : localInfo;
-          }
-
-          if (activeInfo && activeInfo.webRoot) {
-            setLabel(
-              `실행 파일 강제 복구 ( ${activeInfo.version || "Unknown"} )`,
-            );
+          if (target) {
+            setLabel(`실행 파일 강제 복구 ( ${target.version} )`);
             setDisabled(false);
-            setOnClick(() => {
-              if (onForcedRepairRequest) {
-                onForcedRepairRequest({
-                  version: activeInfo.version,
-                  webRoot: activeInfo.webRoot,
-                  timestamp: activeInfo.timestamp,
-                });
-              }
+            setOnClick(async () => {
+              const refreshed = await window.electronAPI.remoteVersion.resolve(
+                gameId,
+                serviceId,
+                true,
+              );
+              const current =
+                refreshed &&
+                VersionService.getRemoteVersionForGame(
+                  { [gameVersionContextKey(refreshed)]: refreshed },
+                  versionContextFromConfig(config, gameId, serviceId),
+                );
+              if (current) onForcedRepairRequest?.(current);
             });
           } else {
-            setLabel("실행 파일 강제 복구 ( 알 수 없음 )");
-            setDisabled(false);
-            setOnClick(() => {
-              if (onForcedRepairRequest) {
-                // Open modal even if info is missing
-                onForcedRepairRequest({
-                  version: "",
-                  webRoot: "",
-                  timestamp: 0,
-                });
-              }
-            });
+            setLabel("실행 파일 강제 복구 ( 서버 조회 불가 )");
+            setDisabled(true);
           }
         },
       },

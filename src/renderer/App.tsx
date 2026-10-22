@@ -9,7 +9,14 @@ import React, {
 
 import { CONFIG_KEYS, DEFAULT_CONFIG } from "../shared/config";
 import {
+  assessGameVersion,
+  gameVersionKey,
+  gameVersionContextKey,
+  versionContextFromConfig,
+} from "../shared/game-version";
+import {
   AppConfig,
+  RemoteWebRootPayload,
   RunStatus,
   NewsItem,
   NewsCategory,
@@ -66,7 +73,7 @@ import ThemeRevalidator from "./components/ThemeRevalidator";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 import { useGameState } from "./contexts/GameStateContext";
-import { VersionService, RemoteVersions } from "./services/VersionService";
+import { RemoteVersions, VersionService } from "./services/VersionService";
 import {
   beginUpdateDownloadRequest,
   syncUpdateDownloadRequestLock,
@@ -503,90 +510,53 @@ function App() {
 
   // Forced Repair Modal State
   const [isForcedRepairOpen, setIsForcedRepairOpen] = useState(false);
-  const [repairVersionInfo, setRepairVersionInfo] = useState<{
-    version: string;
-    webRoot: string;
-    timestamp: string | number;
-  } | null>(null);
-
-  // === Remote Version State ===
-  // Sources: main process RemoteVersionResolver (master socket -> gh-pages fallback),
-  // refreshed on window focus (10-min TTL). Renderer just listens.
+  const [repairVersionInfo, setRepairVersionInfo] =
+    useState<RemoteWebRootPayload | null>(null);
   const [remoteVersions, setRemoteVersions] = useState<RemoteVersions | null>(
     null,
   );
 
   useEffect(() => {
-    const games: AppConfig["activeGame"][] = ["POE1", "POE2"];
-    const applyEntry = (entry: {
-      gameId: AppConfig["activeGame"];
-      webRoot: string;
-      version: string;
-      fetchedAt: number;
-    }) => {
-      setRemoteVersions((prev) => ({
-        ...(prev ?? {}),
-        [entry.gameId]: {
-          version: entry.version,
-          webRoot: entry.webRoot,
-          timestamp: entry.fetchedAt,
-        },
-      }));
+    let cancelled = false;
+    const applyEntry = (entry: RemoteWebRootPayload | null) => {
+      if (cancelled || !entry) return;
+      setRemoteVersions((prev) => VersionService.applySnapshot(prev, entry));
     };
-
-    // Initial resolve (uses cache if fresh, otherwise triggers fetch).
-    Promise.all(
-      games.map((gameId) => window.electronAPI.remoteVersion.resolve(gameId)),
-    ).then((results) => {
-      results.forEach((entry) => {
-        if (entry) applyEntry(entry);
-      });
-      logger.log("[App] Remote versions loaded:", results.filter(Boolean));
-    });
-
-    // Push updates when main refreshes the cache (e.g. window regains focus).
-    const unsubscribe = window.electronAPI.remoteVersion.onUpdated(
-      (payload) => {
-        applyEntry(payload);
-      },
-    );
-
+    const unsubscribe = window.electronAPI.remoteVersion.onUpdated(applyEntry);
+    void window.electronAPI.remoteVersion
+      .resolve(config.activeGame, config.serviceChannel)
+      .then(applyEntry);
     return () => {
+      cancelled = true;
       unsubscribe?.();
     };
-  }, []);
+  }, [config.activeGame, config.serviceChannel, config.gameInstallPaths]);
 
-  // Handle Manual Force Repair Request (from SupportLinks)
   const handleForcedRepairRequest = useCallback(
-    (versionInfo: {
-      version: string;
-      webRoot: string;
-      timestamp: string | number;
-    }) => {
-      setRepairVersionInfo(versionInfo);
+    (target: RemoteWebRootPayload) => {
+      setRepairVersionInfo({ ...target });
       setIsForcedRepairOpen(true);
     },
     [],
   );
 
   const handleForcedRepairConfirm = useCallback(
-    (manualVersion: string) => {
-      setIsForcedRepairOpen(false);
-
-      // Try to get remote web root for this game to help main process
-      const remoteInfo = VersionService.getRemoteVersionForGame(
-        remoteVersions,
-        config.activeGame,
-      );
-
-      window.electronAPI.triggerForceRepair(
-        config.serviceChannel,
-        config.activeGame,
+    async (version: string) => {
+      if (!repairVersionInfo) return false;
+      const manualVersion =
+        version.trim() !== repairVersionInfo.version
+          ? version.trim()
+          : undefined;
+      const started = await window.electronAPI.triggerForceRepair(
+        repairVersionInfo.serviceId,
+        repairVersionInfo.gameId,
         manualVersion,
-        remoteInfo?.webRoot,
+        repairVersionInfo,
       );
+      if (started) setIsForcedRepairOpen(false);
+      return started;
     },
-    [config.serviceChannel, config.activeGame, remoteVersions],
+    [repairVersionInfo],
   );
 
   // [UAC Migration] Listener
@@ -1038,19 +1008,15 @@ function App() {
     ) {
       return false;
     }
-    const key = `${config.activeGame}_${config.serviceChannel}`;
-    const localVersion = config.knownGameVersions?.[key]?.version;
-    const remoteVersion = remoteVersions?.[config.activeGame]?.version;
-    if (!localVersion || !remoteVersion) return false;
-    if (localVersion === "unknown" || remoteVersion === "unknown") return false;
-    return VersionService.compareVersions(remoteVersion, localVersion) > 0;
-  }, [
-    activeGameStatus.status,
-    config.activeGame,
-    config.serviceChannel,
-    config.knownGameVersions,
-    remoteVersions,
-  ]);
+    const context = versionContextFromConfig(config);
+    return (
+      assessGameVersion(
+        context,
+        remoteVersions?.[gameVersionContextKey(context)],
+        config.knownGameVersions?.[gameVersionKey(context)],
+      ) === "changed"
+    );
+  }, [activeGameStatus.status, config, remoteVersions]);
 
   const gameStartButtonLabel = useMemo(
     () => getGameStartButtonLabel(activeGameStatus.status, isUpdateNeeded),
@@ -2554,12 +2520,11 @@ function App() {
 
       {isForcedRepairOpen && repairVersionInfo && (
         <ForcedRepairModal
-          key={`${config.activeGame}-${repairVersionInfo.version}`}
+          key={`${repairVersionInfo.revision}`}
           isOpen={isForcedRepairOpen}
-          gameId={config.activeGame}
-          serviceId={config.serviceChannel}
+          gameId={repairVersionInfo.gameId}
+          serviceId={repairVersionInfo.serviceId}
           versionInfo={repairVersionInfo}
-          remoteVersion={remoteVersions?.[config.activeGame]?.version}
           onCancel={() => setIsForcedRepairOpen(false)}
           onConfirm={handleForcedRepairConfirm}
         />
@@ -2841,6 +2806,25 @@ function App() {
                 serviceChannel={config.serviceChannel}
                 openMode={currentNewsOpenMode}
                 onItemClick={handleNoticeClick}
+                visibilityBlocked={Boolean(
+                  config.showOnboarding ||
+                  isSettingsOpen ||
+                  isFontModalOpen ||
+                  isFontCatalogOpen ||
+                  isUpdateModalOpen ||
+                  isMigrationModalOpen ||
+                  isKakaoStarterUacModalOpen ||
+                  kakaoStarterMigrationRequest ||
+                  kakaoMaintenanceInfo ||
+                  isFontMigrationOpen ||
+                  isChangelogOpen ||
+                  gamePathModalState ||
+                  patchModalState.isOpen ||
+                  isEventNotificationOpen ||
+                  isPatchReservationOpen ||
+                  selectedNotice ||
+                  isForcedRepairOpen,
+                )}
               />
             </div>
           </div>

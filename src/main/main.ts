@@ -27,18 +27,12 @@ import {
   deleteConfigWithEvent,
 } from "./utils/config-utils";
 import { DEBUG_APP_CONFIG } from "../shared/config";
-import { getGameName, getLauncherTitle, getAppName } from "../shared/naming";
 import {
-  ACTIVE_GAMES,
-  AppConfig,
-  NewsCategory,
-  DebugLogPayload,
-  FatalErrorPayload,
-  GameInstallPathConflictTarget,
-  GameInstallPathRegisterRequest,
-  GameLaunchContext,
-  SERVICE_CHANNELS,
-} from "../shared/types";
+  getServerTarget,
+  sameVersionContext,
+  normalizeInstallPath,
+} from "../shared/game-version";
+import { getGameName, getLauncherTitle, getAppName } from "../shared/naming";
 import { BASE_URLS } from "../shared/urls";
 import { syncAutoLaunch } from "./events/handlers/AutoLaunchHandler";
 import {
@@ -124,6 +118,17 @@ import { serviceManager } from "./services/ServiceManager";
 import { themeCacheManager } from "./services/ThemeCacheManager";
 import { getConfig, setupStoreObservers, default as store } from "./store";
 import {
+  ACTIVE_GAMES,
+  AppConfig,
+  NewsCategory,
+  DebugLogPayload,
+  FatalErrorPayload,
+  GameInstallPathConflictTarget,
+  GameInstallPathRegisterRequest,
+  GameLaunchContext,
+  SERVICE_CHANNELS,
+} from "../shared/types";
+import {
   isAdmin,
   relaunchAsAdmin,
   ensureAdminSession,
@@ -163,6 +168,9 @@ import {
   applyResolutionRules,
   enforceConstraints,
 } from "./utils/window-resolution";
+
+import type { NewsDisplayReport, NewsSource } from "../shared/types";
+import type { GameVersionContext, RemoteWebRootPayload } from "../shared/types";
 
 // Set App Name explicitly for Windows Branding
 // Dynamically set in broadcastTitleUpdate
@@ -1375,8 +1383,36 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("news:mark-as-read", async (_event, id: string) => {
-  return newsService.markAsRead(id);
+ipcMain.handle(
+  "news:mark-as-read",
+  async (_event, id: string, source?: NewsSource) => {
+    return newsService.markAsRead(id, source);
+  },
+);
+
+ipcMain.handle(
+  "news:get-view",
+  (
+    _event,
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ) => {
+    const config = getConfig() as AppConfig;
+    newsService.setSelectedContext({
+      game: config.activeGame,
+      service: config.serviceChannel,
+    });
+    return newsService.getView(game, service);
+  },
+);
+ipcMain.handle("news:report-displayed", (event, report: NewsDisplayReport) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+  const config = getConfig() as AppConfig;
+  newsService.setSelectedContext({
+    game: config.activeGame,
+    service: config.serviceChannel,
+  });
+  return newsService.reportDisplayed(report);
 });
 
 ipcMain.handle("news:mark-multiple-as-read", async (_event, ids: string[]) => {
@@ -1562,20 +1598,56 @@ ipcMain.handle("session:logout", async () => {
   }
 });
 
+RemoteVersionResolver.setOnUpdated((entry) => {
+  if (appContext)
+    void eventBus.emit(EventType.REMOTE_VERSION_UPDATED, appContext, entry);
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed())
+      win.webContents.send("remote-version:updated", entry);
+  });
+});
+
 // --- Remote Version IPC ---
-ipcMain.handle(
-  "version:resolveRemote",
-  async (_event, gameId: AppConfig["activeGame"]) => {
-    if (gameId !== "POE1" && gameId !== "POE2") return null;
-    return RemoteVersionResolver.resolve(gameId);
-  },
-);
+const resolveVersionContext = async (
+  gameId: AppConfig["activeGame"],
+  serviceId: AppConfig["serviceChannel"],
+): Promise<GameVersionContext> => ({
+  gameId,
+  serviceId,
+  installPath: (await getGameInstallPath(serviceId, gameId)) || "",
+});
+const validVersionIds = (gameId: string, serviceId: string) =>
+  (gameId === "POE1" || gameId === "POE2") &&
+  (serviceId === "GGG" || serviceId === "Kakao Games");
 
 ipcMain.handle(
+  "version:resolveRemote",
+  async (
+    _event,
+    gameId: AppConfig["activeGame"],
+    serviceId: AppConfig["serviceChannel"],
+    fresh = false,
+  ) => {
+    if (!validVersionIds(gameId, serviceId)) return null;
+    const context = await resolveVersionContext(gameId, serviceId);
+    return fresh
+      ? RemoteVersionResolver.resolveFresh(context)
+      : RemoteVersionResolver.resolve(context);
+  },
+);
+ipcMain.handle(
   "version:peekRemote",
-  async (_event, gameId: AppConfig["activeGame"]) => {
-    if (gameId !== "POE1" && gameId !== "POE2") return null;
-    return RemoteVersionResolver.peekCache(gameId) ?? null;
+  async (
+    _event,
+    gameId: AppConfig["activeGame"],
+    serviceId: AppConfig["serviceChannel"],
+  ) => {
+    if (!validVersionIds(gameId, serviceId)) return null;
+    return (
+      RemoteVersionResolver.peekCache(
+        await resolveVersionContext(gameId, serviceId),
+      ) ?? null
+    );
   },
 );
 
@@ -1587,70 +1659,49 @@ ipcMain.handle(
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
-    remoteWebRoot?: string,
+    selectedTarget?: RemoteWebRootPayload,
   ) => {
-    logger.log(
-      `[Tool] Force Repair requested for ${gameId}/${serviceId} (ManualVersion: ${manualVersion || "N/A"}, RemoteWebRoot: ${!!remoteWebRoot})`,
-    );
-
-    const config = getConfig() as AppConfig;
-    const key = `${gameId}_${serviceId}`;
-    const versionInfo = config.knownGameVersions?.[key];
-
-    let baseWebRoot: string;
-    if (remoteWebRoot && versionInfo?.webRoot) {
-      const remoteVer = LogParser.extractVersion(remoteWebRoot);
-      const localVer = LogParser.extractVersion(versionInfo.webRoot);
-      const cmp = LogParser.compareVersions(remoteVer, localVer);
-
-      if (cmp >= 0) {
-        logger.log(
-          `[Tool] Using Remote WebRoot (Ver: ${remoteVer} >= Local: ${localVer})`,
-        );
-        baseWebRoot = remoteWebRoot;
-      } else {
-        logger.log(
-          `[Tool] Using Local WebRoot (Ver: ${localVer} > Remote: ${remoteVer})`,
-        );
-        baseWebRoot = versionInfo.webRoot;
-      }
-    } else {
-      baseWebRoot = remoteWebRoot || versionInfo?.webRoot || "";
+    if (!validVersionIds(gameId, serviceId)) return false;
+    const context = await resolveVersionContext(gameId, serviceId);
+    if (!context.installPath) return false;
+    // The modal carries the context and server target it displayed. Settings changes
+    // cannot silently redirect confirmation to another installation or game.
+    if (selectedTarget && !sameVersionContext(selectedTarget, context))
+      return false;
+    if (selectedTarget) {
+      const issued = RemoteVersionResolver.peekCache(context);
+      if (
+        !issued ||
+        !RemoteVersionResolver.isFresh(context) ||
+        issued.revision !== selectedTarget.revision ||
+        issued.webRoot !== selectedTarget.webRoot ||
+        issued.version !== selectedTarget.version
+      )
+        return false;
     }
-
-    if (!baseWebRoot) {
-      logger.error("[Tool] No known web root found for this context.");
+    const remote = selectedTarget
+      ? RemoteVersionResolver.peekCache(context)
+      : await RemoteVersionResolver.resolveFresh(context);
+    const target = getServerTarget(remote, context);
+    if (!target) {
+      logger.error(
+        "[Tool] 서버에서 복구 대상을 확인하지 못했습니다. 다시 조회해 주세요.",
+      );
       return false;
     }
-
-    const installPath = await getGameInstallPath(serviceId, gameId);
-    if (!installPath) {
-      logger.error("[Tool] Install path not found.");
-      return false;
-    }
-
-    // Determine target webRoot
-    let targetWebRoot = baseWebRoot;
-    if (manualVersion) {
-      targetWebRoot = LogParser.replaceVersion(targetWebRoot, manualVersion);
-      logger.log(`[Tool] WebRoot overridden to: ${targetWebRoot}`);
-    }
-
-    // Trigger Patch Fix Modal in Progress Mode
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("UI:SHOW_PATCH_MODAL", {
-        autoStart: true,
-        serviceId,
-        gameId,
-      });
-    }
-
-    eventBus.emit(EventType.TOOL_FORCE_REPAIR, appContext, {
-      installPath,
+    const webRoot = manualVersion
+      ? LogParser.replaceVersion(target.webRoot, manualVersion)
+      : target.webRoot;
+    mainWindow?.webContents.send("UI:SHOW_PATCH_MODAL", {
+      autoStart: true,
       serviceId,
-      webRoot: targetWebRoot,
+      gameId,
     });
-
+    void eventBus.emit(EventType.TOOL_FORCE_REPAIR, appContext, {
+      ...context,
+      webRoot,
+      runId: crypto.randomUUID(),
+    });
     return true;
   },
 );
@@ -2663,6 +2714,15 @@ async function createWindow() {
       reason,
     };
   };
+  const syncNewsActivation = (reason: string) => {
+    const active =
+      !!mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.isVisible() &&
+      mainWindow.isFocused() &&
+      !mainWindow.isMinimized();
+    newsService.setActive(active, getNewsRefreshContext(reason));
+  };
 
   const refreshCurrentGameInstallStatusIfStale = (reason: string) => {
     void reconcileCurrentGameInstallStatusIfStale(appContext, { reason }).catch(
@@ -2675,7 +2735,7 @@ async function createWindow() {
   };
 
   mainWindow.on("show", () => {
-    newsService.setActive(true, getNewsRefreshContext("show"));
+    syncNewsActivation("show");
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
     syncDebugWindow("MainShow");
@@ -2685,6 +2745,9 @@ async function createWindow() {
     newsService.setActive(false);
     syncSubWindowsVisibility(false);
   });
+  mainWindow.on("minimize", () => syncNewsActivation("minimize"));
+  mainWindow.on("restore", () => syncNewsActivation("restore"));
+  syncNewsActivation("initial");
 
   mainWindow.on("enter-full-screen", () => syncDebugWindow("FullScreenEnter"));
   mainWindow.on("leave-full-screen", () => syncDebugWindow("FullScreenLeave"));
@@ -2758,26 +2821,41 @@ async function createWindow() {
   printBanner();
   logger.log("[Main] Main Logger initialized.");
 
-  // [New] Initial Game Version Scan: Recover if knownGameVersions is empty
+  // Recover missing observations per context. Scans never create completion proof
+  // or overwrite a newer runtime observation after their asynchronous reads.
   const runInitialGameVersionScan = async () => {
-    const config = getConfig() as AppConfig;
-    const knownVersions = config.knownGameVersions || {};
-
-    if (Object.keys(knownVersions).length === 0) {
-      logger.log(
-        "[Main] knownGameVersions is empty. Scanning logs for recovery...",
-      );
-      const scannedResults = await GameVersionScanner.scanAll();
-
-      if (Object.keys(scannedResults).length > 0) {
-        logger.log(
-          `[Main] Recovery scan successful. Found ${Object.keys(scannedResults).length} versions.`,
-        );
-        setConfigWithEvent("knownGameVersions", scannedResults);
-      } else {
-        logger.log("[Main] Recovery scan finished with no results.");
+    const scanned = await GameVersionScanner.scanAll();
+    const latestConfig = getConfig() as AppConfig;
+    const latest = latestConfig.knownGameVersions || {};
+    const merged = { ...latest };
+    for (const [key, observed] of Object.entries(scanned)) {
+      const existing = latest[key];
+      const [game, service] = key.split("_") as [
+        AppConfig["activeGame"],
+        AppConfig["serviceChannel"],
+      ];
+      const currentPath = latestConfig.gameInstallPaths?.[service]?.[game];
+      if (
+        currentPath &&
+        observed.installPath &&
+        normalizeInstallPath(currentPath) !==
+          normalizeInstallPath(observed.installPath)
+      )
+        continue;
+      if (
+        !existing?.installPath ||
+        existing.installPath !== observed.installPath ||
+        existing.timestamp < observed.timestamp
+      ) {
+        merged[key] = {
+          ...existing,
+          ...observed,
+          completed: existing?.completed,
+        };
       }
     }
+    if (JSON.stringify(merged) !== JSON.stringify(latest))
+      setConfigWithEvent("knownGameVersions", merged);
   };
 
   runInitialGameVersionScan().catch((e) =>
@@ -2812,7 +2890,7 @@ async function createWindow() {
 
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
-    newsService.setActive(true, getNewsRefreshContext("focus"));
+    syncNewsActivation("focus");
     getProcessWatcher()?.cancelSuspension();
     refreshCurrentGameInstallStatusIfStale("window-focus");
   });
@@ -3790,27 +3868,9 @@ app.whenReady().then(async () => {
       }
     });
 
-    // Refresh remote version cache (10-min TTL) so renderer can compare with local log.
-    for (const gameId of ["POE1", "POE2"] as const) {
-      if (RemoteVersionResolver.isFresh(gameId)) continue;
-      RemoteVersionResolver.resolve(gameId).then((entry) => {
-        if (!entry) return;
-        const payload = {
-          gameId: entry.gameId,
-          webRoot: entry.webRoot,
-          version: entry.version,
-          source: entry.source,
-          fetchedAt: entry.fetchedAt,
-        };
-        if (appContext) {
-          eventBus.emit(EventType.REMOTE_VERSION_UPDATED, appContext, payload);
-        }
-        BrowserWindow.getAllWindows().forEach((win) => {
-          if (!win.isDestroyed()) {
-            win.webContents.send("remote-version:updated", payload);
-          }
-        });
-      });
-    }
+    const config = getConfig() as AppConfig;
+    void resolveVersionContext(config.activeGame, config.serviceChannel)
+      .then((context) => RemoteVersionResolver.resolve(context))
+      .catch((error) => logger.error("[Version] Refresh failed:", error));
   });
 });

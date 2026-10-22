@@ -3,6 +3,7 @@ import Store from "electron-store";
 
 import {
   AppConfig,
+  RemoteWebRootPayload,
   GameStatusState,
   DebugLogPayload,
   ChangelogItem,
@@ -73,6 +74,8 @@ export interface ToolForceRepairEvent {
     installPath: string;
     serviceId: AppConfig["serviceChannel"];
     webRoot: string;
+    gameId: AppConfig["activeGame"];
+    runId: string;
   };
   timestamp?: number;
 }
@@ -102,6 +105,9 @@ export interface LogSessionStartEvent {
     serviceId: AppConfig["serviceChannel"];
     pid: number;
     timestamp: number;
+    installPath?: string;
+    isHistorical?: boolean;
+    sourcePid?: number;
   };
   timestamp?: number;
 }
@@ -114,6 +120,9 @@ export interface LogWebRootFoundEvent {
     pid: number;
     webRoot: string;
     timestamp: number;
+    installPath?: string;
+    isHistorical?: boolean;
+    sourcePid?: number;
   };
   timestamp?: number;
 }
@@ -149,6 +158,9 @@ export interface LogGameStartupEvent {
     pid: number;
     timestamp: number;
     startupTime: number; // seconds
+    installPath?: string;
+    isHistorical?: boolean;
+    sourcePid?: number;
   };
   timestamp?: number;
 }
@@ -348,13 +360,7 @@ export interface PromotionDismissEvent {
 
 export interface RemoteVersionUpdatedEvent {
   type: EventType.REMOTE_VERSION_UPDATED;
-  payload: {
-    gameId: AppConfig["activeGame"];
-    webRoot: string;
-    version: string;
-    source: "master-socket" | "gh-pages";
-    fetchedAt: number;
-  };
+  payload: RemoteWebRootPayload;
   timestamp?: number;
 }
 

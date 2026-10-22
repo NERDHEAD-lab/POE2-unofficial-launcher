@@ -28,7 +28,7 @@ export const ToolForceRepairHandler: EventHandler<ToolForceRepairEvent> = {
   id: "ToolForceRepairHandler",
   targetEvent: EventType.TOOL_FORCE_REPAIR,
   handle: async (event, context) => {
-    const { installPath, serviceId, webRoot } = event.payload;
+    const { installPath, serviceId, webRoot, gameId } = event.payload;
 
     emitLog(
       context,
@@ -44,6 +44,7 @@ export const ToolForceRepairHandler: EventHandler<ToolForceRepairEvent> = {
         installPath,
         serviceId,
         webRoot,
+        gameId,
       );
 
       if (success) {
