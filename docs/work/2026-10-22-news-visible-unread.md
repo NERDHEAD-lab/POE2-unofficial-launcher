@@ -30,6 +30,13 @@ local_serial에 따라 main checkout의 한 writer가 순차 작업한다. 기�
 - [Windows-pwsh] 양방향 `git merge-tree --write-tree`는 Main/preload의 인접 type import 추가 한 영역씩만 충돌한다. Main은 NewsDisplayReport/NewsSource 다음 GameVersionContext/RemoteWebRootPayload, preload는 RemoteWebRootPayload 다음 NewsSource/NewsDisplayReport를 보존하면 된다. 임시 index의 양방향 조합 src tree는 모두 원본과 동일한 `58aa0a803a97df49bbd94dc7d92ef09e013f1969`다. 다른 네 공통 파일은 자동 병합된다. `equivalence.json`, 빈 `composition-a-b.diff`/`composition-b-a.diff`에 기록했고 독립 reviewer도 Git 객체로 확인했다.
 - 조합 전체 회귀는 동일 src/입력/dependencies/Windows 환경의 기존 `r2-full-src-tests.log` **95파일780검사 PASS**와 `node-promotions-tests.log` **59검사 PASS**를 재사용한다. 새 단독 후보의 빌드는 미실행이며 Windows PR CI에서 확인한다. root의 분리 final QA와 원격 CI/병합은 별도 단계다.
 
+## 서버 버전 PR 병합 뒤 통합
+
+- 두 분리 PR의 단독 Windows CI(lint/build:check)가 통과했고, 서버 버전 PR #319가 master `38786ba348e5247810d7475051b98e6323600524`로 squash 병합되었다. 공지 PR #320의 기존 tip에 해당 실제 master를 정상 merge하여 이력을 보존한다.
+- 실제 충돌은 계획했던 Main/preload import 각 한 영역뿐이었다. 두 이름 집합을 위에 기록한 원본 순서로 보존했다. 다른 제품 변경이나 새 동작 없이 실제 통합 index의 src tree가 원본 `58aa0a803a97df49bbd94dc7d92ef09e013f1969`와 정확히 같다. `integration-resolution.json`에 실제 부모·충돌·해소·동일성 근거를 남겼다.
+- [Windows-pwsh] 통합 `npx tsc --noEmit`, `npm run lint`, 양쪽 영향 **10파일89검사 PASS**, `git diff --cached --check -- src` PASS. `integration-typecheck.log`, `integration-lint.log`, `integration-tests.log`. 실제 master 대비 diff는 공지 source15개와 본 문서만 남는다 (`integration-pr-files.txt`).
+- 제품 src가 기존 승인·독립 리뷰 및 전체780/Node59 검증 대상과 동일하고 입력/의존성/환경 변경이 없어 해당 근거를 재사용한다. 새 행동·검증대상 변경이 없는 import 통합이며 root는 실제 merge receipt를 별도 final QA로 확인한다. 사용자 Windows/game/실창·스크롤 QA는 여전히 미완료다. 실행 중 앱의 dist/dist-electron을 보존하여 로컬 기본 build는 미실행이며 갱신 PR CI가 수행한다.
+
 ## 보존·다음 단계
 
 root가 최종 QA/원격 상신·각 PR CI·개별 병합과 release-please CI를 맡는다. 누락된 사용자 QA를 PASS로 승격하지 않는다. 사용자 QA 미완료로 문서는 work에 유지한다. 위키 raw는 task scratch에 보존하며 미-ingest다. main checkout·원본 브랜치·사용자 dirty·실행 앱·증거는 preserve한다. 삭제 권한은 없다.

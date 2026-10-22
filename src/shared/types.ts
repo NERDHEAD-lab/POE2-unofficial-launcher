@@ -92,7 +92,7 @@ export interface AppConfig {
   // Version Tracking
   knownGameVersions: Record<
     string, // Key: "${gameId}_${serviceId}"
-    { version: string; webRoot: string; timestamp: number }
+    LocalGameVersion
   >;
 
   // Game installation paths cached by service/game after registry discovery.
@@ -470,6 +470,12 @@ export interface RenewedPatchReservationBase {
   serviceId: AppConfig["serviceChannel"];
   createdAt: string;
   lastNotifiedVersion?: string;
+  /** Failed checks remain visible across restarts; older reservations need no migration. */
+  lastCheckFailure?: {
+    scheduleFingerprint: string;
+    checkedAt: number;
+    message: string;
+  };
 }
 
 export type RenewedPatchReservation =
@@ -862,7 +868,7 @@ export interface ElectronAPI {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
-    remoteWebRoot?: string, // [Hotfix] 원격/수동 웹 루트 전달용
+    target?: RemoteWebRootPayload,
   ) => Promise<boolean>; // New
   checkBackupAvailability?: (
     serviceId: AppConfig["serviceChannel"],
@@ -985,9 +991,12 @@ export interface ElectronAPI {
   remoteVersion: {
     resolve: (
       gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
+      fresh?: boolean,
     ) => Promise<RemoteWebRootPayload | null>;
     peek: (
       gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
     ) => Promise<RemoteWebRootPayload | null>;
     onUpdated: (
       callback: (payload: RemoteWebRootPayload) => void,
@@ -995,12 +1004,40 @@ export interface ElectronAPI {
   };
 }
 
-export interface RemoteWebRootPayload {
+export interface GameVersionContext {
   gameId: AppConfig["activeGame"];
+  serviceId: AppConfig["serviceChannel"];
+  installPath: string;
+}
+
+/** Legacy entries without a path remain observations, never installation proof. */
+export interface LocalGameVersion {
+  version: string;
+  webRoot: string;
+  timestamp: number;
+  installPath?: string;
+  observationSource?: "live-log" | "log-scan";
+  sourceTimestamp?: number;
+  completed?: {
+    version: string;
+    webRoot: string;
+    installPath: string;
+    timestamp: number;
+    runId: string;
+    evidence: "patch-done" | "game-startup";
+    invalidatedAt?: number;
+  };
+}
+
+export interface RemoteWebRootPayload extends GameVersionContext {
   webRoot: string;
   version: string;
-  source: "master-socket" | "gh-pages";
+  source: "master-socket" | "gh-pages" | null;
+  status: "ok" | "unavailable" | "unknown" | "mismatch";
+  /** Time this lookup completed, distinct from the fallback document's timestamp. */
   fetchedAt: number;
+  sourceTimestamp: number | null;
+  revision: number;
 }
 
 export const UPDATE_DOWNLOAD_FAILURE_MESSAGE =

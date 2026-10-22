@@ -6,6 +6,7 @@ import {
   LogErrorHandler,
   LogSessionHandler,
   LogWebRootHandler,
+  GameVersionCompletionHandler,
   PatchProgressHandler,
   ProcessWillTerminateHandler,
 } from "./handlers/AutoPatchHandler";
@@ -70,6 +71,7 @@ export const CORE_EVENT_HANDLERS = [
   AutoPatchProcessStartHandler,
   LogSessionHandler,
   LogWebRootHandler,
+  GameVersionCompletionHandler,
   LogErrorHandler,
   AutoPatchProcessStopHandler,
   PatchProgressHandler,

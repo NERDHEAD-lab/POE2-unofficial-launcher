@@ -166,7 +166,7 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     name: "Known Game Versions",
     category: "Info",
     description:
-      "각 게임 및 서비스별 마지막으로 감지된 버전과 WebRoot 정보를 저장합니다. (자동 관리)",
+      "게임·서비스·설치 경로별 마지막 WebRoot 관측과 별도로 확인된 설치 완료 증거를 저장합니다. 구 기록은 관측으로만 취급합니다. (자동 관리)",
   },
   GAME_INSTALL_PATHS: {
     key: "gameInstallPaths",

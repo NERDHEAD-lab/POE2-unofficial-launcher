@@ -1,44 +1,28 @@
-import { SUPPORT_URLS } from "../../shared/urls";
-import { compareVersions } from "../../shared/version";
+import {
+  gameVersionContextKey,
+  getServerTarget,
+} from "../../shared/game-version";
 
-export interface RemoteVersionInfo {
-  version: string;
-  webRoot: string;
-  timestamp: number;
-}
+import type {
+  GameVersionContext,
+  RemoteWebRootPayload,
+} from "../../shared/types";
 
-export type RemoteVersions = Record<string, RemoteVersionInfo>;
+export type RemoteVersions = Record<string, RemoteWebRootPayload>;
 
 export class VersionService {
-  /**
-   * Fetches latest version data from gh-pages
-   */
-  public static async fetchRemoteVersions(): Promise<RemoteVersions | null> {
-    try {
-      // Use cache busting to ensure we get the latest data
-      const response = await fetch(
-        `${SUPPORT_URLS.LATEST_VERSIONS_JSON}?t=${Date.now()}`,
-      );
-      if (!response.ok) {
-        throw new Error(`Failed to fetch remote versions: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("[VersionService] Error fetching remote versions:", error);
-      return null;
-    }
+  public static applySnapshot(
+    versions: RemoteVersions | null,
+    entry: RemoteWebRootPayload,
+  ): RemoteVersions {
+    const key = gameVersionContextKey(entry);
+    if ((versions?.[key]?.revision ?? -1) > entry.revision) return versions!;
+    return { ...versions, [key]: entry };
   }
-
-  /**
-   * Gets specific remote version for a game
-   */
   public static getRemoteVersionForGame(
     versions: RemoteVersions | null,
-    gameId: string,
-  ): RemoteVersionInfo | null {
-    if (!versions) return null;
-    return versions[gameId] || null;
+    context: GameVersionContext,
+  ): RemoteWebRootPayload | null {
+    return getServerTarget(versions?.[gameVersionContextKey(context)], context);
   }
-
-  public static compareVersions = compareVersions;
 }

@@ -34,6 +34,7 @@ import {
   FatalErrorPayload,
   LauncherLogAvailability,
   LauncherLogSaveResult,
+  RemoteWebRootPayload,
   NewsSource,
   NewsDisplayReport,
 } from "../shared/types";
@@ -308,14 +309,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
     manualVersion?: string,
-    remoteWebRoot?: string,
+    target?: RemoteWebRootPayload,
   ) =>
     ipcRenderer.invoke(
       "tool:force-repair-executable",
       serviceId,
       gameId,
       manualVersion,
-      remoteWebRoot,
+      target,
     ),
   checkBackupAvailability: (
     serviceId: AppConfig["serviceChannel"],
@@ -528,28 +529,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
   },
   remoteVersion: {
-    resolve: (gameId: AppConfig["activeGame"]) =>
-      ipcRenderer.invoke("version:resolveRemote", gameId),
-    peek: (gameId: AppConfig["activeGame"]) =>
-      ipcRenderer.invoke("version:peekRemote", gameId),
-    onUpdated: (
-      callback: (payload: {
-        gameId: AppConfig["activeGame"];
-        webRoot: string;
-        version: string;
-        source: "master-socket" | "gh-pages";
-        fetchedAt: number;
-      }) => void,
-    ) => {
+    resolve: (
+      gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
+      fresh = false,
+    ) => ipcRenderer.invoke("version:resolveRemote", gameId, serviceId, fresh),
+    peek: (
+      gameId: AppConfig["activeGame"],
+      serviceId: AppConfig["serviceChannel"],
+    ) => ipcRenderer.invoke("version:peekRemote", gameId, serviceId),
+    onUpdated: (callback: (payload: RemoteWebRootPayload) => void) => {
       const handler = (
         _event: IpcRendererEvent,
-        payload: {
-          gameId: AppConfig["activeGame"];
-          webRoot: string;
-          version: string;
-          source: "master-socket" | "gh-pages";
-          fetchedAt: number;
-        },
+        payload: RemoteWebRootPayload,
       ) => callback(payload);
       ipcRenderer.on("remote-version:updated", handler);
       return () => ipcRenderer.off("remote-version:updated", handler);

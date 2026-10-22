@@ -29,6 +29,8 @@ export class LogWatcher implements IService {
   private watchTimer: NodeJS.Timeout | null = null;
   private currentLogPath: string | null = null;
   private lastSize: number = 0;
+  private historicalSize = 0;
+  private installPath: string | null = null;
   private errorCount: number = 0;
   private isMonitoring: boolean = false;
   private lastCheckedGameId: AppConfig["activeGame"] | null = null;
@@ -145,6 +147,8 @@ export class LogWatcher implements IService {
       }
 
       this.currentLogPath = logPath;
+      this.installPath = installPath;
+      this.historicalSize = (await fs.promises.stat(logPath)).size;
       this.lastCheckedGameId = gameId;
       this.lastCheckedServiceId = serviceId;
       this.currentPid = pid || null;
@@ -198,10 +202,12 @@ export class LogWatcher implements IService {
 
       if (stats.size < this.lastSize) {
         this.lastSize = 0;
+        this.historicalSize = 0;
         this.errorCount = 0;
       }
 
       if (stats.size > this.lastSize) {
+        let lineOffset = this.lastSize;
         const stream = fs.createReadStream(this.currentLogPath, {
           start: this.lastSize,
           end: stats.size,
@@ -218,6 +224,10 @@ export class LogWatcher implements IService {
         const lines = newData.split("\n");
 
         for (const line of lines) {
+          const isHistorical = lineOffset < this.historicalSize;
+          const parsedPid = LogParser.extractPid(line);
+          const sourcePid = parsedPid ? Number(parsedPid) : undefined;
+          lineOffset += Buffer.byteLength(line + "\n", "utf8");
           const config = GAME_SERVICE_PROFILES[this.lastCheckedServiceId!];
 
           // Check for Session Marker
@@ -227,6 +237,9 @@ export class LogWatcher implements IService {
             if (this.currentPid) {
               this.emitLog(`Session Marker Found (PID: ${this.currentPid})`);
               eventBus.emit(EventType.LOG_SESSION_START, this.context, {
+                sourcePid,
+                installPath: this.installPath!,
+                isHistorical,
                 gameId: this.lastCheckedGameId!,
                 serviceId: this.lastCheckedServiceId!,
                 pid: this.currentPid,
@@ -262,6 +275,9 @@ export class LogWatcher implements IService {
             if (webRoot && this.currentPid) {
               this.emitLog(`Web Root Found: ${webRoot}`);
               eventBus.emit(EventType.LOG_WEB_ROOT_FOUND, this.context, {
+                sourcePid,
+                installPath: this.installPath!,
+                isHistorical,
                 gameId: this.lastCheckedGameId!,
                 serviceId: this.lastCheckedServiceId!,
                 pid: this.currentPid,
@@ -299,6 +315,9 @@ export class LogWatcher implements IService {
               `Game Startup Detected (PID: ${this.currentPid}, Time: ${startupTime}s)`,
             );
             eventBus.emit(EventType.LOG_GAME_STARTUP, this.context, {
+              sourcePid,
+              installPath: this.installPath!,
+              isHistorical,
               gameId: this.lastCheckedGameId!,
               serviceId: this.lastCheckedServiceId!,
               pid: this.currentPid,
