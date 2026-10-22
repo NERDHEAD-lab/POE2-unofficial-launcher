@@ -169,6 +169,7 @@ import {
   enforceConstraints,
 } from "./utils/window-resolution";
 
+import type { NewsDisplayReport, NewsSource } from "../shared/types";
 import type { GameVersionContext, RemoteWebRootPayload } from "../shared/types";
 
 // Set App Name explicitly for Windows Branding
@@ -1382,8 +1383,36 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("news:mark-as-read", async (_event, id: string) => {
-  return newsService.markAsRead(id);
+ipcMain.handle(
+  "news:mark-as-read",
+  async (_event, id: string, source?: NewsSource) => {
+    return newsService.markAsRead(id, source);
+  },
+);
+
+ipcMain.handle(
+  "news:get-view",
+  (
+    _event,
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ) => {
+    const config = getConfig() as AppConfig;
+    newsService.setSelectedContext({
+      game: config.activeGame,
+      service: config.serviceChannel,
+    });
+    return newsService.getView(game, service);
+  },
+);
+ipcMain.handle("news:report-displayed", (event, report: NewsDisplayReport) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+  const config = getConfig() as AppConfig;
+  newsService.setSelectedContext({
+    game: config.activeGame,
+    service: config.serviceChannel,
+  });
+  return newsService.reportDisplayed(report);
 });
 
 ipcMain.handle("news:mark-multiple-as-read", async (_event, ids: string[]) => {
@@ -2685,6 +2714,15 @@ async function createWindow() {
       reason,
     };
   };
+  const syncNewsActivation = (reason: string) => {
+    const active =
+      !!mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.isVisible() &&
+      mainWindow.isFocused() &&
+      !mainWindow.isMinimized();
+    newsService.setActive(active, getNewsRefreshContext(reason));
+  };
 
   const refreshCurrentGameInstallStatusIfStale = (reason: string) => {
     void reconcileCurrentGameInstallStatusIfStale(appContext, { reason }).catch(
@@ -2697,7 +2735,7 @@ async function createWindow() {
   };
 
   mainWindow.on("show", () => {
-    newsService.setActive(true, getNewsRefreshContext("show"));
+    syncNewsActivation("show");
     syncSubWindowsVisibility(true);
     mainWindow?.webContents.send("app:window-show");
     syncDebugWindow("MainShow");
@@ -2707,6 +2745,9 @@ async function createWindow() {
     newsService.setActive(false);
     syncSubWindowsVisibility(false);
   });
+  mainWindow.on("minimize", () => syncNewsActivation("minimize"));
+  mainWindow.on("restore", () => syncNewsActivation("restore"));
+  syncNewsActivation("initial");
 
   mainWindow.on("enter-full-screen", () => syncDebugWindow("FullScreenEnter"));
   mainWindow.on("leave-full-screen", () => syncDebugWindow("FullScreenLeave"));
@@ -2849,7 +2890,7 @@ async function createWindow() {
 
   mainWindow.on("focus", () => {
     logger.log("[Main] Window focused.");
-    newsService.setActive(true, getNewsRefreshContext("focus"));
+    syncNewsActivation("focus");
     getProcessWatcher()?.cancelSuspension();
     refreshCurrentGameInstallStatusIfStale("window-focus");
   });

@@ -900,8 +900,13 @@ export interface ElectronAPI {
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => Promise<number | null>;
-  markNewsAsRead: (id: string) => Promise<void>;
+  markNewsAsRead: (id: string, source?: NewsSource) => Promise<void>;
   markMultipleNewsAsRead: (ids: string[]) => Promise<void>;
+  getNewsView: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ) => Promise<NewsViewSnapshot>;
+  reportNewsDisplayed: (report: NewsDisplayReport) => Promise<boolean>;
   onNewsUpdated: (callback: () => void) => () => void;
   onWindowShow: (callback: () => void) => () => void;
   sendDebugLog: (log: DebugLogPayload) => void;
@@ -1107,7 +1112,31 @@ export interface NewsServiceState {
   items: Record<string, NewsItem[]>; // Key: "game-service-category"
   contents: Record<string, NewsContent>; // Key: threadId
   lastReadIds: string[]; // For 'N' marker logic
+  readKeys: string[]; // Scoped game/service/board identities; legacy lastReadIds remain readable.
   lastUpdatedAt: Record<string, number>; // Key: "game-service-category" or "dev-notice"
+}
+
+export interface NewsSource {
+  game: AppConfig["activeGame"];
+  service: AppConfig["serviceChannel"];
+  category: "notice" | "patch-notes";
+}
+
+export interface NewsViewSnapshot {
+  game: AppConfig["activeGame"];
+  service: AppConfig["serviceChannel"];
+  generation: number;
+  selectionRevision: number;
+  revision: number;
+  active: boolean;
+  notices: NewsItem[];
+  patchNotes: NewsItem[];
+}
+
+export interface NewsDisplayReport extends NewsSource {
+  generation: number;
+  selectionRevision: number;
+  ids: string[];
 }
 
 declare global {

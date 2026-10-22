@@ -2806,6 +2806,25 @@ function App() {
                 serviceChannel={config.serviceChannel}
                 openMode={currentNewsOpenMode}
                 onItemClick={handleNoticeClick}
+                visibilityBlocked={Boolean(
+                  config.showOnboarding ||
+                  isSettingsOpen ||
+                  isFontModalOpen ||
+                  isFontCatalogOpen ||
+                  isUpdateModalOpen ||
+                  isMigrationModalOpen ||
+                  isKakaoStarterUacModalOpen ||
+                  kakaoStarterMigrationRequest ||
+                  kakaoMaintenanceInfo ||
+                  isFontMigrationOpen ||
+                  isChangelogOpen ||
+                  gamePathModalState ||
+                  patchModalState.isOpen ||
+                  isEventNotificationOpen ||
+                  isPatchReservationOpen ||
+                  selectedNotice ||
+                  isForcedRepairOpen,
+                )}
               />
             </div>
           </div>

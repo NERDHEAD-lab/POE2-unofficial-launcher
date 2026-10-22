@@ -67,6 +67,7 @@ const NewsItem: React.FC<NewsItemProps> = ({
 
     const nextExpanded = !isExpanded;
     if (nextExpanded) {
+      onRead(item.id);
       pendingOpenScrollRef.current = true;
       setIsLoading(true);
     } else {
@@ -96,7 +97,6 @@ const NewsItem: React.FC<NewsItemProps> = ({
         if (result !== currentContent) {
           setContent(result);
         }
-        onRead(item.id);
       } catch (error) {
         logger.error("Failed to load news content:", error);
         if (!currentContent) {
@@ -115,7 +115,7 @@ const NewsItem: React.FC<NewsItemProps> = ({
       style={{ backgroundImage: `url(${itemBg})` }}
     >
       <div className="news-item-header" onClick={handleToggle}>
-        <div className="news-item-title-row">
+        <div className="news-item-title-row" data-news-title-id={item.id}>
           {item.isSticky && <span className="news-sticky-icon">📌</span>}
           <span className="news-item-title">{item.title}</span>
           {item.isNew && <span className="new-badge">N</span>}

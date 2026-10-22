@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 
 import NewsItem from "./NewsItem";
+import { useNewsVisibility } from "./useNewsVisibility";
 import { NewsItem as NewsItemType, NewsOpenMode } from "../../../shared/types";
+
+import type { NewsSource, NewsViewSnapshot } from "../../../shared/types";
 
 interface NewsSectionProps {
   title: string;
@@ -12,6 +15,9 @@ interface NewsSectionProps {
   onShowModal?: (item: NewsItemType) => void;
   isDevSection?: boolean;
   headerVariant?: "long" | "short";
+  visibilityEnabled?: boolean;
+  newsView?: NewsViewSnapshot;
+  source?: NewsSource;
 }
 
 const NewsSection: React.FC<NewsSectionProps> = ({
@@ -23,7 +29,12 @@ const NewsSection: React.FC<NewsSectionProps> = ({
   onShowModal,
   isDevSection,
   headerVariant,
+  visibilityEnabled = false,
+  newsView,
+  source,
 }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+  useNewsVisibility(listRef, visibilityEnabled, newsView, source);
   const handleOpenForum = () => {
     if (forumUrl) {
       window.open(forumUrl, "_blank");
@@ -45,7 +56,7 @@ const NewsSection: React.FC<NewsSectionProps> = ({
         )}
       </div>
 
-      <div className="news-list">
+      <div className="news-list" ref={listRef}>
         {items.length > 0 ? (
           items.map((item) => (
             <NewsItem
