@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { eventBus } from "../events/EventBus";
+import { confirmGameVersionForPid } from "../events/handlers/AutoPatchHandler";
 import { AppContext, AppEvent, EventHandler, EventType } from "../events/types";
 import { PatchReservationService } from "../services/PatchReservationService";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../state/GameStatusStore";
 import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
+import { getGameInstallPath } from "../utils/registry";
 import { RemoteVersionResolver } from "../utils/RemoteVersionResolver";
 
 import type {
@@ -70,6 +72,7 @@ vi.mock("../events/handlers/AutoPatchHandler", () => ({
       autoPatchCorrelation.pidRunIds.get(pid) ??
       autoPatchCorrelation.expectedRunId,
   ),
+  confirmGameVersionForPid: vi.fn(() => true),
   clearAutoPatchRun: vi.fn((runId: string) => {
     if (autoPatchCorrelation.expectedRunId === runId) {
       autoPatchCorrelation.expectedRunId = undefined;
@@ -78,6 +81,10 @@ vi.mock("../events/handlers/AutoPatchHandler", () => ({
       if (mappedRunId === runId) autoPatchCorrelation.pidRunIds.delete(pid);
     }
   }),
+}));
+
+vi.mock("../utils/registry", () => ({
+  getGameInstallPath: vi.fn(async () => "G:\\Daum Games\\Path of Exile"),
 }));
 
 vi.mock("../utils/RemoteVersionResolver", () => ({
@@ -186,6 +193,7 @@ describe("PatchReservationService inactivity watchdog", () => {
           version: "4.4.0.10",
           webRoot: "https://local/4.4.0.10/",
           timestamp: NOW.getTime(),
+          installPath: "G:\\Daum Games\\Path of Exile",
         },
       },
       silentPatchNotification: true,
@@ -205,6 +213,11 @@ describe("PatchReservationService inactivity watchdog", () => {
 
   const remoteVersion = (version: string) => ({
     gameId: GAME_ID as "POE1",
+    serviceId: SERVICE_ID as "Kakao Games",
+    installPath: "G:\\Daum Games\\Path of Exile",
+    status: "ok" as const,
+    sourceTimestamp: null,
+    revision: 1,
     webRoot: `https://remote/${version}/`,
     version,
     source: "master-socket" as const,
@@ -224,6 +237,10 @@ describe("PatchReservationService inactivity watchdog", () => {
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
     handlers.clear();
+    vi.mocked(confirmGameVersionForPid).mockReturnValue(true);
+    vi.mocked(getGameInstallPath).mockResolvedValue(
+      "G:\\Daum Games\\Path of Exile",
+    );
     autoPatchCorrelation.expectedRunId = undefined;
     autoPatchCorrelation.pidRunIds.clear();
     powerShellMocks.execute.mockResolvedValue({
@@ -391,6 +408,8 @@ describe("PatchReservationService inactivity watchdog", () => {
 
     await vi.advanceTimersByTimeAsync(10_000);
     await dispatch(EventType.LOG_GAME_STARTUP, {
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
       gameId: GAME_ID,
       serviceId: SERVICE_ID,
       pid: 400,
@@ -421,8 +440,100 @@ describe("PatchReservationService inactivity watchdog", () => {
     );
   });
 
-  it("checks a one-time range immediately and stops at the inclusive end", async () => {
-    vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue(null);
+  it.each(["historical-startup", "other-path-done"] as const)(
+    "does not finish or clean up a run after rejected %s completion proof",
+    async (signal) => {
+      await startService();
+      await dispatch(EventType.PROCESS_START, processPayload(403));
+      await dispatch(EventType.LOG_PATCH_CHECK_COMPLETE, {
+        gameId: GAME_ID,
+        serviceId: SERVICE_ID,
+        pid: 403,
+      });
+      vi.mocked(confirmGameVersionForPid).mockReturnValue(false);
+      if (signal === "historical-startup") {
+        await dispatch(EventType.LOG_GAME_STARTUP, {
+          gameId: GAME_ID,
+          serviceId: SERVICE_ID,
+          pid: 403,
+          isHistorical: true,
+          installPath: "G:\\Daum Games\\Path of Exile",
+          startupTime: 1,
+        });
+      } else {
+        await dispatch(EventType.PATCH_UI_TITLE_TICK, {
+          gameId: GAME_ID,
+          serviceId: SERVICE_ID,
+          pid: 403,
+          processName: "PathOfExile_KG",
+          title: "완료",
+        });
+      }
+      expect(eventBus.emit).not.toHaveBeenCalledWith(
+        EventType.PROCESS_WILL_TERMINATE,
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(logger.log).not.toHaveBeenCalledWith(
+        expect.stringContaining("패치 예약 동작이 성공적으로 완료"),
+      );
+      expect(logger.log).not.toHaveBeenCalledWith(
+        expect.stringContaining("패치를 시도했으나 업데이트가 없었습니다"),
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("FINAL FAILURE"),
+      );
+    },
+  );
+
+  it("preserves a queued one-time reservation when its pinned install path changes before execution", async () => {
+    vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue(
+      remoteVersion("0.5.5.4.2"),
+    );
+    const first = {
+      id: "first-pinned",
+      gameId: GAME_ID,
+      serviceId: SERVICE_ID,
+      createdAt: NOW.toISOString(),
+      schedule: {
+        kind: "once-at",
+        at: new Date(NOW.getTime() + 1_000).toISOString(),
+      },
+      action: { kind: "auto-update", launchAfterUpdate: false },
+    } satisfies RenewedPatchReservation;
+    const second = { ...first, id: "second-pinned" };
+    await startRenewedService([first, second]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(config.renewedPatchReservations).toMatchObject([second]);
+    await dispatch(EventType.PROCESS_START, processPayload(404));
+    vi.mocked(getGameInstallPath).mockResolvedValue("E:\\Other installation");
+    await dispatch(EventType.LOG_GAME_STARTUP, {
+      gameId: GAME_ID,
+      serviceId: SERVICE_ID,
+      pid: 404,
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
+      startupTime: 1,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(config.renewedPatchReservations).toMatchObject([second]);
+    expect(
+      vi
+        .mocked(eventBus.emit)
+        .mock.calls.filter(([type]) => type === EventType.UI_GAME_START_CLICK),
+    ).toHaveLength(1);
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("대기 중 설치 경로가 변경되었습니다"),
+    );
+  });
+
+  it("retains a one-time range after failed server checks and does not report no-update", async () => {
+    vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue({
+      ...remoteVersion("unknown"),
+      status: "unavailable",
+      source: null,
+    });
     const reservation = {
       id: "renewed-range",
       gameId: GAME_ID,
@@ -444,15 +555,142 @@ describe("PatchReservationService inactivity watchdog", () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(RemoteVersionResolver.resolveFresh).toHaveBeenCalledTimes(3);
-    expect(config.renewedPatchReservations).toEqual([]);
+    expect(config.renewedPatchReservations).toMatchObject([reservation]);
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "동안 새 업데이트가 확인되지 않아 예약 패치 확인을 종료했습니다",
-      ),
+      expect.stringContaining("서버 목표를 조회하지 못했습니다"),
+    );
+    expect(logger.log).not.toHaveBeenCalledWith(
+      expect.stringContaining("동안 새 업데이트가 확인되지 않아"),
     );
 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(RemoteVersionResolver.resolveFresh).toHaveBeenCalledTimes(3);
+    expect(
+      config.renewedPatchReservations[0].lastCheckFailure?.message,
+    ).toContain("서버 목표를 조회하지 못했습니다");
+    const failures = vi
+      .mocked(logger.log)
+      .mock.calls.filter(([message]) =>
+        String(message).includes("예약을 유지했습니다"),
+      );
+    expect(failures).toHaveLength(1);
+    await service?.stop();
+    service = new PatchReservationService(context);
+    await service.init();
+    expect(config.renewedPatchReservations).toMatchObject([reservation]);
+    expect(
+      vi
+        .mocked(logger.log)
+        .mock.calls.filter(([message]) =>
+          String(message).includes("예약을 유지했습니다"),
+        ),
+    ).toHaveLength(1);
+    expect(logger.log).not.toHaveBeenCalledWith(
+      expect.stringContaining("동안 새 업데이트가 확인되지 않아"),
+    );
+    // Editing the schedule creates a new occurrence and clears its old failure state.
+    const updated = {
+      ...reservation,
+      lastCheckFailure: config.renewedPatchReservations[0].lastCheckFailure,
+      schedule: {
+        ...reservation.schedule,
+        startsAt: new Date(Date.now() + 1_000).toISOString(),
+        endsAt: new Date(Date.now() + 61_000).toISOString(),
+      },
+    };
+    config.renewedPatchReservations = [updated];
+    await dispatch(EventType.CONFIG_CHANGE, {
+      key: "renewedPatchReservations",
+      newValue: [updated],
+    });
+    expect(config.renewedPatchReservations[0].lastCheckFailure).toBeUndefined();
+  });
+
+  it.each(["unavailable", "unknown", "mismatch", "same-observation"] as const)(
+    "retains a one-time reservation when the result is %s instead of consuming it as no-update",
+    async (state) => {
+      const remote = remoteVersion("4.4.0.10");
+      if (state === "unavailable")
+        Object.assign(remote, { status: "unavailable", source: null });
+      if (state === "unknown")
+        Object.assign(remote, { version: "unknown", status: "unknown" });
+      if (state === "mismatch") Object.assign(remote, { serviceId: "GGG" });
+      vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue(remote);
+      const reservation = {
+        id: `failed-${state}`,
+        gameId: GAME_ID,
+        serviceId: SERVICE_ID,
+        createdAt: NOW.toISOString(),
+        schedule: {
+          kind: "once-at",
+          at: new Date(NOW.getTime() + 1_000).toISOString(),
+        },
+        action: { kind: "notify" },
+      } satisfies RenewedPatchReservation;
+      await startRenewedService([reservation]);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(config.renewedPatchReservations).toMatchObject([reservation]);
+      expect(logger.log).toHaveBeenCalledWith(
+        expect.stringContaining("예약을 유지했습니다"),
+      );
+      expect(logger.log).not.toHaveBeenCalledWith(
+        expect.stringContaining("새 업데이트가 확인되지 않아"),
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(RemoteVersionResolver.resolveFresh).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("notifies a numerically smaller server target and consumes only verified no-update reservations", async () => {
+    const remote = remoteVersion("0.5.5.4.2");
+    vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue(remote);
+    const reservation = {
+      id: "server-identity",
+      gameId: GAME_ID,
+      serviceId: SERVICE_ID,
+      createdAt: NOW.toISOString(),
+      schedule: {
+        kind: "once-at",
+        at: new Date(NOW.getTime() + 1_000).toISOString(),
+      },
+      action: { kind: "notify" },
+    } satisfies RenewedPatchReservation;
+    await startRenewedService([reservation]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("0.5.5.4.2 업데이트가 확인되었습니다"),
+    );
+    expect(config.renewedPatchReservations).toEqual([]);
+  });
+
+  it("reports no-update only when the current path has matching installation completion proof", async () => {
+    const remote = remoteVersion("4.4.0.10");
+    vi.mocked(RemoteVersionResolver.resolveFresh).mockResolvedValue(remote);
+    const reservation = {
+      id: "confirmed-current",
+      gameId: GAME_ID,
+      serviceId: SERVICE_ID,
+      createdAt: NOW.toISOString(),
+      schedule: {
+        kind: "once-at",
+        at: new Date(NOW.getTime() + 1_000).toISOString(),
+      },
+      action: { kind: "notify" },
+    } satisfies RenewedPatchReservation;
+    await startRenewedService([reservation]);
+    config.knownGameVersions[`${GAME_ID}_${SERVICE_ID}`].completed = {
+      version: remote.version,
+      webRoot: remote.webRoot,
+      installPath: remote.installPath,
+      timestamp: NOW.getTime(),
+      runId: "confirmed",
+      evidence: "patch-done",
+    };
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(config.renewedPatchReservations).toEqual([]);
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("새 업데이트가 확인되지 않아"),
+    );
   });
 
   it("notifies a recurring reservation only once for the same version", async () => {
@@ -492,6 +730,38 @@ describe("PatchReservationService inactivity watchdog", () => {
       EventType.UI_GAME_START_CLICK,
       expect.anything(),
       expect.anything(),
+    );
+  });
+
+  it("clears a recurring reservation's saved failure after the next successful server check", async () => {
+    vi.mocked(RemoteVersionResolver.resolveFresh)
+      .mockResolvedValueOnce({
+        ...remoteVersion("unknown"),
+        status: "unavailable",
+        source: null,
+      })
+      .mockResolvedValue(remoteVersion("0.5.5.4.2"));
+    const due = new Date(NOW.getTime() + 1_000);
+    const localTime = [due.getHours(), due.getMinutes(), due.getSeconds()]
+      .map((part) => String(part).padStart(2, "0"))
+      .join(":");
+    const reservation = {
+      id: "recurring-recovery",
+      gameId: GAME_ID,
+      serviceId: SERVICE_ID,
+      createdAt: NOW.toISOString(),
+      schedule: { kind: "daily", localTime },
+      action: { kind: "notify", onlyNewVersion: false },
+    } satisfies RenewedPatchReservation;
+    await startRenewedService([reservation]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(
+      config.renewedPatchReservations[0].lastCheckFailure?.message,
+    ).toContain("서버 목표를 조회하지 못했습니다");
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1_000);
+    expect(config.renewedPatchReservations).toEqual([reservation]);
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("0.5.5.4.2 업데이트가 확인되었습니다"),
     );
   });
 
@@ -785,6 +1055,8 @@ describe("PatchReservationService inactivity watchdog", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await dispatch(EventType.PROCESS_START, processPayload(601));
     await dispatch(EventType.LOG_GAME_STARTUP, {
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
       gameId: GAME_ID,
       serviceId: SERVICE_ID,
       pid: 601,
@@ -878,8 +1150,7 @@ describe("PatchReservationService inactivity watchdog", () => {
       status: "running",
     });
     resolveRemote(remoteVersion("4.4.0.13"));
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(eventBus.emit).not.toHaveBeenCalledWith(
       EventType.UI_GAME_START_CLICK,
@@ -930,8 +1201,7 @@ describe("PatchReservationService inactivity watchdog", () => {
     });
 
     resolveRemote(remoteVersion("4.4.0.13"));
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(eventBus.emit).toHaveBeenCalledWith(
       EventType.UI_GAME_START_CLICK,
@@ -965,8 +1235,7 @@ describe("PatchReservationService inactivity watchdog", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await service?.stop();
     resolveRemote(remoteVersion("4.4.0.13"));
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(config.renewedPatchReservations).toEqual([reservation]);
     expect(logger.log).not.toHaveBeenCalledWith(
@@ -1034,6 +1303,8 @@ describe("PatchReservationService inactivity watchdog", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await dispatch(EventType.PROCESS_START, processPayload(801));
     await dispatch(EventType.LOG_GAME_STARTUP, {
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
       gameId: GAME_ID,
       serviceId: SERVICE_ID,
       pid: 801,
@@ -1077,12 +1348,13 @@ describe("PatchReservationService inactivity watchdog", () => {
     });
     await dispatch(EventType.PROCESS_START, processPayload(851));
     await dispatch(EventType.LOG_GAME_STARTUP, {
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
       gameId: GAME_ID,
       serviceId: SERVICE_ID,
       pid: 851,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     const launchEvents = vi
       .mocked(eventBus.emit)
@@ -1157,6 +1429,8 @@ describe("PatchReservationService inactivity watchdog", () => {
     autoPatchCorrelation.pidRunIds.set(999, "stale-run");
 
     await dispatch(EventType.LOG_GAME_STARTUP, {
+      isHistorical: false,
+      installPath: "G:\\Daum Games\\Path of Exile",
       gameId: GAME_ID,
       serviceId: SERVICE_ID,
       pid: 999,
@@ -1225,8 +1499,7 @@ describe("PatchReservationService inactivity watchdog", () => {
       reason: "retry",
       runId: firstRunId,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     const launchEvents = vi
       .mocked(eventBus.emit)
@@ -1274,8 +1547,7 @@ describe("PatchReservationService inactivity watchdog", () => {
       reason: "retry",
       runId: firstRunId,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
 
     const launchEvents = vi
       .mocked(eventBus.emit)

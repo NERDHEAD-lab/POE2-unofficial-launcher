@@ -3,12 +3,23 @@ import path from "path";
 
 import axios from "axios";
 
-import { AppConfig, PatchProgress, FileProgress } from "../../shared/types";
+import {
+  getServerTarget,
+  normalizeInstallPath,
+} from "../../shared/game-version";
+import {
+  AppConfig,
+  PatchProgress,
+  FileProgress,
+  RemoteWebRootPayload,
+} from "../../shared/types";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
 import { AppContext, EventType, PatchProgressEvent } from "../events/types";
+import { invalidateInstallationEvidence } from "../utils/game-version-evidence";
 import { Logger } from "../utils/logger";
 import { LogParser } from "../utils/LogParser";
+import { getGameInstallPath } from "../utils/registry";
 import { RemoteVersionResolver } from "../utils/RemoteVersionResolver";
 
 interface ParsedLogInfo {
@@ -18,6 +29,11 @@ interface ParsedLogInfo {
 }
 
 export class PatchManager {
+  private operationContext: {
+    installPath: string;
+    serviceId: AppConfig["serviceChannel"];
+    gameId: AppConfig["activeGame"];
+  } | null = null;
   private context: AppContext;
   private isPatching: boolean = false;
   private shouldStop: boolean = false;
@@ -50,7 +66,11 @@ export class PatchManager {
     installPath: string,
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
-    overrides?: { webRoot?: string; backupWebRoot?: string },
+    overrides?: {
+      webRoot?: string;
+      backupWebRoot?: string;
+      target?: RemoteWebRootPayload;
+    },
   ): Promise<boolean> {
     // Prevent re-entrancy / double-execution
     if (this.isPatching) {
@@ -67,6 +87,7 @@ export class PatchManager {
       this.fileStates.clear();
       this.totalFilesCount = 0;
       this.completedFilesCount = 0;
+      this.operationContext = { installPath, serviceId, gameId };
 
       const profile = GAME_SERVICE_PROFILES[serviceId];
       if (!profile) throw new Error(`Unknown service: ${serviceId}`);
@@ -80,42 +101,25 @@ export class PatchManager {
 
       this.emitGlobalStatus("waiting", "로그 분석 중...", 0);
 
-      let logInfo: ParsedLogInfo;
-
-      if (overrides?.webRoot) {
-        const analyzed = await this.analyzeLog(
-          serviceId,
-          logPath,
-          config.startMarker,
+      const remote =
+        overrides?.target ??
+        (await RemoteVersionResolver.resolveFresh(this.operationContext));
+      const target = getServerTarget(remote, this.operationContext);
+      if (!target)
+        throw new Error(
+          "서버에서 복구 대상을 확인하지 못했습니다. 다시 시도해 주세요.",
         );
-
-        logInfo = {
-          webRoot: analyzed.webRoot || overrides.webRoot || null,
-          backupWebRoot:
-            analyzed.backupWebRoot || overrides.backupWebRoot || null,
-          filesToDownload: analyzed.filesToDownload,
-        };
-      } else {
-        logInfo = await this.analyzeLog(serviceId, logPath, config.startMarker);
-      }
-
-      if (!logInfo.webRoot) {
-        // Fallback: 로그에 Web Root가 없으면 master 소켓(또는 gh-pages)에서 가져온다.
-        // 게임을 한 번도 켜본 적 없는 사용자도 강제 복구를 시도할 수 있게 함.
-        const remote = await RemoteVersionResolver.resolve(gameId);
-        if (remote) {
-          this.logger.log(
-            `[Diagnosis] Web Root 폴백 적용 (source=${remote.source}, version=${remote.version})`,
-          );
-          logInfo = {
-            webRoot: remote.webRoot,
-            backupWebRoot: logInfo.backupWebRoot,
-            filesToDownload: logInfo.filesToDownload,
-          };
-        } else {
-          throw new Error("최근 로그에서 Web Root 정보를 찾을 수 없습니다.");
-        }
-      }
+      // Logs identify damaged files only. Their WebRoot and backup cannot retarget
+      // a repair after the server has supplied this operation's target.
+      const analyzed = fs.existsSync(logPath)
+        ? await this.analyzeLog(serviceId, logPath, config.startMarker)
+        : null;
+      const logInfo: ParsedLogInfo = {
+        webRoot: target.webRoot,
+        backupWebRoot: null,
+        filesToDownload: analyzed?.filesToDownload || [],
+      };
+      await this.assertOriginalInstallPath();
 
       let targetFiles = logInfo.filesToDownload;
       if (targetFiles.length === 0) {
@@ -139,12 +143,7 @@ export class PatchManager {
         0,
       );
 
-      await this.processDownloads(
-        installPath,
-        logInfo.webRoot!,
-        targetFiles,
-        logInfo.backupWebRoot,
-      );
+      await this.processDownloads(installPath, logInfo.webRoot!, targetFiles);
 
       this.emitGlobalStatus("done", "패치 복구 완료", 100);
       return true;
@@ -163,6 +162,7 @@ export class PatchManager {
     installPath: string,
     serviceId: AppConfig["serviceChannel"],
     webRoot: string,
+    gameId: AppConfig["activeGame"],
   ): Promise<boolean> {
     if (this.isPatching) {
       this.logger.error("Patch ALREADY in progress. Ignoring force request.");
@@ -175,6 +175,8 @@ export class PatchManager {
       this.abortController = new AbortController();
       this.fileStates.clear();
       this.completedFilesCount = 0;
+      this.operationContext = { installPath, serviceId, gameId };
+      await this.assertOriginalInstallPath();
 
       const profile = GAME_SERVICE_PROFILES[serviceId];
       if (!profile) throw new Error(`Unknown service: ${serviceId}`);
@@ -201,7 +203,7 @@ export class PatchManager {
       // Verify WebRoot availability roughly (optional, processDownloads handles 404s)
       this.logger.log(`Starting Force Restoration from ${webRoot}`);
 
-      await this.processDownloads(installPath, webRoot, targetFiles, null);
+      await this.processDownloads(installPath, webRoot, targetFiles);
 
       this.emitGlobalStatus("done", "강제 복구 완료", 100);
       return true;
@@ -293,8 +295,9 @@ export class PatchManager {
     installPath: string,
     webRoot: string,
     files: string[],
-    backupWebRoot?: string | null,
   ) {
+    await this.assertOriginalInstallPath();
+    invalidateInstallationEvidence(this.context, installPath);
     const tempDir = path.join(installPath, ".patch_temp");
     const backupDir = path.join(installPath, ".patch_backups");
     const isBackupEnabled =
@@ -336,6 +339,8 @@ export class PatchManager {
 
       try {
         await this.downloadFile(url, dest, file);
+        await this.assertOriginalInstallPath();
+        if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");
 
         if (isBackupEnabled && fs.existsSync(finalDest)) {
           const backupDest = path.join(backupDir, file);
@@ -358,52 +363,35 @@ export class PatchManager {
       } catch (e: unknown) {
         this.logger.error(`Failed to download/install ${file} due to:`, e);
 
-        // Backup URL Retry Logic
-        if (backupWebRoot && backupWebRoot !== webRoot && !this.shouldStop) {
-          const backupUrl = `${backupWebRoot.endsWith("/") ? backupWebRoot : backupWebRoot + "/"}${file}`;
-          try {
-            this.logger.log(`Retrying with backup: ${file}`);
-            await this.downloadFile(backupUrl, dest, file);
-
-            // Copy/Move Steps again
-            const finalSubDir = path.dirname(finalDest);
-            if (!fs.existsSync(finalSubDir))
-              await fs.promises.mkdir(finalSubDir, { recursive: true });
-            await fs.promises.copyFile(dest, finalDest);
-
-            this.updateFileStatus(file, "done", 100);
-            this.completedFilesCount++;
-            this.emitCurrentState("downloading");
-            return;
-          } catch (_backupResult) {
-            // Ignore backup failure, proceed to throw main error
-          }
-        }
-
         const msg = e instanceof Error ? e.message : String(e);
         this.updateFileStatus(file, "error", 0, msg);
         throw new Error(`${file} 처리 실패: ${msg}`, { cause: e });
       }
     };
 
-    while (queue.length > 0) {
-      if (this.shouldStop) break;
-
-      if (activePromises.length < CONCURRENCY_LIMIT) {
-        const file = queue.shift();
-        if (!file) break;
-
-        const p = processFile(file).finally(() => {
-          const idx = activePromises.indexOf(p);
-          if (idx !== -1) activePromises.splice(idx, 1);
-        });
-        activePromises.push(p);
-      } else {
-        await Promise.race(activePromises);
+    try {
+      while (queue.length > 0) {
+        if (this.shouldStop) break;
+        if (activePromises.length < CONCURRENCY_LIMIT) {
+          const file = queue.shift();
+          if (!file) break;
+          const p = processFile(file).finally(() => {
+            const idx = activePromises.indexOf(p);
+            if (idx !== -1) activePromises.splice(idx, 1);
+          });
+          activePromises.push(p);
+        } else {
+          await Promise.race(activePromises);
+        }
       }
+      await Promise.all(activePromises);
+      if (this.shouldStop) throw new Error("사용자에 의해 취소되었습니다.");
+    } catch (error) {
+      this.shouldStop = true;
+      this.abortController?.abort();
+      await Promise.allSettled(activePromises);
+      throw error;
     }
-
-    await Promise.all(activePromises);
 
     // Write Backup Metadata
     if (isBackupEnabled && backedUpFiles.length > 0) {
@@ -434,6 +422,20 @@ export class PatchManager {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors
+    }
+  }
+
+  private async assertOriginalInstallPath() {
+    const context = this.operationContext;
+    if (!context) return;
+    const actual = await getGameInstallPath(context.serviceId, context.gameId);
+    if (
+      !actual ||
+      normalizeInstallPath(actual) !== normalizeInstallPath(context.installPath)
+    ) {
+      throw new Error(
+        "작업을 시작한 설치 경로가 변경되어 복구를 중단했습니다.",
+      );
     }
   }
 
@@ -614,6 +616,7 @@ export class PatchManager {
       };
 
       const allBackupFiles = await getFiles(backupDir);
+      invalidateInstallationEvidence(this.context, installPath);
       // Filter out metadata file
       const restoreFiles = allBackupFiles.filter(
         (f) => path.basename(f) !== "backup-info.json",

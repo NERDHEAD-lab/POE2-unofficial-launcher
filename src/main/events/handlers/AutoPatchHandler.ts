@@ -1,9 +1,18 @@
-import { AppConfig } from "../../../shared/types";
+import { randomUUID } from "node:crypto";
+
+import {
+  normalizeInstallPath,
+  sameVersionContext,
+} from "../../../shared/game-version";
+import {
+  AppConfig,
+  GameVersionContext,
+  RemoteWebRootPayload,
+} from "../../../shared/types";
 import { PatchManager } from "../../services/PatchManager";
 import { setConfigWithEvent } from "../../utils/config-utils";
 import { LogParser } from "../../utils/LogParser";
 import { PowerShellManager } from "../../utils/powershell";
-import { getGameInstallPath } from "../../utils/registry";
 import { eventBus } from "../EventBus";
 import {
   AppContext,
@@ -14,6 +23,7 @@ import {
   LogSessionStartEvent,
   LogWebRootFoundEvent,
   LogBackupWebRootFoundEvent,
+  LogGameStartupEvent,
   ProcessEvent,
   DebugLogEvent,
   ProcessWillTerminateEvent,
@@ -51,6 +61,10 @@ interface SessionState {
   intentionalStop: boolean;
   retryCount: number;
   runId?: string;
+  installPath?: string;
+  webRootIsHistorical?: boolean;
+  webRootPid?: number;
+  target?: RemoteWebRootPayload;
 }
 
 class AutoPatchStateManager {
@@ -61,15 +75,15 @@ class AutoPatchStateManager {
   // Key: gameId_serviceId (Next session expectation)
   private autoPatchExpectations = new Map<
     string,
-    { retryCount: number; runId?: string }
+    { retryCount: number; runId?: string; target?: RemoteWebRootPayload }
   >();
   private activeAutoPatchRuns = new Map<
     string,
-    { retryCount: number; runId?: string }
+    { retryCount: number; runId?: string; target?: RemoteWebRootPayload }
   >();
   private claimedAutoPatchRuns = new Map<
     number,
-    { retryCount: number; runId?: string }
+    { retryCount: number; runId?: string; target?: RemoteWebRootPayload }
   >();
 
   private patchManager: PatchManager | null = null;
@@ -85,6 +99,7 @@ class AutoPatchStateManager {
     pid: number,
     serviceId: AppConfig["serviceChannel"],
     gameId: AppConfig["activeGame"],
+    installPath?: string,
   ) {
     const run = this.claimedAutoPatchRuns.get(pid);
 
@@ -98,6 +113,8 @@ class AutoPatchStateManager {
       intentionalStop: false,
       retryCount: run?.retryCount || 0,
       runId: run?.runId,
+      installPath,
+      target: run?.target,
     });
   }
 
@@ -130,17 +147,26 @@ class AutoPatchStateManager {
     serviceId: string,
     retryCount: number = 0,
     runId?: string,
+    target?: RemoteWebRootPayload,
   ) {
     this.autoPatchExpectations.set(`${gameId}_${serviceId}`, {
       retryCount,
       runId,
+      target,
     });
   }
 
-  public setWebRoot(pid: number, webRoot: string) {
+  public setWebRoot(
+    pid: number,
+    webRoot: string,
+    isHistorical?: boolean,
+    sourcePid?: number,
+  ) {
     const session = this.sessions.get(pid);
     if (session) {
       session.webRoot = webRoot;
+      session.webRootIsHistorical = isHistorical !== false;
+      session.webRootPid = sourcePid;
     }
   }
 
@@ -216,7 +242,7 @@ export async function triggerPendingManualPatches(context: AppContext) {
 
   for (const session of patches) {
     const { serviceId, gameId, webRoot, backupWebRoot } = session;
-    const installPath = await getGameInstallPath(serviceId, gameId);
+    const installPath = session.installPath;
 
     if (installPath) {
       emitLog(
@@ -230,6 +256,7 @@ export async function triggerPendingManualPatches(context: AppContext) {
         .startSelfDiagnosis(installPath, serviceId, gameId, {
           webRoot,
           backupWebRoot,
+          target: session.target,
         })
         .catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
@@ -259,8 +286,9 @@ export function registerAutoPatchExpectation(
   serviceId: string,
   retryCount: number = 0,
   runId?: string,
+  target?: RemoteWebRootPayload,
 ) {
-  stateManager.expectAutoPatch(gameId, serviceId, retryCount, runId);
+  stateManager.expectAutoPatch(gameId, serviceId, retryCount, runId, target);
 }
 
 export function getAutoPatchRunIdForPid(pid: number) {
@@ -287,8 +315,8 @@ export const LogSessionHandler: EventHandler<LogSessionStartEvent> = {
   id: "LogSessionHandler",
   targetEvent: EventType.LOG_SESSION_START,
   handle: async (event, _context) => {
-    const { pid, serviceId, gameId } = event.payload;
-    stateManager.startSession(pid, serviceId, gameId);
+    const { pid, serviceId, gameId, installPath } = event.payload;
+    stateManager.startSession(pid, serviceId, gameId, installPath);
   },
 };
 
@@ -296,13 +324,27 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
   id: "LogWebRootHandler",
   targetEvent: EventType.LOG_WEB_ROOT_FOUND,
   handle: async (event, context) => {
-    const { pid, webRoot } = event.payload;
-    stateManager.setWebRoot(pid, webRoot);
+    const { pid, webRoot, isHistorical, installPath, sourcePid } =
+      event.payload;
+    const owner = stateManager.getSession(pid);
+    if (
+      !owner ||
+      owner.gameId !== event.payload.gameId ||
+      owner.serviceId !== event.payload.serviceId ||
+      (owner.installPath &&
+        installPath &&
+        normalizeInstallPath(owner.installPath) !==
+          normalizeInstallPath(installPath))
+    )
+      return;
+    stateManager.setWebRoot(pid, webRoot, isHistorical, sourcePid);
 
     // [New] Persist Version Info
     const session = stateManager.getSession(pid);
     if (session) {
       const { gameId, serviceId } = session;
+      if (installPath && !session.installPath)
+        session.installPath = installPath;
       const key = `${gameId}_${serviceId}`;
 
       // Extract Version
@@ -315,7 +357,9 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
       if (
         !knownVersions[key] ||
         knownVersions[key].webRoot !== webRoot ||
-        knownVersions[key].version !== version
+        knownVersions[key].version !== version ||
+        knownVersions[key].installPath !== session.installPath ||
+        isHistorical === false
       ) {
         emitLog(
           context,
@@ -324,9 +368,12 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
         const updated = {
           ...knownVersions,
           [key]: {
+            ...knownVersions[key],
             version,
             webRoot,
             timestamp: Date.now(),
+            installPath: session.installPath,
+            observationSource: isHistorical ? "log-scan" : "live-log",
           },
         };
         // Use setConfigWithEvent to ensure UI updates
@@ -342,6 +389,110 @@ export const LogWebRootHandler: EventHandler<LogWebRootFoundEvent> = {
         });
       }
     }
+  },
+};
+
+/** This result gates both persisted proof and the reservation terminal state. */
+export function confirmGameVersionForPid(
+  context: AppContext,
+  pid: number,
+  runId: string | undefined,
+  evidence: "patch-done" | "game-startup",
+  expected: GameVersionContext,
+  startup?: LogGameStartupEvent["payload"],
+): boolean {
+  const session = stateManager.getSession(pid);
+  if (
+    !session?.webRoot ||
+    !session.installPath ||
+    session.runId !== runId ||
+    !sameVersionContext(
+      {
+        gameId: session.gameId,
+        serviceId: session.serviceId,
+        installPath: session.installPath,
+      },
+      expected,
+    )
+  )
+    return false;
+  // Preserve explicit line provenance without changing LogWatcher's PID inference.
+  // An old line attributed only by the monitor cannot prove this run's target.
+  if (session.webRootPid !== undefined && session.webRootPid !== pid)
+    return false;
+  if (session.webRootIsHistorical && session.webRootPid !== pid) return false;
+  if (evidence === "game-startup") {
+    if (
+      !startup ||
+      startup.isHistorical !== false ||
+      !startup.installPath ||
+      !sameVersionContext(
+        {
+          gameId: startup.gameId,
+          serviceId: startup.serviceId,
+          installPath: startup.installPath,
+        },
+        expected,
+      ) ||
+      (startup.sourcePid !== undefined && startup.sourcePid !== pid) ||
+      (session.webRootIsHistorical && startup.sourcePid !== pid)
+    )
+      return false;
+  }
+  const { gameId, serviceId, installPath } = session;
+  if (
+    session.target &&
+    (!sameVersionContext(session.target, expected) ||
+      session.target.webRoot !== session.webRoot)
+  )
+    return false;
+  const config = context.getConfig() as AppConfig;
+  const key = `${gameId}_${serviceId}`;
+  const observed = config.knownGameVersions?.[key];
+  if (
+    !observed ||
+    observed.webRoot !== session.webRoot ||
+    !observed.installPath ||
+    normalizeInstallPath(observed.installPath) !==
+      normalizeInstallPath(installPath)
+  )
+    return false;
+  try {
+    setConfigWithEvent("knownGameVersions", {
+      ...config.knownGameVersions,
+      [key]: {
+        ...observed,
+        completed: {
+          version: observed.version,
+          webRoot: observed.webRoot,
+          installPath,
+          timestamp: Date.now(),
+          runId: runId ?? randomUUID(),
+          evidence,
+        },
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const GameVersionCompletionHandler: EventHandler<LogGameStartupEvent> = {
+  id: "GameVersionCompletionHandler",
+  targetEvent: EventType.LOG_GAME_STARTUP,
+  handle: async (event, context) => {
+    const { pid, gameId, serviceId, installPath } = event.payload;
+    const session = stateManager.getSession(pid);
+    if (!installPath || !session) return;
+    confirmGameVersionForPid(
+      context,
+      pid,
+      session.runId,
+      "game-startup",
+      { gameId, serviceId, installPath },
+      event.payload,
+    );
   },
 };
 
@@ -469,7 +620,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
 
         if (autoFix) {
           // Auto Fix
-          const installPath = await getGameInstallPath(serviceId, gameId);
+          const installPath = session.installPath;
           if (installPath) {
             // Ensure window is visible before showing modal and starting fix
             if (context.mainWindow) {
@@ -490,6 +641,7 @@ export const AutoPatchProcessStopHandler: EventHandler<ProcessEvent> = {
               {
                 webRoot,
                 backupWebRoot,
+                target: session.target,
               },
             );
 

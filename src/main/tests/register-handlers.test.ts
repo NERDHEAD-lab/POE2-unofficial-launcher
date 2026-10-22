@@ -59,6 +59,7 @@ const CORE_HANDLER_IDS = [
   "AutoPatchProcessStartHandler",
   "LogSessionHandler",
   "LogWebRootHandler",
+  "GameVersionCompletionHandler",
   "LogErrorHandler",
   "AutoPatchProcessStopHandler",
   "PatchProgressHandler",

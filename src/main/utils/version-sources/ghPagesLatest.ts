@@ -15,16 +15,15 @@ const DEFAULT_TIMEOUT_MS = 3000;
 
 export interface GhPagesResult {
   webRoot: string;
+  version: string;
+  timestamp: number | null;
 }
 
 export class GhPagesError extends Error {
   constructor(
     message: string,
     public readonly code:
-      | "http"
-      | "missing-game"
-      | "missing-webroot"
-      | "network",
+      "http" | "missing-game" | "missing-webroot" | "network",
   ) {
     super(message);
     this.name = "GhPagesError";
@@ -71,5 +70,9 @@ export async function fetchGhPagesWebRoot(
     );
   }
 
-  return { webRoot: entry.webRoot };
+  return {
+    webRoot: entry.webRoot,
+    version: entry.version,
+    timestamp: Number.isFinite(entry.timestamp) ? entry.timestamp : null,
+  };
 }

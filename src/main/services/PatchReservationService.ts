@@ -23,14 +23,19 @@ import { Notification } from "electron";
  *    - 처리 위치: `PR_ProcessStopHandler`에서 타이머 시작 -> 시작 신호에서 해제
  */
 import {
+  assessGameVersion,
+  getServerTarget,
+  normalizeInstallPath,
+} from "../../shared/game-version";
+import {
   getNextRecurringOccurrence,
   isRenewedPatchReservation,
 } from "../../shared/patch-reservation";
-import { compareVersions } from "../../shared/version";
 import { GAME_SERVICE_PROFILES } from "../config/GameServiceProfiles";
 import { eventBus } from "../events/EventBus";
 import {
   clearAutoPatchRun,
+  confirmGameVersionForPid,
   getAutoPatchRunIdForPid,
   registerAutoPatchExpectation,
 } from "../events/handlers/AutoPatchHandler";
@@ -58,8 +63,10 @@ import {
 import { setConfigWithEvent } from "../utils/config-utils";
 import { logger } from "../utils/logger";
 import { PowerShellManager } from "../utils/powershell";
+import { getGameInstallPath } from "../utils/registry";
 import { RemoteVersionResolver } from "../utils/RemoteVersionResolver";
 
+import type { RemoteWebRootPayload } from "../../shared/types";
 import type {
   AppConfig,
   PatchReservation,
@@ -86,6 +93,8 @@ interface PatchExecutionTask {
   runId: string;
   launchAfterUpdate: boolean;
   detectedVersion?: string;
+  installPath?: string;
+  target?: RemoteWebRootPayload;
   renewedReservationId?: string;
   renewedScheduleToken?: number;
   requiresLiveRenewedReservation?: boolean;
@@ -99,6 +108,7 @@ interface TaskContext extends PatchExecutionTask {
 export class PatchReservationService implements IService {
   public readonly id = "PatchReservationService";
   private isStarted = false;
+  private failedRenewedChecks = new Map<string, string>();
 
   // State Management
   private status: PatchTaskStatus = PatchTaskStatus.IDLE;
@@ -186,6 +196,7 @@ export class PatchReservationService implements IService {
           runId: randomUUID(),
           launchAfterUpdate: currentTask.launchAfterUpdate,
           detectedVersion: currentTask.detectedVersion,
+          target: currentTask.target,
           renewedReservationId: currentTask.renewedReservationId,
           renewedScheduleToken: currentTask.renewedScheduleToken,
           requiresLiveRenewedReservation:
@@ -259,6 +270,7 @@ export class PatchReservationService implements IService {
       reservation.serviceId,
       retryCount,
       this.currentContext.runId,
+      this.currentContext.target,
     );
     const res = this.currentContext?.reservation;
     if (res) {
@@ -538,8 +550,25 @@ export class PatchReservationService implements IService {
         if (!this.isCurrentTask(gameId as string, serviceId as string)) return;
         if (!this.isCurrentAttemptPid(pid)) return;
 
+        const task = this.currentContext;
+        if (
+          !task?.installPath ||
+          !confirmGameVersionForPid(
+            this.context,
+            pid,
+            task.runId,
+            "game-startup",
+            {
+              gameId: task.reservation.gameId,
+              serviceId: task.reservation.serviceId,
+              installPath: task.installPath,
+            },
+            event.payload,
+          )
+        )
+          return;
         logger.log(`[FSM] Game started directly for ${gameId}_${serviceId}.`);
-        if (this.currentContext) this.currentContext.currentPid = pid;
+        task.currentPid = pid;
         await this.transitionTo(PatchTaskStatus.COMPLETED, "no-update");
       },
     });
@@ -561,6 +590,22 @@ export class PatchReservationService implements IService {
           );
         if (isDone) {
           logger.log(`[FSM] UI "Done" detected for ${gameId}_${serviceId}.`);
+          const task = this.currentContext;
+          if (
+            !task?.installPath ||
+            !confirmGameVersionForPid(
+              this.context,
+              pid,
+              task.runId,
+              "patch-done",
+              {
+                gameId: task.reservation.gameId,
+                serviceId: task.reservation.serviceId,
+                installPath: task.installPath,
+              },
+            )
+          )
+            return;
           await this.transitionTo(PatchTaskStatus.COMPLETED, "success");
           return;
         }
@@ -659,6 +704,12 @@ export class PatchReservationService implements IService {
     for (const reservation of validReservations.values()) {
       const fingerprint = this.getRenewedScheduleFingerprint(reservation);
       if (
+        reservation.lastCheckFailure &&
+        reservation.lastCheckFailure.scheduleFingerprint !== fingerprint
+      ) {
+        this.clearRenewedCheckFailure(reservation.id);
+      }
+      if (
         this.renewedScheduleFingerprints.get(reservation.id) === fingerprint
       ) {
         continue;
@@ -681,11 +732,7 @@ export class PatchReservationService implements IService {
     const { schedule } = reservation;
     if (schedule.kind === "once-at") {
       const target = Date.parse(schedule.at);
-      if (target <= now) {
-        this.removeRenewedReservation(reservation.id);
-        return;
-      }
-      this.scheduleRenewedTimeout(reservation, target, token);
+      this.scheduleRenewedTimeout(reservation, Math.max(target, now), token);
       return;
     }
 
@@ -693,8 +740,11 @@ export class PatchReservationService implements IService {
       const startsAt = Date.parse(schedule.startsAt);
       const endsAt = Date.parse(schedule.endsAt);
       if (endsAt < now) {
-        this.notifyRenewedRangeExpired(reservation);
-        this.removeRenewedReservation(reservation.id);
+        this.notifyRenewedCheckFailed(
+          reservation,
+          reservation.lastCheckFailure?.message ??
+            "예약 기간이 지났지만 마지막 서버 확인을 완료하지 못했습니다.",
+        );
         return;
       }
       this.scheduleRenewedTimeout(reservation, Math.max(startsAt, now), token);
@@ -751,6 +801,9 @@ export class PatchReservationService implements IService {
 
     const { schedule } = reservation;
     if (schedule.kind === "once-at") {
+      if (outcome === "handled" && reservation.action.kind === "auto-update")
+        return;
+      if (outcome === "unavailable" || outcome === "mismatch") return;
       if (outcome === "no-update") {
         this.notifyRenewedNoUpdate(reservation, dueAt);
       }
@@ -760,6 +813,7 @@ export class PatchReservationService implements IService {
 
     if (schedule.kind === "once-range") {
       if (outcome === "handled") {
+        if (reservation.action.kind === "auto-update") return;
         this.removeRenewedReservation(reservation.id);
         return;
       }
@@ -771,7 +825,7 @@ export class PatchReservationService implements IService {
       const nextCheck = dueAt + elapsedIntervals * intervalMs;
       if (nextCheck <= endsAt) {
         this.scheduleRenewedTimeout(reservation, nextCheck, token);
-      } else {
+      } else if (outcome !== "unavailable" && outcome !== "mismatch") {
         this.notifyRenewedRangeExpired(reservation);
         this.removeRenewedReservation(reservation.id);
       }
@@ -784,7 +838,7 @@ export class PatchReservationService implements IService {
   private async checkRenewedReservation(
     reservation: RenewedPatchReservation,
     token: number,
-  ): Promise<"handled" | "no-update" | "skipped"> {
+  ): Promise<"handled" | "no-update" | "skipped" | "unavailable" | "mismatch"> {
     if (
       reservation.action.kind === "auto-update" &&
       this.isRenewedTargetBusy(reservation)
@@ -793,7 +847,16 @@ export class PatchReservationService implements IService {
       return "skipped";
     }
 
-    const remote = await RemoteVersionResolver.resolveFresh(reservation.gameId);
+    const installPath = await getGameInstallPath(
+      reservation.serviceId,
+      reservation.gameId,
+    );
+    const versionContext = {
+      gameId: reservation.gameId,
+      serviceId: reservation.serviceId,
+      installPath: installPath || "",
+    };
+    const remote = await RemoteVersionResolver.resolveFresh(versionContext);
     if (
       !this.isRenewedTokenCurrent(reservation.id, token) ||
       !this.hasRenewedReservation(reservation.id)
@@ -810,20 +873,45 @@ export class PatchReservationService implements IService {
     }
 
     const config = this.context.getConfig() as AppConfig;
-    const localVersion =
+    const local =
       config.knownGameVersions?.[
         `${reservation.gameId}_${reservation.serviceId}`
-      ]?.version;
-    const remoteVersion = remote?.version;
+      ];
+    const assessment = assessGameVersion(versionContext, remote, local);
+    const currentPath = await getGameInstallPath(
+      reservation.serviceId,
+      reservation.gameId,
+    );
     if (
-      !remoteVersion ||
-      remoteVersion === "unknown" ||
-      !localVersion ||
-      localVersion === "unknown" ||
-      compareVersions(remoteVersion, localVersion) <= 0
+      !this.isRenewedTokenCurrent(reservation.id, token) ||
+      !this.hasRenewedReservation(reservation.id)
+    )
+      return "skipped";
+    const target = getServerTarget(remote, versionContext);
+    if (
+      !currentPath ||
+      normalizeInstallPath(currentPath) !==
+        normalizeInstallPath(versionContext.installPath) ||
+      assessment === "mismatch"
     ) {
-      return "no-update";
+      this.notifyRenewedCheckFailed(
+        reservation,
+        "설치 경로 또는 조회 대상이 변경되었습니다.",
+      );
+      return "mismatch";
     }
+    if (!target || assessment === "unknown" || assessment === "unavailable") {
+      this.notifyRenewedCheckFailed(
+        reservation,
+        !target
+          ? "서버 목표를 조회하지 못했습니다."
+          : "설치 완료 상태를 확인하지 못했습니다.",
+      );
+      return "unavailable";
+    }
+    this.clearRenewedCheckFailure(reservation.id);
+    if (assessment === "current") return "no-update";
+    const remoteVersion = target.version;
 
     if (reservation.action.kind === "notify") {
       const liveReservation = this.getRenewedReservation(reservation.id);
@@ -846,7 +934,7 @@ export class PatchReservationService implements IService {
       return "handled";
     }
 
-    this.enqueueRenewed(reservation, remoteVersion);
+    this.enqueueRenewed(reservation, target);
     return "handled";
   }
 
@@ -901,11 +989,8 @@ export class PatchReservationService implements IService {
 
   private enqueueRenewed(
     reservation: RenewedPatchReservation,
-    detectedVersion: string,
+    target: RemoteWebRootPayload,
   ) {
-    const isRecurring =
-      reservation.schedule.kind === "daily" ||
-      reservation.schedule.kind === "weekly";
     this.enqueueTask({
       reservation: {
         id: reservation.id,
@@ -920,10 +1005,11 @@ export class PatchReservationService implements IService {
         reservation.action.kind === "auto-update" &&
         "launchAfterUpdate" in reservation.action &&
         reservation.action.launchAfterUpdate,
-      detectedVersion,
+      detectedVersion: target.version,
+      target,
       renewedReservationId: reservation.id,
       renewedScheduleToken: this.renewedScheduleTokens.get(reservation.id),
-      requiresLiveRenewedReservation: isRecurring,
+      requiresLiveRenewedReservation: true,
     });
   }
 
@@ -978,8 +1064,36 @@ export class PatchReservationService implements IService {
       }
     }
 
+    const installPath =
+      nextItem.target?.installPath ??
+      (await getGameInstallPath(
+        nextItem.reservation.serviceId,
+        nextItem.reservation.gameId,
+      )) ??
+      undefined;
+    if (
+      generation !== this.queueGeneration ||
+      this.reservationQueue[0] !== nextItem
+    ) {
+      this.isProcessing = false;
+      return;
+    }
+    const live =
+      nextItem.source === "renewed"
+        ? this.getRenewedReservation(nextItem.reservation.id)
+        : undefined;
+    if (
+      live &&
+      (live.schedule.kind === "once-at" || live.schedule.kind === "once-range")
+    ) {
+      // Persist until execution actually starts. A queued validation failure must
+      // leave the original reservation available for the user to reschedule.
+      nextItem.requiresLiveRenewedReservation = false;
+      this.removeRenewedReservation(live.id);
+    }
     this.currentContext = {
       ...nextItem,
+      installPath,
       currentPid: null,
       generation: ++this.taskGeneration,
     };
@@ -1011,23 +1125,107 @@ export class PatchReservationService implements IService {
       return false;
     }
 
+    const actual = await getGameInstallPath(serviceId, gameId);
+    if (
+      task.requiresLiveRenewedReservation &&
+      (task.renewedScheduleToken === undefined ||
+        !this.isRenewedTokenCurrent(
+          renewedReservationId,
+          task.renewedScheduleToken,
+        ))
+    )
+      return false;
+    if (
+      !task.target ||
+      !actual ||
+      normalizeInstallPath(task.target.installPath) !==
+        normalizeInstallPath(actual)
+    ) {
+      this.notifyRenewedCheckFailed(
+        task.reservation,
+        "대기 중 설치 경로가 변경되었습니다.",
+      );
+      return false;
+    }
     const config = this.context.getConfig() as AppConfig;
-    const localVersion =
-      config.knownGameVersions?.[`${gameId}_${serviceId}`]?.version;
-    const remoteVersion = task.detectedVersion;
-    const canStart =
-      !!remoteVersion &&
-      remoteVersion !== "unknown" &&
-      !!localVersion &&
-      localVersion !== "unknown" &&
-      compareVersions(remoteVersion, localVersion) > 0;
-
-    if (!canStart) {
-      logger.log(
-        `[PatchReservation] Queued renewed update no longer requires execution: ${task.reservation.id}`,
+    const assessment = assessGameVersion(
+      task.target,
+      task.target,
+      config.knownGameVersions?.[`${gameId}_${serviceId}`],
+    );
+    if (assessment === "current") {
+      const live = this.getRenewedReservation(renewedReservationId);
+      if (
+        live &&
+        (live.schedule.kind === "once-at" ||
+          live.schedule.kind === "once-range")
+      ) {
+        this.notifyRenewedNoUpdate(live, Date.now());
+        this.removeRenewedReservation(live.id);
+      }
+    } else if (assessment !== "changed") {
+      this.notifyRenewedCheckFailed(
+        task.reservation,
+        "대기 중 설치 완료 상태를 확인하지 못했습니다.",
       );
     }
-    return canStart;
+    return assessment === "changed";
+  }
+
+  private clearRenewedCheckFailure(id: string) {
+    this.failedRenewedChecks.delete(id);
+    const config = this.context.getConfig() as AppConfig;
+    if (
+      !config.renewedPatchReservations?.some(
+        (reservation) => reservation.id === id && reservation.lastCheckFailure,
+      )
+    )
+      return;
+    setConfigWithEvent(
+      "renewedPatchReservations",
+      config.renewedPatchReservations.map((reservation) => {
+        if (reservation.id !== id) return reservation;
+        const remaining = { ...reservation };
+        delete remaining.lastCheckFailure;
+        return remaining;
+      }),
+    );
+  }
+
+  private notifyRenewedCheckFailed(
+    reservation: Pick<RenewedPatchReservation, "id" | "gameId" | "serviceId">,
+    reason: string,
+  ) {
+    const live = this.getRenewedReservation(reservation.id);
+    const fingerprint = live ? this.getRenewedScheduleFingerprint(live) : "";
+    if (
+      this.failedRenewedChecks.get(reservation.id) === fingerprint ||
+      live?.lastCheckFailure?.scheduleFingerprint === fingerprint
+    )
+      return;
+    this.failedRenewedChecks.set(reservation.id, fingerprint);
+    if (live) {
+      const config = this.context.getConfig() as AppConfig;
+      setConfigWithEvent(
+        "renewedPatchReservations",
+        config.renewedPatchReservations.map((entry) =>
+          entry.id === live.id
+            ? {
+                ...entry,
+                lastCheckFailure: {
+                  scheduleFingerprint: fingerprint,
+                  checkedAt: Date.now(),
+                  message: reason,
+                },
+              }
+            : entry,
+        ),
+      );
+    }
+    this.notifyRenewed(
+      "예약 패치 확인 실패",
+      `[${reservation.serviceId}] ${reservation.gameId}: ${reason} 예약을 유지했습니다. 예약 시간을 변경해 다시 확인할 수 있습니다.`,
+    );
   }
 
   private async cleanupProcess(

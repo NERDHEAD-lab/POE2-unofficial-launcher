@@ -31,6 +31,8 @@ describe("fetchGhPagesWebRoot", () => {
     });
     await expect(fetchGhPagesWebRoot("POE2")).resolves.toEqual({
       webRoot: "https://patch.poe2.kakaogames.com/production/patch/4.4.0.10/",
+      version: "4.4.0.10",
+      timestamp: 2,
     });
   });
 
