@@ -34,6 +34,8 @@ import {
   FatalErrorPayload,
   LauncherLogAvailability,
   LauncherLogSaveResult,
+  NewsSource,
+  NewsDisplayReport,
 } from "../shared/types";
 
 import type {
@@ -198,9 +200,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     service: AppConfig["serviceChannel"],
     category: NewsCategory,
   ) => ipcRenderer.invoke("news:get-last-updated-at", game, service, category),
-  markNewsAsRead: (id: string) => ipcRenderer.invoke("news:mark-as-read", id),
+  markNewsAsRead: (id: string, source?: NewsSource) =>
+    ipcRenderer.invoke("news:mark-as-read", id, source),
   markMultipleNewsAsRead: (ids: string[]) =>
     ipcRenderer.invoke("news:mark-multiple-as-read", ids),
+  getNewsView: (
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ) => ipcRenderer.invoke("news:get-view", game, service),
+  reportNewsDisplayed: (report: NewsDisplayReport) =>
+    ipcRenderer.invoke("news:report-displayed", report),
   onNewsUpdated: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("news-updated", handler);

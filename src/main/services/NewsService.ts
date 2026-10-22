@@ -17,6 +17,9 @@ import {
   NewsServiceState,
   NewsContent,
   AppConfig,
+  NewsSource,
+  NewsDisplayReport,
+  NewsViewSnapshot,
 } from "../../shared/types";
 import {
   createKakaoMaintenanceNewsItem,
@@ -75,7 +78,17 @@ export class NewsService {
   private store: Store<NewsServiceState>;
   private refreshTimer: NodeJS.Timeout | null = null;
   private onUpdated: (() => void) | null = null;
-  private isActive = true;
+  private isActive = false;
+  private generation = 0;
+  private selectionRevision = 0;
+  private viewRevision = 0;
+  private selectedContext: {
+    game: AppConfig["activeGame"];
+    service: AppConfig["serviceChannel"];
+  } | null = null;
+  private baselineRead = new Set<string>();
+  private baselineLegacy = new Set<string>();
+  private explicitReads = new Set<string>();
   private hasPendingRefresh = false;
   private lastConfig: {
     game: AppConfig["activeGame"];
@@ -89,6 +102,7 @@ export class NewsService {
       name: NEWS_CACHE_STORE_NAME,
       defaults: NEWS_CACHE_DEFAULTS,
     });
+    this.captureReadBaseline();
   }
 
   init(onUpdated: () => void) {
@@ -107,23 +121,115 @@ export class NewsService {
     }
   }
 
-  setActive(isActive: boolean, context?: NewsRefreshContext) {
-    this.isActive = isActive;
+  private captureReadBaseline() {
+    this.baselineRead = new Set(this.store.get("readKeys") || []);
+    this.baselineLegacy = new Set(this.store.get("lastReadIds") || []);
+    this.explicitReads.clear();
+  }
 
+  setSelectedContext(context: {
+    game: AppConfig["activeGame"];
+    service: AppConfig["serviceChannel"];
+  }) {
+    if (
+      this.selectedContext?.game === context.game &&
+      this.selectedContext.service === context.service
+    )
+      return;
+    this.selectedContext = { game: context.game, service: context.service };
+    this.lastConfig = { ...this.selectedContext };
+    this.selectionRevision++;
+    this.emitUpdated();
+  }
+
+  setActive(isActive: boolean, context?: NewsRefreshContext) {
+    if (context) this.setSelectedContext(context);
+    const changed = this.isActive !== isActive;
+    if (isActive && changed) {
+      this.generation++;
+      this.captureReadBaseline();
+    }
+    this.isActive = isActive;
+    if (changed) this.emitUpdated();
     if (!isActive) {
       this.hasPendingRefresh = true;
-      this.logger.log("News refresh suspended while launcher is inactive.");
       return;
     }
-
-    const shouldRefreshOnResume = this.hasPendingRefresh || Boolean(context);
+    const refresh = this.hasPendingRefresh || Boolean(context);
     this.hasPendingRefresh = false;
+    if (refresh)
+      void this.refreshDue({ ...context, reason: context?.reason ?? "resume" });
+  }
 
-    if (shouldRefreshOnResume) {
-      void this.refreshDue({
-        ...context,
-        reason: context?.reason ?? "resume",
-      });
+  getView(
+    game: AppConfig["activeGame"],
+    service: AppConfig["serviceChannel"],
+  ): NewsViewSnapshot {
+    return {
+      game,
+      service,
+      generation: this.generation,
+      selectionRevision: this.selectionRevision,
+      revision: this.viewRevision,
+      active:
+        this.isActive &&
+        this.selectedContext?.game === game &&
+        this.selectedContext.service === service,
+      notices: this.getCacheItems({ game, service, category: "notice" }),
+      patchNotes: this.getCacheItems({
+        game,
+        service,
+        category: "patch-notes",
+      }),
+    };
+  }
+
+  reportDisplayed(report: NewsDisplayReport): boolean {
+    if (
+      !this.isActive ||
+      report.generation !== this.generation ||
+      report.selectionRevision !== this.selectionRevision ||
+      report.game !== this.selectedContext?.game ||
+      report.service !== this.selectedContext.service ||
+      !isForumNewsCategory(report.category) ||
+      !Array.isArray(report.ids)
+    )
+      return false;
+    const key = this.getForumKey(report.game, report.service, report.category);
+    const valid = new Set(this.getCacheItems(key).map((item) => item.id));
+    return this.persistReadKeys(
+      report.ids
+        .filter((id) => valid.has(id))
+        .map((id) => this.readKey(key, id)),
+    );
+  }
+
+  private readKey(sourceKey: string, id: string) {
+    return JSON.stringify([sourceKey, id]);
+  }
+
+  private persistReadKeys(keys: string[]): boolean {
+    if (!keys.length) return true;
+    try {
+      const previous = this.store.get("readKeys") || [];
+      const next = [...new Set([...previous, ...keys])];
+      // All currently cached identities, including pinned posts, survive pruning.
+      const cached = new Set<string>();
+      for (const [source, items] of Object.entries(
+        this.store.get("items") || {},
+      )) {
+        for (const item of items) cached.add(this.readKey(source, item.id));
+      }
+      const recent = new Set(
+        next.filter((key) => !cached.has(key)).slice(-200),
+      );
+      const retained = next.filter((key) => cached.has(key) || recent.has(key));
+      if (JSON.stringify(retained) !== JSON.stringify(previous))
+        this.store.set("readKeys", retained);
+      return true;
+    } catch (error) {
+      this.logger.error("Failed to save displayed news identities:", error);
+      return false;
     }
   }
 
@@ -297,6 +403,7 @@ export class NewsService {
   }
 
   private emitUpdated() {
+    this.viewRevision++;
     this.onUpdated?.();
   }
 
@@ -399,7 +506,10 @@ export class NewsService {
           formatKakaoMaintenanceContent(maintenanceInfo),
         );
 
-        const cachedItems = this.getCacheItems(key);
+        items.forEach((item) => {
+          item.isNew = undefined;
+        });
+        const cachedItems = this.store.get("items")[key] || [];
         const isChanged = JSON.stringify(cachedItems) !== JSON.stringify(items);
 
         if (isChanged) {
@@ -413,7 +523,11 @@ export class NewsService {
         }
 
         this.markRefreshed(key);
-        return { items, changed: isChanged, refreshed: true };
+        return {
+          items: this.getCacheItems(key),
+          changed: isChanged,
+          refreshed: true,
+        };
       }
 
       let table = root.getElementById("view_forum_table");
@@ -455,14 +569,14 @@ export class NewsService {
             link: fullLink,
             date,
             type: category,
-            isNew: !lastReadIds.includes(id),
+            isNew: undefined,
             isSticky,
           });
         }
       }
 
       // Check if data has changed compared to cache
-      const cachedItems = this.getCacheItems(key);
+      const cachedItems = this.store.get("items")[key] || [];
       const isChanged = JSON.stringify(cachedItems) !== JSON.stringify(items);
 
       if (isChanged) {
@@ -482,7 +596,11 @@ export class NewsService {
         `Successfully fetched ${category} for ${service}-${game}.`,
       );
       this.markRefreshed(key);
-      return { items, changed: isChanged, refreshed: true };
+      return {
+        items: this.getCacheItems(key),
+        changed: isChanged,
+        refreshed: true,
+      };
     } catch (error) {
       this.logger.error(`Failed to fetch news list for ${key}:`, error);
       return {
@@ -765,26 +883,25 @@ export class NewsService {
     return this.store.get("contents")[id]?.content || null;
   }
 
-  markAsRead(id: string): void {
-    this.markMultipleAsRead([id]);
+  markAsRead(id: string, source?: NewsSource): void {
+    this.markMultipleAsRead([id], source);
   }
 
-  markMultipleAsRead(ids: string[]): void {
-    const lastReadIds = this.store.get("lastReadIds") || [];
-    let changed = false;
-
-    for (const id of ids) {
-      if (!lastReadIds.includes(id)) {
-        lastReadIds.push(id);
-        changed = true;
-      }
+  markMultipleAsRead(ids: string[], source?: NewsSource): void {
+    // Legacy unscoped history remains readable. New forum writes require a source
+    // so identical thread IDs on other boards cannot be consumed together.
+    if (!source) return;
+    const sources = [
+      this.getForumKey(source.game, source.service, source.category),
+    ];
+    const keys: string[] = [];
+    for (const key of sources) {
+      const valid = new Set(this.getCacheItems(key).map((item) => item.id));
+      for (const id of ids) if (valid.has(id)) keys.push(this.readKey(key, id));
     }
-
-    if (changed) {
-      // Keep only last 200 IDs (increased slightly for safety)
-      while (lastReadIds.length > 200) lastReadIds.shift();
-      this.store.set("lastReadIds", lastReadIds);
-    }
+    this.persistReadKeys(keys);
+    keys.forEach((key) => this.explicitReads.add(key));
+    if (keys.length) this.emitUpdated();
   }
 
   getCacheItems(
@@ -799,8 +916,19 @@ export class NewsService {
     const key =
       typeof keyOrConfig === "string"
         ? keyOrConfig
-        : `${keyOrConfig.service}-${keyOrConfig.game}-${keyOrConfig.category}`;
-    return this.store.get("items")[key] || [];
+        : this.getNewsKey(
+            keyOrConfig.game,
+            keyOrConfig.service,
+            keyOrConfig.category,
+          );
+    return (this.store.get("items")[key] || []).map((item) => ({
+      ...item,
+      isNew:
+        key !== DEV_NOTICE_KEY &&
+        !this.baselineLegacy.has(item.id) &&
+        !this.baselineRead.has(this.readKey(key, item.id)) &&
+        !this.explicitReads.has(this.readKey(key, item.id)),
+    }));
   }
 
   private garbageCollect() {

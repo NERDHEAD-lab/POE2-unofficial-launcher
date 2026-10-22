@@ -43,6 +43,7 @@ vi.mock("electron-updater", () => ({
 const CORE_HANDLER_IDS = [
   "DebugLogHandler",
   "ConfigChangeSyncHandler",
+  "NewsSelectionHandler",
   "ConfigDeleteSyncHandler",
   "StartPoe1KakaoHandler",
   "StartPoe2KakaoHandler",
