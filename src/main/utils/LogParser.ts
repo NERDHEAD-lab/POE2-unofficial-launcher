@@ -91,7 +91,7 @@ export class LogParser {
    * Extracts Version string from a Web Root URL
    */
   public static extractVersion(webRoot: string): string {
-    const match = webRoot.match(/\/patch\/([\d.]+)\/?/);
+    const match = webRoot.match(/\/patch\/([^/?#]+)\/?/);
     return match && match[1] ? match[1] : "unknown";
   }
 
@@ -136,9 +136,12 @@ export class LogParser {
   public static replaceVersion(webRoot: string, newVersion: string): string {
     if (!newVersion) return webRoot;
     // Find /patch/XXXX/ or /patch/XXXX
-    const regex = /(\/patch\/)([\d.]+)(\/?)/;
+    const regex = /(\/patch\/)([^/?#]+)(\/?)/;
     if (regex.test(webRoot)) {
-      return webRoot.replace(regex, `$1${newVersion}$3`);
+      return webRoot.replace(
+        regex,
+        (_match, prefix, _version, suffix) => `${prefix}${newVersion}${suffix}`,
+      );
     }
     return webRoot;
   }
