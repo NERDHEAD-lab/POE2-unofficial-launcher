@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-03T14:21:37.125Z",
+  "generatedAt": "2026-11-03T23:26:24.543Z",
   "events": [],
   "stashSales": {
     "version": 1,
@@ -9,7 +9,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-03T14:21:32.503Z",
+        "checkedAt": "2026-11-03T23:26:20.394Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -17,7 +17,7 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-03T14:21:33.483Z",
+        "checkedAt": "2026-11-03T23:26:21.139Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -25,7 +25,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-03T14:21:35.241Z",
+        "checkedAt": "2026-11-03T23:26:22.813Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -33,7 +33,7 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-03T14:21:37.124Z",
+        "checkedAt": "2026-11-03T23:26:24.542Z",
         "status": "ok",
         "confirmedPeriod": null
       }
