@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.4...1.7.5) (2026-11-05)
+
+
+### Bug Fixes
+
+* 카카오 홈페이지 개편 후 POE2가 시작되지 않는 문제 수정 ([#326](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/326)) ([317178d](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/317178d2234f7c2cf94ee5aea97a3464bbd13b1c))
+
 ## [1.7.4](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.3...1.7.4) (2026-10-22)
 
 
