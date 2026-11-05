@@ -71,11 +71,10 @@ interface PageHandler {
 
 const SELECTORS = {
   POE2: {
-    MODAL_CONTAINER: ".modal__container",
-    INTRO_MODAL_ID: "kgIntroModalContents",
-    BTN_TODAY_CLOSE: ".modal__button-block",
-    BTN_CLOSE_X: ".modal__button-x",
-    BTN_GAME_START: ".main-start__link",
+    INTRO_MODAL: "#layerIntro.on",
+    BTN_TODAY_CLOSE: ".btn_today",
+    BTN_CLOSE_X: ".btn_close",
+    BTN_GAME_START: ".btn_start",
   },
   POE1: {
     // Daum POE1 Main Start Button - Updated from domSelectors.ts
@@ -539,41 +538,18 @@ const Poe2MainHandler: PageHandler = {
   execute: async () => {
     logger.log(`[Handler] Executing ${Poe2MainHandler.name}`);
 
-    // 1. Modal Logic (Immediate check, then Observer fallback via runSequence)
-    const handleIntroModal = async () => {
-      const cookies = document.cookie.split(";").reduce(
-        (acc, cookie) => {
-          const [name, value] = cookie.trim().split("=");
-          acc[name] = value;
-          return acc;
-        },
-        {} as Record<string, string>,
-      );
+    const handleIntroModal = () => {
+      const introModal = document.querySelector(SELECTORS.POE2.INTRO_MODAL);
+      if (!introModal) return;
 
-      if (cookies["POE2_INTRO_MODAL"] === "1") {
-        logger.log("[Poe2MainHandler] Intro Modal cookie present, skipping.");
-        return;
-      }
+      const todayBtn = introModal.querySelector(SELECTORS.POE2.BTN_TODAY_CLOSE);
+      const closeBtn = introModal.querySelector(SELECTORS.POE2.BTN_CLOSE_X);
 
-      const introContent = document.getElementById(
-        SELECTORS.POE2.INTRO_MODAL_ID,
-      );
-      if (introContent) {
-        const container = introContent.closest(SELECTORS.POE2.MODAL_CONTAINER);
-        if (container && (container as HTMLElement).offsetParent !== null) {
-          const closeBtn = container.querySelector(SELECTORS.POE2.BTN_CLOSE_X);
-          const todayBtn = container.querySelector(
-            SELECTORS.POE2.BTN_TODAY_CLOSE,
-          );
-
-          // Priority: Today Close -> Close X
-          if (todayBtn && safeClick(todayBtn as HTMLElement)) {
-            logger.log('[Poe2MainHandler] Clicked "Today Close"');
-          } else if (closeBtn && safeClick(closeBtn as HTMLElement)) {
-            logger.log('[Poe2MainHandler] Clicked "Close X"');
-          }
-          await new Promise<void>((r) => automationClock.setTimeout(r, 500)); // Small delay after close
-        }
+      // The homepage saves its own daily-dismissal cookie when this is clicked.
+      if (safeClick(todayBtn as HTMLElement)) {
+        logger.log('[Poe2MainHandler] Clicked "Today Close"');
+      } else if (safeClick(closeBtn as HTMLElement)) {
+        logger.log('[Poe2MainHandler] Clicked "Close X"');
       }
     };
 
@@ -581,7 +557,7 @@ const Poe2MainHandler: PageHandler = {
     observeAndInteract(
       (obs) => {
         // Try handling modal first in every mutation cycle if it exists
-        handleIntroModal().catch(logger.error);
+        handleIntroModal();
 
         const startBtn = document.querySelector(SELECTORS.POE2.BTN_GAME_START);
         if (safeClick(startBtn as HTMLElement)) {
