@@ -109,9 +109,13 @@ describe("Cloudflare preload dispatch", () => {
 
   it("runs the original game handler on the next normal document", async () => {
     window.history.replaceState({}, "", "/#autoStart");
-    document.body.innerHTML = '<button id="signupButton">시작</button>';
+    document.body.innerHTML =
+      '<a id="signupButton" href="#"><span>지금 무료로 플레이하기</span></a>';
     const clicked = vi.fn();
-    document.querySelector("button")!.addEventListener("click", clicked);
+    document.querySelector("a")!.addEventListener("click", (event) => {
+      event.preventDefault();
+      clicked();
+    });
     await loadPage("GAME_START_POE1", false);
     expect(clicked).toHaveBeenCalledOnce();
     expect(ipcRenderer.send).toHaveBeenCalledWith(
