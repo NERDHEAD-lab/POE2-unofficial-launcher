@@ -56,24 +56,35 @@ describe("Windows promotion XML", () => {
       event.sourceUrl,
     );
   });
-  it("uses one game-specific Twitch action and escapes XML attributes", () => {
-    const sourceUrl = 'https://www.pathofexile.com/forum/view-thread/1?x="<&';
-    const document = new DOMParser().parseFromString(
-      buildPromotionToast({
-        ...event,
-        kind: "twitch-drops",
-        game: "poe2",
-        sourceUrl,
-      }),
-      "text/xml",
-    );
-    expect(document.querySelector("parsererror")).toBeNull();
-    expect(document.querySelectorAll("action")).toHaveLength(1);
-    expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
-      "https://www.twitch.tv/directory/category/path-of-exile-2",
-    );
-    expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
-      sourceUrl,
-    );
-  });
+  it.each([
+    [undefined, "https://www.twitch.tv/directory/category/path-of-exile-2"],
+    [
+      "https://www.twitch.tv/directory/category/new-event?lang=ko&from=launcher",
+      "https://www.twitch.tv/directory/category/new-event?lang=ko&from=launcher",
+    ],
+  ])(
+    "opens the same watching URL from the Twitch body and action (%s)",
+    (watchUrl, destination) => {
+      const document = new DOMParser().parseFromString(
+        buildPromotionToast({
+          ...event,
+          kind: "twitch-drops",
+          game: "poe2",
+          watchUrl,
+        }),
+        "text/xml",
+      );
+      expect(document.querySelector("parsererror")).toBeNull();
+      expect(document.querySelectorAll("action")).toHaveLength(1);
+      expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
+        destination,
+      );
+      expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
+        destination,
+      );
+      expect(document.querySelector("action")?.getAttribute("content")).toBe(
+        "Twitch에서 시청",
+      );
+    },
+  );
 });

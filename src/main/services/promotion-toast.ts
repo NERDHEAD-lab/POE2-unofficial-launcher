@@ -20,9 +20,10 @@ const xml = (text: string) =>
 
 export function buildPromotionToast(event: PromotionEvent): string {
   const links = promotionActions(event);
-  const launchUrl = event.targets
-    ? (links[0]?.url ?? event.sourceUrl)
-    : event.sourceUrl;
+  const launchUrl =
+    event.kind === "twitch-drops" || event.targets
+      ? (links[0]?.url ?? event.sourceUrl)
+      : event.sourceUrl;
   const actions = links
     .map(
       ({ label, url }) =>

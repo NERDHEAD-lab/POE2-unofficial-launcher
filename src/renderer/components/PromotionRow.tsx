@@ -1,6 +1,6 @@
 import {
   STASH_LINKS,
-  TWITCH_LINKS,
+  promotionWatchUrl,
   formatPromotionPeriod,
   promotionTitle,
   promotionMatchesTarget,
@@ -76,7 +76,8 @@ export function PromotionRow({
       {event.kind === "twitch-drops" ? (
         <a
           className="promotion-row promotion-twitch"
-          href={TWITCH_LINKS[event.game === "poe1" ? "POE1" : "POE2"]}
+          href={promotionWatchUrl(event)}
+          aria-label={`${promotionTitle(event)} · Twitch에서 시청`}
           target="_blank"
           rel="noreferrer"
           onClick={onRead}

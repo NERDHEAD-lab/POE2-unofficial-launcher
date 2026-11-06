@@ -371,6 +371,11 @@ describe("WindowControls notifications", () => {
   });
 
   it("counts only unread items, keeps read links accessible and identifies promotions by schedule", async () => {
+    let update!: (snapshot: PromotionSnapshot) => void;
+    window.electronAPI.onPromotionsUpdated = vi.fn((callback) => {
+      update = callback;
+      return vi.fn();
+    });
     const now = Date.now();
     const event: PromotionEvent = {
       id: "read-twitch",
@@ -410,6 +415,11 @@ describe("WindowControls notifications", () => {
     expect(badge()).toBe("2");
     await click("[data-notification-toggle]");
     expect(badge()).toBe("2");
+    expect(
+      container
+        .querySelector('[data-promotion-id="read-twitch"] a')
+        ?.getAttribute("href"),
+    ).toBe("https://www.twitch.tv/directory/category/path-of-exile");
     await act(async () =>
       container
         .querySelector('[data-promotion-id="read-twitch"] a')!
@@ -425,6 +435,22 @@ describe("WindowControls notifications", () => {
         .querySelector('[data-promotion-id="read-twitch"]')
         ?.classList.contains("notification-read"),
     ).toBe(true);
+    const watchUrl = "https://www.twitch.tv/directory/category/new-event";
+    events = [{ ...event, watchUrl }, events[1]];
+    await act(async () =>
+      update({ revision: 2, events, activeEvents: events, upcomingEvents: [] }),
+    );
+    expect(
+      container
+        .querySelector('[data-promotion-id="read-twitch"] a')
+        ?.getAttribute("href"),
+    ).toBe(watchUrl);
+    expect(
+      container
+        .querySelector('[data-promotion-id="read-twitch"]')
+        ?.classList.contains("notification-read"),
+    ).toBe(true);
+    expect(badge()).toBe("1");
     await act(async () =>
       container
         .querySelector('[data-promotion-id="read-stash"] a')!

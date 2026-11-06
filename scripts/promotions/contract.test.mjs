@@ -250,6 +250,26 @@ test("validator matches the actual launcher consumer when available", async (t) 
     );
   for (const input of invalid)
     assert.throws(() => consumer.parsePromotionFeed(input));
+  for (const watchUrl of watchUrls.valid) {
+    const input = { ...feed, events: [{ ...event, watchUrl }] };
+    assert.deepEqual(
+      consumer.parsePromotionFeed(input),
+      parsePromotionFeed(input),
+    );
+  }
+  for (const watchUrl of watchUrls.invalid)
+    assert.throws(() =>
+      consumer.parsePromotionFeed({
+        ...feed,
+        events: [{ ...event, watchUrl }],
+      }),
+    );
+  assert.throws(() =>
+    consumer.parsePromotionFeed({
+      ...feed,
+      events: [{ ...event, kind: "stash-sale", watchUrl: watchUrls.valid[0] }],
+    }),
+  );
   for (const stashSales of badStash)
     assert.throws(() => consumer.parsePromotionFeed({ ...feed, stashSales }));
 });

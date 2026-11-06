@@ -6,6 +6,8 @@ import {
   normalizeEventPreferences,
   parsePromotionFeed,
   promotionScheduleKey,
+  promotionWatchUrl,
+  promotionActions,
 } from "./promotions";
 import { stashSection } from "./test-fixtures/stash-sales";
 import stashContractSamples from "./test-fixtures/stash-sales-contract.json";
@@ -21,6 +23,22 @@ export const samplePromotion = {
 };
 
 describe("promotion contract", () => {
+  it("uses supplied Twitch destinations independently of the game and falls back for old feeds", () => {
+    const watchUrl = "https://events.twitch.tv/a-future-event/watch";
+    for (const game of ["poe1", "poe2"] as const) {
+      const event = { ...samplePromotion, game, watchUrl };
+      expect(promotionWatchUrl(event)).toBe(watchUrl);
+      expect(promotionActions(event)).toEqual([
+        { label: "Twitch에서 시청", url: watchUrl },
+      ]);
+    }
+    expect(promotionWatchUrl(samplePromotion)).toBe(
+      "https://www.twitch.tv/directory/category/path-of-exile",
+    );
+    expect(promotionWatchUrl({ ...samplePromotion, game: "poe2" })).toBe(
+      "https://www.twitch.tv/directory/category/path-of-exile-2",
+    );
+  });
   it("requires all four shop observations and distinct manual sources", () => {
     const sample = stashContractSamples.manual;
     expect(() =>
@@ -120,6 +138,7 @@ describe("promotion contract", () => {
       promotionScheduleKey({
         ...samplePromotion,
         id: "another-source",
+        watchUrl: "https://www.twitch.tv/pathofexile",
         startsAt: "2026-09-03T21:00:00Z",
       }),
     ).toBe(key);

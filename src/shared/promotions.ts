@@ -17,6 +17,8 @@ export interface PromotionEvent {
   startsAt: string;
   endsAt: string;
   sourceUrl: string;
+  /** Optional Twitch destination; absent in older schema 1 feeds. */
+  watchUrl?: string;
   precision: "exact" | "derived-start" | "manual";
   /** Present only on normalized, API-confirmed shop events. */
   targets?: StashTarget[];
@@ -60,6 +62,35 @@ export const TWITCH_LINKS = {
   POE1: "https://www.twitch.tv/directory/category/path-of-exile",
   POE2: "https://www.twitch.tv/directory/category/path-of-exile-2",
 } as const;
+
+export function isTwitchWatchUrl(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !/^https:\/\/[^/?#@]+(?:[/?#]|$)/i.test(value) ||
+    /[\s\p{Cc}\\]/u.test(value)
+  )
+    return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*twitch\.tv$/.test(
+        url.hostname,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function promotionWatchUrl(event: PromotionEvent): string {
+  return (
+    event.watchUrl ?? TWITCH_LINKS[event.game === "poe1" ? "POE1" : "POE2"]
+  );
+}
 
 export const STASH_LINKS = [
   {
@@ -141,6 +172,8 @@ export function parsePromotionFeed(value: unknown): PromotionFeed {
       !["twitch-drops", "stash-sale"].includes(item.kind as string) ||
       !["poe1", "poe2", "both"].includes(item.game as string) ||
       (item.kind === "twitch-drops" && item.game === "both") ||
+      (item.watchUrl !== undefined &&
+        (item.kind !== "twitch-drops" || !isTwitchWatchUrl(item.watchUrl))) ||
       !["exact", "derived-start", "manual"].includes(
         item.precision as string,
       ) ||
@@ -163,6 +196,9 @@ export function parsePromotionFeed(value: unknown): PromotionFeed {
       startsAt: item.startsAt,
       endsAt: item.endsAt,
       sourceUrl: item.sourceUrl,
+      ...(item.watchUrl === undefined
+        ? {}
+        : { watchUrl: item.watchUrl as string }),
       precision: item.precision as PromotionEvent["precision"],
     };
   });
@@ -272,8 +308,8 @@ export function promotionActions(
   return event.kind === "twitch-drops"
     ? [
         {
-          label: `${event.game === "poe1" ? "PoE 1" : "PoE 2"} Twitch`,
-          url: TWITCH_LINKS[event.game === "poe1" ? "POE1" : "POE2"],
+          label: "Twitch에서 시청",
+          url: promotionWatchUrl(event),
         },
       ]
     : STASH_LINKS.flatMap(({ service, games }) =>

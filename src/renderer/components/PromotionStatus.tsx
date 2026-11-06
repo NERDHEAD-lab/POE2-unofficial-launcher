@@ -3,7 +3,7 @@ import { useId } from "react";
 import PromotionIcon from "./PromotionIcon";
 import {
   STASH_LINKS,
-  TWITCH_LINKS,
+  promotionWatchUrl,
   isPromotionActive,
   promotionScheduleKey,
   promotionTitle,
@@ -157,12 +157,8 @@ export default function PromotionStatus({
         kind="twitch-drops"
         events={drops}
         nextEvent={upcoming.find((event) => event.kind === "twitch-drops")}
-        href={
-          dropTarget
-            ? TWITCH_LINKS[dropTarget.game === "poe1" ? "POE1" : "POE2"]
-            : undefined
-        }
-        destination={`PoE ${dropTarget?.game === "poe1" ? "1" : "2"} Twitch`}
+        href={dropTarget ? promotionWatchUrl(dropTarget) : undefined}
+        destination="Twitch에서 시청"
       />
       <EventBuff
         kind="stash-sale"
