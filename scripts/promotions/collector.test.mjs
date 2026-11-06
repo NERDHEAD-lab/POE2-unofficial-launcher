@@ -23,6 +23,17 @@ test("4012689 publishes its shared viewing directory for both games using the ex
     })),
   );
   assert.notEqual(events[0].id, events[1].id);
+  assert.deepEqual(
+    events.map((event) => event.title),
+    ["ExileCon 트위치 드롭스", "ExileCon 트위치 드롭스"],
+  );
+  assert.deepEqual(
+    events.map((event) => event.id),
+    [
+      "ggg-4012689-twitch-591814b46c-poe1",
+      "ggg-4012689-twitch-591814b46c-poe2",
+    ],
+  );
   assert.ok(
     events.every(
       (event) =>
@@ -36,6 +47,29 @@ test("4012689 publishes its shared viewing directory for both games using the ex
     ).map((event) => event.id),
     events.map((event) => event.id),
   );
+});
+
+test("display names use decoded reward headings and never instructional headings or a thread ID", () => {
+  const range =
+    "Start Time: July 24th 1PM PDT<br>End Time: July 31st 1PM PDT<br>Path of Exile 2 category";
+  const [reward] = parseArticle(
+    article(`<h2>Week 1 - Raven&#39;s &amp; Moon</h2>${range} Twitch Drops`),
+    source(4012689),
+  );
+  assert.equal(reward.title, "Week 1 - Raven's & Moon 트위치 드롭스");
+  assert.notEqual(reward.title, "ExileCon 트위치 드롭스");
+  for (const heading of [
+    "How to Participate",
+    "Launch Information",
+    "Linking your Path of Exile Account to Twitch",
+  ])
+    assert.equal(
+      parseArticle(
+        article(`<h2>${heading}</h2>${range} Twitch Drops`),
+        source(2),
+      )[0].title,
+      "트위치 드롭스",
+    );
 });
 
 test("viewing links prefer the event directory over channels and exclude FAQ, account and creator links", () => {
@@ -235,6 +269,10 @@ test("separate weeks stay separate and retain IDs when a period is corrected", (
   );
   const events = parseArticle(html, source(2));
   assert.equal(events.length, 2);
+  assert.deepEqual(
+    events.map((event) => event.title),
+    ["Week 1 트위치 드롭스", "Week 2 트위치 드롭스"],
+  );
   assert.notEqual(events[0].id, events[1].id);
   assert.deepEqual(
     parseArticle(html.replace("August 7th", "August 8th"), source(2)).map(

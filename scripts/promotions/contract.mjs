@@ -32,6 +32,15 @@ function record(value) {
     : {};
 }
 
+function parseEventTitle(value) {
+  if (typeof value !== "string" || /[\p{Cc}\p{Zl}\p{Zp}]/u.test(value))
+    throw new Error("Invalid promotion title");
+  const title = value.replace(/\s+/gu, " ").trim();
+  if (!title || [...title].length > 200)
+    throw new Error("Invalid promotion title");
+  return title;
+}
+
 export function isUtcInstant(value) {
   if (
     typeof value !== "string" ||
@@ -58,6 +67,8 @@ export function parsePromotionFeed(value) {
   const ids = new Set();
   const events = feed.events.map((entry) => {
     const item = record(entry);
+    const title =
+      item.title === undefined ? undefined : parseEventTitle(item.title);
     if (
       typeof item.id !== "string" ||
       !/^[a-z0-9:-]{1,160}$/.test(item.id) ||
@@ -86,6 +97,7 @@ export function parsePromotionFeed(value) {
       startsAt: item.startsAt,
       endsAt: item.endsAt,
       sourceUrl: item.sourceUrl,
+      ...(title === undefined ? {} : { title }),
       ...(item.watchUrl === undefined ? {} : { watchUrl: item.watchUrl }),
       precision: item.precision,
     };
