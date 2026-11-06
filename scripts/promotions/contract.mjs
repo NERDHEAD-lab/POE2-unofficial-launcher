@@ -54,6 +54,22 @@ export function isUtcInstant(value) {
   );
 }
 
+function isSourceGroup(value, sourceUrl, kind) {
+  if (
+    typeof value !== "string" ||
+    typeof sourceUrl !== "string" ||
+    kind !== "twitch-drops"
+  )
+    return false;
+  const group = /^ggg-(\d+)-twitch-[a-f0-9]{10}$/.exec(value);
+  return (
+    !!group &&
+    /\/view-thread\/(\d+)(?:\/filter-account-type\/staff)?$/.exec(
+      sourceUrl,
+    )?.[1] === group[1]
+  );
+}
+
 export function parsePromotionFeed(value) {
   const feed = record(value);
   if (
@@ -76,6 +92,12 @@ export function parsePromotionFeed(value) {
       !["twitch-drops", "stash-sale"].includes(item.kind) ||
       !["poe1", "poe2", "both"].includes(item.game) ||
       (item.kind === "twitch-drops" && item.game === "both") ||
+      (item.gameUnknown !== undefined &&
+        typeof item.gameUnknown !== "boolean") ||
+      (item.sourcePublishedAt !== undefined &&
+        !isUtcInstant(item.sourcePublishedAt)) ||
+      (item.sourceGroupId !== undefined &&
+        !isSourceGroup(item.sourceGroupId, item.sourceUrl, item.kind)) ||
       (item.watchUrl !== undefined &&
         (item.kind !== "twitch-drops" || !isTwitchWatchUrl(item.watchUrl))) ||
       !["exact", "derived-start", "manual"].includes(item.precision) ||
@@ -97,7 +119,16 @@ export function parsePromotionFeed(value) {
       startsAt: item.startsAt,
       endsAt: item.endsAt,
       sourceUrl: item.sourceUrl,
+      ...(item.sourceGroupId === undefined
+        ? {}
+        : { sourceGroupId: item.sourceGroupId }),
+      ...(item.sourcePublishedAt === undefined
+        ? {}
+        : { sourcePublishedAt: item.sourcePublishedAt }),
       ...(title === undefined ? {} : { title }),
+      ...(item.gameUnknown === undefined
+        ? {}
+        : { gameUnknown: item.gameUnknown }),
       ...(item.watchUrl === undefined ? {} : { watchUrl: item.watchUrl }),
       precision: item.precision,
     };

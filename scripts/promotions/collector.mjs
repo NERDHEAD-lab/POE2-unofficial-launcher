@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { parse } from "node-html-parser";
+import gameRules from "./game-rules.json" with { type: "json" };
 import {
   isTwitchWatchUrl,
   parsePromotionFeed,
   scheduleKey,
+  isUtcInstant,
 } from "./contract.mjs";
 
 const candidate = /\btwitch\s+drops?\b/i;
@@ -155,19 +157,37 @@ function calendarTime(value, reference, fallbackZone) {
   return new Date(instant).toISOString();
 }
 
-function twitchGames(section) {
-  const one = /Path of Exile(?:\s+1)?\s+(?:category|directory|stream)/i.test(
-    section,
-  );
-  const two = /Path of Exile\s+2\s+(?:category|directory|stream)/i.test(
-    section,
-  );
-  // ExileCon has its own shared viewing directory; cross-game reward text
-  // alone must never expand a normal game's viewing category.
-  const shared = /\bExilecon\s+directory\b/i.test(section);
-  if (shared && !one && !two) return ["poe1", "poe2"];
-  if (shared || one === two) throw new Error("Ambiguous Twitch game category");
-  return [one ? "poe1" : "poe2"];
+export function compileGameRules(value) {
+  if (!value || !Array.isArray(value.rules))
+    throw new Error("Invalid game rules");
+  return value.rules.map((rule) => {
+    if (
+      !rule ||
+      !["regex", "keyword"].includes(rule.type) ||
+      typeof rule.value !== "string" ||
+      !rule.value.trim() ||
+      !rule.games ||
+      typeof rule.games.poe1 !== "boolean" ||
+      typeof rule.games.poe2 !== "boolean"
+    )
+      throw new Error("Invalid game rule");
+    const regex = rule.type === "regex" ? new RegExp(rule.value, "i") : null;
+    return {
+      matches: regex
+        ? (section) => regex.test(section)
+        : (section) => section.toLowerCase().includes(rule.value.toLowerCase()),
+      games: ["poe1", "poe2"].filter((game) => rule.games[game]),
+    };
+  });
+}
+
+const defaultGameRules = compileGameRules(gameRules);
+
+function twitchGames(section, rules) {
+  const rule = rules.find((entry) => entry.matches(section));
+  return rule
+    ? { games: rule.games, unknown: false }
+    : { games: ["poe1", "poe2"], unknown: true };
 }
 
 function markWatchLinks(content) {
@@ -235,7 +255,12 @@ function twitchDisplayTitle(heading, section, body) {
     : title;
 }
 
-export function parseArticle(html, sourceUrl, publishedAt) {
+export function parseArticle(
+  html,
+  sourceUrl,
+  publishedAt,
+  rules = defaultGameRules,
+) {
   sourceUrl = canonicalSource(sourceUrl);
   const root = parse(html);
   const post = root.querySelector(".newsPost");
@@ -248,13 +273,21 @@ export function parseArticle(html, sourceUrl, publishedAt) {
   )
     throw new Error("Original GGG staff post not found");
   const zone = /window\.momentTimezone\s*=\s*['"]([^'"]+)['"]/.exec(html)?.[1];
-  const published =
-    publishedAt ??
-    calendarTime(
-      info.querySelector(".post_date")?.text ?? "",
-      Date.now(),
-      zone,
-    );
+  let sourcePublishedAt = publishedAt;
+  if (sourcePublishedAt !== undefined && !isUtcInstant(sourcePublishedAt))
+    throw new Error("Invalid source publication time");
+  if (sourcePublishedAt === undefined) {
+    const postDate = info.querySelector(".post_date")?.text ?? "";
+    // A source year is required; the legacy date parser may otherwise infer one.
+    if (datePattern.exec(postDate)?.[3]) {
+      try {
+        sourcePublishedAt = calendarTime(postDate, Date.now(), zone);
+      } catch {
+        /* Unknown source timezone leaves publication metadata absent. */
+      }
+    }
+  }
+  const published = sourcePublishedAt ?? Date.now();
   for (const node of content.querySelectorAll(
     ".forum-faq, .forum-faq-show-all, script, style",
   ))
@@ -270,9 +303,10 @@ export function parseArticle(html, sourceUrl, publishedAt) {
   );
   const thread = /\d+$/.exec(sourceUrl)[0];
   const events = [];
+  let validatedDrops = 0;
   const add = (
     kind,
-    games,
+    classification,
     startsAt,
     endsAt,
     section,
@@ -280,20 +314,40 @@ export function parseArticle(html, sourceUrl, publishedAt) {
     precision = "exact",
     displayTitle,
   ) => {
-    if (Math.abs(Date.parse(startsAt) - Date.parse(published)) > 60 * 86400_000)
+    if (
+      sourcePublishedAt !== undefined &&
+      Math.abs(Date.parse(startsAt) - Date.parse(sourcePublishedAt)) >
+        60 * 86400_000
+    )
       throw new Error("Event too far from publication");
     const suffix = `twitch-${createHash("sha256").update(section.toLowerCase().trim()).digest("hex").slice(0, 10)}`;
+    const candidate = {
+      id: `ggg-${thread}-${suffix}`,
+      sourceGroupId: `ggg-${thread}-${suffix}`,
+      kind,
+      game: "poe1",
+      startsAt,
+      endsAt,
+      sourceUrl,
+      ...(sourcePublishedAt === undefined ? {} : { sourcePublishedAt }),
+      ...(displayTitle === undefined ? {} : { title: displayTitle }),
+      ...(watchUrl === undefined ? {} : { watchUrl }),
+      ...(classification.unknown ? { gameUnknown: true } : {}),
+      precision,
+    };
+    // OFF is a successful empty result only after the whole drop is validated.
+    parsePromotionFeed({
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      events: [candidate],
+    });
+    validatedDrops++;
+    const { games } = classification;
     for (const game of games) {
       events.push({
+        ...candidate,
         id: `ggg-${thread}-${suffix}${games.length > 1 ? `-${game}` : ""}`,
-        kind,
         game,
-        startsAt,
-        endsAt,
-        sourceUrl,
-        ...(displayTitle === undefined ? {} : { title: displayTitle }),
-        ...(watchUrl === undefined ? {} : { watchUrl }),
-        precision,
       });
     }
   };
@@ -323,7 +377,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         const starts = calendarTime(match[1], published, zone);
         add(
           "twitch-drops",
-          twitchGames(chunk),
+          twitchGames(chunk, rules),
           starts,
           calendarTime(match[2], starts, zone),
           `${heading}:${index}`,
@@ -341,7 +395,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         const starts = calendarTime(range[1], published, zone);
         add(
           "twitch-drops",
-          twitchGames(chunk),
+          twitchGames(chunk, rules),
           starts,
           calendarTime(range[2], starts, zone),
           heading,
@@ -361,7 +415,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         const end = calendarTime(ending[1], published, zone);
         add(
           "twitch-drops",
-          twitchGames(chunk),
+          twitchGames(chunk, rules),
           new Date(Date.parse(end) - +duration[1] * 3600_000).toISOString(),
           end,
           heading,
@@ -371,10 +425,9 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         );
       }
     }
-    if (!events.some((x) => x.kind === "twitch-drops"))
-      throw new Error("No supported Twitch date range");
+    if (!validatedDrops) throw new Error("No supported Twitch date range");
   }
-  if (!events.length) throw new Error("No supported promotion");
+  if (!validatedDrops) throw new Error("No supported promotion");
   return parsePromotionFeed({
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -382,7 +435,13 @@ export function parseArticle(html, sourceUrl, publishedAt) {
   }).events;
 }
 
-export function mergePromotions(previous, parsed, overrides, now = new Date()) {
+export function mergePromotions(
+  previous,
+  parsed,
+  overrides,
+  now = new Date(),
+  successfulSources = [],
+) {
   if (
     !overrides ||
     !Array.isArray(overrides.events) ||
@@ -401,15 +460,34 @@ export function mergePromotions(previous, parsed, overrides, now = new Date()) {
   if (manual.some((event) => event.precision !== "manual"))
     throw new Error("Overrides require manual precision");
   const old = previous ? parsePromotionFeed(previous).events : [];
+  const preferred = (event, earlier) =>
+    !earlier ||
+    event.precision === "manual" ||
+    (earlier.precision !== "manual" &&
+      event.sourcePublishedAt !== undefined &&
+      (earlier.sourcePublishedAt === undefined ||
+        Date.parse(event.sourcePublishedAt) >
+          Date.parse(earlier.sourcePublishedAt)));
   const byId = new Map(old.map((event) => [event.id, event]));
   // A successfully reparsed source replaces all its sections (including deleted weeks).
-  for (const source of new Set(
-    parsed.map((x) => canonicalSource(x.sourceUrl)),
-  )) {
+  for (const source of new Set([
+    ...parsed.map((x) => canonicalSource(x.sourceUrl)),
+    ...successfulSources.map(canonicalSource),
+  ])) {
     for (const [id, event] of byId)
       if (canonicalSource(event.sourceUrl) === source) byId.delete(id);
   }
-  for (const event of parsed) byId.set(event.id, event);
+  for (const event of parsed) {
+    const earlier = byId.get(event.id);
+    // A same-schedule retained alias may equal an older source's raw ID.
+    // Compare before insertion so a failed latest source is not overwritten.
+    if (
+      !earlier ||
+      scheduleKey(earlier) !== scheduleKey(event) ||
+      preferred(event, earlier)
+    )
+      byId.set(event.id, event);
+  }
   for (const event of manual) byId.set(event.id, event);
   const disabled = new Set(overrides.disabledIds);
   const disabledSchedules = new Set(
@@ -423,8 +501,7 @@ export function mergePromotions(previous, parsed, overrides, now = new Date()) {
     const signature = scheduleKey(event);
     if (disabled.has(event.id) || disabledSchedules.has(signature)) continue;
     const earlier = campaigns.get(signature);
-    if (!earlier || event.precision === "manual")
-      campaigns.set(signature, event);
+    if (preferred(event, earlier)) campaigns.set(signature, event);
   }
   // Keep an old ID for an unchanged reposted schedule, unless that ID now names
   // a corrected schedule. Manual IDs are deliberately authoritative.
