@@ -68,6 +68,49 @@ function setup(initial: PromotionCache = { feed, windows: {} }) {
 }
 
 describe("promotion delivery", () => {
+  it("propagates URL-only refreshes while retaining dismissal and delivery records", async () => {
+    const s = setup();
+    s.prefs.channels.windows = false;
+    s.controller.init();
+    await vi.advanceTimersByTimeAsync(1);
+    const key = promotionScheduleKey(event);
+    s.controller.dismiss({ key, mode: "schedule" });
+    const revision = s.controller.snapshot().revision;
+    const first = {
+      ...event,
+      watchUrl: "https://www.twitch.tv/directory/category/new-event",
+    };
+    s.fetchFeed.mockResolvedValue({ ...feed, events: [first] });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().revision).toBeGreaterThan(revision);
+    expect(s.controller.snapshot().activeEvents).toEqual([first]);
+    expect(s.controller.snapshot().events).toEqual([]);
+    s.prefs.channels.windows = true;
+    s.controller.settingsChanged();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.notify).toHaveBeenCalledExactlyOnceWith(first);
+    const updated = { ...first, watchUrl: "https://www.twitch.tv/pathofexile" };
+    s.fetchFeed.mockResolvedValue({ ...feed, events: [updated] });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().activeEvents).toEqual([updated]);
+    expect(s.persisted().feed?.events).toEqual([updated]);
+    expect(s.persisted().hidden?.[key]).toBe(Date.parse(event.endsAt));
+    expect(s.persisted().windows[key]).toBe(Date.parse(event.endsAt));
+    expect(s.notify).toHaveBeenCalledTimes(1);
+    s.fetchFeed.mockResolvedValue({
+      ...feed,
+      events: [
+        { ...updated, watchUrl: "https://twitch.tv.evil.example/watch" },
+      ],
+    });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().activeEvents).toEqual([updated]);
+    expect(s.persisted().feed?.events).toEqual([updated]);
+    s.controller.stop();
+  });
   it("keeps one stash delivery when targets grow and retains the other confirmed target on no-sale", async () => {
     const first = {
       ...stashSection.observations[0],

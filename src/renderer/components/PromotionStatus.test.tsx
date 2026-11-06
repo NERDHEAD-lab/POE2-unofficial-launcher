@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PromotionStatus from "./PromotionStatus";
 import { stashSection } from "../../shared/test-fixtures/stash-sales";
 
-import type { PromotionEvent } from "../../shared/promotions";
+import type {
+  PromotionEvent,
+  PromotionSnapshot,
+} from "../../shared/promotions";
 import type {
   ActiveGame,
   ElectronAPI,
@@ -67,6 +70,31 @@ describe("promotion status shortcuts", () => {
         />,
       ),
     );
+
+  it("updates the active shortcut to the supplied URL on a newer snapshot", async () => {
+    let update!: (snapshot: PromotionSnapshot) => void;
+    window.electronAPI.onPromotionsUpdated = vi.fn((callback) => {
+      update = callback;
+      return vi.fn();
+    });
+    await render("GGG", "POE1");
+    const watchUrl = "https://www.twitch.tv/directory/category/new-event";
+    await act(async () =>
+      update({
+        revision: 2,
+        events: [],
+        activeEvents: [{ ...drops, watchUrl }],
+        upcomingEvents: [],
+      }),
+    );
+    const link = container.querySelector(
+      '[data-promotion-status="twitch-drops"] a',
+    );
+    expect(link?.getAttribute("href")).toBe(watchUrl);
+    expect(link?.getAttribute("aria-label")).toBe(
+      "트위치 드롭스 진행 중 · Twitch에서 시청",
+    );
+  });
 
   it.each([
     ["GGG", "POE1", "https://www.pathofexile.com/shop/category/stash-tabs"],
