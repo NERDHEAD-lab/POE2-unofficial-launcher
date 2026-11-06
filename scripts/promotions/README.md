@@ -30,6 +30,9 @@ finally { Remove-Item Env:PROMOTIONS_CONSUMER_MODULE }
 - 요청은 직렬이며 500ms 간격, 요청당 15초와 2MiB, 전체 후보 60개로 제한한다. 무제한 과거 탐색이나 계정 로그인은 없다. 범위 밖의 오래된 미종료 공지를 모두 찾는다는 보장은 없다.
 - `/filter-account-type/staff` 응답의 첫 `.newsPost` 본문과 바로 뒤 작성자 정보의 staff 표시를 함께 확인한다. FAQ/다른 보상 섹션/사용자 댓글을 이벤트로 사용하지 않는다.
 - Drops의 `Start Time`/`End Time`, `from … until …`, 명시적인 시간 수와 종료 시각을 지원한다. 시청할 게임의 category/directory/stream 문구로 게임을 판정한다. 다른 게임에서도 보상을 쓴다는 FAQ는 게임 판정에 사용하지 않는다.
+- 공통 시청 조건인 `Exilecon directory`를 명시한 드롭스 섹션은 PoE1/PoE2 각각의 이벤트로 발행한다. 제목의 ExileCon이나 양 게임 보상 안내만으로 공통 행사를 추측하지 않으며, 다른 게임 카테고리와 섞인 조건은 거부한다. 기존 날짜 해석은 유지한다. [4012689](https://www.pathofexile.com/forum/view-thread/4012689)는 `at`이 포함된 PST 표기 대신 지원되는 GMT+9 병기 시각을 읽는다. 원문의 종료 표기가 한 시간 어긋나지만 수집기가 임의 보정하지 않는다.
+- 명시 GMT offset/지원 시간대가 없는 지역 표기는 원문 `window.momentTimezone`의 IANA 시간대로 해석한다. 모호한 약어(CST 등)를 고정 UTC offset으로 추측하지 않는다. 날짜·시간대 둘 다 불명확하면 거부한다.
+- 시청 주소는 해당 드롭스 시간 섹션의 실제 HTTPS Twitch 링크에서 읽는다. category/directory로 표시된 카테고리 링크를 채널 링크보다 우선하며 같은 우선순위에 서로 다른 URL이 있으면 거부한다. FAQ, 재고·계정·설정·Creator Dashboard·도움말은 시청 링크로 채택하지 않는다. 링크가 없으면 `watchUrl`을 생략한다. HTTP 링크를 임의로 HTTPS로 바꾸지 않는다.
 - 정기 RSS/포럼 수집은 **Twitch Drops만** 처리한다. 보관함 공지 파서는 제거했으며, 기존 피드의 legacy `stash-sale` 이벤트도 산출 `events`에서 제거한다. 지원하지 않는 드롭스 표현은 추측하지 않는다.
 - 발견 요청 실패/챌린지/후보 초과는 드롭스 수집 부분만 실패시킨다. 기존 검증 드롭스를 유지하고 상점 수집을 계속한다. 개별 원문 실패는 그 원문의 마지막 정상 일정을 유지하며 다른 원문은 갱신할 수 있다. 상점 실패도 드롭스 갱신을 막지 않는다. 최초 실행의 원격 요청이 모두 실패해도 `unavailable` 관측과 출처가 명시된 수동 기준만 만들며 API 확정을 만들지 않는다.
 - 원문이 정상적으로 다시 파싱되면 해당 원문의 이전 섹션을 교체한다. **종료 시각이 수집 완료 시각 이하인 일정은 매 수집에서 제거**한다. 잘못된 이전 JSON/계약/수동 설정과 200건 초과 출력은 전체 교체를 막는다. 런처도 로컬 시각으로 종료를 판정한다.
@@ -55,8 +58,10 @@ PoE2 태그는 `StashTabs` 또는 `PoE2StashTabs` **정확히 일치**해야 한
 
 - 최상위: `schemaVersion: 1`, UTC ISO `generatedAt`, `events` 배열(최대 200건), optional `stashSales`. 이전 소비자는 추가 필드를 무시하고 드롭스를 계속 읽는다.
 - 이벤트: `id`, `kind`(`twitch-drops`/`stash-sale`), `game`(`poe1`/`poe2`/`both`), UTC ISO `startsAt`/`endsAt`, 공식 forum thread `sourceUrl`, `precision`(`exact`/`derived-start`/`manual`). Drops에는 `both`를 허용하지 않는다.
+- 드롭스의 optional `watchUrl`은 시청 목적지이며 `sourceUrl`(공지 출처)과 독립이다. HTTPS와 실제 `twitch.tv`/정상 하위 도메인만 허용하고 사용자정보·비기본 포트·위장 호스트·공백/역슬래시를 거부한다. 경로는 특정 게임/행사에 제한하지 않는다. 유효하지 않은 필드가 있으면 피드 전체를 거부해 마지막 정상 상태를 유지한다. 보관함 이벤트에는 이 필드를 허용하지 않는다.
 - ID는 `[a-z0-9:-]` 1–160자, 중복 불가. 종료는 시작보다 뒤이고 기간은 최대 90일. UTC 문자열은 초 또는 밀리초 3자리와 `Z`를 사용한다.
 - 동일 일정은 **종류 + 게임 + 시작 UTC epoch + 종료 UTC epoch**다. 같은 일정의 재공지는 하나로 합치고 가능한 경우 기존 ID를 유지한다. 기간이 달라지면 별도 일정으로 취급한다. 자동 ID는 스레드/섹션 기반이며 일반적인 기간 정정에서 유지된다.
+- 공통 시청 디렉터리에서 나눈 이벤트의 자동 ID에만 `-poe1`/`-poe2`를 붙여 게임별로 구분한다. 단일 게임 자동 ID와 일정 키는 바뀌지 않는다. 구 런처는 새 optional 필드를 무시하고 기존 게임별 카테고리를 계속 연다. watchUrl 지원 런처는 필드가 있으면 해당 주소를, 없으면 기존 카테고리를 연다. 수집기·공개 JSON을 먼저 적용한 뒤 앱을 검증·배포할 수 있다.
 
 `overrides.json`의 `events`에는 공식 출처와 전체 필드를 가진 `precision: "manual"` **드롭스** 이벤트를 넣는다. 같은 ID를 교체하며 동일 일정의 자동 항목보다 우선한다. 수동 입력도 필터링 전에 계약을 검증한다. 원래 자동 일정을 취소하고 다른 ID로 정정하려면 자동 ID를 `disabledIds`에도 명시한다.
 

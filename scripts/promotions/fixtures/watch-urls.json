@@ -1,0 +1,37 @@
+{
+  "valid": [
+    "https://twitch.tv/pathofexile",
+    "https://www.twitch.tv/directory/category/exilecon",
+    "https://www.twitch.tv/directory/category/a-future-event?lang=ko&sort=live",
+    "https://player.twitch.tv/?channel=pathofexile",
+    "https://events.eu.twitch.tv/new/path#watch",
+    "https://WWW.TWITCH.TV:443/pathofexile"
+  ],
+  "invalid": [
+    null,
+    42,
+    "",
+    "not a URL",
+    "http://www.twitch.tv/pathofexile",
+    "javascript:alert(1)",
+    "//www.twitch.tv/pathofexile",
+    "https://eviltwitch.tv/pathofexile",
+    "https://twitch.tv.evil.example/pathofexile",
+    "https://twitch.tv@evil.example/pathofexile",
+    "https://evil.example@twitch.tv/pathofexile",
+    "https://user:pass@www.twitch.tv/pathofexile",
+    "https://@www.twitch.tv/pathofexile",
+    "https://:@www.twitch.tv/pathofexile",
+    "https:////@www.twitch.tv/pathofexile",
+    "https://www.twitch.tv:8443/pathofexile",
+    "https://www..twitch.tv/pathofexile",
+    "https://-bad.twitch.tv/pathofexile",
+    "https://www.twitch.tv./pathofexile",
+    " https://www.twitch.tv/pathofexile",
+    "https://www.twitch.tv/pa\nthofexile",
+    "https://www.twitch.tv/pa\u0000thofexile",
+    "https://www.twitch.tv/pa\u0008thofexile",
+    "https://www.twitch.tv/pa\u007fthofexile",
+    "https://www.twitch.tv\\@evil.example/pathofexile"
+  ]
+}
