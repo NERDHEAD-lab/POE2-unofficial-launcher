@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parsePromotionFeed } from "./contract.mjs";
+import { parseArticle } from "./collector.mjs";
 import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
 import { parsePromotionFeed as parseLegacy } from "./fixtures/legacy-contract-v1.mjs";
 import watchUrls from "./fixtures/watch-urls.json" with { type: "json" };
@@ -23,6 +24,17 @@ const feed = {
   generatedAt: "2026-09-04T08:00:00Z",
   events: [event],
 };
+const invalidTitles = [
+  null,
+  1,
+  {},
+  "",
+  "   ",
+  "title\nline",
+  "title\tline",
+  "title\u2028line",
+  "a".repeat(201),
+].map((title) => ({ ...feed, events: [{ ...event, title }] }));
 const invalid = [
   null,
   {},
@@ -49,6 +61,8 @@ const invalid = [
 ];
 const valid = [
   feed,
+  { ...feed, events: [{ ...event, title: "ExileCon 트위치 드롭스" }] },
+  { ...feed, events: [{ ...event, title: "이".repeat(200) }] },
   { ...feed, events: [] },
   { ...feed, events: [{ ...event, game: "poe2", precision: "manual" }] },
   {
@@ -67,7 +81,18 @@ const valid = [
 
 test("schema v1 accepts supported payloads and rejects malformed events", () => {
   for (const input of valid) assert.deepEqual(parsePromotionFeed(input), input);
-  for (const input of invalid) assert.throws(() => parsePromotionFeed(input));
+  for (const input of [...invalid, ...invalidTitles])
+    assert.throws(() => parsePromotionFeed(input));
+});
+
+test("display titles normalize spaces while old consumers and payloads keep their contract", () => {
+  const input = {
+    ...feed,
+    events: [{ ...event, title: "  Raven's\u00a0 &   Moon  " }],
+  };
+  assert.equal(parsePromotionFeed(input).events[0].title, "Raven's & Moon");
+  assert.deepEqual(parseLegacy(input), feed);
+  assert.equal(parsePromotionFeed(feed).events[0].title, undefined);
 });
 
 test("optional watch URLs accept Twitch destinations and reject unsafe authorities without changing provenance", () => {
@@ -216,7 +241,7 @@ test("stash source scopes and precise or date-only fields fail closed", () => {
   }
 });
 
-test("validator matches the actual launcher consumer when available", async (t) => {
+test("producer payloads retain the actual launcher's common contract when available", async (t) => {
   const path = resolve(
     process.env.PROMOTIONS_CONSUMER_MODULE ?? "src/shared/promotions.ts",
   );
@@ -243,10 +268,42 @@ test("validator matches the actual launcher consumer when available", async (t) 
   });
   t.after(() => hooks.deregister());
   const consumer = await import(pathToFileURL(path).href);
+  // A shipped consumer ignores optional title. New-app title preservation and
+  // validation have their own app gate; this bridge proves safe staged delivery.
+  const withoutDisplayTitles = (value) => ({
+    ...value,
+    events: value.events.map(({ title: _title, ...entry }) => entry),
+  });
+  const titleInput = {
+    ...feed,
+    events: [{ ...event, title: "  Raven's\u00a0 &   Moon  " }],
+  };
+  assert.deepEqual(
+    withoutDisplayTitles(consumer.parsePromotionFeed(titleInput)),
+    withoutDisplayTitles(parsePromotionFeed(titleInput)),
+  );
+  const produced = {
+    schemaVersion: 1,
+    generatedAt: "2026-11-06T12:00:00Z",
+    events: parseArticle(
+      readFileSync(
+        new URL("./fixtures/exilecon-4012689.html", import.meta.url),
+        "utf8",
+      ),
+      "https://www.pathofexile.com/forum/view-thread/4012689",
+    ),
+  };
+  const consumed = consumer.parsePromotionFeed(
+    JSON.parse(JSON.stringify(produced)),
+  );
+  assert.deepEqual(
+    withoutDisplayTitles(consumed),
+    withoutDisplayTitles(parsePromotionFeed(produced)),
+  );
   for (const input of [...valid, ...Object.values(samples)])
     assert.deepEqual(
-      parsePromotionFeed(input),
-      consumer.parsePromotionFeed(input),
+      withoutDisplayTitles(parsePromotionFeed(input)),
+      withoutDisplayTitles(consumer.parsePromotionFeed(input)),
     );
   for (const input of invalid)
     assert.throws(() => consumer.parsePromotionFeed(input));

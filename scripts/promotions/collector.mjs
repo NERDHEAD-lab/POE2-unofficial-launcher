@@ -209,6 +209,32 @@ function twitchWatchUrl(section, links) {
   return urls[0];
 }
 
+function twitchDisplayTitle(heading, section, body) {
+  if (
+    /\bExileCon\s+livestream\b/i.test(body) &&
+    /\bofficial\s+ExileCon\s+broadcast\b/i.test(body) &&
+    /\bExileCon\s+directory\b/i.test(section)
+  )
+    return "ExileCon 트위치 드롭스";
+  const name = heading
+    .replace(/@@TwitchLink\d+@@/g, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (
+    /^(?:drops?|twitch(?:\s+drops?)?)$/i.test(name) ||
+    /^(?:how\s+(?:to|do)\b|launch\s+information\b|faqs?\b|frequently\s+asked\b|(?:link|linking|connect|connecting)\b.*\baccount\b|account\s+(?:linking|connection)\b)/i.test(
+      name,
+    )
+  )
+    return "트위치 드롭스";
+  const title = /\btwitch\s+drops?\b/i.test(name)
+    ? name
+    : `${name} 트위치 드롭스`;
+  return !name || /[\p{Cc}\p{Zl}\p{Zp}]/u.test(title) || [...title].length > 200
+    ? "트위치 드롭스"
+    : title;
+}
+
 export function parseArticle(html, sourceUrl, publishedAt) {
   sourceUrl = canonicalSource(sourceUrl);
   const root = parse(html);
@@ -252,6 +278,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
     section,
     watchUrl,
     precision = "exact",
+    displayTitle,
   ) => {
     if (Math.abs(Date.parse(startsAt) - Date.parse(published)) > 60 * 86400_000)
       throw new Error("Event too far from publication");
@@ -264,6 +291,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         startsAt,
         endsAt,
         sourceUrl,
+        ...(displayTitle === undefined ? {} : { title: displayTitle }),
         ...(watchUrl === undefined ? {} : { watchUrl }),
         precision,
       });
@@ -300,6 +328,8 @@ export function parseArticle(html, sourceUrl, publishedAt) {
           calendarTime(match[2], starts, zone),
           `${heading}:${index}`,
           twitchWatchUrl(chunk, watchLinks),
+          "exact",
+          twitchDisplayTitle(heading, chunk, body),
         );
       }
       if (labelled.length) continue;
@@ -316,6 +346,8 @@ export function parseArticle(html, sourceUrl, publishedAt) {
           calendarTime(range[2], starts, zone),
           heading,
           twitchWatchUrl(chunk, watchLinks),
+          "exact",
+          twitchDisplayTitle(heading, chunk, body),
         );
         continue;
       }
@@ -334,6 +366,8 @@ export function parseArticle(html, sourceUrl, publishedAt) {
           end,
           heading,
           twitchWatchUrl(chunk, watchLinks),
+          "exact",
+          twitchDisplayTitle(heading, chunk, body),
         );
       }
     }
