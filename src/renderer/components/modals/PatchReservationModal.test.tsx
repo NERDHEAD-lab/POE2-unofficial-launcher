@@ -498,6 +498,8 @@ describe("PatchReservationModal renewed controls", () => {
   });
 
   it("keeps the range end at or after a moved start", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 6, 23, 45));
     await renderModal();
     await act(async () => buttonByText(container, "시간 범위").click());
     await act(async () => buttonByText(container, "사용자 지정").click());
@@ -510,11 +512,19 @@ describe("PatchReservationModal renewed controls", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const endHour = findTimeSelectTrigger(container, "종료", "시");
-    const endMinute = findTimeSelectTrigger(container, "종료", "분");
-    expect(
-      Number(`${endHour?.textContent}${endMinute?.textContent}`),
-    ).toBeGreaterThan(1500);
+    const displayedInstant = (label: string) => {
+      const [year, month, day, hour, minute] = [
+        "연도",
+        "월",
+        "일",
+        "시",
+        "분",
+      ].map((part) =>
+        Number(findTimeSelectTrigger(container, label, part)?.textContent),
+      );
+      return new Date(year, month - 1, day, hour, minute).getTime();
+    };
+    expect(displayedInstant("종료")).toBeGreaterThan(displayedInstant("시작"));
   });
 
   it("keeps the default one-time start on the current minute and rejects past selections", async () => {

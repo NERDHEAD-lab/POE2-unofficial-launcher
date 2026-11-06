@@ -4,8 +4,12 @@ import {
   normalizeEventPreferences,
   parsePromotionFeed,
   promotionScheduleKey,
+  promotionNotificationAt,
+  promotionNotificationKey,
+  selectedReminderSeconds,
   type PromotionDismissRequest,
   type PromotionEvent,
+  type PromotionNotification,
   type PromotionFeed,
   type PromotionSnapshot,
 } from "../../shared/promotions";
@@ -16,6 +20,8 @@ export interface PromotionCache {
   /** Records expire at the campaign end, keyed by event schedule. */
   windows: Record<string, number>;
   hidden?: Record<string, number>;
+  /** One last delivered reminder dueAt per schedule, expiring at its end. */
+  reminders?: Record<string, { dueAt: number; end: number }>;
 }
 
 interface Dependencies {
@@ -23,7 +29,7 @@ interface Dependencies {
   save: (cache: PromotionCache) => void;
   fetchFeed: (signal: AbortSignal) => Promise<unknown>;
   preferences: () => unknown;
-  notify: (event: PromotionEvent) => Promise<boolean>;
+  notify: (event: PromotionNotification) => Promise<boolean>;
   prune: (activeIds: Set<string>) => void;
   changed: (snapshot: PromotionSnapshot) => void;
   warn: (message: string) => void;
@@ -60,6 +66,7 @@ export class PromotionController {
         feed: saved.feed ? parsePromotionFeed(saved.feed) : null,
         windows: saved.windows ?? {},
         hidden: saved.hidden ?? {},
+        reminders: saved.reminders ?? {},
       };
     } catch {
       this.deps.warn("이벤트 알림 캐시를 읽지 못했습니다.");
@@ -87,11 +94,25 @@ export class PromotionController {
   dismiss(request: PromotionDismissRequest): void {
     if (request.mode !== "session" && request.mode !== "schedule")
       throw new Error("Invalid dismissal mode");
-    const event = getPromotionEvents(this.cache.feed).find(
-      (item) =>
-        promotionScheduleKey(item) === request.key && isPromotionActive(item),
+    const schedule = getPromotionEvents(this.cache.feed).find(
+      (item) => promotionScheduleKey(item) === request.key,
     );
-    if (!this.running || !event) throw new Error("Unknown active schedule");
+    const prefs = normalizeEventPreferences(this.deps.preferences());
+    const event =
+      schedule &&
+      promotionNotificationAt(
+        schedule,
+        selectedReminderSeconds(prefs.reminders),
+      );
+    if (
+      !this.running ||
+      !event ||
+      (request.notificationId !== undefined &&
+        request.notificationId !== promotionNotificationKey(event)) ||
+      (request.notificationId === undefined &&
+        event.reminderSeconds !== undefined)
+    )
+      throw new Error("Unknown notification phase");
     if (request.mode === "schedule") {
       const next = {
         ...this.cache,
@@ -103,7 +124,10 @@ export class PromotionController {
       this.deps.save(next);
       this.cache = next;
     } else {
-      this.sessionHidden.set(request.key, Date.parse(event.endsAt));
+      this.sessionHidden.set(
+        promotionNotificationKey(event),
+        Date.parse(event.endsAt),
+      );
     }
     this.tick();
   }
@@ -134,11 +158,18 @@ export class PromotionController {
     );
     const kind = (event: PromotionEvent) =>
       event.kind === "twitch-drops" ? "twitch" : "stash";
-    const selected = activeEvents.filter((event) => prefs.types[kind(event)]);
+    const offsets = selectedReminderSeconds(prefs.reminders);
+    const selected = schedules
+      .filter((event) => prefs.types[kind(event)])
+      .map((event) => promotionNotificationAt(event, offsets))
+      .filter((event): event is PromotionNotification => event !== undefined);
     const events = prefs.channels.inApp
       ? selected.filter((event) => {
           const key = promotionScheduleKey(event);
-          return !this.sessionHidden.has(key) && !this.cache.hidden?.[key];
+          return (
+            !this.sessionHidden.has(promotionNotificationKey(event)) &&
+            !this.cache.hidden?.[key]
+          );
         })
       : [];
     if (
@@ -160,7 +191,7 @@ export class PromotionController {
       this.deps.changed(this.current);
     }
     const windows = prefs.channels.windows ? selected : [];
-    this.deps.prune(new Set(windows.map(promotionScheduleKey)));
+    this.deps.prune(new Set(windows.map(promotionNotificationKey)));
     if (!this.delivering) void this.deliver(windows);
     if (!this.request && Date.now() - this.lastFetch >= REFRESH_MS)
       void this.refresh();
@@ -186,6 +217,26 @@ export class PromotionController {
         this.cache = { ...this.cache, [field]: Object.fromEntries(retained) };
         this.cleanupPending = true;
       }
+    }
+    const reminders = Object.entries(this.cache.reminders ?? {});
+    const retainedReminders = reminders
+      .filter(
+        ([key, watermark]) =>
+          /^[a-z0-9:-]{1,160}$/.test(key) &&
+          watermark !== null &&
+          typeof watermark === "object" &&
+          Number.isSafeInteger(watermark.dueAt) &&
+          Number.isFinite(watermark.end) &&
+          watermark.end > now &&
+          watermark.dueAt < watermark.end,
+      )
+      .slice(-500);
+    if (retainedReminders.length !== reminders.length) {
+      this.cache = {
+        ...this.cache,
+        reminders: Object.fromEntries(retainedReminders),
+      };
+      this.cleanupPending = true;
     }
     if (!this.cleanupPending || now < this.cleanupRetryAt) return;
     try {
@@ -229,32 +280,59 @@ export class PromotionController {
     }
   }
 
-  private async deliver(events: PromotionEvent[]): Promise<void> {
+  private async deliver(events: PromotionNotification[]): Promise<void> {
     this.delivering = true;
     try {
       for (const queued of events) {
-        const event = getPromotionEvents(this.cache.feed).find(
+        const source = getPromotionEvents(this.cache.feed).find(
           (item) => item.id === queued.id,
         );
-        if (!event) continue;
-        const key = event.kind === "twitch-drops" ? "twitch" : "stash";
-        const schedule = promotionScheduleKey(event);
         const prefs = normalizeEventPreferences(this.deps.preferences());
+        const event =
+          source &&
+          promotionNotificationAt(
+            source,
+            selectedReminderSeconds(prefs.reminders),
+          );
+        if (
+          !event ||
+          promotionNotificationKey(event) !== promotionNotificationKey(queued)
+        )
+          continue;
+        const kind = event.kind === "twitch-drops" ? "twitch" : "stash";
+        const schedule = promotionScheduleKey(event);
+        const key = promotionNotificationKey(event);
+        const dueAt =
+          event.reminderSeconds === undefined
+            ? undefined
+            : Date.parse(event.startsAt) - event.reminderSeconds * 1000;
+        const previousReminder = this.cache.reminders?.[schedule];
         if (
           !this.running ||
-          !isPromotionActive(event) ||
-          !prefs.types[key] ||
+          !prefs.types[kind] ||
           !prefs.channels.windows ||
           this.cache.windows[schedule] ||
-          (this.retryAfter.get(schedule)?.retryAt ?? 0) > Date.now()
+          (dueAt !== undefined &&
+            previousReminder &&
+            previousReminder.dueAt >= dueAt) ||
+          (this.retryAfter.get(key)?.retryAt ?? 0) > Date.now()
         )
           continue;
         const next = {
           ...this.cache,
-          windows: {
-            ...this.cache.windows,
-            [schedule]: Date.parse(event.endsAt),
-          },
+          ...(dueAt === undefined
+            ? {
+                windows: {
+                  ...this.cache.windows,
+                  [schedule]: Date.parse(event.endsAt),
+                },
+              }
+            : {
+                reminders: {
+                  ...this.cache.reminders,
+                  [schedule]: { dueAt, end: Date.parse(event.endsAt) },
+                },
+              }),
         };
         try {
           // At-most-once on uncertain delivery: persist before invoking the native API.
@@ -262,18 +340,25 @@ export class PromotionController {
           this.cache = next;
           const delivered = await this.deps.notify(event);
           if (!delivered && this.running) {
-            const windows = { ...this.cache.windows };
-            delete windows[schedule];
-            const retry = { ...this.cache, windows };
+            const retry = { ...this.cache };
+            if (dueAt === undefined) {
+              retry.windows = { ...retry.windows };
+              delete retry.windows[schedule];
+            } else {
+              retry.reminders = { ...retry.reminders };
+              if (previousReminder)
+                retry.reminders[schedule] = previousReminder;
+              else delete retry.reminders[schedule];
+            }
             this.deps.save(retry);
             this.cache = retry;
-            this.retryAfter.set(schedule, {
+            this.retryAfter.set(key, {
               retryAt: Date.now() + REFRESH_MS,
               end: Date.parse(event.endsAt),
             });
           }
         } catch {
-          this.retryAfter.set(schedule, {
+          this.retryAfter.set(key, {
             retryAt: Date.now() + REFRESH_MS,
             end: Date.parse(event.endsAt),
           });

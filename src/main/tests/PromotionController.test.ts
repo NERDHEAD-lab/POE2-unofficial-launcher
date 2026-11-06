@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   normalizeEventPreferences,
   promotionScheduleKey,
-  type PromotionEvent,
+  promotionNotificationKey,
+  type PromotionNotification,
   type PromotionFeed,
   type PromotionSnapshot,
 } from "../../shared/promotions";
@@ -36,7 +37,7 @@ const feed: PromotionFeed = {
 function setup(initial: PromotionCache = { feed, windows: {} }) {
   let persisted = initial;
   const prefs = normalizeEventPreferences({ channels: { windows: true } });
-  const notify = vi.fn(async (_event: PromotionEvent) => true);
+  const notify = vi.fn(async (_event: PromotionNotification) => true);
   const snapshots: PromotionSnapshot[] = [];
   const fetchFeed = vi.fn(
     async (_signal: AbortSignal): Promise<unknown> => feed,
@@ -68,7 +69,291 @@ function setup(initial: PromotionCache = { feed, windows: {} }) {
 }
 
 describe("promotion delivery", () => {
-  it("propagates URL-only refreshes while retaining dismissal and delivery records", async () => {
+  it("coalesces the first late feed into one due phase while retaining later selected reminders", async () => {
+    const start = Date.parse(event.startsAt);
+    vi.setSystemTime(start - (6 * 3600 + 23 * 60) * 1000);
+    const s = setup({ feed: null, windows: {} });
+    s.prefs.reminders.presets = [1800, 3600, 86400];
+    s.prefs.reminders.custom = { enabled: true, value: 12, unit: "hour" };
+    s.fetchFeed.mockResolvedValue({
+      ...feed,
+      generatedAt: new Date(Date.now()).toISOString(),
+    });
+    s.controller.init();
+    expect(s.controller.snapshot().events).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.notify.mock.calls.map(([item]) => item.reminderSeconds)).toEqual([
+      43200,
+    ]);
+    expect(s.controller.snapshot().events).toEqual([
+      { ...event, reminderSeconds: 43200 },
+    ]);
+    const watermark = structuredClone(s.persisted().reminders);
+    s.fetchFeed.mockResolvedValue({
+      ...feed,
+      generatedAt: new Date(Date.now()).toISOString(),
+      events: [{ ...event, title: "ExileCon 트위치 드롭스" }],
+    });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().events[0].title).toBe(
+      "ExileCon 트위치 드롭스",
+    );
+    expect(s.persisted().reminders).toEqual(watermark);
+    expect(s.notify).toHaveBeenCalledTimes(1);
+    s.fetchFeed.mockResolvedValue({
+      ...feed,
+      generatedAt: new Date(Date.now()).toISOString(),
+      events: [
+        { ...event, title: "ExileCon 트위치 드롭스", gameUnknown: true },
+      ],
+    });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().events[0].gameUnknown).toBe(true);
+    expect(s.persisted().reminders).toEqual(watermark);
+    expect(s.notify).toHaveBeenCalledTimes(1);
+    const latest = {
+      ...event,
+      title: "최신 행사",
+      sourceUrl: "https://www.pathofexile.com/forum/view-thread/2",
+      sourcePublishedAt: "2026-09-01T00:00:00Z",
+      sourceGroupId: "ggg-2-twitch-0123456789",
+    };
+    s.fetchFeed.mockResolvedValue({
+      ...feed,
+      generatedAt: new Date(Date.now()).toISOString(),
+      events: [latest],
+    });
+    s.controller.wake();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.controller.snapshot().events[0]).toEqual({
+      ...latest,
+      reminderSeconds: 43200,
+    });
+    expect(s.persisted().reminders).toEqual(watermark);
+    expect(s.notify).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(start - 3600_000);
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.setSystemTime(start - 1800_000);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.notify.mock.calls.map(([item]) => item.reminderSeconds)).toEqual([
+      43200, 3600, 1800,
+    ]);
+    s.controller.stop();
+  });
+  it("selects only the latest reached reminder, persists it separately and never replays earlier phases", async () => {
+    const start = Date.parse(event.startsAt);
+    vi.setSystemTime(start - 86400_000 - 1000);
+    const s = setup();
+    s.fetchFeed.mockRejectedValue(new Error("offline"));
+    s.prefs.reminders.presets = [1800, 3600, 86400];
+    s.controller.init();
+    expect(s.controller.snapshot().events).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.notify.mock.calls[0][0].reminderSeconds).toBe(86400);
+    expect(s.controller.snapshot().upcomingEvents).toEqual([event]);
+    expect(s.persisted().windows).toEqual({});
+    const key = promotionScheduleKey(event);
+    expect(s.persisted().reminders?.[key]).toEqual({
+      dueAt: start - 86400_000,
+      end: Date.parse(event.endsAt),
+    });
+    vi.setSystemTime(start - 20 * 60_000);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.notify.mock.calls.map(([item]) => item.reminderSeconds)).toEqual([
+      86400, 1800,
+    ]);
+    expect(s.controller.snapshot().events).toEqual([
+      { ...event, reminderSeconds: 1800 },
+    ]);
+    s.controller.stop();
+    const restarted = setup(s.persisted());
+    restarted.fetchFeed.mockRejectedValue(new Error("offline"));
+    restarted.prefs.reminders.presets = [1800, 3600, 86400];
+    restarted.controller.init();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(restarted.notify).not.toHaveBeenCalled();
+    restarted.prefs.reminders.presets = [3600, 86400];
+    restarted.controller.settingsChanged();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(restarted.notify).not.toHaveBeenCalled();
+    restarted.prefs.reminders.custom = {
+      enabled: true,
+      value: 5,
+      unit: "minute",
+    };
+    vi.setSystemTime(start - 5 * 60_000);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(restarted.notify.mock.calls[0][0].reminderSeconds).toBe(300);
+    vi.setSystemTime(start);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(restarted.notify.mock.calls[1][0]).toEqual(event);
+    expect(restarted.persisted().windows[key]).toBe(Date.parse(event.endsAt));
+    restarted.controller.stop();
+  });
+
+  it.each(["session", "schedule"] as const)(
+    "applies %s dismissal to the intended reminder scope and rejects stale phases",
+    async (mode) => {
+      const start = Date.parse(event.startsAt);
+      vi.setSystemTime(start - 3600_000);
+      const s = setup();
+      s.fetchFeed.mockRejectedValue(new Error("offline"));
+      s.prefs.reminders.presets = [1800, 3600];
+      s.controller.init();
+      await vi.advanceTimersByTimeAsync(1);
+      const first = s.controller.snapshot().events[0];
+      const key = promotionScheduleKey(event);
+      s.controller.dismiss({
+        key,
+        notificationId: promotionNotificationKey(first),
+        mode,
+      });
+      expect(s.controller.snapshot().events).toEqual([]);
+      vi.setSystemTime(start - 1800_000);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(s.controller.snapshot().events).toEqual(
+        mode === "session" ? [{ ...event, reminderSeconds: 1800 }] : [],
+      );
+      expect(() =>
+        s.controller.dismiss({
+          key,
+          notificationId: promotionNotificationKey(first),
+          mode: "session",
+        }),
+      ).toThrow();
+      if (mode === "session")
+        s.controller.dismiss({
+          key,
+          mode,
+          notificationId: promotionNotificationKey({
+            ...event,
+            reminderSeconds: 1800,
+          }),
+        });
+      vi.setSystemTime(start);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(s.controller.snapshot().events).toEqual(
+        mode === "session" ? [event] : [],
+      );
+      expect(s.controller.snapshot().activeEvents).toEqual([event]);
+      expect(s.notify.mock.calls.map(([item]) => item.reminderSeconds)).toEqual(
+        [3600, 1800, undefined],
+      );
+      s.controller.stop();
+    },
+  );
+
+  it.each(["save", "known-native", "uncertain-native"])(
+    "preserves reminder delivery guarantees on %s failure",
+    async (failure) => {
+      vi.setSystemTime(Date.parse(event.startsAt) - 86400_000);
+      const s = setup();
+      s.fetchFeed.mockRejectedValue(new Error("offline"));
+      s.prefs.reminders.presets = [86400];
+      if (failure === "save")
+        s.save.mockImplementationOnce(() => {
+          throw new Error("disk full");
+        });
+      if (failure === "known-native") s.notify.mockResolvedValueOnce(false);
+      if (failure === "uncertain-native")
+        s.notify.mockRejectedValueOnce(new Error("unknown delivery"));
+      s.controller.init();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(s.notify).toHaveBeenCalledTimes(failure === "save" ? 0 : 1);
+      await vi.advanceTimersByTimeAsync(3600_000);
+      expect(s.notify).toHaveBeenCalledTimes(
+        failure === "known-native" ? 2 : 1,
+      );
+      expect(s.persisted().windows).toEqual({});
+      expect(s.persisted().reminders?.[promotionScheduleKey(event)]).toEqual({
+        dueAt: Date.parse(event.startsAt) - 86400_000,
+        end: Date.parse(event.endsAt),
+      });
+      if (failure === "save")
+        expect(s.save.mock.invocationCallOrder[1]).toBeLessThan(
+          s.notify.mock.invocationCallOrder[0],
+        );
+      s.controller.stop();
+    },
+  );
+
+  it.each(["withdrawn", "started", "windows-off", "next-reminder"])(
+    "drops a %s queued reminder while another native delivery is pending",
+    async (change) => {
+      vi.setSystemTime(Date.parse(event.startsAt) - 3600_000);
+      const second = { ...event, id: "other-game", game: "poe2" as const };
+      const currentFeed = {
+        ...feed,
+        generatedAt: new Date(Date.now()).toISOString(),
+        events: [event, second],
+      };
+      const s = setup({ feed: currentFeed, windows: {} });
+      s.prefs.reminders.presets = [1800, 3600];
+      let finish!: (value: boolean) => void;
+      s.notify.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      if (change === "withdrawn")
+        s.fetchFeed.mockResolvedValue({ ...currentFeed, events: [event] });
+      else s.fetchFeed.mockRejectedValue(new Error("offline"));
+      s.controller.init();
+      await vi.advanceTimersByTimeAsync(1);
+      if (change === "started") vi.setSystemTime(event.startsAt);
+      if (change === "next-reminder")
+        vi.setSystemTime(Date.parse(event.startsAt) - 1800_000);
+      if (change === "windows-off") {
+        s.prefs.channels.windows = false;
+        s.controller.settingsChanged();
+      }
+      finish(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(s.notify).toHaveBeenCalledTimes(1);
+      expect(
+        s.persisted().reminders?.[promotionScheduleKey(second)],
+      ).toBeUndefined();
+      if (change === "next-reminder") {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(
+          s.notify.mock.calls.map(([item]) => item.reminderSeconds),
+        ).toEqual([3600, 1800, 1800]);
+        expect(
+          s.controller.snapshot().events.map((item) => item.reminderSeconds),
+        ).toEqual([1800, 1800]);
+      }
+      s.controller.stop();
+    },
+  );
+
+  it("expires reminder watermarks and ignores malformed entries under the cache boundary", async () => {
+    const s = setup({
+      feed,
+      windows: {},
+      reminders: {
+        expired: { dueAt: Date.now() - 1000, end: Date.now() - 1 },
+        malformed: { dueAt: NaN, end: Date.now() + 1000 },
+        [promotionScheduleKey(event)]: {
+          dueAt: Date.parse(event.startsAt) - 1800_000,
+          end: Date.parse(event.endsAt),
+        },
+      },
+    });
+    s.fetchFeed.mockRejectedValue(new Error("offline"));
+    s.controller.init();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(Object.keys(s.persisted().reminders!)).toEqual([
+      promotionScheduleKey(event),
+    ]);
+    vi.setSystemTime(event.endsAt);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.persisted().reminders).toEqual({});
+    s.controller.stop();
+  });
+  it("propagates URL and title-only refreshes while retaining dismissal and delivery records", async () => {
     const s = setup();
     s.prefs.channels.windows = false;
     s.controller.init();
@@ -90,7 +375,7 @@ describe("promotion delivery", () => {
     s.controller.settingsChanged();
     await vi.advanceTimersByTimeAsync(1);
     expect(s.notify).toHaveBeenCalledExactlyOnceWith(first);
-    const updated = { ...first, watchUrl: "https://www.twitch.tv/pathofexile" };
+    const updated = { ...first, gameUnknown: true };
     s.fetchFeed.mockResolvedValue({ ...feed, events: [updated] });
     s.controller.wake();
     await vi.advanceTimersByTimeAsync(1);

@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   normalizeEventPreferences,
+  EVENT_REMINDER_PRESETS,
+  toReminderSeconds,
   type EventNotificationPreferences,
+  type ReminderUnit,
 } from "../../../shared/promotions";
 import PromotionIcon from "../PromotionIcon";
 
@@ -52,6 +55,9 @@ export default function EventNotificationModal({
     normalizeEventPreferences(preferences),
   );
   const [saving, setSaving] = useState(false);
+  const [customValue, setCustomValue] = useState(() =>
+    String(selection.reminders.custom.value),
+  );
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
@@ -67,11 +73,23 @@ export default function EventNotificationModal({
   };
   const save = async () => {
     if (savingRef.current) return;
+    if (
+      selection.reminders.custom.enabled &&
+      toReminderSeconds(
+        selection.reminders.custom.value,
+        selection.reminders.custom.unit,
+      ) === null
+    ) {
+      setSaveError(
+        "미리 알림 시간은 0보다 크고, 초 단위로 환산했을 때 정수여야 합니다.",
+      );
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
     setSaveError("");
     try {
-      await onSave(selection);
+      await onSave(normalizeEventPreferences(selection));
       onClose();
     } catch {
       setSaveError("설정을 저장하지 못했습니다. 다시 시도해 주세요.");
@@ -90,7 +108,7 @@ export default function EventNotificationModal({
     }
     if (event.key !== "Tab") return;
     const controls = dialogRef.current?.querySelectorAll<HTMLElement>(
-      "button:not(:disabled), input:not(:disabled)",
+      "button:not(:disabled), input:not(:disabled), select:not(:disabled)",
     );
     if (!controls?.length) return;
     const first = controls[0];
@@ -186,6 +204,104 @@ export default function EventNotificationModal({
               </div>
             </fieldset>
           ))}
+          <fieldset className="event-notification-group" disabled={saving}>
+            <legend>미리 알림</legend>
+            <p className="event-notification-hint">
+              시작 전에 받을 시점을 여러 개 선택할 수 있습니다. 앱이 실행 중일
+              때 선택한 알림 방식으로 전달됩니다.
+            </p>
+            <div className="event-notification-options">
+              {EVENT_REMINDER_PRESETS.map(({ seconds, label }) => (
+                <label key={seconds} className="event-notification-option">
+                  <input
+                    type="checkbox"
+                    checked={selection.reminders.presets.includes(seconds)}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setSaveError("");
+                      setSelection((previous) => ({
+                        ...previous,
+                        reminders: {
+                          ...previous.reminders,
+                          presets: checked
+                            ? [...previous.reminders.presets, seconds]
+                            : previous.reminders.presets.filter(
+                                (value) => value !== seconds,
+                              ),
+                        },
+                      }));
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+              <label className="event-notification-option">
+                <input
+                  type="checkbox"
+                  checked={selection.reminders.custom.enabled}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setSaveError("");
+                    setSelection((previous) => ({
+                      ...previous,
+                      reminders: {
+                        ...previous.reminders,
+                        custom: { ...previous.reminders.custom, enabled },
+                      },
+                    }));
+                  }}
+                />
+                <span>직접 입력</span>
+              </label>
+            </div>
+            <div className="event-reminder-custom">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                aria-label="직접 입력 시간"
+                disabled={!selection.reminders.custom.enabled}
+                value={customValue}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setCustomValue(value);
+                  setSaveError("");
+                  setSelection((previous) => ({
+                    ...previous,
+                    reminders: {
+                      ...previous.reminders,
+                      custom: {
+                        ...previous.reminders.custom,
+                        value: Number(value),
+                      },
+                    },
+                  }));
+                }}
+              />
+              <select
+                aria-label="직접 입력 단위"
+                disabled={!selection.reminders.custom.enabled}
+                value={selection.reminders.custom.unit}
+                onChange={(event) => {
+                  const unit = event.target.value as ReminderUnit;
+                  setSaveError("");
+                  setSelection((previous) => ({
+                    ...previous,
+                    reminders: {
+                      ...previous.reminders,
+                      custom: { ...previous.reminders.custom, unit },
+                    },
+                  }));
+                }}
+              >
+                <option value="day">일</option>
+                <option value="hour">시간</option>
+                <option value="minute">분</option>
+                <option value="second">초</option>
+              </select>
+              <span>전</span>
+            </div>
+          </fieldset>
           {saveError && (
             <p className="event-notification-error" role="alert">
               {saveError}

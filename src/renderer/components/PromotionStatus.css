@@ -50,6 +50,11 @@
   box-shadow: 0 0 7px
     color-mix(in srgb, var(--theme-accent, #dfcf99) 15%, transparent);
 }
+.promotion-buff.upcoming {
+  color: #e9c34a;
+  background: #e9c34a70;
+  box-shadow: 0 0 6px #e9c34a25;
+}
 .promotion-buff.active::before {
   content: "";
   position: absolute;

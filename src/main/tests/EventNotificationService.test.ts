@@ -154,7 +154,9 @@ describe.skipIf(process.platform !== "win32")(
       expect(mocks.remove).toHaveBeenCalledWith("resume", expect.any(Function));
     });
 
-    const setupDelivery = () => {
+    const setupDelivery = (
+      preferences: unknown = { channels: { inApp: true, windows: true } },
+    ) => {
       vi.useFakeTimers();
       vi.setSystemTime("2026-09-04T00:00:00Z");
       mocks.cache = {
@@ -176,9 +178,67 @@ describe.skipIf(process.platform !== "win32")(
         },
       };
       return new EventNotificationService({
-        getConfig: () => ({ channels: { inApp: true, windows: true } }),
+        getConfig: () => preferences,
       } as unknown as AppContext);
     };
+
+    it("closes the previous reminder at the next phase, start and Windows opt-out", async () => {
+      const preferences = {
+        channels: { inApp: false, windows: true },
+        reminders: {
+          presets: [1800],
+          custom: { enabled: true, value: 2, unit: "minute" },
+        },
+      };
+      const service = setupDelivery(preferences);
+      mocks.cache.feed!.events[0].startsAt = new Date(
+        Date.now() + 180_000,
+      ).toISOString();
+      service.init();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mocks.instances).toHaveLength(1);
+      expect(service.snapshot().events).toEqual([]);
+      expect(mocks.cache.windows).toEqual({});
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mocks.instances[0].close).toHaveBeenCalledOnce();
+      expect(mocks.instances).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(mocks.instances[1].close).toHaveBeenCalledOnce();
+      expect(mocks.instances).toHaveLength(3);
+      preferences.channels.windows = false;
+      service.settingsChanged();
+      expect(mocks.instances[2].close).toHaveBeenCalledOnce();
+      service.stop();
+    });
+
+    it.each(["withdrawn", "next-reminder"])(
+      "closes a pending reminder when %s changes its phase",
+      async (change) => {
+        const service = setupDelivery({
+          channels: { windows: true },
+          reminders: {
+            presets: [1800],
+            custom: { enabled: true, value: 2, unit: "minute" },
+          },
+        });
+        mocks.cache.feed!.events[0].startsAt = new Date(
+          Date.now() + 180_000,
+        ).toISOString();
+        mocks.delivery = "pending";
+        service.init();
+        await vi.advanceTimersByTimeAsync(1);
+        const toast = mocks.instances[0];
+        if (change === "withdrawn") mocks.cache.feed!.events = [];
+        else vi.setSystemTime(Date.now() + 60_000);
+        service.settingsChanged();
+        expect(toast.close).toHaveBeenCalledOnce();
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(mocks.instances).toHaveLength(change === "withdrawn" ? 1 : 2);
+        if (change === "next-reminder")
+          expect(service.snapshot().events[0].reminderSeconds).toBe(120);
+        service.stop();
+      },
+    );
 
     it("does not construct a toast when Windows reports notifications unsupported", async () => {
       const service = setupDelivery();

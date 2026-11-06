@@ -1,5 +1,17 @@
 # 드롭스 게임 판정 규칙과 알 수 없음 표시
 
+## 앱 통합·릴리스 준비 인계
+
+사용자가 실제 normal dev를 살펴본 뒤 앱 기능의 commit/PR/CI/master 반영과 release-please PR 본문 검토 직전까지 진행하도록 명시 승인했다. 최종 release PR merge·태그·바이너리 배포는 별도 사용자 결정이며 이 작업에서는 실행하지 않는다.
+
+현재 기능은 복수 미리 알림, 늦은 일정의 최신 도달 시점 한 번 안내, 실제 남은 시간, 행사명/선택 게임/기간/시작·종료 countdown 및 24시간 이내 노란 드롭스의 시청 링크를 포함한다. 기존 설정의 미리 알림·Windows 기본 OFF와 기존 일정/읽음/숨김/전달 이력을 보존한다.
+
+fresh master 기반 분리 checkout에서 원본 src24파일과 byte 동등하게 통합했고 전체 앱826/Node73/0skip/lint/build를 통과했다. 원본 실행 중 dev와 해당 문서·설정·profile은 수정하지 않았다. 원본의 계획·검증 이력은 그대로 보존하고 이 통합 checkout의 작업 문서만 archive한다.
+
+사용자 다음 단계 진행 승인은 확보됐지만 실제 노란 링크 클릭/외부 브라우저 열기, 최신 화면 픽셀·Native 전달 검증을 새 PASS로 주장하지 않는다. 기존 단계의 Native/화면 기록과 마지막 DOM href·계산 색 관찰은 각자의 입력/범위로만 사용한다. 외부 wiki 경로 부재로 raw/ingest는 NOT_RUN이며 로컬 원본/인계 근거는 보존한다.
+
+아래 내용은 단계별 역사적 계획·검증·권한 기록이다. 그 시점의 PENDING/미실행 표기는 현재의 앱 통합 승인과 최종 릴리스 결정 경계를 대신하지 않는다.
+
 > 작성일: 2026-11-07 · 상태: 진행 · 브랜치: 앱 feat/event-reminders / 수집기 feat/promotion-game-rules
 
 사용자가 감지 조건을 명확히 한 뒤 기존 PoE1/PoE2 필터를 rules로 통합하고 선언 순서 priority를 적용하는 방안을 채택했다. root가 개발 hold를 종료했고 Astra 최종 DESIGN v3를 확정해 제품 write를 해제했다. 아래 확정 계약으로 M1~M5를 진행하며 추가 형식 승인 질문 없이 로컬 구현/검증/분리 리뷰와 수집기 전달/공개 갱신까지 수행한다.
@@ -63,3 +75,11 @@
 - 동일 Astra/xhigh reviewer는 predicate가 삽입·최종 winner 선택에 동일하게 적용되고 다른 일정/manual/disabled/ID 보존 정책은 유지된다고 확인했다. 수정 회귀 REWRITE는 KEEP, P2 해소/추가 지적0으로 **통과**했다. runtime identity는 미노출이며 리뷰어 파일·테스트·GUI·remote 조작0이다.
 - 실제 공식 원문 재수집의 로컬 JSON도 구 TS에서 새 표시 metadata를 무시하며 같은 기존 필드를 유지하고 현재 앱 TS에서 title/sourcePublishedAt/sourceGroupId를 보존함을 확인했다. 합성 unknown feed는 로컬 회귀에만 사용하며 공개 게시하지 않는다.
 - 수집기만 producer branch에서 정상 hooks commit/PR/실제 CI 후 merge/기존 workflow/Pages/canonical 응답 검증으로 전달한다. 앱 src는 별도 로컬 unique diff로 남고 root finalQA 및 실행 준비 인계는 공개 소비 proof 뒤 마무리한다. 전체 dev/화면/Native는 아직 NOT_RUN/PENDING이다.
+
+### 수집기 전달·실제 공개 검증 완료
+
+- producer commit `0aa19ded7c79fcf4827fc07e0a61bcdeba20b5f9`의 [PR332](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/pull/332)은 실제 [수집기 CI](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/actions/runs/42275156801)와 [Windows lint/build CI](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/actions/runs/42275156746) SUCCESS 뒤 exact-head squash로 master `a955a92a86ae103454f63fbc8efd56e599fee701`에 통합됐다. producer8파일+이 작업 문서만 전달했고 앱 src는 포함하지 않았다.
+- [자동 수집42275524871](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/actions/runs/42275524871)은 test/공식 수집/JSON 게시/Pages build/실제 HTTP 전체 feed 일치 모두 SUCCESS다. workflow/settings/timeout 변경이나 수동 dispatch 없이 기존 flow로 완료했다. 이전 실패42266653983의 큐·배포 실패와 오래된 응답 근거는 보존한다.
+- gh-pages `9d837bf1c3dcb5854a3e53badf580cf29931aaf6`은 `promotions.json`만 변경했고 Pages API도 같은 commit `built`를 확인했다. query/cache override 없는 [canonical 공개 URL](https://nerdhead-lab.github.io/POE2-unofficial-launcher/promotions.json)을 직접 HTTP200으로 읽었다. body2876bytes/SHA256 `7f9af01f429cf51bb7d3c89d4ecda701578fd0366dda13efb563f5dac7eb5468`은 그 commit의 정확한 blob과 byte 단위로 같다. generatedAt은 `2026-11-06T18:59:29.743Z`다.
+- 같은 공개 JSON을 실제 구 TS/current 앱 TS로 소비했다. 구 소비자는 새 metadata를 무시하며 기존 필드를 유지하고, 현재 TS SHA `e9e639c67bb94514a8c215337252740a4b4540bec7e3392121de4b60ffb36689`는 양 게임의 `ExileCon 트위치 드롭스`, 기존 ID/watchUrl, 실제 sourcePublishedAt과 sourceGroupId를 모두 보존한다. 실제 공개된 현재 사례는 known ExileCon이며 unknown/겹치는 rules/교차 공지 승자 회귀는 로컬 제어 검사로 구분한다.
+- 정확 proof/상태/owner 인계는 ignored `.tmp/event-reminders-20261106/game-rules-v3/final-handoff.md`와 양 checkout owner MD에 보존한다. 외부 wiki raw 경로가 없어 raw 작성·ingest는 NOT_RUN이다. 사용자 실제 dev/화면/Native와 root 최종 acceptance는 별도 pending이므로 이 문서는 docs/work에 유지하고 archive하지 않는다. 앱 commit/push/merge·release PR329 merge·바이너리 배포·GUI 실행0, 일반 npm dev 실행 직전 준비만 완료한다.

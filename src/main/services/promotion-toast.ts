@@ -2,7 +2,8 @@ import {
   formatPromotionPeriod,
   promotionActions,
   promotionTitle,
-  type PromotionEvent,
+  formatPromotionCountdown,
+  type PromotionNotification,
 } from "../../shared/promotions";
 
 const xml = (text: string) =>
@@ -18,7 +19,7 @@ const xml = (text: string) =>
       })[char]!,
   );
 
-export function buildPromotionToast(event: PromotionEvent): string {
+export function buildPromotionToast(event: PromotionNotification): string {
   const links = promotionActions(event);
   const launchUrl =
     event.kind === "twitch-drops" || event.targets
@@ -30,5 +31,9 @@ export function buildPromotionToast(event: PromotionEvent): string {
         `<action content="${xml(label)}" arguments="${xml(url)}" activationType="protocol"/>`,
     )
     .join("");
-  return `<toast activationType="protocol" launch="${xml(launchUrl)}"><visual><binding template="ToastGeneric"><text>${xml(`${promotionTitle(event)} 진행 중 (${formatPromotionPeriod(event)})`)}</text></binding></visual><actions>${actions}</actions></toast>`;
+  const status =
+    event.reminderSeconds === undefined
+      ? `진행 중 (${formatPromotionPeriod(event)})`
+      : `시작 예정 (${new Date(event.startsAt).toLocaleString()} 시작) · ${formatPromotionCountdown(event.startsAt)}`;
+  return `<toast activationType="protocol" launch="${xml(launchUrl)}"><visual><binding template="ToastGeneric"><text>${xml(`${promotionTitle(event)} ${status}`)}</text></binding></visual><actions>${actions}</actions></toast>`;
 }

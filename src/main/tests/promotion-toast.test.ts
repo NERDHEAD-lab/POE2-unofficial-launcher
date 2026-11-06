@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildPromotionToast } from "../services/promotion-toast";
 
@@ -14,6 +14,38 @@ const event: PromotionEvent = {
   precision: "exact",
 };
 describe("Windows promotion XML", () => {
+  it("describes an upcoming start using actual remaining time and preserves its Twitch destination", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse(event.startsAt) - (6 * 3600 + 23 * 60) * 1000);
+    try {
+      const upcoming = {
+        ...event,
+        kind: "twitch-drops" as const,
+        game: "poe2" as const,
+        reminderSeconds: 86400,
+        title: 'ExileCon & "Mirror" <Drops>',
+        watchUrl: "https://www.twitch.tv/pathofexile",
+      };
+      const document = new DOMParser().parseFromString(
+        buildPromotionToast(upcoming),
+        "text/xml",
+      );
+      const text = document.querySelector("text")?.textContent;
+      expect(text).toContain("시작 예정");
+      expect(text).toContain('ExileCon & "Mirror" <Drops>');
+      expect(text).toContain(new Date(event.startsAt).toLocaleString());
+      expect(text).toContain("6시간 23분 0초 뒤부터 시작합니다");
+      expect(text).not.toContain("진행 중");
+      expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
+        upcoming.watchUrl,
+      );
+      expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
+        upcoming.watchUrl,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("restricts API-confirmed shop buttons to observed targets and opens the shop from the body", () => {
     const document = new DOMParser().parseFromString(
       buildPromotionToast({

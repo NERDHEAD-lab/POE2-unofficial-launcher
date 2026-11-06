@@ -4,7 +4,8 @@ import {
   formatPromotionPeriod,
   promotionTitle,
   promotionMatchesTarget,
-  type PromotionEvent,
+  formatPromotionCountdown,
+  type PromotionNotification,
 } from "../../shared/promotions";
 
 import "./PromotionRow.css";
@@ -15,7 +16,7 @@ export function PromotionRow({
   onRead,
   onDismiss,
 }: {
-  event: PromotionEvent;
+  event: PromotionNotification;
   isRead: boolean;
   onRead: () => void;
   onDismiss: () => void;
@@ -28,11 +29,21 @@ export function PromotionRow({
       </span>
       <span>
         <strong>
-          {promotionTitle(event)} 진행 중{" "}
+          {promotionTitle(event)}{" "}
+          {event.reminderSeconds === undefined ? "진행 중" : "시작 예정"}{" "}
           <span className="promotion-period" title={exactPeriod}>
-            ({formatPromotionPeriod(event)})
+            (
+            {event.reminderSeconds === undefined
+              ? formatPromotionPeriod(event)
+              : `${new Date(event.startsAt).toLocaleString()} 시작`}
+            )
           </span>
         </strong>
+        {event.reminderSeconds !== undefined && (
+          <span className="promotion-countdown">
+            {formatPromotionCountdown(event.startsAt)}
+          </span>
+        )}
         {event.kind === "stash-sale" && (
           <span className="promotion-shop-links">
             {STASH_LINKS.filter((service) =>
