@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T18:00:31.014Z",
+  "generatedAt": "2026-11-06T18:59:29.743Z",
   "events": [
     {
       "id": "ggg-4012689-twitch-591814b46c-poe1",
@@ -9,6 +9,8 @@
       "startsAt": "2026-11-06T20:30:00.000Z",
       "endsAt": "2026-11-08T06:59:00.000Z",
       "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4012689",
+      "sourceGroupId": "ggg-4012689-twitch-591814b46c",
+      "sourcePublishedAt": "2026-11-05T19:52:47.000Z",
       "title": "ExileCon 트위치 드롭스",
       "watchUrl": "https://www.twitch.tv/directory/category/exilecon",
       "precision": "exact"
@@ -20,6 +22,8 @@
       "startsAt": "2026-11-06T20:30:00.000Z",
       "endsAt": "2026-11-08T06:59:00.000Z",
       "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4012689",
+      "sourceGroupId": "ggg-4012689-twitch-591814b46c",
+      "sourcePublishedAt": "2026-11-05T19:52:47.000Z",
       "title": "ExileCon 트위치 드롭스",
       "watchUrl": "https://www.twitch.tv/directory/category/exilecon",
       "precision": "exact"
@@ -32,7 +36,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-06T18:00:21.817Z",
+        "checkedAt": "2026-11-06T18:59:26.035Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -40,7 +44,7 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-06T18:00:22.535Z",
+        "checkedAt": "2026-11-06T18:59:26.917Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -48,7 +52,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-06T18:00:24.682Z",
+        "checkedAt": "2026-11-06T18:59:28.423Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -56,7 +60,7 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-06T18:00:31.012Z",
+        "checkedAt": "2026-11-06T18:59:29.741Z",
         "status": "ok",
         "confirmedPeriod": null
       }
