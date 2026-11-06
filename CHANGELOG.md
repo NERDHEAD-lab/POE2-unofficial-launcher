@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.5...1.8.0) (2026-11-06)
+
+
+### Features
+
+* ExileCon 드롭스 일정과 시청 주소 제공 ([c0fe5af](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/c0fe5af547b2db5000c28a58b74e35c88299cb6e))
+* 드롭스 게임 판정 규칙과 최신 공지 정보 제공 ([a955a92](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/a955a92a86ae103454f63fbc8efd56e599fee701))
+* 이벤트 미리 알림과 드롭스 행사 안내 개선 ([adc61df](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/adc61dfb5acf7318e8726e633532e4076098904c))
+* 트위치 드롭스 알림에서 행사별 시청 페이지 열기 ([95bb5fe](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/95bb5fe70d129e0a48d1855800448df3b96e5d5e))
+
+
+### Bug Fixes
+
+* 이벤트 피드에서 드롭스 행사명 제공 ([f4552b0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/f4552b06902f59581175249d8bbbae32d2bbbb1f))
+
 ## [1.7.5](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.4...1.7.5) (2026-11-05)
 
 
