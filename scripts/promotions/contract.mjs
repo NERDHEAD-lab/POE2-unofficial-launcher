@@ -3,6 +3,29 @@
 export const scheduleKey = (event) =>
   `${event.kind}:${event.game}:${Date.parse(event.startsAt)}:${Date.parse(event.endsAt)}`;
 
+export function isTwitchWatchUrl(value) {
+  if (
+    typeof value !== "string" ||
+    !/^https:\/\/[^/?#@]+(?:[/?#]|$)/i.test(value) ||
+    /[\s\u0000-\u001f\u007f-\u009f\\]/.test(value)
+  )
+    return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*twitch\.tv$/.test(
+        url.hostname,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value
@@ -42,6 +65,8 @@ export function parsePromotionFeed(value) {
       !["twitch-drops", "stash-sale"].includes(item.kind) ||
       !["poe1", "poe2", "both"].includes(item.game) ||
       (item.kind === "twitch-drops" && item.game === "both") ||
+      (item.watchUrl !== undefined &&
+        (item.kind !== "twitch-drops" || !isTwitchWatchUrl(item.watchUrl))) ||
       !["exact", "derived-start", "manual"].includes(item.precision) ||
       !isUtcInstant(item.startsAt) ||
       !isUtcInstant(item.endsAt) ||
@@ -61,6 +86,7 @@ export function parsePromotionFeed(value) {
       startsAt: item.startsAt,
       endsAt: item.endsAt,
       sourceUrl: item.sourceUrl,
+      ...(item.watchUrl === undefined ? {} : { watchUrl: item.watchUrl }),
       precision: item.precision,
     };
   });

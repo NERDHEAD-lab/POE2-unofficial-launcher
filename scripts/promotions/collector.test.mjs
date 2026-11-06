@@ -1,11 +1,213 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { parseArticle, parseRss, mergePromotions } from "./collector.mjs";
 
 // Minimal structural fixtures from the GGG staff posts named below; times are facts.
 const article = (content, published = "Jul 24, 2026, 6:25:44 AM") =>
   `<table><tr class="newsPost"><td><div class="content">${content}</div></td></tr><tr class="newsPostInfo"><td><span class="staff"></span><span class="post_date">${published}</span></td></tr></table><script>window.momentTimezone = 'Asia/Seoul';</script>`;
 const source = (id) => `https://www.pathofexile.com/forum/view-thread/${id}`;
+const exilecon = readFileSync(
+  new URL("./fixtures/exilecon-4012689.html", import.meta.url),
+  "utf8",
+);
+
+test("4012689 publishes its shared viewing directory for both games using the explicit GMT+9 dates", () => {
+  const events = parseArticle(exilecon, source(4012689));
+  assert.deepEqual(
+    events.map(({ game, startsAt, endsAt }) => ({ game, startsAt, endsAt })),
+    ["poe1", "poe2"].map((game) => ({
+      game,
+      startsAt: "2026-11-06T20:30:00.000Z",
+      endsAt: "2026-11-08T06:59:00.000Z",
+    })),
+  );
+  assert.notEqual(events[0].id, events[1].id);
+  assert.ok(
+    events.every(
+      (event) =>
+        event.watchUrl === "https://www.twitch.tv/directory/category/exilecon",
+    ),
+  );
+  assert.deepEqual(
+    parseArticle(
+      exilecon.replace("Nov 08, 2026 3:59 PM", "Nov 08, 2026 4:59 PM"),
+      source(4012689),
+    ).map((event) => event.id),
+    events.map((event) => event.id),
+  );
+});
+
+test("viewing links prefer the event directory over channels and exclude FAQ, account and creator links", () => {
+  const withLinks = exilecon
+    .replace(
+      "http://www.twitch.tv/pathofexile",
+      "https://www.twitch.tv/pathofexile",
+    )
+    .replace(
+      "during this time:",
+      `during this time:
+      <a href="https://dashboard.twitch.tv/drops">Creator Dashboard</a>
+      <a href="https://www.twitch.tv/drops/inventory">Twitch Inventory</a>
+      <a href="https://www.twitch.tv/settings">Twitch settings</a>
+      <div class="forum-faq"><a href="https://www.twitch.tv/directory/category/unrelated">Another directory</a></div>`,
+    );
+  assert.equal(
+    parseArticle(withLinks, source(4012689))[0].watchUrl,
+    "https://www.twitch.tv/directory/category/exilecon",
+  );
+  const withoutDirectory = withLinks.replace(
+    "https://www.twitch.tv/directory/category/exilecon",
+    "",
+  );
+  assert.equal(
+    parseArticle(withoutDirectory, source(4012689))[0].watchUrl,
+    "https://www.twitch.tv/pathofexile",
+  );
+  assert.equal(
+    parseArticle(
+      withoutDirectory.replace(
+        "https://www.twitch.tv/pathofexile",
+        "http://www.twitch.tv/pathofexile",
+      ),
+      source(4012689),
+    )[0].watchUrl,
+    undefined,
+  );
+  assert.throws(
+    () =>
+      parseArticle(
+        withLinks.replace(
+          "during this time:",
+          'during this time: <a href="https://www.twitch.tv/directory/category/other-event">Another directory</a>',
+        ),
+        source(4012689),
+      ),
+    /Ambiguous Twitch viewing URL/,
+  );
+});
+
+test("localized date labels use the source IANA zone while explicit GMT offsets keep precedence", () => {
+  // Regional variants exercise the IANA fallback; only the GMT+9 fixture is a saved source.
+  for (const [zone, start, end] of [
+    [
+      "America/Chicago",
+      "Nov 06, 2026 2:30 PM (CST)",
+      "Nov 08, 2026 12:59 AM (CST)",
+    ],
+    [
+      "Asia/Shanghai",
+      "Nov 07, 2026 4:30 AM (CST)",
+      "Nov 08, 2026 2:59 PM (CST)",
+    ],
+  ]) {
+    const variant = exilecon
+      .replace("Asia/Seoul", zone)
+      .replace("Nov 07, 2026 5:30 AM (GMT+9)", start)
+      .replace("Nov 08, 2026 3:59 PM (GMT+9)", end);
+    const [event] = parseArticle(variant, source(4012689));
+    assert.equal(event.startsAt, "2026-11-06T20:30:00.000Z");
+    assert.equal(event.endsAt, "2026-11-08T06:59:00.000Z");
+  }
+  assert.deepEqual(
+    parseArticle(
+      exilecon.replace("Asia/Seoul", "America/Chicago"),
+      source(4012689),
+    ),
+    parseArticle(exilecon, source(4012689)),
+  );
+  const [range] = parseArticle(
+    article(
+      "Twitch Drops Path of Exile 2 directory<br>Drops will be enabled from Nov 06, 2026 2:30 PM CST until Nov 08, 2026 12:59 AM CST",
+      "Nov 6, 2026, 4:52:47 AM",
+    ).replace("Asia/Seoul", "America/Chicago"),
+    source(4012689),
+  );
+  assert.equal(range.startsAt, "2026-11-06T20:30:00.000Z");
+  assert.equal(range.endsAt, "2026-11-08T06:59:00.000Z");
+});
+
+test("ExileCon mentions, shared rewards and FAQ categories do not establish a shared viewing directory", () => {
+  for (const replacement of [
+    "Exilecon broadcast",
+    '<span class="forum-faq">Exilecon directory</span>',
+    "Exilecon directory or Path of Exile 1 category",
+  ]) {
+    assert.throws(
+      () =>
+        parseArticle(
+          exilecon.replace("Exilecon directory", replacement),
+          source(4012689),
+        ),
+      /Ambiguous Twitch game category/,
+    );
+  }
+  const [single] = parseArticle(
+    exilecon.replace("Exilecon directory", "Path of Exile 1 category"),
+    source(4012689),
+  );
+  assert.equal(single.game, "poe1");
+  // This pre-change ID must stay valid even when the post mentions both games.
+  assert.equal(single.id, "ggg-4012689-twitch-591814b46c");
+});
+
+test("shared drops survive recollection and reposts per game, then replace and expire normally", () => {
+  const events = parseArticle(exilecon, source(4012689));
+  const controls = { events: [], disabledIds: [] };
+  const collectedAt = new Date("2026-11-06T12:00:00Z");
+  const first = mergePromotions(null, events, controls, collectedAt);
+  const second = mergePromotions(first, events, controls, collectedAt);
+  assert.deepEqual(second.events, first.events);
+  const newWatchUrl = "https://www.twitch.tv/directory/category/future-event";
+  const moved = mergePromotions(
+    first,
+    parseArticle(
+      exilecon.replace(
+        "https://www.twitch.tv/directory/category/exilecon",
+        newWatchUrl,
+      ),
+      source(4012689),
+    ),
+    controls,
+    collectedAt,
+  );
+  assert.deepEqual(
+    moved.events.map((event) => event.id),
+    events.map((event) => event.id),
+  );
+  assert.ok(moved.events.every((event) => event.watchUrl === newWatchUrl));
+  const repost = mergePromotions(
+    second,
+    parseArticle(exilecon, source(4012690)),
+    controls,
+    collectedAt,
+  );
+  assert.deepEqual(repost.events, first.events);
+  assert.deepEqual(
+    mergePromotions(
+      first,
+      events,
+      { ...controls, disabledIds: [events[0].id] },
+      collectedAt,
+    ).events,
+    [events[1]],
+  );
+  const corrected = parseArticle(
+    exilecon
+      .replace("Exilecon directory", "Path of Exile 1 category")
+      .replace("Nov 08, 2026 3:59 PM", "Nov 08, 2026 4:59 PM"),
+    source(4012689),
+  );
+  assert.deepEqual(
+    mergePromotions(first, corrected, controls, collectedAt).events,
+    corrected,
+  );
+  assert.deepEqual(
+    mergePromotions(first, events, controls, new Date("2026-11-08T06:59:00Z"))
+      .events,
+    [],
+  );
+});
 
 test("RSS decodes CDATA descriptions and ignores unrelated posts", () => {
   const result = parseRss(

@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { parse } from "node-html-parser";
-import { parsePromotionFeed, scheduleKey } from "./contract.mjs";
+import {
+  isTwitchWatchUrl,
+  parsePromotionFeed,
+  scheduleKey,
+} from "./contract.mjs";
 
 const candidate = /\btwitch\s+drops?\b/i;
 const text = (html) =>
@@ -151,15 +155,58 @@ function calendarTime(value, reference, fallbackZone) {
   return new Date(instant).toISOString();
 }
 
-function twitchGame(section) {
+function twitchGames(section) {
   const one = /Path of Exile(?:\s+1)?\s+(?:category|directory|stream)/i.test(
     section,
   );
   const two = /Path of Exile\s+2\s+(?:category|directory|stream)/i.test(
     section,
   );
-  if (one === two) throw new Error("Ambiguous Twitch game category");
-  return one ? "poe1" : "poe2";
+  // ExileCon has its own shared viewing directory; cross-game reward text
+  // alone must never expand a normal game's viewing category.
+  const shared = /\bExilecon\s+directory\b/i.test(section);
+  if (shared && !one && !two) return ["poe1", "poe2"];
+  if (shared || one === two) throw new Error("Ambiguous Twitch game category");
+  return [one ? "poe1" : "poe2"];
+}
+
+function markWatchLinks(content) {
+  const links = [];
+  for (const anchor of content.querySelectorAll("a[href]")) {
+    const href = anchor.getAttribute("href");
+    if (!isTwitchWatchUrl(href)) continue;
+    const url = new URL(href);
+    // The consumer accepts Twitch subdomains; source discovery only recognizes
+    // explicit viewing links, never account/help/Creator Dashboard destinations.
+    if (!["twitch.tv", "www.twitch.tv"].includes(url.hostname)) continue;
+    const category =
+      /^\/directory\/(?:category|game)\/[^/]+\/?$/i.test(url.pathname) &&
+      /category|directory/i.test(anchor.text);
+    const channel =
+      /^\/[a-z0-9_]+\/?$/i.test(url.pathname) &&
+      !/^\/(?:directory|drops|settings|login|signup|subscriptions|wallet|inventory|dashboard)\/?$/i.test(
+        url.pathname,
+      ) &&
+      /twitch\.tv\/|stream|broadcast|watch|live/i.test(anchor.text);
+    if (!category && !channel) continue;
+    anchor.insertAdjacentHTML("afterend", ` @@TwitchLink${links.length}@@`);
+    links.push({ url: href, category });
+  }
+  return links;
+}
+
+function twitchWatchUrl(section, links) {
+  const candidates = [...section.matchAll(/@@TwitchLink(\d+)@@/g)]
+    .map(([, index]) => links[Number(index)])
+    .filter(Boolean);
+  const directories = candidates.filter((link) => link.category);
+  const urls = [
+    ...new Set(
+      (directories.length ? directories : candidates).map((link) => link.url),
+    ),
+  ];
+  if (urls.length > 1) throw new Error("Ambiguous Twitch viewing URL");
+  return urls[0];
 }
 
 export function parseArticle(html, sourceUrl, publishedAt) {
@@ -186,6 +233,7 @@ export function parseArticle(html, sourceUrl, publishedAt) {
     ".forum-faq, .forum-faq-show-all, script, style",
   ))
     node.remove();
+  const watchLinks = markWatchLinks(content);
   const body = text(
     content.innerHTML
       .replace(
@@ -196,19 +244,30 @@ export function parseArticle(html, sourceUrl, publishedAt) {
   );
   const thread = /\d+$/.exec(sourceUrl)[0];
   const events = [];
-  const add = (kind, game, startsAt, endsAt, section, precision = "exact") => {
+  const add = (
+    kind,
+    games,
+    startsAt,
+    endsAt,
+    section,
+    watchUrl,
+    precision = "exact",
+  ) => {
     if (Math.abs(Date.parse(startsAt) - Date.parse(published)) > 60 * 86400_000)
       throw new Error("Event too far from publication");
     const suffix = `twitch-${createHash("sha256").update(section.toLowerCase().trim()).digest("hex").slice(0, 10)}`;
-    events.push({
-      id: `ggg-${thread}-${suffix}`,
-      kind,
-      game,
-      startsAt,
-      endsAt,
-      sourceUrl,
-      precision,
-    });
+    for (const game of games) {
+      events.push({
+        id: `ggg-${thread}-${suffix}${games.length > 1 ? `-${game}` : ""}`,
+        kind,
+        game,
+        startsAt,
+        endsAt,
+        sourceUrl,
+        ...(watchUrl === undefined ? {} : { watchUrl }),
+        precision,
+      });
+    }
   };
 
   if (/twitch\s+drops?/i.test(body)) {
@@ -217,7 +276,9 @@ export function parseArticle(html, sourceUrl, publishedAt) {
     let excluded = false;
     let heading = "drops";
     for (const chunk of chunks) {
-      const title = /^\s*@@[1-6]:([^\n]+)/.exec(chunk)?.[1];
+      const title = /^\s*@@[1-6]:([^\n]+)/
+        .exec(chunk)?.[1]
+        ?.replace(/ @@TwitchLink\d+@@/g, "");
       if (title) {
         heading = title;
         if (/support a streamer|discord|quest|how do|faq/i.test(title))
@@ -231,13 +292,14 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         ),
       ];
       for (const [index, match] of labelled.entries()) {
-        const starts = calendarTime(match[1], published);
+        const starts = calendarTime(match[1], published, zone);
         add(
           "twitch-drops",
-          twitchGame(chunk),
+          twitchGames(chunk),
           starts,
-          calendarTime(match[2], starts),
+          calendarTime(match[2], starts, zone),
           `${heading}:${index}`,
+          twitchWatchUrl(chunk, watchLinks),
         );
       }
       if (labelled.length) continue;
@@ -246,13 +308,14 @@ export function parseArticle(html, sourceUrl, publishedAt) {
           chunk,
         );
       if (range) {
-        const starts = calendarTime(range[1], published);
+        const starts = calendarTime(range[1], published, zone);
         add(
           "twitch-drops",
-          twitchGame(chunk),
+          twitchGames(chunk),
           starts,
-          calendarTime(range[2], starts),
+          calendarTime(range[2], starts, zone),
           heading,
+          twitchWatchUrl(chunk, watchLinks),
         );
         continue;
       }
@@ -266,10 +329,11 @@ export function parseArticle(html, sourceUrl, publishedAt) {
         const end = calendarTime(ending[1], published, zone);
         add(
           "twitch-drops",
-          twitchGame(chunk),
+          twitchGames(chunk),
           new Date(Date.parse(end) - +duration[1] * 3600_000).toISOString(),
           end,
           heading,
+          twitchWatchUrl(chunk, watchLinks),
         );
       }
     }

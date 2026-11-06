@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { parsePromotionFeed } from "./contract.mjs";
 import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
 import { parsePromotionFeed as parseLegacy } from "./fixtures/legacy-contract-v1.mjs";
+import watchUrls from "./fixtures/watch-urls.json" with { type: "json" };
 
 const event = {
   id: "ggg-4000901-twitch-471bcf3ba0",
@@ -67,6 +68,25 @@ const valid = [
 test("schema v1 accepts supported payloads and rejects malformed events", () => {
   for (const input of valid) assert.deepEqual(parsePromotionFeed(input), input);
   for (const input of invalid) assert.throws(() => parsePromotionFeed(input));
+});
+
+test("optional watch URLs accept Twitch destinations and reject unsafe authorities without changing provenance", () => {
+  for (const watchUrl of watchUrls.valid) {
+    const input = { ...feed, events: [{ ...event, watchUrl }] };
+    assert.deepEqual(parsePromotionFeed(input), input);
+    // A shipped schema 1 consumer ignores the new field and still reads the event.
+    assert.deepEqual(parseLegacy(input), feed);
+  }
+  for (const watchUrl of watchUrls.invalid)
+    assert.throws(() =>
+      parsePromotionFeed({ ...feed, events: [{ ...event, watchUrl }] }),
+    );
+  assert.throws(() =>
+    parsePromotionFeed({
+      ...feed,
+      events: [{ ...event, kind: "stash-sale", watchUrl: watchUrls.valid[0] }],
+    }),
+  );
 });
 
 test("optional stash section round-trips the shared manual/API/failure/expiry samples", () => {
