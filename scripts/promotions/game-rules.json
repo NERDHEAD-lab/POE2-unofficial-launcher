@@ -1,0 +1,19 @@
+{
+  "rules": [
+    {
+      "type": "regex",
+      "value": "Path of Exile(?:\\s+1)?\\s+(?:category|directory|stream)",
+      "games": { "poe1": true, "poe2": false }
+    },
+    {
+      "type": "regex",
+      "value": "Path of Exile\\s+2\\s+(?:category|directory|stream)",
+      "games": { "poe1": false, "poe2": true }
+    },
+    {
+      "type": "keyword",
+      "value": "Exilecon directory",
+      "games": { "poe1": true, "poe2": true }
+    }
+  ]
+}

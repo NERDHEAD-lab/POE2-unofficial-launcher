@@ -28,6 +28,14 @@ finally { Remove-Item Env:PROMOTIONS_CONSUMER_MODULE }
 
 ## 수집과 실패 처리
 
+### 게임 판정 규칙
+
+`game-rules.json`의 `rules`는 `{type:"regex"|"keyword",value:string,games:{poe1:boolean,poe2:boolean}}` 항목을 선언 순서로 읽는 단일 목록이다. regex는 고정 `i`, keyword는 정규식이 아닌 literal/case-insensitive 비교이며 채택한 현재 drops chunk에만 적용한다. 첫 일치 하나에서 판정을 끝내므로 우선순위를 바꾸려면 목록 순서를 바꾼다. 기본은 기존 PoE1 regex, PoE2 regex, Exilecon directory keyword 순서이며 기존 RSS 후보 조건은 바뀌지 않는다.
+
+매핑에서 둘 다 false이면 그 drops는 확정 미노출이다. 다음 규칙이나 unknown으로 넘기지 않는다. 아무 규칙도 맞지 않을 때만 `gameUnknown:true`인 poe1/poe2 두 compatibility copies를 만든다. `game:"unknown"`/`game:"both"`를 drops에 발행하지 않는다. 잘못된 JSON/regex/빈 value/누락 또는 boolean이 아닌 games는 네트워크 조회·출력 변경 전에 실패한다.
+
+미노출도 staff/날짜/시청 URL 등 기존 검증을 마친 성공 원문이어야 한다. 성공 source는 결과가 빈 배열이어도 그 원문의 이전 자동 일정을 교체한다. 무관하거나 실패한 원문은 이전 검증 상태를 보존한다. `overrides.json`의 기존 수동 우선/disabled ID를 유지한다. 규칙/marker/title은 raw section hash에 포함하지 않고 게임 수 변경에서도 살아남는 일정의 ID를 보존한다.
+
 - `/news/rss`와 `/forum/view-forum/news`, `/forum/view-forum/2211`의 **각 1–3페이지**를 매 실행 확인한다. 이전 실행에서 실패했던 2–3페이지 원문도 다시 발견하기 위한 고정 상한이다. 이전 미종료 원문과 비활성 공식 ID의 원문도 확인한다.
 - 요청은 직렬이며 500ms 간격, 요청당 15초와 2MiB, 전체 후보 60개로 제한한다. 무제한 과거 탐색이나 계정 로그인은 없다. 범위 밖의 오래된 미종료 공지를 모두 찾는다는 보장은 없다.
 - `/filter-account-type/staff` 응답의 첫 `.newsPost` 본문과 바로 뒤 작성자 정보의 staff 표시를 함께 확인한다. FAQ/다른 보상 섹션/사용자 댓글을 이벤트로 사용하지 않는다.
@@ -55,6 +63,12 @@ PoE2 태그는 `StashTabs` 또는 `PoE2StashTabs` **정확히 일치**해야 한
 각 성공 관측의 `checkedAt`은 응답 완료 시각이다. 실패하면 이전 성공 시각과 아직 끝나지 않은 확정 기간을 보존한다. 이력이 없으면 실패 시도 시각을 쓰고 확정 기간은 `null`이다. 만료된 확정 기간은 실패 중에도 제거하되 마지막 기준 기록은 남긴다.
 
 ## JSON 계약과 수동 조정
+
+중복 일정의 automatic 후보는 optional `sourcePublishedAt`이 있는 후보를 먼저, 둘 다 있으면 더 늦은 원천 게시시각을 선택한다. 동률/둘 다 없으면 기존 첫 후보를 유지하고 수동 override 우선은 그대로다. RSS 게시시각이 우선이며 없으면 원문의 연도가 명시된 첫 staff 게시일/시간대를 사용한다. 근거가 없으면 필드를 생략하고 fetch/generatedAt으로 채우지 않는다. 당선 원문의 title/sourceUrl/watchUrl/gameUnknown/precision/group을 함께 채택한 뒤 기존 일정별 ID를 보존하므로 다른 원문의 낡은 title을 섞지 않는다.
+
+optional `sourceGroupId`는 원문 파싱에서 나온 game suffix 전 기존 ID stem이다. `ggg-{thread}-twitch-{10hex}` 형식과 twitch kind/sourceUrl thread 일치를 검증한다. 새 앱은 보존된 ID가 다른 글의 alias여도 이 group과 source/기간/title/watchUrl의 일치로 공통 게임 표시를 유지한다. old feed의 누락은 유효하고 old consumer는 이 정보를 무시한다. 이 필드는 알림/일정/읽음/숨김/전달 key가 아니며 manual 항목에 자동 유추해 넣지 않는다.
+
+이벤트의 optional `gameUnknown`은 boolean이다. true는 게임을 확정하지 못한 drops가 기존 poe1/poe2 두 복사본으로 제공됨을 뜻한다. 기존 소비자는 이 표시 정보를 무시하며 새 소비자는 `알 수 없음`으로 표시하고 title 없는 경우 게임명을 단정하지 않는다. false/누락은 기존 게임 판정 의미를 유지한다.
 
 공개 URL은 [promotions.json](https://nerdhead-lab.github.io/POE2-unofficial-launcher/promotions.json)이다. schema 변경이나 URL 변경은 소비 런처와 사전 동기화가 필요하다.
 

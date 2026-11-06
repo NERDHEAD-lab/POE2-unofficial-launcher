@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { parseArticle, parseRss, mergePromotions } from "./collector.mjs";
+import {
+  parseArticle,
+  parseRss,
+  mergePromotions,
+  compileGameRules,
+} from "./collector.mjs";
 
 // Minimal structural fixtures from the GGG staff posts named below; times are facts.
 const article = (content, published = "Jul 24, 2026, 6:25:44 AM") =>
@@ -148,7 +153,10 @@ test("localized date labels use the source IANA zone while explicit GMT offsets 
       exilecon.replace("Asia/Seoul", "America/Chicago"),
       source(4012689),
     ),
-    parseArticle(exilecon, source(4012689)),
+    parseArticle(exilecon, source(4012689)).map((event) => ({
+      ...event,
+      sourcePublishedAt: "2026-11-06T10:52:47.000Z",
+    })),
   );
   const [range] = parseArticle(
     article(
@@ -161,21 +169,33 @@ test("localized date labels use the source IANA zone while explicit GMT offsets 
   assert.equal(range.endsAt, "2026-11-08T06:59:00.000Z");
 });
 
-test("ExileCon mentions, shared rewards and FAQ categories do not establish a shared viewing directory", () => {
+test("unmatched viewing text stays unknown and declaration order resolves overlapping game evidence", () => {
   for (const replacement of [
     "Exilecon broadcast",
     '<span class="forum-faq">Exilecon directory</span>',
-    "Exilecon directory or Path of Exile 1 category",
   ]) {
-    assert.throws(
-      () =>
-        parseArticle(
-          exilecon.replace("Exilecon directory", replacement),
-          source(4012689),
-        ),
-      /Ambiguous Twitch game category/,
+    const events = parseArticle(
+      exilecon.replace("Exilecon directory", replacement),
+      source(4012689),
+    );
+    assert.deepEqual(
+      events.map((event) => [event.game, event.gameUnknown]),
+      [
+        ["poe1", true],
+        ["poe2", true],
+      ],
     );
   }
+  const overlap = parseArticle(
+    exilecon.replace(
+      "Exilecon directory",
+      "Exilecon directory or Path of Exile 1 category",
+    ),
+    source(4012689),
+  );
+  assert.equal(overlap.length, 1);
+  assert.equal(overlap[0].game, "poe1");
+  assert.equal(overlap[0].gameUnknown, undefined);
   const [single] = parseArticle(
     exilecon.replace("Exilecon directory", "Path of Exile 1 category"),
     source(4012689),
@@ -311,19 +331,123 @@ test("historical stash announcements are no longer parsed into promotion events"
   assert.throws(() => parseArticle(html, source(3926103)), /No supported/);
 });
 
-test("unknown game, missing boundaries and non-staff HTML cannot publish", () => {
-  assert.throws(() =>
+test("unknown games use compatibility copies but missing boundaries and non-staff HTML still fail", () => {
+  assert.deepEqual(
     parseArticle(
       article(
         "Twitch Drops Start Time: July 24th 1PM PDT<br>End Time: July 31st 1PM PDT",
       ),
       source(3),
-    ),
+    ).map((event) => [event.game, event.gameUnknown]),
+    [
+      ["poe1", true],
+      ["poe2", true],
+    ],
   );
   assert.throws(() =>
     parseArticle(article("Twitch Drops Path of Exile 2 category"), source(3)),
   );
   assert.throws(() => parseArticle("<html>Just a moment</html>", source(3)));
+});
+
+test("ordered rules use literal keywords, fixed case-insensitivity, first match and an explicit OFF stop", () => {
+  const first = {
+    type: "keyword",
+    value: "EXILECON DIRECTORY",
+    games: { poe1: false, poe2: true },
+  };
+  const off = {
+    type: "regex",
+    value: "directory",
+    games: { poe1: false, poe2: false },
+  };
+  const parse = (rules) =>
+    parseArticle(
+      exilecon,
+      source(4012689),
+      undefined,
+      compileGameRules({ rules }),
+    );
+  assert.deepEqual(
+    parse([first, off]).map((event) => [event.game, event.gameUnknown]),
+    [["poe2", undefined]],
+  );
+  assert.deepEqual(parse([off, first]), []);
+  assert.ok(
+    parse([{ ...first, value: "Exilecon.directory" }]).every(
+      (event) => event.gameUnknown,
+    ),
+  );
+  assert.equal(
+    parse([{ ...first, type: "regex", value: "Exilecon.directory" }])[0].game,
+    "poe2",
+  );
+});
+
+test("game mapping changes retain every surviving projection ID", () => {
+  const controls = { events: [], disabledIds: [] };
+  const now = new Date("2026-11-06T12:00:00Z");
+  const rule = (games) =>
+    compileGameRules({
+      rules: [{ type: "keyword", value: "Exilecon directory", games }],
+    });
+  const one = mergePromotions(
+    null,
+    parseArticle(
+      exilecon,
+      source(4012689),
+      undefined,
+      rule({ poe1: true, poe2: false }),
+    ),
+    controls,
+    now,
+  );
+  const both = mergePromotions(
+    one,
+    parseArticle(exilecon, source(4012689)),
+    controls,
+    now,
+  );
+  assert.equal(
+    both.events.find((event) => event.game === "poe1").id,
+    one.events[0].id,
+  );
+  assert.equal(
+    both.events.find((event) => event.game === "poe2").id,
+    "ggg-4012689-twitch-591814b46c-poe2",
+  );
+  const two = mergePromotions(
+    both,
+    parseArticle(
+      exilecon,
+      source(4012689),
+      undefined,
+      rule({ poe1: false, poe2: true }),
+    ),
+    controls,
+    now,
+  );
+  assert.deepEqual(
+    two.events.map((event) => event.id),
+    [both.events.find((event) => event.game === "poe2").id],
+  );
+  const repost = mergePromotions(
+    one,
+    parseArticle(exilecon, source(9), "2026-11-06T12:00:00Z"),
+    controls,
+    now,
+  );
+  assert.equal(
+    repost.events.find((event) => event.game === "poe1").id,
+    one.events[0].id,
+  );
+  assert.ok(
+    repost.events.every(
+      (event) =>
+        event.sourceUrl === source(9) &&
+        event.sourceGroupId === "ggg-9-twitch-591814b46c",
+    ),
+  );
 });
 
 test("Eastern-time drops produce precise UTC bounds", () => {
@@ -412,6 +536,88 @@ const previousFeed = (events) => ({
 });
 const now = new Date("2026-09-04T01:00:00Z");
 const overrides = { events: [], disabledIds: [] };
+
+test("latest automatic publication wins as one metadata record while manual and stable ties retain priority", () => {
+  const first = {
+    ...sale,
+    title: "old",
+    watchUrl: "https://www.twitch.tv/old",
+    sourcePublishedAt: "2026-09-01T00:00:00Z",
+  };
+  const latest = {
+    ...sale,
+    id: "ggg-2-twitch",
+    sourceUrl: source(2),
+    sourceGroupId: "ggg-2-twitch-0123456789",
+    title: "new",
+    watchUrl: "https://www.twitch.tv/new",
+    gameUnknown: true,
+    precision: "derived-start",
+    sourcePublishedAt: "2026-09-02T00:00:00Z",
+  };
+  assert.deepEqual(
+    mergePromotions(previousFeed([first]), [latest], overrides, now).events,
+    [{ ...latest, id: first.id }],
+  );
+  const manual = { ...first, id: "manual", precision: "manual" };
+  assert.deepEqual(
+    mergePromotions(
+      previousFeed([first]),
+      [latest],
+      { ...overrides, events: [manual] },
+      now,
+    ).events,
+    [manual],
+  );
+  for (const date of [undefined, first.sourcePublishedAt]) {
+    const stable = { ...first, sourcePublishedAt: date };
+    assert.deepEqual(
+      mergePromotions(
+        null,
+        [stable, { ...latest, sourcePublishedAt: date }],
+        overrides,
+        now,
+      ).events,
+      [stable].map(({ sourcePublishedAt, ...event }) =>
+        sourcePublishedAt === undefined
+          ? event
+          : { ...event, sourcePublishedAt },
+      ),
+    );
+  }
+  const withoutDate = { ...first };
+  delete withoutDate.sourcePublishedAt;
+  assert.deepEqual(
+    mergePromotions(null, [withoutDate, latest], overrides, now).events,
+    [latest],
+  );
+  const noTitle = { ...latest };
+  delete noTitle.title;
+  assert.equal(
+    mergePromotions(previousFeed([first]), [noTitle], overrides, now).events[0]
+      .title,
+    undefined,
+  );
+});
+
+test("publication metadata uses RSS then dated staff information and never invents a missing year", () => {
+  const content =
+    "Twitch Drops<br>Start Time: Jul 24, 2026 1PM PDT<br>End Time: Jul 31, 2026 1PM PDT<br>Path of Exile 2 category";
+  assert.equal(
+    parseArticle(article(content), source(9))[0].sourcePublishedAt,
+    "2026-07-23T21:25:44.000Z",
+  );
+  assert.equal(
+    parseArticle(article(content), source(9), "2026-07-24T00:00:00Z")[0]
+      .sourcePublishedAt,
+    "2026-07-24T00:00:00Z",
+  );
+  for (const published of ["", "Jul 24, 6:25:44 AM"])
+    assert.equal(
+      parseArticle(article(content, published), source(9))[0].sourcePublishedAt,
+      undefined,
+    );
+});
 
 test("different drops starts are different schedules", () => {
   const result = mergePromotions(
@@ -513,7 +719,7 @@ test("winter PST, year rollover and DST-invalid dates are handled explicitly", (
   assert.equal(event.endsAt, "2027-01-01T09:00:00.000Z");
   for (const date of ["Mar 8, 2026, 2:30:00 AM", "Nov 1, 2026, 1:30:00 AM"]) {
     const html = article(
-      "Stash Tab Sale<br>The Stash Tab sale ends at Nov 2, 2026 9PM EST<br>both Path of Exile 1 and 2",
+      `Twitch Drops<br>Start Time: ${date}<br>End Time: Nov 2, 2026 9PM EST<br>Path of Exile 1 category`,
       date,
     ).replace("Asia/Seoul", "America/New_York");
     assert.throws(() => parseArticle(html, source(6)), /local source date/);

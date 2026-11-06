@@ -9,6 +9,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import defaultGameRules from "./game-rules.json" with { type: "json" };
 import { parsePromotionFeed } from "./contract.mjs";
 import { collectStashSales, collectionSummary } from "./stash-sales.mjs";
 import {
@@ -17,6 +18,7 @@ import {
   parseForum,
   parseRss,
   mergePromotions,
+  compileGameRules,
 } from "./collector.mjs";
 
 export async function fetchOfficial(url) {
@@ -49,18 +51,27 @@ export async function fetchOfficial(url) {
 export async function collect({
   previous = null,
   overrides,
+  gameRules = defaultGameRules,
   fetchText = fetchOfficial,
   pause = () => delay(500),
   now,
   clock = now ? () => now : () => new Date(),
 }) {
   now ??= clock();
+  const rules = compileGameRules(gameRules);
   if (previous) previous = parsePromotionFeed(previous);
   // Input corruption still fails before writing. Source failures are independent.
   const fallback = mergePromotions(previous, [], overrides, now);
   let drops;
   try {
-    drops = await collectDrops({ previous, overrides, fetchText, pause, now });
+    drops = await collectDrops({
+      previous,
+      overrides,
+      fetchText,
+      pause,
+      now,
+      rules,
+    });
   } catch (error) {
     drops = {
       feed: fallback,
@@ -90,7 +101,14 @@ export async function collect({
   };
 }
 
-async function collectDrops({ previous, overrides, fetchText, pause, now }) {
+async function collectDrops({
+  previous,
+  overrides,
+  fetchText,
+  pause,
+  now,
+  rules,
+}) {
   if (previous)
     previous = {
       ...previous,
@@ -139,6 +157,7 @@ async function collectDrops({ previous, overrides, fetchText, pause, now }) {
     if (!candidates.has(url)) candidates.set(url, { url });
   if (candidates.size > 60) throw new Error("Unexpected candidate volume");
   const parsed = [];
+  const successfulSources = [];
   const warnings = [];
   for (const item of candidates.values()) {
     const known =
@@ -158,8 +177,10 @@ async function collectDrops({ previous, overrides, fetchText, pause, now }) {
           await fetchText(`${item.url}/filter-account-type/staff`),
           item.url,
           item.publishedAt,
+          rules,
         ),
       );
+      successfulSources.push(item.url);
     } catch (error) {
       if (disabledSources.has(item.url))
         throw new Error(
@@ -169,9 +190,12 @@ async function collectDrops({ previous, overrides, fetchText, pause, now }) {
       warnings.push(`${item.url}: ${error.message}`);
     }
   }
-  if (warnings.length && !parsed.length && !previous?.events.length)
+  if (warnings.length && !successfulSources.length && !previous?.events.length)
     throw new Error(`No validated promotions: ${warnings.join("; ")}`);
-  return { feed: mergePromotions(previous, parsed, overrides, now), warnings };
+  return {
+    feed: mergePromotions(previous, parsed, overrides, now, successfulSources),
+    warnings,
+  };
 }
 
 async function readJson(path, optional = false) {
@@ -186,13 +210,15 @@ async function readJson(path, optional = false) {
 export async function collectToFile({
   output,
   previousPath = output,
+  gameRulesPath = new URL("./game-rules.json", import.meta.url),
   ...options
 }) {
   const previous = await readJson(previousPath, true);
   const overrides = await readJson(
     new URL("./overrides.json", import.meta.url),
   );
-  const result = await collect({ ...options, previous, overrides });
+  const gameRules = await readJson(gameRulesPath);
+  const result = await collect({ ...options, previous, overrides, gameRules });
   await mkdir(dirname(output), { recursive: true });
   const temporary = `${output}.${process.pid}.tmp`;
   await writeFile(temporary, `${JSON.stringify(result.feed, null, 2)}\n`);
