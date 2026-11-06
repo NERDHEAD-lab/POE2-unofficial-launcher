@@ -21,7 +21,11 @@ export async function dismissPromotion(
     !("mode" in input) ||
     typeof input.key !== "string" ||
     !/^[a-z0-9:-]{1,160}$/.test(input.key) ||
-    (input.mode !== "session" && input.mode !== "schedule")
+    (input.mode !== "session" && input.mode !== "schedule") ||
+    ("notificationId" in input &&
+      input.notificationId !== undefined &&
+      (typeof input.notificationId !== "string" ||
+        !/^[a-z0-9:-]{1,200}$/.test(input.notificationId)))
   ) {
     return { ok: false, reason: "invalid-request" };
   }
@@ -32,7 +36,13 @@ export async function dismissPromotion(
     EventType.PROMOTION_DISMISS,
     context,
     {
-      request: { key: input.key, mode: input.mode },
+      request: {
+        key: input.key,
+        mode: input.mode,
+        ...("notificationId" in input && input.notificationId !== undefined
+          ? { notificationId: input.notificationId as string }
+          : {}),
+      },
       result,
     },
   );

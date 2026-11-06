@@ -3,10 +3,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WindowControls from "./WindowControls";
-import { promotionScheduleKey } from "../../shared/promotions";
+import {
+  promotionScheduleKey,
+  promotionNotificationKey,
+} from "../../shared/promotions";
 
 import type {
   PromotionEvent,
+  PromotionNotification,
   PromotionSnapshot,
 } from "../../shared/promotions";
 import type {
@@ -61,6 +65,7 @@ describe("WindowControls notifications", () => {
     await act(async () => root.unmount());
     container.remove();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("deduplicates an operational warning and sends its exact context without opening the exception report", async () => {
@@ -282,6 +287,7 @@ describe("WindowControls notifications", () => {
       expect(window.electronAPI.dismissPromotion).toHaveBeenCalledWith({
         key: promotionScheduleKey(event),
         mode,
+        notificationId: promotionScheduleKey(event),
       });
       expect(container.querySelector("[data-promotion-id]")).toBeNull();
       expect(document.activeElement).toBe(
@@ -451,6 +457,32 @@ describe("WindowControls notifications", () => {
         ?.classList.contains("notification-read"),
     ).toBe(true);
     expect(badge()).toBe("1");
+    events = [
+      { ...event, watchUrl, title: "ExileCon 트위치 드롭스" },
+      events[1],
+    ];
+    await act(async () =>
+      update({ revision: 3, events, activeEvents: events, upcomingEvents: [] }),
+    );
+    expect(
+      container.querySelector('[data-promotion-id="read-twitch"]')?.textContent,
+    ).toContain("ExileCon 트위치 드롭스");
+    expect(
+      container
+        .querySelector('[data-promotion-id="read-twitch"]')
+        ?.classList.contains("notification-read"),
+    ).toBe(true);
+    expect(badge()).toBe("1");
+    events = [{ ...events[0], gameUnknown: true }, events[1]];
+    await act(async () =>
+      update({ revision: 4, events, activeEvents: events, upcomingEvents: [] }),
+    );
+    expect(
+      container
+        .querySelector('[data-promotion-id="read-twitch"]')
+        ?.classList.contains("notification-read"),
+    ).toBe(true);
+    expect(badge()).toBe("1");
     await act(async () =>
       container
         .querySelector('[data-promotion-id="read-stash"] a')!
@@ -484,6 +516,95 @@ describe("WindowControls notifications", () => {
     events = [event];
     await act(async () => render());
     expect(badge()).toBe("1");
+  });
+
+  it("shows a future reminder row and treats the next reminder and start as new unread phases", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime("2026-09-04T00:00:00Z");
+    const start = Date.now() + 3600_000;
+    window.electronAPI.dismissPromotion = vi.fn(async () => ({
+      ok: true as const,
+    }));
+    const event: PromotionEvent = {
+      id: "reminder-drops",
+      title: "ExileCon 트위치 드롭스",
+      kind: "twitch-drops",
+      game: "poe2",
+      precision: "exact",
+      startsAt: new Date(start).toISOString(),
+      endsAt: new Date(start + 86400_000).toISOString(),
+      sourceUrl: "https://www.pathofexile.com/forum/view-thread/1",
+      watchUrl: "https://www.twitch.tv/pathofexile",
+    };
+    let update!: (snapshot: PromotionSnapshot) => void;
+    window.electronAPI.onPromotionsUpdated = (callback) => {
+      update = callback;
+      return vi.fn();
+    };
+    window.electronAPI.getPromotions = vi.fn().mockResolvedValue({
+      revision: 1,
+      activeEvents: [],
+      upcomingEvents: [event],
+      events: [{ ...event, reminderSeconds: 86400 }],
+    });
+    container.addEventListener("click", (e) => {
+      if ((e.target as Element).closest("a")) e.preventDefault();
+    });
+    await act(async () =>
+      root.render(<WindowControls devMode={false} debugConsole={false} />),
+    );
+    const click = (selector: string) =>
+      act(async () => container.querySelector<HTMLElement>(selector)!.click());
+    const badge = () =>
+      container.querySelector("[data-notification-badge]")?.textContent;
+    await click("[data-notification-toggle]");
+    expect(container.textContent).toContain("시작 예정");
+    expect(container.textContent).toContain("ExileCon 트위치 드롭스");
+    expect(container.textContent).toContain("1시간 0분 0초 뒤부터 시작합니다");
+    expect(
+      container.querySelector(".promotion-twitch")?.getAttribute("href"),
+    ).toBe(event.watchUrl);
+    await click(".promotion-twitch");
+    expect(badge()).toBeUndefined();
+    await click(".promotion-dismiss");
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+      "ExileCon 트위치 드롭스",
+    );
+    vi.setSystemTime(start - 1800_000);
+    const next: PromotionNotification = { ...event, reminderSeconds: 1800 };
+    await act(async () =>
+      update({
+        revision: 2,
+        activeEvents: [],
+        upcomingEvents: [event],
+        events: [next],
+      }),
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(window.electronAPI.dismissPromotion).not.toHaveBeenCalled();
+    await click("[data-notification-toggle]");
+    expect(container.querySelectorAll("[data-promotion-id]")).toHaveLength(1);
+    expect(badge()).toBe("1");
+    await click(".promotion-twitch");
+    expect(
+      window.sessionStorage.getItem("poe-launcher:read-notifications"),
+    ).toContain(promotionNotificationKey(next));
+    await click(".promotion-dismiss");
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    vi.setSystemTime(start);
+    await act(async () =>
+      update({
+        revision: 3,
+        activeEvents: [event],
+        upcomingEvents: [],
+        events: [event],
+      }),
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(badge()).toBe("1");
+    await click("[data-notification-toggle]");
+    expect(container.textContent).toContain("진행 중");
   });
 
   it("marks an opened error report read and counts a newly arriving error", async () => {

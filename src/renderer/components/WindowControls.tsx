@@ -12,8 +12,8 @@ import {
   getExceptionDebugLogs,
 } from "../../shared/debug-log-policy";
 import {
-  promotionScheduleKey,
-  type PromotionEvent,
+  promotionNotificationKey,
+  type PromotionNotification,
 } from "../../shared/promotions";
 import { DebugLogPayload, OperationalNotification } from "../../shared/types";
 import { usePromotions } from "../hooks/usePromotions";
@@ -45,9 +45,17 @@ const WindowControls: React.FC<WindowControlsProps> = ({
   const promotions = usePromotions();
   const { readIds, markRead } = useReadNotifications();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [dismissTarget, setDismissTarget] = useState<PromotionEvent | null>(
-    null,
-  );
+  const [dismissTarget, setDismissTarget] =
+    useState<PromotionNotification | null>(null);
+  const currentDismissTarget =
+    dismissTarget &&
+    promotions.find(
+      (event) =>
+        promotionNotificationKey(event) ===
+        promotionNotificationKey(dismissTarget),
+    );
+  // Drop an expired selection during reconciliation; never retarget a new phase.
+  if (dismissTarget && !currentDismissTarget) setDismissTarget(null);
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<
     Set<string>
   >(loadDismissedNotificationIds);
@@ -127,7 +135,7 @@ const WindowControls: React.FC<WindowControlsProps> = ({
   const unreadCount =
     unreadWarningCount +
     promotions.filter(
-      (event) => !readIds.has(`promotion:${promotionScheduleKey(event)}`),
+      (event) => !readIds.has(`promotion:${promotionNotificationKey(event)}`),
     ).length;
   const hasWarnings = unreadWarningCount > 0;
   const notificationColor =
@@ -586,11 +594,13 @@ const WindowControls: React.FC<WindowControlsProps> = ({
             ))}
             {promotions.map((event) => (
               <PromotionRow
-                key={promotionScheduleKey(event)}
+                key={promotionNotificationKey(event)}
                 event={event}
-                isRead={readIds.has(`promotion:${promotionScheduleKey(event)}`)}
+                isRead={readIds.has(
+                  `promotion:${promotionNotificationKey(event)}`,
+                )}
                 onRead={() =>
-                  markRead(`promotion:${promotionScheduleKey(event)}`)
+                  markRead(`promotion:${promotionNotificationKey(event)}`)
                 }
                 onDismiss={() => {
                   setIsNotificationOpen(false);
@@ -601,10 +611,10 @@ const WindowControls: React.FC<WindowControlsProps> = ({
           </div>
         </div>
       )}
-      {dismissTarget &&
+      {currentDismissTarget &&
         createPortal(
           <PromotionDismissModal
-            event={dismissTarget}
+            event={currentDismissTarget}
             onClose={() => setDismissTarget(null)}
           />,
           document.getElementById("app-container") ?? document.body,

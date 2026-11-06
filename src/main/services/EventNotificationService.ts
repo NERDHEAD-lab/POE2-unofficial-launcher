@@ -9,8 +9,9 @@ import {
 } from "./PromotionController";
 import {
   promotionScheduleKey,
+  promotionNotificationKey,
   type PromotionDismissRequest,
-  type PromotionEvent,
+  type PromotionNotification,
 } from "../../shared/promotions";
 import { SUPPORT_URLS } from "../../shared/urls";
 import { eventBus } from "../events/EventBus";
@@ -22,7 +23,7 @@ export class EventNotificationService implements IService {
   private readonly controller: PromotionController;
   private readonly notifications = new Map<
     string,
-    { notification: Notification; targets: string[] }
+    { notification: Notification; targets: string[]; schedule: string }
   >();
   private readonly resume = () => this.controller.wake();
 
@@ -53,20 +54,22 @@ export class EventNotificationService implements IService {
       notify: (event) => this.notify(event),
       prune: (active) => {
         const currentTargets = new Map(
-          this.controller
-            .snapshot()
-            .activeEvents.map((event) => [
-              promotionScheduleKey(event),
-              new Set(
-                event.targets?.map(
-                  (target) => `${target.service}:${target.game}`,
-                ),
+          [
+            ...this.controller.snapshot().activeEvents,
+            ...this.controller.snapshot().upcomingEvents,
+          ].map((event) => [
+            promotionScheduleKey(event),
+            new Set(
+              event.targets?.map(
+                (target) => `${target.service}:${target.game}`,
               ),
-            ]),
+            ),
+          ]),
         );
-        for (const [id, { notification, targets }] of this.notifications) {
+        for (const [id, { notification, targets, schedule }] of this
+          .notifications) {
           const revoked = targets.some(
-            (target) => !currentTargets.get(id)?.has(target),
+            (target) => !currentTargets.get(schedule)?.has(target),
           );
           if (!active.has(id) || revoked) {
             notification.close();
@@ -96,16 +99,18 @@ export class EventNotificationService implements IService {
     this.controller.dismiss(request);
   }
 
-  private notify(event: PromotionEvent): Promise<boolean> {
+  private notify(event: PromotionNotification): Promise<boolean> {
     if (process.platform !== "win32" || !Notification.isSupported())
       return Promise.resolve(false);
     return new Promise((resolve) => {
       const notification = new Notification({
         toastXml: buildPromotionToast(event),
       });
-      const key = promotionScheduleKey(event);
+      const key = promotionNotificationKey(event);
+      this.notifications.get(key)?.notification.close();
       this.notifications.set(key, {
         notification,
+        schedule: promotionScheduleKey(event),
         targets:
           event.targets?.map((target) => `${target.service}:${target.game}`) ??
           [],
@@ -118,7 +123,8 @@ export class EventNotificationService implements IService {
       });
       notification.once("failed", () => {
         clearTimeout(timer);
-        this.notifications.delete(key);
+        if (this.notifications.get(key)?.notification === notification)
+          this.notifications.delete(key);
         logger.warn(
           "[EventNotificationService] Windows 알림을 표시하지 못했습니다.",
         );

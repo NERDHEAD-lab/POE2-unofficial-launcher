@@ -37,6 +37,13 @@
 .promotion-period {
   white-space: nowrap;
 }
+.promotion-countdown {
+  display: block;
+  margin-top: 4px;
+  color: #bbb;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .promotion-shop-links {
   display: flex;
   flex-wrap: wrap;
