@@ -41,7 +41,10 @@ import {
 } from "./events/handlers/AutoPatchHandler";
 import { FontIpcHandler } from "./events/handlers/FontIpcHandler";
 import { ToolForceRepairHandler } from "./events/handlers/ToolHandler";
-import { triggerUpdateCheck } from "./events/handlers/UpdateHandler";
+import {
+  installDownloadedForRelaunch,
+  triggerUpdateCheck,
+} from "./events/handlers/UpdateHandler";
 import {
   AppContext,
   ConfigChangeEvent,
@@ -88,7 +91,11 @@ import {
   KakaoChallengeGate,
 } from "./kakao/cloudflare-challenge";
 import { isExpectedNavigationAbort } from "./kakao/navigation-error";
-import { initKakaoSession, KAKAO_PARTITION } from "./kakao/session";
+import {
+  createKakaoPageFilter,
+  initKakaoSession,
+  KAKAO_PARTITION,
+} from "./kakao/session";
 import {
   formatKakaoDiagnostic,
   KakaoDiagnosticLimiter,
@@ -379,7 +386,9 @@ const kakaoChallengeGate = new KakaoChallengeGate(
 const kakaoDiagnosticRunId = `${Date.now().toString(36)}-${process.pid}`;
 const kakaoDiagnosticLimiter = new KakaoDiagnosticLimiter();
 
-function kakaoDiagnosticContext(id: number) {
+function kakaoDiagnosticContext(id: number | null) {
+  const run = { runId: kakaoDiagnosticRunId, appVersion: app.getVersion() };
+  if (id === null) return run;
   const state: KakaoDiagnosticFields = {
     ...kakaoChallengeGate.diagnosticState(id),
   };
@@ -389,8 +398,7 @@ function kakaoDiagnosticContext(id: number) {
     wc && !wc.isDestroyed() ? BrowserWindow.fromWebContents(wc) : null;
   return {
     ...state,
-    runId: kakaoDiagnosticRunId,
-    appVersion: app.getVersion(),
+    ...run,
     webContentsId: id,
     windowId: win?.id ?? null,
     visible: win && !win.isDestroyed() ? win.isVisible() : false,
@@ -400,7 +408,7 @@ function kakaoDiagnosticContext(id: number) {
 }
 
 function logKakaoDiagnostic(
-  id: number,
+  id: number | null,
   event: string,
   fields: KakaoDiagnosticFields = {},
 ) {
@@ -414,32 +422,10 @@ function logKakaoDiagnostic(
   }
 }
 
-function acceptsKakaoPage(
-  event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
-  documentId?: number | null,
-  channel?: string,
-) {
-  if (event.sender.session !== session.fromPartition(KAKAO_PARTITION))
-    return true;
-  const accepted =
-    event.senderFrame === event.sender.mainFrame &&
-    kakaoChallengeGate.accepts(event.sender.id, documentId);
-  logKakaoDiagnostic(
-    event.sender.id,
-    accepted ? "ipc.accepted" : "ipc.rejected",
-    {
-      channel,
-      receivedDocumentId: documentId ?? null,
-      reason:
-        event.senderFrame !== event.sender.mainFrame
-          ? "frame-mismatch"
-          : kakaoChallengeGate.diagnosticState(event.sender.id, documentId)
-              .reason,
-      isMainFrame: event.senderFrame === event.sender.mainFrame,
-    },
-  );
-  return accepted;
-}
+const acceptsKakaoPage = createKakaoPageFilter(
+  kakaoChallengeGate,
+  logKakaoDiagnostic,
+);
 
 // [New] Safety Cleanup for Automation Tracking
 app.on("web-contents-created", (_, wc) => {
@@ -587,6 +573,9 @@ function setValidationMode(active: boolean) {
         return;
       }
 
+      logKakaoDiagnostic(validationOwnerWebContentsId, "account.result", {
+        accountResult: "timeout",
+      });
       logger.error(`[Account] Validation timed out at: ${currentUrl}`);
 
       setValidationMode(false);
@@ -969,11 +958,6 @@ ipcMain.on(
     });
   },
 );
-
-ipcMain.on("app:relaunch", () => {
-  app.relaunch();
-  app.exit(0);
-});
 
 // [Fatal Error Handling]
 ipcMain.on("app:fatal-error-ready", () => {
@@ -1574,6 +1558,9 @@ ipcMain.handle("session:logout", async () => {
     logger.log(
       `[Main] Session storage cleared for partition: ${PARTITIONS.KAKAO}`,
     );
+    logKakaoDiagnostic(null, "account.result", {
+      accountResult: "logout-cleared",
+    });
 
     // 4. Clear Account Cache & Notify Renderer
     setConfigWithEvent("kakaoAccountId", null);
@@ -1952,7 +1939,8 @@ ipcMain.on(
 ipcMain.on(
   "kakao:login-required",
   (event, data?: { url?: string }, documentId?: number | null) => {
-    if (!acceptsKakaoPage(event, documentId, "kakao:login-required")) return;
+    if (!acceptsKakaoPage(event, documentId, "kakao:login-required", data?.url))
+      return;
     logger.log("[Account] Login required for Kakao.");
 
     // If URL is provided during validation failure, 'keep' it for later
@@ -3739,9 +3727,14 @@ eventBus.register({
   },
 });
 
-registerShutdownHandlers((quitting) => {
-  isQuitting = quitting;
-});
+registerShutdownHandlers(
+  (quitting) => {
+    isQuitting = quitting;
+  },
+  installDownloadedForRelaunch,
+  (saveTrigger, saveResult) =>
+    logKakaoDiagnostic(null, "session.save", { saveTrigger, saveResult }),
+);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
