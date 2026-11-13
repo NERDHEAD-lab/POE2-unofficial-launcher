@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-13T06:50:55.412Z",
+  "generatedAt": "2026-11-13T19:45:57.882Z",
   "events": [
     {
       "id": "ggg-4014066-twitch-39d48230e4",
@@ -22,7 +22,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-13T06:50:51.030Z",
+        "checkedAt": "2026-11-13T19:45:49.862Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -30,12 +30,12 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-13T06:50:51.875Z",
+        "checkedAt": "2026-11-13T19:45:50.809Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-11-13T00:00:01.000Z",
           "endsAt": "2026-11-17T00:00:00.000Z",
-          "observedAt": "2026-11-13T06:50:51.875Z",
+          "observedAt": "2026-11-13T19:45:50.809Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
@@ -67,7 +67,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-13T06:50:53.629Z",
+        "checkedAt": "2026-11-13T19:45:52.573Z",
         "status": "period-unavailable",
         "confirmedPeriod": null
       },
@@ -75,12 +75,12 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-13T06:50:55.411Z",
+        "checkedAt": "2026-11-13T19:45:57.882Z",
         "status": "ok",
         "confirmedPeriod": {
           "startsAt": "2026-11-13T00:00:01.000Z",
           "endsAt": "2026-11-17T00:00:00.000Z",
-          "observedAt": "2026-11-13T06:50:55.411Z",
+          "observedAt": "2026-11-13T19:45:57.882Z",
           "productIds": [
             "AbyssTab",
             "BreachTab",
