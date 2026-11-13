@@ -1,7 +1,20 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-12T19:58:26.731Z",
-  "events": [],
+  "generatedAt": "2026-11-13T06:50:55.412Z",
+  "events": [
+    {
+      "id": "ggg-4014066-twitch-39d48230e4",
+      "kind": "twitch-drops",
+      "game": "poe1",
+      "startsAt": "2026-11-13T19:00:00.000Z",
+      "endsAt": "2026-11-22T19:00:00.000Z",
+      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4014066",
+      "sourceGroupId": "ggg-4014066-twitch-39d48230e4",
+      "sourcePublishedAt": "2026-11-12T21:39:29.000Z",
+      "title": "Umbral Tentacle Slam Rare Finisher Effect 트위치 드롭스",
+      "precision": "exact"
+    }
+  ],
   "stashSales": {
     "version": 1,
     "observations": [
@@ -9,33 +22,91 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-12T19:58:19.165Z",
-        "status": "ok",
+        "checkedAt": "2026-11-13T06:50:51.030Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-12T19:58:19.930Z",
+        "checkedAt": "2026-11-13T06:50:51.875Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-11-13T00:00:01.000Z",
+          "endsAt": "2026-11-17T00:00:00.000Z",
+          "observedAt": "2026-11-13T06:50:51.875Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RelicTab",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       },
       {
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-12T19:58:21.681Z",
-        "status": "ok",
+        "checkedAt": "2026-11-13T06:50:53.629Z",
+        "status": "period-unavailable",
         "confirmedPeriod": null
       },
       {
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-12T19:58:26.729Z",
+        "checkedAt": "2026-11-13T06:50:55.411Z",
         "status": "ok",
-        "confirmedPeriod": null
+        "confirmedPeriod": {
+          "startsAt": "2026-11-13T00:00:01.000Z",
+          "endsAt": "2026-11-17T00:00:00.000Z",
+          "observedAt": "2026-11-13T06:50:55.411Z",
+          "productIds": [
+            "AbyssTab",
+            "BreachTab",
+            "CurrencyTab",
+            "DeliriumTab",
+            "EssenceTab",
+            "ExilesStashBundleAncients",
+            "ExpeditionTab",
+            "FlaskTab",
+            "FragmentTab",
+            "GemTab",
+            "MapTab",
+            "PremiumQuadTab",
+            "PremiumStashTab",
+            "PremiumStashTabBundle",
+            "RelicTab",
+            "RitualTab",
+            "SocketableTab",
+            "StashTab",
+            "StashTabBundle",
+            "TradeStashTab",
+            "TradeStashTabBundle",
+            "UniqueTab",
+            "UpgradeToPremiumStashTab"
+          ]
+        }
       }
     ],
     "anchor": {
@@ -43,13 +114,13 @@
       "service": "ggg",
       "game": "poe2",
       "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-      "startsAt": "2026-10-23T00:00:00.000Z",
-      "endsAt": "2026-10-27T00:00:00.000Z",
-      "observedAt": "2026-10-23T04:56:12.077Z"
+      "startsAt": "2026-11-13T00:00:01.000Z",
+      "endsAt": "2026-11-17T00:00:00.000Z",
+      "observedAt": "2026-11-13T06:50:51.875Z"
     },
     "nextEstimate": {
-      "startDate": "2026-11-13",
-      "endDate": "2026-11-17",
+      "startDate": "2026-12-04",
+      "endDate": "2026-12-08",
       "timeZone": "Asia/Seoul",
       "intervalDays": 21,
       "basisOrigin": "api",
