@@ -32,39 +32,43 @@ const dateTime = new Intl.DateTimeFormat("ko-KR", {
 const period = (event: PromotionEvent) =>
   `${dateTime.format(new Date(event.startsAt))} ~ ${dateTime.format(new Date(event.endsAt))}`;
 
-function promotionGames(event: PromotionEvent, schedules: PromotionEvent[]) {
-  if (event.gameUnknown) return "알 수 없음";
-  const ownGame = event.game === "poe1" ? "PoE1" : "PoE2";
+// The collector can publish the same campaign once per game. Compare its source
+// and display data so separate events can still have the same name or dates.
+function isMatchingDropsSchedule(event: PromotionEvent, other: PromotionEvent) {
+  if (
+    other.game === event.game ||
+    other.kind !== event.kind ||
+    Boolean(other.gameUnknown) !== Boolean(event.gameUnknown)
+  )
+    return false;
+
   const split = /^(ggg-\d+-twitch-[a-f0-9]{10})(?:-(poe1|poe2))?$/.exec(
     event.id,
   );
-  if (
-    event.sourceGroupId === undefined &&
-    (!split || (split[2] && split[2] !== event.game))
-  )
-    return ownGame;
+  const sameGroup =
+    event.sourceGroupId !== undefined
+      ? other.sourceGroupId === event.sourceGroupId
+      : other.sourceGroupId === undefined &&
+        split !== null &&
+        (!split[2] || split[2] === event.game) &&
+        (other.id === split[1] || other.id === `${split[1]}-${other.game}`);
   const source = (value: string) =>
     value.replace(/\/filter-account-type\/staff$/, "");
-  // Only the collector's matching split pair establishes a shared display scope.
-  // Notification and schedule identities remain per game.
-  const shared = schedules.some(
-    (other) =>
-      other.game === (event.game === "poe1" ? "poe2" : "poe1") &&
-      (event.sourceGroupId !== undefined
-        ? other.sourceGroupId === event.sourceGroupId
-        : other.sourceGroupId === undefined &&
-          split &&
-          (other.id === split[1] ||
-            other.id === `${split[1]}-${other.game}`)) &&
-      !other.gameUnknown &&
-      other.kind === event.kind &&
-      source(other.sourceUrl) === source(event.sourceUrl) &&
-      Date.parse(other.startsAt) === Date.parse(event.startsAt) &&
-      Date.parse(other.endsAt) === Date.parse(event.endsAt) &&
-      other.title === event.title &&
-      other.watchUrl === event.watchUrl,
+  return (
+    sameGroup &&
+    source(other.sourceUrl) === source(event.sourceUrl) &&
+    Date.parse(other.startsAt) === Date.parse(event.startsAt) &&
+    Date.parse(other.endsAt) === Date.parse(event.endsAt) &&
+    other.title === event.title &&
+    other.watchUrl === event.watchUrl
   );
-  return shared ? "PoE1 · PoE2" : ownGame;
+}
+
+function promotionGames(event: PromotionEvent, schedules: PromotionEvent[]) {
+  if (event.gameUnknown) return "알 수 없음";
+  if (schedules.some((other) => isMatchingDropsSchedule(event, other)))
+    return "PoE1 · PoE2";
+  return event.game === "poe1" ? "PoE1" : "PoE2";
 }
 
 function EventBuff({
@@ -180,9 +184,11 @@ function EventBuff({
 export default function PromotionStatus({
   activeGame,
   serviceChannel,
+  showOtherGameDrops = false,
 }: {
   activeGame: ActiveGame;
   serviceChannel: ServiceChannel;
+  showOtherGameDrops?: boolean;
 }) {
   const { events: schedules, stashEstimate, now } = usePromotionSchedule();
   const events = schedules.filter((event) => isPromotionActive(event, now));
@@ -190,12 +196,30 @@ export default function PromotionStatus({
     .filter((event) => !isPromotionActive(event, now))
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const game = activeGame === "POE1" ? "poe1" : "poe2";
-  const drops = events.filter(
-    (event) => event.kind === "twitch-drops" && event.game === game,
-  );
-  const nextDrop = upcoming.find(
-    (event) => event.kind === "twitch-drops" && event.game === game,
-  );
+  const isSelectedDrop = (event: PromotionEvent) =>
+    event.kind === "twitch-drops" && event.game === game;
+  const isOtherDrop = (event: PromotionEvent) =>
+    event.kind === "twitch-drops" && event.game !== game;
+  const selectedDrops = events.filter(isSelectedDrop);
+  const otherDrops = showOtherGameDrops
+    ? events.filter(
+        (other) =>
+          isOtherDrop(other) &&
+          !selectedDrops.some((event) => isMatchingDropsSchedule(event, other)),
+      )
+    : [];
+  const drops = [...selectedDrops, ...otherDrops];
+  const nextSelectedDrop = upcoming.find(isSelectedDrop);
+  const nextOtherDrop = showOtherGameDrops
+    ? upcoming.find(isOtherDrop)
+    : undefined;
+  const nextDrop =
+    nextOtherDrop &&
+    (!nextSelectedDrop ||
+      Date.parse(nextOtherDrop.startsAt) <
+        Date.parse(nextSelectedDrop.startsAt))
+      ? nextOtherDrop
+      : nextSelectedDrop;
   const dropTarget = drops[0] ?? nextDrop;
   const stash = events.filter(
     (event) =>

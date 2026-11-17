@@ -246,10 +246,12 @@ describe("promotion contract", () => {
       normalizeEventPreferences({
         types: { twitch: false },
         channels: { inApp: "true", windows: true },
+        highlights: { showOtherGameDrops: "true" },
       }),
     ).toEqual({
       types: { twitch: false, stash: true },
       channels: { inApp: true, windows: true },
+      highlights: { showOtherGameDrops: false },
       reminders: {
         presets: [],
         custom: { enabled: false, value: 30, unit: "minute" },
@@ -258,6 +260,7 @@ describe("promotion contract", () => {
     expect(normalizeEventPreferences(null)).toEqual({
       types: { twitch: true, stash: true },
       channels: { inApp: true, windows: false },
+      highlights: { showOtherGameDrops: false },
       reminders: {
         presets: [],
         custom: { enabled: false, value: 30, unit: "minute" },

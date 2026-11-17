@@ -36,6 +36,17 @@ const GROUPS = [
       { id: "windows", name: "Windows 알림", icon: "desktop_windows" },
     ],
   },
+  {
+    id: "highlights",
+    name: "이달의 주요 소식",
+    options: [
+      {
+        id: "showOtherGameDrops",
+        name: "다른 게임의 드롭스도 표시",
+        icon: <PromotionIcon kind="twitch-drops" />,
+      },
+    ],
+  },
 ] as const;
 
 interface EventNotificationModalProps {

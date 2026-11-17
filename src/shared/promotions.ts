@@ -8,6 +8,7 @@ import {
 export interface EventNotificationPreferences {
   types: { twitch: boolean; stash: boolean };
   channels: { inApp: boolean; windows: boolean };
+  highlights: { showOtherGameDrops: boolean };
   reminders: {
     presets: number[];
     custom: { enabled: boolean; value: number; unit: ReminderUnit };
@@ -250,6 +251,7 @@ export function normalizeEventPreferences(
   const input = record(value);
   const types = record(input.types);
   const channels = record(input.channels);
+  const highlights = record(input.highlights);
   const reminders = record(input.reminders);
   const custom = record(reminders.custom);
   const validUnit =
@@ -268,6 +270,7 @@ export function normalizeEventPreferences(
       inApp: typeof channels.inApp === "boolean" ? channels.inApp : true,
       windows: typeof channels.windows === "boolean" ? channels.windows : false,
     },
+    highlights: { showOtherGameDrops: highlights.showOtherGameDrops === true },
     reminders: {
       presets: EVENT_REMINDER_PRESETS.filter(
         ({ seconds }) =>
