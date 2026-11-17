@@ -1,12 +1,12 @@
 import axios from "axios";
-import { app, dialog } from "electron";
+import { app, autoUpdater as electronUpdater, dialog } from "electron";
 import { autoUpdater } from "electron-updater";
 
 import {
   UPDATE_DOWNLOAD_FAILURE_MESSAGE,
   UpdateStatus,
 } from "../../../shared/types";
-import { prepareForShutdown } from "../../app-shutdown";
+import { requestShutdown } from "../../app-shutdown";
 import { changelogService } from "../../services/ChangelogService";
 import { logger } from "../../utils/logger";
 import {
@@ -28,7 +28,7 @@ let currentCheckIsSilent = false;
 let lastEmittedPercent = -1; // For throttling progress updates
 let lastVersionInfo = "";
 let downloadLifecycle: "idle" | "active" | "failed" | "downloaded" = "idle";
-let installRequested = false;
+let failPreparedInstallation: ((error: Error) => void) | undefined;
 
 const isDownloadInProgress = () => downloadLifecycle === "active";
 const isDownloadLifecycleOwned = () => downloadLifecycle !== "idle";
@@ -199,7 +199,16 @@ const attachUpdateListeners = (context: AppContext) => {
     sendStatus(context, { state: "idle" });
   });
 
-  autoUpdater.on("error", (err) => {
+  autoUpdater.on("error", (err, message) => {
+    // AppUpdater marks errors from checkForUpdates() with this context.
+    // A check started before download may finish while NSIS is starting.
+    if (
+      failPreparedInstallation &&
+      !message?.startsWith("Cannot check for updates: ")
+    ) {
+      failPreparedInstallation(err);
+      return;
+    }
     if (isDownloadLifecycleOwned()) {
       // electron-updater emits this event before downloadUpdate() rejects.
       // The request promise owns download failure reporting so overlapping
@@ -234,9 +243,9 @@ const attachUpdateListeners = (context: AppContext) => {
   });
 
   autoUpdater.on("update-downloaded", (info) => {
+    downloadLifecycle = "downloaded";
     logger.log(`[UpdateHandler] Update downloaded: ${info.version}`);
     sendStatus(context, { state: "downloaded", version: info.version });
-    downloadLifecycle = "downloaded";
     lastEmittedPercent = -1; // Reset for next time
   });
 
@@ -407,67 +416,52 @@ export const UpdateDownloadHandler: EventHandler<UIUpdateDownloadEvent> = {
   },
 };
 
-/**
- * Handler: Install & Restart
- */
+function canInstallDownloadedUpdate(): boolean {
+  return (
+    downloadLifecycle === "downloaded" &&
+    !(!app.isPackaged && process.env.VITE_DEV_SERVER_URL)
+  );
+}
+
+function installPreparedUpdate(isSilent: boolean, allowQuit: () => void): void {
+  failPreparedInstallation = (error) => {
+    failPreparedInstallation = undefined;
+    electronUpdater.removeListener("before-quit-for-update", allowQuit);
+    autoUpdater.autoInstallOnAppQuit = false;
+    logger.error("[UpdateHandler] Installer could not start:", error);
+    dialog.showErrorBox(
+      "업데이트를 설치하지 못했습니다",
+      "설치 프로그램을 실행하지 못해 런처를 종료합니다. 런처를 다시 실행한 후 업데이트를 시도해 주세요.",
+    );
+    allowQuit();
+    app.quit();
+  };
+  // BaseUpdater emits this on Electron's native updater immediately before its app.quit().
+  electronUpdater.once("before-quit-for-update", allowQuit);
+  try {
+    autoUpdater.quitAndInstall(isSilent, true);
+  } catch (error) {
+    failPreparedInstallation?.(
+      error instanceof Error ? error : new Error(String(error)),
+    );
+  }
+}
+
+export function installDownloadedForRelaunch(allowQuit: () => void): boolean {
+  if (!canInstallDownloadedUpdate()) return false;
+  installPreparedUpdate(true, allowQuit);
+  return true;
+}
+
 export const UpdateInstallHandler: EventHandler<UIUpdateInstallEvent> = {
   id: "UpdateInstallHandler",
   targetEvent: EventType.UI_UPDATE_INSTALL,
-
   condition: () => true,
-
-  handle: async (event, _context: AppContext) => {
-    if (installRequested || downloadLifecycle !== "downloaded") return;
+  handle: async (event) => {
+    if (!canInstallDownloadedUpdate()) return;
     const isSilent = event.payload?.isSilent ?? true;
-
-    logger.log(
-      `[UpdateHandler] Requesting install & quit... (isSilent: ${isSilent}, Current EXE: ${app.getPath("exe")})`,
+    await requestShutdown("install", (allowQuit) =>
+      installPreparedUpdate(isSilent, allowQuit),
     );
-
-    if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
-      logger.log(
-        "[UpdateHandler] Dev mode detected. Skipping actual quitAndInstall.",
-      );
-      return;
-    }
-
-    installRequested = true;
-    try {
-      // quitAndInstall starts NSIS before emitting before-quit; save first.
-      await prepareForShutdown();
-    } catch (error) {
-      installRequested = false;
-      logger.error(
-        "[UpdateHandler] Install cancelled before cookie persistence:",
-        error,
-      );
-      dialog.showErrorBox(
-        "업데이트를 시작하지 못했습니다",
-        "로그인 정보를 저장하지 못해 업데이트를 중단했습니다. 잠시 후 다시 설치해 주세요.",
-      );
-      return;
-    }
-
-    let installFailed = false;
-    const handleInstallFailure = (error: Error) => {
-      if (installFailed) return;
-      installFailed = true;
-      // Services have stopped. Finish quitting instead of leaving a broken app.
-      autoUpdater.autoInstallOnAppQuit = false;
-      logger.error("[UpdateHandler] Installer could not start:", error);
-      dialog.showErrorBox(
-        "업데이트를 설치하지 못했습니다",
-        "설치 프로그램을 실행하지 못해 런처를 종료합니다. 런처를 다시 실행한 후 업데이트를 시도해 주세요.",
-      );
-      app.quit();
-    };
-    autoUpdater.once("error", handleInstallFailure);
-    try {
-      autoUpdater.quitAndInstall(isSilent, true);
-    } catch (error) {
-      handleInstallFailure(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
   },
 };

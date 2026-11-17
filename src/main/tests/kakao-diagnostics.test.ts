@@ -159,16 +159,70 @@ describe("exportable Kakao diagnostics", () => {
         timestamp: now,
         isError: false,
       });
-      const exported = store.createDateSnapshot(now)!;
-      const payload = JSON.parse(
-        exported.segments[0].content.toString("utf8").trim(),
-      );
-      expect(parseKakaoDiagnostic(payload.content)).toMatchObject({
+      const append = (
+        target: DiagnosticLogStore,
+        event: string,
+        fields: Record<string, unknown>,
+      ) =>
+        target.append({
+          type: "GENERAL",
+          content: formatKakaoDiagnostic(event, fields),
+          timestamp: now,
+          isError: false,
+        });
+      append(store, "account.result", {
         runId: "boot-123",
-        taskId: 1,
-        receivedDocumentId: 3,
-        gateDocumentId: null,
+        accountResult: "account-confirmed",
+        nickname: "SECRET",
       });
+      append(store, "session.save", {
+        runId: "boot-123",
+        saveTrigger: "relaunch",
+        saveResult: "saved",
+        profilePath: "SECRET",
+      });
+      const next = new DiagnosticLogStore({ now: () => now });
+      next.initialize(dir, []);
+      append(next, "account.result", {
+        runId: "boot-456",
+        accountResult: "account-confirmed",
+        accountId: "SECRET",
+      });
+      const exported = next.createDateSnapshot(now)!;
+      const lines = exported.segments.flatMap((segment) =>
+        segment.content.toString("utf8").trim().split("\n"),
+      );
+      expect(lines.join("")).not.toContain("SECRET");
+      const records = lines.map((line) =>
+        parseKakaoDiagnostic(JSON.parse(line).content),
+      );
+      expect(records).toEqual([
+        expect.objectContaining({
+          runId: "boot-123",
+          taskId: 1,
+          receivedDocumentId: 3,
+          gateDocumentId: null,
+        }),
+        {
+          v: 1,
+          event: "account.result",
+          runId: "boot-123",
+          accountResult: "account-confirmed",
+        },
+        {
+          v: 1,
+          event: "session.save",
+          runId: "boot-123",
+          saveTrigger: "relaunch",
+          saveResult: "saved",
+        },
+        {
+          v: 1,
+          event: "account.result",
+          runId: "boot-456",
+          accountResult: "account-confirmed",
+        },
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

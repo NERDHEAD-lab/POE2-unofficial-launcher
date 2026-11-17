@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("electron", () => ({
   app: { isReady: mocks.isReady, quit: mocks.quit, on: mocks.on },
   session: { fromPartition: mocks.fromPartition },
+  ipcMain: { on: vi.fn() },
   dialog: { showErrorBox: mocks.showErrorBox },
 }));
 vi.mock("../kakao/automation-page-dump", () => ({
@@ -94,10 +95,14 @@ describe("application shutdown", () => {
 
   it("aborts after 10 seconds if cookie persistence never completes", async () => {
     mocks.flush.mockReturnValueOnce(new Promise(() => {}));
-    const { prepareForShutdown } = await import("../app-shutdown");
+    const { prepareForShutdown, registerShutdownHandlers } =
+      await import("../app-shutdown");
+    const diagnostic = vi.fn();
+    registerShutdownHandlers(vi.fn(), vi.fn(), diagnostic);
     const result = expect(prepareForShutdown()).rejects.toThrow("timed out");
     await vi.advanceTimersByTimeAsync(10_000);
     await result;
+    expect(diagnostic).toHaveBeenLastCalledWith("quit", "timeout");
     expect(mocks.stop).not.toHaveBeenCalled();
     await prepareForShutdown();
     expect(mocks.flush).toHaveBeenCalledTimes(2);
@@ -118,7 +123,7 @@ describe("application shutdown", () => {
     mocks.flush.mockReturnValueOnce(storage.promise);
     const { registerShutdownHandlers } = await import("../app-shutdown");
     const setQuitting = vi.fn();
-    registerShutdownHandlers(setQuitting);
+    registerShutdownHandlers(setQuitting, vi.fn(), vi.fn());
     const first = { preventDefault: vi.fn() };
     const second = { preventDefault: vi.fn() };
     events.emit("before-quit", first);
@@ -141,7 +146,7 @@ describe("application shutdown", () => {
     mocks.flush.mockRejectedValueOnce(new Error("disk failure"));
     const { registerShutdownHandlers } = await import("../app-shutdown");
     const setQuitting = vi.fn();
-    registerShutdownHandlers(setQuitting);
+    registerShutdownHandlers(setQuitting, vi.fn(), vi.fn());
     events.emit("before-quit", { preventDefault: vi.fn() });
     await vi.advanceTimersByTimeAsync(0);
     expect(mocks.quit).not.toHaveBeenCalled();
@@ -155,7 +160,7 @@ describe("application shutdown", () => {
   it("does not create an Electron session during early bootstrap quit", async () => {
     mocks.isReady.mockReturnValue(false);
     const { registerShutdownHandlers } = await import("../app-shutdown");
-    registerShutdownHandlers(vi.fn());
+    registerShutdownHandlers(vi.fn(), vi.fn(), vi.fn());
     const event = { preventDefault: vi.fn() };
     events.emit("before-quit", event);
     expect(event.preventDefault).not.toHaveBeenCalled();

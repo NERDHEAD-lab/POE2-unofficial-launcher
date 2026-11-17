@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,8 +20,14 @@ const mocks = vi.hoisted(() => ({
     ),
     getVersion: vi.fn(() => "1.3.3"),
     isPackaged: true,
+    isReady: () => true,
+    on: vi.fn(),
+    exit: vi.fn(),
+    relaunch: vi.fn(),
     quit: vi.fn(),
   },
+  ipcOn: vi.fn(),
+  nativeUpdater: { once: vi.fn(), removeListener: vi.fn() },
   autoUpdaterListeners: new Map<string, AutoUpdaterListener>(),
   autoUpdater: {
     autoDownload: true,
@@ -28,12 +36,13 @@ const mocks = vi.hoisted(() => ({
     downloadUpdate: vi.fn(),
     on: vi.fn(),
     quitAndInstall: vi.fn(),
-    once: vi.fn(),
   },
   axiosGet: vi.fn(),
   axiosIsAxiosError: vi.fn(),
   fetchChangelogs: vi.fn(),
-  prepareForShutdown: vi.fn(),
+  flush: vi.fn(),
+  stop: vi.fn(),
+  saveDiagnostic: vi.fn(),
   showErrorBox: vi.fn(),
   logger: {
     log: vi.fn(),
@@ -44,11 +53,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: mocks.app,
+  autoUpdater: mocks.nativeUpdater,
+  ipcMain: { on: mocks.ipcOn },
+  session: { fromPartition: () => ({ cookies: { flushStore: mocks.flush } }) },
   dialog: { showErrorBox: mocks.showErrorBox },
 }));
 
-vi.mock("../app-shutdown", () => ({
-  prepareForShutdown: mocks.prepareForShutdown,
+vi.mock("../kakao/automation-page-dump", () => ({
+  discardAutomationDumpSession: vi.fn(),
+}));
+vi.mock("../services/ServiceManager", () => ({
+  serviceManager: { stopAll: mocks.stop },
 }));
 
 vi.mock("electron-updater", () => ({
@@ -83,6 +98,7 @@ vi.mock("../utils/powershell", () => ({
 const context = {
   mainWindow: null,
 } as unknown as AppContext;
+let nativeUpdaterEvents: EventEmitter;
 
 const downloadEvent: UIUpdateDownloadEvent = {
   type: EventType.UI_UPDATE_DOWNLOAD,
@@ -116,16 +132,40 @@ const createDeferred = <T = void>() => {
   return { promise, reject, resolve };
 };
 
-const emitAutoUpdaterEvent = (event: string, payload: unknown) => {
+const emitAutoUpdaterEvent = (
+  event: string,
+  payload: unknown,
+  context?: string,
+) => {
   const listener = mocks.autoUpdaterListeners.get(event);
   expect(listener, `Missing autoUpdater listener for ${event}`).toBeDefined();
-  return listener?.(payload);
+  return listener?.(payload, context);
 };
 
 async function loadUpdateHandler() {
   vi.resetModules();
-  return import("../events/handlers/UpdateHandler");
+  const handler = await import("../events/handlers/UpdateHandler");
+  const { registerShutdownHandlers } = await import("../app-shutdown");
+  registerShutdownHandlers(
+    vi.fn(),
+    handler.installDownloadedForRelaunch,
+    mocks.saveDiagnostic,
+  );
+  return handler;
 }
+
+// Exercise the same IPC and Electron events as the fatal-error button and updater.
+const relaunch = () =>
+  mocks.ipcOn.mock.calls.find(
+    ([channel]) => channel === "app:relaunch",
+  )![1]() as Promise<void>;
+const beforeQuit = () => {
+  const event = { preventDefault: vi.fn() };
+  mocks.app.on.mock.calls.find(([channel]) => channel === "before-quit")![1](
+    event,
+  );
+  return event;
+};
 
 describe("UpdateHandler", () => {
   beforeEach(() => {
@@ -139,14 +179,16 @@ describe("UpdateHandler", () => {
       },
     );
     mocks.autoUpdater.downloadUpdate.mockResolvedValue(undefined);
-    mocks.prepareForShutdown.mockResolvedValue(undefined);
-    mocks.autoUpdater.quitAndInstall.mockReset();
-    mocks.autoUpdater.once.mockImplementation(
-      (event: string, listener: AutoUpdaterListener) => {
-        mocks.autoUpdaterListeners.set(`once:${event}`, listener);
-        return mocks.autoUpdater;
-      },
+    mocks.flush.mockResolvedValue(undefined);
+    mocks.stop.mockResolvedValue(undefined);
+    nativeUpdaterEvents = new EventEmitter();
+    mocks.nativeUpdater.once.mockImplementation(
+      nativeUpdaterEvents.once.bind(nativeUpdaterEvents),
     );
+    mocks.nativeUpdater.removeListener.mockImplementation(
+      nativeUpdaterEvents.removeListener.bind(nativeUpdaterEvents),
+    );
+    mocks.autoUpdater.quitAndInstall.mockReset();
     mocks.fetchChangelogs.mockResolvedValue([]);
     mocks.app.isPackaged = true;
     mocks.app.getVersion.mockReturnValue("1.3.3");
@@ -159,15 +201,20 @@ describe("UpdateHandler", () => {
 
   it("waits for shutdown preparation before installing and ignores duplicate requests", async () => {
     const pending = createDeferred();
-    mocks.prepareForShutdown.mockReturnValueOnce(pending.promise);
+    mocks.flush.mockReturnValueOnce(pending.promise);
     const { UpdateDownloadHandler, UpdateInstallHandler } =
       await loadUpdateHandler();
     await UpdateDownloadHandler.handle(downloadEvent, context);
     emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
 
     const first = UpdateInstallHandler.handle(installEvent, context);
-    await UpdateInstallHandler.handle(installEvent, context);
-    expect(mocks.prepareForShutdown).toHaveBeenCalledTimes(1);
+    await relaunch();
+    expect(beforeQuit().preventDefault).toHaveBeenCalledOnce();
+    await UpdateInstallHandler.handle(
+      { ...installEvent, payload: { isSilent: true } },
+      context,
+    );
+    expect(mocks.flush).toHaveBeenCalledTimes(1);
     expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
 
     pending.resolve();
@@ -176,12 +223,11 @@ describe("UpdateHandler", () => {
       false,
       true,
     );
+    expect(mocks.app.relaunch).not.toHaveBeenCalled();
   });
 
   it("keeps the downloaded update available for retry after storage preparation fails", async () => {
-    mocks.prepareForShutdown.mockRejectedValueOnce(
-      new Error("storage failure"),
-    );
+    mocks.flush.mockRejectedValueOnce(new Error("storage failure"));
     const { UpdateDownloadHandler, UpdateInstallHandler } =
       await loadUpdateHandler();
     await UpdateDownloadHandler.handle(downloadEvent, context);
@@ -193,14 +239,14 @@ describe("UpdateHandler", () => {
     expect(mocks.showErrorBox).toHaveBeenCalledTimes(1);
 
     await UpdateInstallHandler.handle(installEvent, context);
-    expect(mocks.prepareForShutdown).toHaveBeenCalledTimes(2);
+    expect(mocks.flush).toHaveBeenCalledTimes(2);
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
   });
 
   it("does not stop the app for an install request without a completed download", async () => {
     const { UpdateInstallHandler } = await loadUpdateHandler();
     await UpdateInstallHandler.handle(installEvent, context);
-    expect(mocks.prepareForShutdown).not.toHaveBeenCalled();
+    expect(mocks.flush).not.toHaveBeenCalled();
     expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
   });
 
@@ -211,18 +257,129 @@ describe("UpdateHandler", () => {
         await loadUpdateHandler();
       await UpdateDownloadHandler.handle(downloadEvent, context);
       emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
-      mocks.autoUpdater.quitAndInstall.mockImplementationOnce(() => {
-        const error = new Error("installer missing");
-        if (mode === "throw") throw error;
-        emitAutoUpdaterEvent("once:error", error);
-      });
-
-      await UpdateInstallHandler.handle(installEvent, context);
+      const error = new Error("installer missing");
+      if (mode === "event") {
+        await relaunch();
+        const stale = new Error("update check timeout");
+        emitAutoUpdaterEvent(
+          "error",
+          stale,
+          `Cannot check for updates: ${stale.stack}`,
+        );
+        expect(mocks.app.quit).not.toHaveBeenCalled();
+        expect(mocks.showErrorBox).not.toHaveBeenCalled();
+        expect(mocks.autoUpdater.autoInstallOnAppQuit).toBe(true);
+        emitAutoUpdaterEvent("error", error, error.stack);
+      } else {
+        mocks.autoUpdater.quitAndInstall.mockImplementationOnce(() => {
+          throw error;
+        });
+        await UpdateInstallHandler.handle(installEvent, context);
+      }
+      expect(mocks.app.relaunch).not.toHaveBeenCalled();
       expect(mocks.showErrorBox).toHaveBeenCalledTimes(1);
       expect(mocks.autoUpdater.autoInstallOnAppQuit).toBe(false);
       expect(mocks.app.quit).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("schedules one plain restart only after saving, even when diagnostics fail", async () => {
+    const storage = createDeferred();
+    mocks.flush.mockReturnValueOnce(storage.promise);
+    mocks.saveDiagnostic.mockImplementationOnce(() => {
+      throw new Error("unavailable");
+    });
+    await loadUpdateHandler();
+    const first = relaunch();
+    await relaunch();
+    expect(beforeQuit().preventDefault).toHaveBeenCalledOnce();
+    expect(mocks.app.relaunch).not.toHaveBeenCalled();
+    expect(mocks.app.exit).not.toHaveBeenCalled();
+    storage.resolve();
+    await first;
+    expect(mocks.app.relaunch).toHaveBeenCalledOnce();
+    expect(mocks.app.exit).toHaveBeenCalledExactlyOnceWith(0);
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(mocks.saveDiagnostic.mock.calls).toEqual([
+      ["relaunch", "started"],
+      ["relaunch", "saved"],
+    ]);
+  });
+
+  it.each([true, false])(
+    "hands a restart to a download completed while saving (explicit install: %s)",
+    async (explicit) => {
+      const storage = createDeferred();
+      const { UpdateDownloadHandler, UpdateInstallHandler } =
+        await loadUpdateHandler();
+      await UpdateDownloadHandler.handle(downloadEvent, context);
+      mocks.flush.mockReturnValueOnce(storage.promise);
+      const first = relaunch();
+      emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
+      if (explicit) await UpdateInstallHandler.handle(installEvent, context);
+      storage.resolve();
+      await first;
+      expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledExactlyOnceWith(
+        !explicit,
+        true,
+      );
+      expect(mocks.app.relaunch).not.toHaveBeenCalled();
+      expect(mocks.app.exit).not.toHaveBeenCalled();
+      expect(beforeQuit().preventDefault).toHaveBeenCalledOnce();
+      nativeUpdaterEvents.emit("before-quit-for-update");
+      expect(beforeQuit().preventDefault).not.toHaveBeenCalled();
+      expect(mocks.saveDiagnostic).toHaveBeenLastCalledWith(
+        "relaunch",
+        "saved",
+      );
+    },
+  );
+
+  it("preserves install-on-quit when ordinary quit was first", async () => {
+    const storage = createDeferred();
+    mocks.flush.mockReturnValueOnce(storage.promise);
+    const { UpdateDownloadHandler, UpdateInstallHandler } =
+      await loadUpdateHandler();
+    await UpdateDownloadHandler.handle(downloadEvent, context);
+    emitAutoUpdaterEvent("update-downloaded", { version: "1.3.4" });
+    expect(beforeQuit().preventDefault).toHaveBeenCalledOnce();
+    await relaunch();
+    await UpdateInstallHandler.handle(installEvent, context);
+    storage.resolve();
+    await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalledOnce());
+    expect(mocks.app.relaunch).not.toHaveBeenCalled();
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(mocks.autoUpdater.autoInstallOnAppQuit).toBe(true);
+  });
+
+  it("leaves no restart reservation after a write failure and lets a later ordinary quit finish", async () => {
+    mocks.flush.mockRejectedValueOnce(new Error("write failed"));
+    await loadUpdateHandler();
+    await relaunch();
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mocks.app.exit).not.toHaveBeenCalled();
+    expect(mocks.showErrorBox).toHaveBeenCalledOnce();
+    expect(beforeQuit().preventDefault).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalledOnce());
+    expect(mocks.app.relaunch).not.toHaveBeenCalled();
+    expect(mocks.saveDiagnostic.mock.calls).toEqual([
+      ["relaunch", "started"],
+      ["relaunch", "failed"],
+      ["quit", "started"],
+      ["quit", "saved"],
+    ]);
+  });
+
+  it("finishes closing with recovery instructions if restart scheduling fails", async () => {
+    mocks.app.relaunch.mockImplementationOnce(() => {
+      throw new Error("unavailable");
+    });
+    await loadUpdateHandler();
+    await relaunch();
+    expect(mocks.showErrorBox).toHaveBeenCalledOnce();
+    expect(mocks.app.exit).toHaveBeenCalledExactlyOnceWith(0);
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  });
 
   it("falls back without logging an error when the smart update check times out", async () => {
     const timeoutError = Object.assign(

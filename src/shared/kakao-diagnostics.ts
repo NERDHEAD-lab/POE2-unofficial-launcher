@@ -1,7 +1,28 @@
+import { isKakaoGameLoginRedirectUrl } from "./kakao-url-policy";
+
 /** Allowlisted diagnostics: never pass page text, input values or raw errors. */
 export const KAKAO_DIAGNOSTIC_PREFIX = "[KakaoDiag] ";
 
+export const COOKIE_DOMAIN_GROUPS = [
+  "kakao.com",
+  "kakaogames.com",
+  "daum.net",
+] as const;
+export const COOKIE_CHANGE_CAUSES: readonly string[] = [
+  "inserted",
+  "inserted-no-change-overwrite",
+  "inserted-no-value-change-overwrite",
+  "explicit",
+  "overwrite",
+  "expired",
+  "evicted",
+  "expired-overwrite",
+  "unknown",
+];
 const EVENTS = new Set([
+  "session.cookie",
+  "session.save",
+  "account.result",
   "ipc.sent",
   "ipc.suppressed",
   "ipc.accepted",
@@ -33,6 +54,19 @@ const EVENTS = new Set([
   "observer.stopped",
 ]);
 const ENUMS: Record<string, readonly string[]> = {
+  cookieGroup: COOKIE_DOMAIN_GROUPS,
+  cookieLife: ["session", "persistent", "unknown"],
+  cookieCause: COOKIE_CHANGE_CAUSES,
+  saveTrigger: ["quit", "relaunch", "install"],
+  saveResult: ["started", "saved", "failed", "timeout"],
+  accountResult: [
+    "account-confirmed",
+    "kakao-login-url",
+    "daum-redirect-stalled",
+    "login-required-unknown",
+    "timeout",
+    "logout-cleared",
+  ],
   reason: [
     "accepted",
     "frame-mismatch",
@@ -125,6 +159,7 @@ const NUMBERS = new Set([
   "timeoutMs",
   "elapsedMs",
   "occurrences",
+  "cookieCount",
 ]);
 const BOOLEANS = new Set([
   "tracked",
@@ -143,6 +178,7 @@ const BOOLEANS = new Set([
   "paused",
   "validation",
   "clicked",
+  "removed",
 ]);
 const HOSTS = new Set([
   "security-center.kakaogames.com",
@@ -192,10 +228,30 @@ export function summarizeKakaoDiagnosticUrl(value: string): string {
 
 export type KakaoDiagnosticFields = Record<string, unknown>;
 export type KakaoDiagnosticSink = (
-  webContentsId: number,
+  webContentsId: number | null,
   event: string,
   fields?: KakaoDiagnosticFields,
 ) => void;
+
+/** Only classify the existing preload signal. A redirect does not prove a form was shown. */
+export function classifyLoginRequired(url?: string): string {
+  try {
+    if (url) {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:") {
+        if (isKakaoGameLoginRedirectUrl(parsed)) return "daum-redirect-stalled";
+        if (
+          parsed.hostname === "accounts.kakao.com" &&
+          parsed.pathname.includes("/login")
+        )
+          return "kakao-login-url";
+      }
+    }
+  } catch {
+    /* Older senders can omit a usable redirect. */
+  }
+  return "login-required-unknown";
+}
 
 export function formatKakaoDiagnostic(
   event: string,
