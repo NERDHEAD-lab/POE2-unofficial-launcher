@@ -68,12 +68,14 @@ describe("promotion status shortcuts", () => {
   const render = async (
     serviceChannel: ServiceChannel,
     activeGame: ActiveGame,
+    showOtherGameDrops?: boolean,
   ) =>
     act(async () =>
       root.render(
         <PromotionStatus
           serviceChannel={serviceChannel}
           activeGame={activeGame}
+          showOtherGameDrops={showOtherGameDrops}
         />,
       ),
     );
@@ -348,7 +350,7 @@ describe("promotion status shortcuts", () => {
     ).toBe(next.watchUrl);
   });
 
-  it("keeps another game's active and upcoming schedules out of the selected toolbar", async () => {
+  it("only highlights another game's schedule when enabled", async () => {
     window.electronAPI.getPromotions = vi.fn().mockResolvedValue({
       revision: 1,
       events: [drops],
@@ -369,10 +371,101 @@ describe("promotion status shortcuts", () => {
     expect(slot.querySelector(".active, .upcoming, a")).toBeNull();
     expect(slot.textContent).toContain("예정된 일정이 없습니다");
     expect(slot.textContent).not.toContain("Other");
+
+    await render("GGG", "POE2", true);
+    expect(slot.querySelector(".promotion-buff")?.classList).toContain(
+      "active",
+    );
+    expect(slot.textContent).toContain("Other active");
+    expect(slot.textContent).toContain("적용 게임: PoE1");
+    expect(slot.querySelector("a")?.getAttribute("href")).toBe(
+      "https://www.twitch.tv/directory/category/path-of-exile",
+    );
+  });
+
+  it("shows concurrent drops from both games and links to the selected game's event", async () => {
+    const poe1Drop = {
+      ...drops,
+      title: "PoE1 행사",
+      watchUrl: "https://www.twitch.tv/poe1-event",
+    };
+    const poe2Drop: PromotionEvent = {
+      ...drops,
+      id: "poe2-drops",
+      game: "poe2",
+      title: "PoE2 행사",
+      watchUrl: "https://www.twitch.tv/poe2-event",
+    };
+    window.electronAPI.getPromotions = vi.fn().mockResolvedValue({
+      revision: 1,
+      events: [],
+      activeEvents: [poe1Drop, poe2Drop],
+      upcomingEvents: [],
+    });
+    await render("GGG", "POE2", true);
+    const slot = container.querySelector(
+      '[data-promotion-status="twitch-drops"]',
+    )!;
+    expect(
+      [...slot.querySelectorAll("strong")].map((node) => node.textContent),
+    ).toEqual(["PoE2 행사", "PoE1 행사"]);
+    expect(slot.querySelector("a")?.getAttribute("href")).toBe(
+      poe2Drop.watchUrl,
+    );
+  });
+
+  it("uses the closest upcoming drop across games and prefers the selected game when starts tie", async () => {
+    let update!: (snapshot: PromotionSnapshot) => void;
+    window.electronAPI.onPromotionsUpdated = vi.fn((callback) => {
+      update = callback;
+      return vi.fn();
+    });
+    const poe1Drop = {
+      ...drops,
+      startsAt: "2026-09-04T02:00:00Z",
+      watchUrl: "https://www.twitch.tv/poe1-event",
+    };
+    const poe2Drop: PromotionEvent = {
+      ...drops,
+      id: "poe2-drops",
+      game: "poe2",
+      startsAt: "2026-09-04T03:00:00Z",
+      watchUrl: "https://www.twitch.tv/poe2-event",
+    };
+    window.electronAPI.getPromotions = vi.fn().mockResolvedValue({
+      revision: 1,
+      events: [],
+      activeEvents: [],
+      upcomingEvents: [poe2Drop, poe1Drop],
+    });
+    await render("GGG", "POE2", true);
+    const slot = container.querySelector(
+      '[data-promotion-status="twitch-drops"]',
+    )!;
+    expect(slot.querySelector(".promotion-buff")?.classList).toContain(
+      "upcoming",
+    );
+    expect(slot.querySelector("a")?.getAttribute("href")).toBe(
+      poe1Drop.watchUrl,
+    );
+    await act(async () =>
+      update({
+        revision: 2,
+        events: [],
+        activeEvents: [],
+        upcomingEvents: [
+          poe1Drop,
+          { ...poe2Drop, startsAt: "2026-09-04T02:00:00Z" },
+        ],
+      }),
+    );
+    expect(slot.querySelector("a")?.getAttribute("href")).toBe(
+      poe2Drop.watchUrl,
+    );
   });
 
   it.each(["suffix", "bare", "alias"])(
-    "shows the verified shared scope with ID form=%s while retaining one selected-game row and link",
+    "shows one shared schedule with ID form=%s even when both games are visible",
     async (form) => {
       const pair: PromotionEvent[] = [
         {
@@ -423,7 +516,7 @@ describe("promotion status shortcuts", () => {
       }
       await act(async () => vi.advanceTimersByTimeAsync(1000));
       for (const game of ["POE1", "POE2"] as const) {
-        await render("GGG", game);
+        await render("GGG", game, true);
         const slot = container.querySelector(
           '[data-promotion-status="twitch-drops"]',
         )!;
@@ -455,7 +548,7 @@ describe("promotion status shortcuts", () => {
       upcomingEvents: [],
     });
     for (const game of ["POE1", "POE2"] as const) {
-      await render("GGG", game);
+      await render("GGG", game, true);
       const tip = container.querySelector(
         '[data-promotion-status="twitch-drops"] [role="tooltip"]',
       )!;

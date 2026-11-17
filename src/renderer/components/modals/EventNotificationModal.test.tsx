@@ -92,6 +92,7 @@ describe("event settings confirmation", () => {
     expect(onSave).toHaveBeenCalledWith({
       types: { twitch: false, stash: true },
       channels: { inApp: true, windows: false },
+      highlights: { showOtherGameDrops: false },
       reminders: {
         presets: [],
         custom: { enabled: false, value: 30, unit: "minute" },
@@ -134,8 +135,16 @@ describe("event settings confirmation", () => {
     expect(onSave.mock.calls[1]).toEqual(onSave.mock.calls[0]);
   });
 
-  it("saves multiple presets plus numeric custom units and leaves Windows opt-in unchanged", async () => {
+  it("saves and restores highlights and reminders independently of notification channels", async () => {
     const { onSave } = await mount();
+    const otherGameDrops = () =>
+      [...container.querySelectorAll("label")]
+        .find((label) =>
+          label.textContent?.includes("다른 게임의 드롭스도 표시"),
+        )
+        ?.querySelector("input");
+    expect(otherGameDrops()?.checked).toBe(false);
+    await toggle("다른 게임의 드롭스도 표시");
     await toggle("30분 전");
     await toggle("1시간 전");
     await toggle("하루 전");
@@ -145,6 +154,7 @@ describe("event settings confirmation", () => {
     expect(onSave).toHaveBeenCalledWith({
       types: { twitch: true, stash: true },
       channels: { inApp: true, windows: false },
+      highlights: { showOtherGameDrops: true },
       reminders: {
         presets: [1800, 3600, 86400],
         custom: { enabled: true, value: 1.5, unit: "hour" },
@@ -164,6 +174,7 @@ describe("event settings confirmation", () => {
     expect(container.querySelector<HTMLSelectElement>("select")?.value).toBe(
       "hour",
     );
+    expect(otherGameDrops()?.checked).toBe(true);
   });
 
   it("keeps invalid custom drafts unsaved until a valid positive integer is entered", async () => {
