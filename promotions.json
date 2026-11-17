@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-16T22:09:23.670Z",
+  "generatedAt": "2026-11-17T03:04:00.935Z",
   "events": [
     {
       "id": "ggg-4014066-twitch-39d48230e4",
@@ -22,91 +22,33 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-16T22:09:19.446Z",
-        "status": "period-unavailable",
+        "checkedAt": "2026-11-17T03:03:56.935Z",
+        "status": "ok",
         "confirmedPeriod": null
       },
       {
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-16T22:09:20.438Z",
+        "checkedAt": "2026-11-17T03:03:57.793Z",
         "status": "ok",
-        "confirmedPeriod": {
-          "startsAt": "2026-11-13T00:00:01.000Z",
-          "endsAt": "2026-11-17T00:00:00.000Z",
-          "observedAt": "2026-11-16T22:09:20.438Z",
-          "productIds": [
-            "AbyssTab",
-            "BreachTab",
-            "CurrencyTab",
-            "DeliriumTab",
-            "EssenceTab",
-            "ExilesStashBundleAncients",
-            "ExpeditionTab",
-            "FlaskTab",
-            "FragmentTab",
-            "GemTab",
-            "MapTab",
-            "PremiumQuadTab",
-            "PremiumStashTab",
-            "PremiumStashTabBundle",
-            "RelicTab",
-            "RitualTab",
-            "SocketableTab",
-            "StashTab",
-            "StashTabBundle",
-            "TradeStashTab",
-            "TradeStashTabBundle",
-            "UniqueTab",
-            "UpgradeToPremiumStashTab"
-          ]
-        }
+        "confirmedPeriod": null
       },
       {
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-16T22:09:21.793Z",
-        "status": "period-unavailable",
+        "checkedAt": "2026-11-17T03:03:59.127Z",
+        "status": "ok",
         "confirmedPeriod": null
       },
       {
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-16T22:09:23.669Z",
+        "checkedAt": "2026-11-17T03:04:00.934Z",
         "status": "ok",
-        "confirmedPeriod": {
-          "startsAt": "2026-11-13T00:00:01.000Z",
-          "endsAt": "2026-11-17T00:00:00.000Z",
-          "observedAt": "2026-11-16T22:09:23.669Z",
-          "productIds": [
-            "AbyssTab",
-            "BreachTab",
-            "CurrencyTab",
-            "DeliriumTab",
-            "EssenceTab",
-            "ExilesStashBundleAncients",
-            "ExpeditionTab",
-            "FlaskTab",
-            "FragmentTab",
-            "GemTab",
-            "MapTab",
-            "PremiumQuadTab",
-            "PremiumStashTab",
-            "PremiumStashTabBundle",
-            "RelicTab",
-            "RitualTab",
-            "SocketableTab",
-            "StashTab",
-            "StashTabBundle",
-            "TradeStashTab",
-            "TradeStashTabBundle",
-            "UniqueTab",
-            "UpgradeToPremiumStashTab"
-          ]
-        }
+        "confirmedPeriod": null
       }
     ],
     "anchor": {
