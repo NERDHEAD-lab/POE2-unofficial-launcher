@@ -173,9 +173,33 @@
   opacity: 0.6;
   cursor: default;
 }
-.event-notification-modal :is(button, input):focus-visible {
+.event-notification-modal :is(button, input, select):focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 3px;
+}
+.event-reminder-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: #bbb;
+  font-size: 13px;
+}
+.event-reminder-custom input,
+.event-reminder-custom select {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #363636;
+  border-radius: 6px;
+  background: #1b1b1b;
+  color: #eee;
+  font: inherit;
+}
+.event-reminder-custom input {
+  width: 110px;
+}
+.event-reminder-custom :disabled {
+  opacity: 0.5;
 }
 @media (max-width: 560px) {
   .event-notification-overlay {

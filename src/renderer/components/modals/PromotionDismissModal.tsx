@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   formatPromotionPeriod,
   promotionScheduleKey,
+  promotionNotificationKey,
   promotionTitle,
-  type PromotionEvent,
+  formatPromotionCountdown,
+  type PromotionNotification,
 } from "../../../shared/promotions";
 
 import "./EventNotificationModal.css";
@@ -14,7 +16,7 @@ export default function PromotionDismissModal({
   event,
   onClose,
 }: {
-  event: PromotionEvent;
+  event: PromotionNotification;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
@@ -46,6 +48,7 @@ export default function PromotionDismissModal({
       const result = await window.electronAPI.dismissPromotion({
         key: promotionScheduleKey(event),
         mode: hideSchedule ? "schedule" : "session",
+        notificationId: promotionNotificationKey(event),
       });
       if (!result.ok) throw new Error(result.reason);
       onClose();
@@ -106,10 +109,19 @@ export default function PromotionDismissModal({
         </header>
         <div className="event-notification-body">
           <p className="promotion-dismiss-event">
-            {promotionTitle(event)} 진행 중
+            {promotionTitle(event)}{" "}
+            {event.reminderSeconds === undefined ? "진행 중" : "시작 예정"}
           </p>
           <p className="promotion-dismiss-period">
-            {formatPromotionPeriod(event)}
+            {event.reminderSeconds === undefined
+              ? formatPromotionPeriod(event)
+              : `${new Date(event.startsAt).toLocaleString()} 시작`}
+            {event.reminderSeconds !== undefined && (
+              <>
+                <br />
+                {formatPromotionCountdown(event.startsAt)}
+              </>
+            )}
           </p>
           <label className="promotion-dismiss-remember">
             <input

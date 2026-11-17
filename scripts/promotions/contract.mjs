@@ -3,10 +3,42 @@
 export const scheduleKey = (event) =>
   `${event.kind}:${event.game}:${Date.parse(event.startsAt)}:${Date.parse(event.endsAt)}`;
 
+export function isTwitchWatchUrl(value) {
+  if (
+    typeof value !== "string" ||
+    !/^https:\/\/[^/?#@]+(?:[/?#]|$)/i.test(value) ||
+    /[\s\u0000-\u001f\u007f-\u009f\\]/.test(value)
+  )
+    return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*twitch\.tv$/.test(
+        url.hostname,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value
     : {};
+}
+
+function parseEventTitle(value) {
+  if (typeof value !== "string" || /[\p{Cc}\p{Zl}\p{Zp}]/u.test(value))
+    throw new Error("Invalid promotion title");
+  const title = value.replace(/\s+/gu, " ").trim();
+  if (!title || [...title].length > 200)
+    throw new Error("Invalid promotion title");
+  return title;
 }
 
 export function isUtcInstant(value) {
@@ -19,6 +51,22 @@ export function isUtcInstant(value) {
   return (
     Number.isFinite(time) &&
     new Date(time).toISOString() === value.replace(/(?<=:\d\d)Z$/, ".000Z")
+  );
+}
+
+function isSourceGroup(value, sourceUrl, kind) {
+  if (
+    typeof value !== "string" ||
+    typeof sourceUrl !== "string" ||
+    kind !== "twitch-drops"
+  )
+    return false;
+  const group = /^ggg-(\d+)-twitch-[a-f0-9]{10}$/.exec(value);
+  return (
+    !!group &&
+    /\/view-thread\/(\d+)(?:\/filter-account-type\/staff)?$/.exec(
+      sourceUrl,
+    )?.[1] === group[1]
   );
 }
 
@@ -35,6 +83,8 @@ export function parsePromotionFeed(value) {
   const ids = new Set();
   const events = feed.events.map((entry) => {
     const item = record(entry);
+    const title =
+      item.title === undefined ? undefined : parseEventTitle(item.title);
     if (
       typeof item.id !== "string" ||
       !/^[a-z0-9:-]{1,160}$/.test(item.id) ||
@@ -42,6 +92,14 @@ export function parsePromotionFeed(value) {
       !["twitch-drops", "stash-sale"].includes(item.kind) ||
       !["poe1", "poe2", "both"].includes(item.game) ||
       (item.kind === "twitch-drops" && item.game === "both") ||
+      (item.gameUnknown !== undefined &&
+        typeof item.gameUnknown !== "boolean") ||
+      (item.sourcePublishedAt !== undefined &&
+        !isUtcInstant(item.sourcePublishedAt)) ||
+      (item.sourceGroupId !== undefined &&
+        !isSourceGroup(item.sourceGroupId, item.sourceUrl, item.kind)) ||
+      (item.watchUrl !== undefined &&
+        (item.kind !== "twitch-drops" || !isTwitchWatchUrl(item.watchUrl))) ||
       !["exact", "derived-start", "manual"].includes(item.precision) ||
       !isUtcInstant(item.startsAt) ||
       !isUtcInstant(item.endsAt) ||
@@ -61,6 +119,17 @@ export function parsePromotionFeed(value) {
       startsAt: item.startsAt,
       endsAt: item.endsAt,
       sourceUrl: item.sourceUrl,
+      ...(item.sourceGroupId === undefined
+        ? {}
+        : { sourceGroupId: item.sourceGroupId }),
+      ...(item.sourcePublishedAt === undefined
+        ? {}
+        : { sourcePublishedAt: item.sourcePublishedAt }),
+      ...(title === undefined ? {} : { title }),
+      ...(item.gameUnknown === undefined
+        ? {}
+        : { gameUnknown: item.gameUnknown }),
+      ...(item.watchUrl === undefined ? {} : { watchUrl: item.watchUrl }),
       precision: item.precision,
     };
   });

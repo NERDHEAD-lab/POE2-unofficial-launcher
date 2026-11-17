@@ -7,7 +7,7 @@ export const CONFIG_METADATA: Record<string, ConfigDefinition> = {
     name: "Event Notifications",
     category: "General",
     description:
-      "이벤트 알림 종류와 전체 종류에 공통 적용할 알림 방식을 설정합니다.",
+      "이벤트 알림 종류와 방식, 미리 알림 시점, 이달의 주요 소식 표시 범위를 설정합니다.",
   },
   LAUNCHER_VERSION: {
     key: "launcherVersion",

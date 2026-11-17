@@ -93,6 +93,52 @@ test("invalid previous input leaves previous output byte-for-byte intact", async
     }),
   );
   assert.equal(await readFile(output, "utf8"), original);
+  const valid = JSON.stringify(previous);
+  await writeFile(output, valid);
+  const gameRulesPath = join(dir, "game-rules.json");
+  let requests = 0;
+  for (const content of [
+    "{",
+    JSON.stringify({
+      rules: [
+        { type: "regex", value: "[", games: { poe1: true, poe2: false } },
+      ],
+    }),
+  ]) {
+    await writeFile(gameRulesPath, content);
+    await assert.rejects(
+      collectToFile({
+        ...options,
+        output,
+        gameRulesPath,
+        fetchText: async () => {
+          requests++;
+          throw new Error("must not fetch");
+        },
+      }),
+    );
+    assert.equal(await readFile(output, "utf8"), valid);
+  }
+  for (const gameRules of [
+    {},
+    {
+      rules: [
+        { type: "keyword", value: " ", games: { poe1: true, poe2: false } },
+      ],
+    },
+    { rules: [{ type: "keyword", value: "x", games: { poe1: "true" } }] },
+  ])
+    await assert.rejects(
+      collect({
+        ...options,
+        gameRules,
+        fetchText: async () => {
+          requests++;
+          throw new Error("must not fetch");
+        },
+      }),
+    );
+  assert.equal(requests, 0);
 });
 
 const rss =
@@ -100,6 +146,44 @@ const rss =
 const emptyForum = '<table class="forumTable"></table>';
 const drop =
   '<table><tr class="newsPost"><td><div class="content">Twitch Drops<br>Start Time: Sep 4, 2026 12AM UTC<br>End Time: Sep 8, 2026 12AM UTC<br>Path of Exile 2 category</div></td></tr><tr class="newsPostInfo"><td><span class="staff"></span><span class="post_date">Sep 4, 2026, 9:00:00 AM</span></td></tr></table><script>window.momentTimezone = "Asia/Seoul";</script>';
+
+test("OFF removes a validated source while failed or invalid sources retain their prior events", async () => {
+  const other = {
+    ...previous.events[0],
+    id: "ggg-2-twitch-old",
+    startsAt: "2026-09-04T02:00:00Z",
+    sourceUrl: "https://www.pathofexile.com/forum/view-thread/2",
+  };
+  for (const valid of [true, false]) {
+    const result = await collect({
+      ...options,
+      previous: { ...previous, events: [...previous.events, other] },
+      gameRules: {
+        rules: [
+          {
+            type: "keyword",
+            value: "category",
+            games: { poe1: false, poe2: false },
+          },
+        ],
+      },
+      fetchText: async (url) => {
+        if (url.includes("/api/")) return shopReply(url);
+        if (url.endsWith("/rss")) return rss;
+        if (url.includes("view-forum")) return emptyForum;
+        if (url.includes("/view-thread/2/")) throw new Error("HTTP503");
+        return valid
+          ? drop
+          : drop.replace("Sep 8, 2026 12AM UTC", "Sep 1, 2026 12AM UTC");
+      },
+    });
+    assert.deepEqual(
+      result.feed.events,
+      valid ? [other] : [...previous.events, other],
+    );
+    assert.ok(result.warnings.some((warning) => warning.includes("HTTP503")));
+  }
+});
 
 test("bootstrap finds page-two schedules with a hard three-page bound", async () => {
   const calls = [];
@@ -212,6 +296,46 @@ test("a failed source is preserved while a different source advances", async () 
     previous.events[0],
   );
   assert.equal(warnings.length, 1);
+});
+
+test("a latest source retained under an older post ID survives its fetch failure and the older post's return", async () => {
+  let phase = 0;
+  const config = {
+    ...options,
+    previous: null,
+    fetchText: async (url) => {
+      if (url.includes("/api/")) return shopReply(url);
+      if (url.endsWith("/rss"))
+        return `<rss><channel><item><title>Twitch Drops</title><link>https://www.pathofexile.com/forum/view-thread/${phase === 1 ? 2 : 1}</link><pubDate>${phase === 1 ? "Thu, 03" : "Tue, 01"} Sep 2026 00:00:00 GMT</pubDate></item></channel></rss>`;
+      if (url.includes("view-forum"))
+        return `<table class="forumTable"><a href="/forum/view-thread/${phase ? 2 : 1}">Twitch Drops</a></table>`;
+      if (url.includes("/view-thread/2/")) {
+        if (phase === 2) throw new Error("HTTP503");
+        return drop.replace(
+          "Path of Exile 2 category",
+          'Path of Exile 2 category. ExileCon livestream, official ExileCon broadcast, ExileCon directory <a href="https://www.twitch.tv/directory/category/exilecon">ExileCon directory</a>',
+        );
+      }
+      return drop.replace("Sep 4, 2026, 9:00:00 AM", "Sep 1, 2026, 9:00:00 AM");
+    },
+  };
+  const first = await collect(config);
+  phase = 1;
+  const latest = await collect({ ...config, previous: first.feed });
+  assert.equal(latest.feed.events[0].id, first.feed.events[0].id);
+  assert.equal(
+    latest.feed.events[0].sourceUrl,
+    "https://www.pathofexile.com/forum/view-thread/2",
+  );
+  assert.equal(
+    latest.feed.events[0].sourcePublishedAt,
+    "2026-09-03T00:00:00.000Z",
+  );
+  assert.equal(latest.feed.events[0].title, "ExileCon 트위치 드롭스");
+  phase = 2;
+  const failed = await collect({ ...config, previous: latest.feed });
+  assert.deepEqual(failed.feed.events, latest.feed.events);
+  assert.ok(failed.warnings.some((warning) => warning.includes("HTTP503")));
 });
 
 test("failed active source preserves last known events and reports the source", async () => {

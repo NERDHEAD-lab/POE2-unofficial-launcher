@@ -28,6 +28,7 @@ describe("promotion dismissal acknowledgement", () => {
       {},
       { ...request, mode: "all" },
       { ...request, key: "x".repeat(200) },
+      { ...request, notificationId: 1800 },
     ]) {
       expect(await dismissPromotion(context, input)).toEqual({
         ok: false,
@@ -53,6 +54,12 @@ describe("promotion dismissal acknowledgement", () => {
     });
     expect(await dismissPromotion(context, request)).toEqual({ ok: true });
     expect(dismiss).toHaveBeenCalledWith(request);
+    const phase = {
+      ...request,
+      notificationId: `${request.key}:reminder:1800`,
+    };
+    expect(await dismissPromotion(context, phase)).toEqual({ ok: true });
+    expect(dismiss).toHaveBeenLastCalledWith(phase);
     dismiss.mockImplementation(() => {
       throw new Error("disk full");
     });

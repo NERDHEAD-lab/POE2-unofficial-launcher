@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import {
-  isPromotionActive,
+  isPromotionNotificationCurrent,
+  type PromotionNotification,
   type PromotionSnapshot,
 } from "../../shared/promotions";
 import { currentStashEstimate } from "../../shared/stash-sales";
@@ -55,7 +56,7 @@ function usePromotionSnapshot() {
 
 export function usePromotions(
   scope: "notifications" | "schedule" = "notifications",
-) {
+): PromotionNotification[] {
   const { snapshot, now } = usePromotionSnapshot();
   const events =
     scope === "schedule"
@@ -64,13 +65,14 @@ export function usePromotions(
   return events.filter((event) =>
     scope === "schedule"
       ? now < Date.parse(event.endsAt)
-      : isPromotionActive(event, now),
+      : isPromotionNotificationCurrent(event, now),
   );
 }
 
 export function usePromotionSchedule() {
   const { snapshot, now } = usePromotionSnapshot();
   return {
+    now,
     events: [...snapshot.activeEvents, ...snapshot.upcomingEvents].filter(
       (event) => now < Date.parse(event.endsAt),
     ),

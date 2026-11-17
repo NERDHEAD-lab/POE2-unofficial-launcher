@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parsePromotionFeed } from "./contract.mjs";
+import { parseArticle, compileGameRules } from "./collector.mjs";
 import samples from "./fixtures/stash-sales-contract.json" with { type: "json" };
 import { parsePromotionFeed as parseLegacy } from "./fixtures/legacy-contract-v1.mjs";
+import watchUrls from "./fixtures/watch-urls.json" with { type: "json" };
 
 const event = {
   id: "ggg-4000901-twitch-471bcf3ba0",
@@ -22,6 +24,34 @@ const feed = {
   generatedAt: "2026-09-04T08:00:00Z",
   events: [event],
 };
+const invalidTitles = [
+  null,
+  1,
+  {},
+  "",
+  "   ",
+  "title\nline",
+  "title\tline",
+  "title\u2028line",
+  "a".repeat(201),
+].map((title) => ({ ...feed, events: [{ ...event, title }] }));
+const invalidGameMarkers = [null, 1, "true", {}].map((gameUnknown) => ({
+  ...feed,
+  events: [{ ...event, gameUnknown }],
+}));
+const invalidSourceMetadata = [
+  ...[null, 1, "2026-02-30T00:00:00Z", "2026-09-01T09:00:00+09:00"].map(
+    (sourcePublishedAt) => ({ sourcePublishedAt }),
+  ),
+  ...[
+    null,
+    1,
+    "bad",
+    "ggg-4000902-twitch-0123456789",
+    "ggg-4000901-twitch-0123456789-poe1",
+  ].map((sourceGroupId) => ({ sourceGroupId })),
+  { kind: "stash-sale", sourceGroupId: "ggg-4000901-twitch-0123456789" },
+].map((change) => ({ ...feed, events: [{ ...event, ...change }] }));
 const invalid = [
   null,
   {},
@@ -48,6 +78,22 @@ const invalid = [
 ];
 const valid = [
   feed,
+  {
+    ...feed,
+    events: [
+      {
+        ...event,
+        sourcePublishedAt: "2026-09-01T00:00:00Z",
+        sourceGroupId: "ggg-4000901-twitch-0123456789",
+      },
+    ],
+  },
+  { ...feed, events: [{ ...event, title: "ExileCon 트위치 드롭스" }] },
+  { ...feed, events: [{ ...event, title: "이".repeat(200) }] },
+  ...[true, false].map((gameUnknown) => ({
+    ...feed,
+    events: [{ ...event, gameUnknown }],
+  })),
   { ...feed, events: [] },
   { ...feed, events: [{ ...event, game: "poe2", precision: "manual" }] },
   {
@@ -66,7 +112,42 @@ const valid = [
 
 test("schema v1 accepts supported payloads and rejects malformed events", () => {
   for (const input of valid) assert.deepEqual(parsePromotionFeed(input), input);
-  for (const input of invalid) assert.throws(() => parsePromotionFeed(input));
+  for (const input of [
+    ...invalid,
+    ...invalidTitles,
+    ...invalidGameMarkers,
+    ...invalidSourceMetadata,
+  ])
+    assert.throws(() => parsePromotionFeed(input));
+});
+
+test("display titles normalize spaces while old consumers and payloads keep their contract", () => {
+  const input = {
+    ...feed,
+    events: [{ ...event, title: "  Raven's\u00a0 &   Moon  " }],
+  };
+  assert.equal(parsePromotionFeed(input).events[0].title, "Raven's & Moon");
+  assert.deepEqual(parseLegacy(input), feed);
+  assert.equal(parsePromotionFeed(feed).events[0].title, undefined);
+});
+
+test("optional watch URLs accept Twitch destinations and reject unsafe authorities without changing provenance", () => {
+  for (const watchUrl of watchUrls.valid) {
+    const input = { ...feed, events: [{ ...event, watchUrl }] };
+    assert.deepEqual(parsePromotionFeed(input), input);
+    // A shipped schema 1 consumer ignores the new field and still reads the event.
+    assert.deepEqual(parseLegacy(input), feed);
+  }
+  for (const watchUrl of watchUrls.invalid)
+    assert.throws(() =>
+      parsePromotionFeed({ ...feed, events: [{ ...event, watchUrl }] }),
+    );
+  assert.throws(() =>
+    parsePromotionFeed({
+      ...feed,
+      events: [{ ...event, kind: "stash-sale", watchUrl: watchUrls.valid[0] }],
+    }),
+  );
 });
 
 test("optional stash section round-trips the shared manual/API/failure/expiry samples", () => {
@@ -196,7 +277,7 @@ test("stash source scopes and precise or date-only fields fail closed", () => {
   }
 });
 
-test("validator matches the actual launcher consumer when available", async (t) => {
+test("producer payloads retain the actual launcher's common contract when available", async (t) => {
   const path = resolve(
     process.env.PROMOTIONS_CONSUMER_MODULE ?? "src/shared/promotions.ts",
   );
@@ -223,13 +304,98 @@ test("validator matches the actual launcher consumer when available", async (t) 
   });
   t.after(() => hooks.deregister());
   const consumer = await import(pathToFileURL(path).href);
+  // A shipped consumer ignores optional title. New-app title preservation and
+  // validation have their own app gate; this bridge proves safe staged delivery.
+  const withoutDisplayMetadata = (value) => ({
+    ...value,
+    events: value.events.map(
+      ({
+        title: _title,
+        gameUnknown: _gameUnknown,
+        sourcePublishedAt: _published,
+        sourceGroupId: _group,
+        ...entry
+      }) => entry,
+    ),
+  });
+  const titleInput = {
+    ...feed,
+    events: [{ ...event, title: "  Raven's\u00a0 &   Moon  " }],
+  };
+  assert.deepEqual(
+    withoutDisplayMetadata(consumer.parsePromotionFeed(titleInput)),
+    withoutDisplayMetadata(parsePromotionFeed(titleInput)),
+  );
+  const produced = {
+    schemaVersion: 1,
+    generatedAt: "2026-11-06T12:00:00Z",
+    events: parseArticle(
+      readFileSync(
+        new URL("./fixtures/exilecon-4012689.html", import.meta.url),
+        "utf8",
+      ),
+      "https://www.pathofexile.com/forum/view-thread/4012689",
+    ),
+  };
+  const consumed = consumer.parsePromotionFeed(
+    JSON.parse(JSON.stringify(produced)),
+  );
+  assert.deepEqual(
+    withoutDisplayMetadata(consumed),
+    withoutDisplayMetadata(parsePromotionFeed(produced)),
+  );
+  const unknown = {
+    ...produced,
+    events: parseArticle(
+      readFileSync(
+        new URL("./fixtures/exilecon-4012689.html", import.meta.url),
+        "utf8",
+      ),
+      "https://www.pathofexile.com/forum/view-thread/4012689",
+      undefined,
+      compileGameRules({ rules: [] }),
+    ),
+  };
+  assert.deepEqual(
+    unknown.events.map((event) => [event.game, event.gameUnknown]),
+    [
+      ["poe1", true],
+      ["poe2", true],
+    ],
+  );
+  assert.deepEqual(
+    withoutDisplayMetadata(
+      consumer.parsePromotionFeed(JSON.parse(JSON.stringify(unknown))),
+    ),
+    withoutDisplayMetadata(parsePromotionFeed(unknown)),
+  );
   for (const input of [...valid, ...Object.values(samples)])
     assert.deepEqual(
-      parsePromotionFeed(input),
-      consumer.parsePromotionFeed(input),
+      withoutDisplayMetadata(parsePromotionFeed(input)),
+      withoutDisplayMetadata(consumer.parsePromotionFeed(input)),
     );
   for (const input of invalid)
     assert.throws(() => consumer.parsePromotionFeed(input));
+  for (const watchUrl of watchUrls.valid) {
+    const input = { ...feed, events: [{ ...event, watchUrl }] };
+    assert.deepEqual(
+      consumer.parsePromotionFeed(input),
+      parsePromotionFeed(input),
+    );
+  }
+  for (const watchUrl of watchUrls.invalid)
+    assert.throws(() =>
+      consumer.parsePromotionFeed({
+        ...feed,
+        events: [{ ...event, watchUrl }],
+      }),
+    );
+  assert.throws(() =>
+    consumer.parsePromotionFeed({
+      ...feed,
+      events: [{ ...event, kind: "stash-sale", watchUrl: watchUrls.valid[0] }],
+    }),
+  );
   for (const stashSales of badStash)
     assert.throws(() => consumer.parsePromotionFeed({ ...feed, stashSales }));
 });

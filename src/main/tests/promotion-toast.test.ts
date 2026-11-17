@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildPromotionToast } from "../services/promotion-toast";
 
@@ -14,6 +14,38 @@ const event: PromotionEvent = {
   precision: "exact",
 };
 describe("Windows promotion XML", () => {
+  it("describes an upcoming start using actual remaining time and preserves its Twitch destination", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse(event.startsAt) - (6 * 3600 + 23 * 60) * 1000);
+    try {
+      const upcoming = {
+        ...event,
+        kind: "twitch-drops" as const,
+        game: "poe2" as const,
+        reminderSeconds: 86400,
+        title: 'ExileCon & "Mirror" <Drops>',
+        watchUrl: "https://www.twitch.tv/pathofexile",
+      };
+      const document = new DOMParser().parseFromString(
+        buildPromotionToast(upcoming),
+        "text/xml",
+      );
+      const text = document.querySelector("text")?.textContent;
+      expect(text).toContain("시작 예정");
+      expect(text).toContain('ExileCon & "Mirror" <Drops>');
+      expect(text).toContain(new Date(event.startsAt).toLocaleString());
+      expect(text).toContain("6시간 23분 0초 뒤부터 시작합니다");
+      expect(text).not.toContain("진행 중");
+      expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
+        upcoming.watchUrl,
+      );
+      expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
+        upcoming.watchUrl,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("restricts API-confirmed shop buttons to observed targets and opens the shop from the body", () => {
     const document = new DOMParser().parseFromString(
       buildPromotionToast({
@@ -56,24 +88,35 @@ describe("Windows promotion XML", () => {
       event.sourceUrl,
     );
   });
-  it("uses one game-specific Twitch action and escapes XML attributes", () => {
-    const sourceUrl = 'https://www.pathofexile.com/forum/view-thread/1?x="<&';
-    const document = new DOMParser().parseFromString(
-      buildPromotionToast({
-        ...event,
-        kind: "twitch-drops",
-        game: "poe2",
-        sourceUrl,
-      }),
-      "text/xml",
-    );
-    expect(document.querySelector("parsererror")).toBeNull();
-    expect(document.querySelectorAll("action")).toHaveLength(1);
-    expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
-      "https://www.twitch.tv/directory/category/path-of-exile-2",
-    );
-    expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
-      sourceUrl,
-    );
-  });
+  it.each([
+    [undefined, "https://www.twitch.tv/directory/category/path-of-exile-2"],
+    [
+      "https://www.twitch.tv/directory/category/new-event?lang=ko&from=launcher",
+      "https://www.twitch.tv/directory/category/new-event?lang=ko&from=launcher",
+    ],
+  ])(
+    "opens the same watching URL from the Twitch body and action (%s)",
+    (watchUrl, destination) => {
+      const document = new DOMParser().parseFromString(
+        buildPromotionToast({
+          ...event,
+          kind: "twitch-drops",
+          game: "poe2",
+          watchUrl,
+        }),
+        "text/xml",
+      );
+      expect(document.querySelector("parsererror")).toBeNull();
+      expect(document.querySelectorAll("action")).toHaveLength(1);
+      expect(document.querySelector("action")?.getAttribute("arguments")).toBe(
+        destination,
+      );
+      expect(document.querySelector("toast")?.getAttribute("launch")).toBe(
+        destination,
+      );
+      expect(document.querySelector("action")?.getAttribute("content")).toBe(
+        "Twitch에서 시청",
+      );
+    },
+  );
 });

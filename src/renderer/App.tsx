@@ -2740,6 +2740,10 @@ function App() {
                 <PromotionStatus
                   activeGame={config.activeGame}
                   serviceChannel={config.serviceChannel}
+                  showOtherGameDrops={
+                    config.eventNotifications?.highlights
+                      ?.showOtherGameDrops === true
+                  }
                 />
                 <div className="news-open-mode-panel">
                   <span className="news-open-mode-label">게시글 보기:</span>
