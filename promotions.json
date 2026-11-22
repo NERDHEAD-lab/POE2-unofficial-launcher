@@ -1,20 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-22T06:55:21.684Z",
-  "events": [
-    {
-      "id": "ggg-4014066-twitch-39d48230e4",
-      "kind": "twitch-drops",
-      "game": "poe1",
-      "startsAt": "2026-11-13T19:00:00.000Z",
-      "endsAt": "2026-11-22T19:00:00.000Z",
-      "sourceUrl": "https://www.pathofexile.com/forum/view-thread/4014066",
-      "sourceGroupId": "ggg-4014066-twitch-39d48230e4",
-      "sourcePublishedAt": "2026-11-12T21:39:29.000Z",
-      "title": "Umbral Tentacle Slam Rare Finisher Effect 트위치 드롭스",
-      "precision": "exact"
-    }
-  ],
+  "generatedAt": "2026-11-22T19:44:34.992Z",
+  "events": [],
   "stashSales": {
     "version": 1,
     "observations": [
@@ -22,7 +9,7 @@
         "service": "ggg",
         "game": "poe1",
         "sourceUrl": "https://www.pathofexile.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-22T06:55:18.051Z",
+        "checkedAt": "2026-11-22T19:44:29.647Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -30,7 +17,7 @@
         "service": "ggg",
         "game": "poe2",
         "sourceUrl": "https://pathofexile2.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-22T06:55:19.082Z",
+        "checkedAt": "2026-11-22T19:44:30.356Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -38,7 +25,7 @@
         "service": "kakao",
         "game": "poe1",
         "sourceUrl": "https://poe.kakaogames.com/api/shop-microtransaction-categories/stash-tabs",
-        "checkedAt": "2026-11-22T06:55:20.324Z",
+        "checkedAt": "2026-11-22T19:44:32.587Z",
         "status": "ok",
         "confirmedPeriod": null
       },
@@ -46,7 +33,7 @@
         "service": "kakao",
         "game": "poe2",
         "sourceUrl": "https://poe2.kakaogames.com/api/shop-microtransactions?game=poe2",
-        "checkedAt": "2026-11-22T06:55:21.683Z",
+        "checkedAt": "2026-11-22T19:44:34.991Z",
         "status": "ok",
         "confirmedPeriod": null
       }
