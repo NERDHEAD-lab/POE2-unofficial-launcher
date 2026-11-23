@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.8.0...1.9.0) (2026-11-23)
+
+
+### Features
+
+* 다른 게임의 트위치 드롭스도 이달의 주요 소식에 표시하는 옵션 추가 ([#340](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/340)) ([035b8ba](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/035b8bac8cd1be02cbad5ed4cfe1fba32cd6045c))
+
+
+### Bug Fixes
+
+* 로그인 유지 안정성 개선 ([#337](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/issues/337)) ([296a60a](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/commit/296a60a9feeeb787f4c170d902c2073cd0dede29))
+
 ## [1.8.0](https://github.com/NERDHEAD-lab/POE2-unofficial-launcher/compare/1.7.5...1.8.0) (2026-11-06)
 
 
