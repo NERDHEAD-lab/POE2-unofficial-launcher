@@ -62,7 +62,11 @@
         "background": "assets/themes/poe1/3.30/bg.png",
         "logo": "assets/themes/poe1/3.30/logo.png"
       },
-      "startDate": "2026-11-13 19:00:00"
+      "startDate": "2026-11-13 19:00:00",
+      "assetsHashes": {
+        "background": "a49d8a86",
+        "logo": "9531d0ad"
+      }
     }
   ],
   "poe2": [
@@ -114,7 +118,11 @@
         "background": "assets/themes/poe2/1.0/bg.png",
         "logo": "assets/themes/poe2/1.0/logo.png"
       },
-      "startDate": "2026-12-11 19:00:00"
+      "startDate": "2026-12-11 19:00:00",
+      "assetsHashes": {
+        "background": "ca0ab0ac",
+        "logo": "4289c523"
+      }
     }
   ]
 }
