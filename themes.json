@@ -54,6 +54,15 @@
         "background": "a22a6029",
         "logo": "eb0014c7"
       }
+    },
+    {
+      "id": "3.30",
+      "name": "Covens of Umbra",
+      "assets": {
+        "background": "assets/themes/poe1/3.30/bg.png",
+        "logo": "assets/themes/poe1/3.30/logo.png"
+      },
+      "startDate": "2026-11-13 19:00:00"
     }
   ],
   "poe2": [
@@ -97,6 +106,15 @@
         "background": "d78ba905",
         "logo": "3608b403"
       }
+    },
+    {
+      "id": "1.0",
+      "name": "Conquerors of Wraeclast",
+      "assets": {
+        "background": "assets/themes/poe2/1.0/bg.png",
+        "logo": "assets/themes/poe2/1.0/logo.png"
+      },
+      "startDate": "2026-12-11 19:00:00"
     }
   ]
 }

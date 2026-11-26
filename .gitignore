@@ -2,3 +2,7 @@
 # poe-theme-updater extracts press kits and writes review.md here; nothing in
 # this directory should ever be committed.
 .cache/
+
+# Python bytecode generated while validating the theme helpers.
+**/__pycache__/
+*.py[cod]

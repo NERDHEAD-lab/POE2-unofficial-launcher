@@ -14,6 +14,9 @@ Division of labor:
 
 - **You (the AI)** look at the extracted press-kit images and decide which file
   is the logo and which is the background, then pass those paths to the script.
+  When GGG ships the game and league marks as separate official transparent
+  assets, you may build a temporary transparent lock-up from those two source
+  files; keep the source provenance in the review doc.
 - **The script** does everything deterministic: validate, place assets, edit
   `themes.json`, write the review doc, and (on `--approve`) commit + push.
 
@@ -81,6 +84,55 @@ that reads as "the logo" on its own. Concretely:
   under it (an April-Fool's theme may swap in a different game's logo by design —
   that's fine).
 
+#### Split official marks: temporary lock-up fallback
+
+If the official kit has a separate transparent game logo and a separate
+transparent season/league logo, but no official combined lock-up, do not reject
+the release outright and do not invent or download a replacement. Instead:
+
+1. Verify that both files are from the same official GGG press kit or official
+   public Drive folder, inspect both images, and keep their original files in
+   `.cache/`.
+2. Make a temporary transparent composite with the bundled helper, putting the
+   season/league mark below the game mark, positioned over the lower ornament
+   without changing either source's proportions, matching the existing PoE2
+   themes:
+
+   ```bash
+   python3 .agents/skills/poe-theme-updater/scripts/compose_logo.py \
+     --game-logo ".cache/presskit/<official-game-logo>.png" \
+     --league-logo ".cache/presskit/<official-league-logo>.png" \
+     --output ".cache/presskit/<version>_temporary_logo.png" \
+     --overlap 600
+   ```
+
+3. Inspect the composite on a contrasting background. It must remain a single
+   transparent PNG with no painted canvas, and both marks must be legible. Pass
+   the composite to `update_theme.py` with `--logo-note` stating that it is a
+   temporary combination and listing both official source filenames.
+   Preserve each official source's proportions; match existing themes by
+   adjusting the vertical placement/overlap, not by arbitrarily resizing one
+   mark until the overall canvas dimensions look similar.
+4. If the placement, overlap, or visual integration is not obvious from the
+   existing themes, do not settle on one draft silently. Generate 2–4 `.cache/`
+   candidates with the same source dimensions and different placement/overlap
+   values. Inspect each candidate individually on a contrasting background,
+   then show every candidate in the same Codex conversation with its label,
+   filename, pixel dimensions, one-line difference, and a recommendation.
+   Ask the maintainer with the structured Codex user-input request and wait for
+   the selected candidate before Stage 1. A montage may be included for
+   comparison, but it must not be the only preview because candidates can be
+   confused when they are bundled into one attachment.
+5. Treat it as provisional: every scheduled check must look again for an
+   official combined lock-up. If one appears, prepare a replacement review for
+   that official asset and explicitly identify that the provisional logo will be
+   superseded. Never silently merge an unofficial logo, AI-generated artwork, or
+   a baked key-art image.
+
+If either source is not demonstrably official/transparent, or the composite is
+visually ambiguous, stop and use the structured Codex user-input request rather
+than guessing.
+
 **Background — the user picks it.** Which key art "fits" as the launcher
 background is a taste call the maintainer wants to make, and a kit usually ships
 several non-interchangeable options (different crops, free-weekend art, with/without
@@ -89,9 +141,12 @@ foreground). So do **not** auto-choose:
 1. Gather every plausible background — high-res key art **without** the logo baked
    in. Skip tiny promo banners and logo-bearing composites.
 2. If there is exactly one, use it. If there are **two or more**, look at each,
-   then **ask the maintainer with `AskUserQuestion`** — one option per candidate,
-   labelled by filename, with a one-line visual description (e.g. "winged ancient
-   warrior, fiery wings, 4K, no logo"). Use their choice.
+   then first post a Korean briefing with inline previews for every candidate.
+   Each preview must include the filename, pixel dimensions, one-line visual
+   description, and a recommendation. Then ask the maintainer with Codex's
+   structured user-input request (`request_user_input` or the app equivalent),
+   using one option per candidate, and wait for the selected option. Do not
+   replace this with an unstructured text question. Use their choice.
 3. Only then do you have both paths for step 3.
 
 Note the chosen logo path and the chosen background path.
@@ -105,7 +160,8 @@ python3 .agents/skills/poe-theme-updater/scripts/update_theme.py \
   --season-name "<season_name>" \
   --start-date "<YYYY-MM-DD HH:mm:ss>" \
   --logo ".cache/presskit/<chosen-logo>" \
-  --background ".cache/presskit/<chosen-bg>"
+  --background ".cache/presskit/<chosen-bg>" \
+  --logo-note "<optional provenance or temporary-composite note>"
 ```
 
 The script validates the logo's transparency, copies the assets into

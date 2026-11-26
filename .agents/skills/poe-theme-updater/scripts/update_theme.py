@@ -27,6 +27,12 @@ import shutil
 import subprocess
 import sys
 
+if hasattr(sys.stdout, "reconfigure"):
+    # Windows often starts Python with a cp949 console; review notes contain
+    # Korean and provenance text, so keep diagnostics printable in that shell.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 REVIEW_DIR = ".cache"
 REVIEW_DOC = ".cache/review.md"
 
@@ -40,6 +46,8 @@ def parse_args():
                    help="UTC start, 'YYYY-MM-DD HH:mm:ss' (matches themes.schema.json)")
     p.add_argument("--logo", help="Path to the chosen logo image (transparent PNG expected)")
     p.add_argument("--background", help="Path to the chosen background/key-art image")
+    p.add_argument("--logo-note", default="",
+                   help="Optional provenance or temporary-composite note for review.md")
     p.add_argument("--force-logo", action="store_true",
                    help="Skip the logo transparency rejection (use when you've eyeballed it "
                         "against existing themes and it's fine).")
@@ -183,15 +191,17 @@ def run_stage1(args):
 
     ok, detail = logo_transparency_status(args.logo)
     if ok is True:
-        logo_note = f"✅ {detail}"
+        logo_note = f"[PASS] {detail}"
     elif ok is None:
-        logo_note = f"⚠️ {detail}"
+        logo_note = f"[WARN] {detail}"
     else:  # ok is False
         if not args.force_logo:
             sys.exit(f"[!] 로고 투명도 검사 실패: {detail}\n"
                      f"    다른 로고를 고르거나, 기존 테마와 비교해 문제없다고 판단되면 "
                      f"--force-logo 로 강제 진행하세요.")
-        logo_note = f"⚠️ {detail} (--force-logo 로 강제 진행됨)"
+        logo_note = f"[WARN] {detail} (--force-logo 로 강제 진행됨)"
+    if args.logo_note:
+        logo_note += f"\n\n**추가 기록**: {args.logo_note}"
     print(f"[*] logo transparency: {logo_note}")
 
     logo_rel, bg_rel = copy_assets(args.logo, args.background, args.repo_root,
